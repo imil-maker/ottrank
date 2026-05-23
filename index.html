@@ -786,7 +786,34 @@ function runAI(){
 }
 function resetAI(){document.getElementById('aiResult').classList.remove('show');document.querySelectorAll('#typeChips .chip').forEach((b,i)=>{b.classList.remove('type-on','on');if(i===0)b.classList.add('type-on');});aiType='all';document.querySelectorAll('#ottChips .chip').forEach((b,i)=>b.classList.toggle('on',i===0));document.querySelectorAll('#genreChips .chip').forEach((b,i)=>b.classList.toggle('on',i===0));}
 
-function setPeriod(p,btn){document.querySelectorAll('.pb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+let curPeriod='daily';
+async function setPeriod(p,btn){
+  document.querySelectorAll('.pb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  if(p===curPeriod)return;
+  curPeriod=p;
+  await loadRankings(p);
+}
+
+async function loadRankings(period='daily'){
+  const endpoint = period==='weekly' ? `${API}/rankings/weekly`
+                 : period==='monthly'? `${API}/rankings/monthly`
+                 : `${API}/rankings`;
+  try{
+    const res=await fetch(endpoint);
+    const json=await res.json();
+    if(json.ok && json.data.length>0){
+      const apiRankings=buildRankings(json.data);
+      PLATFORMS.forEach(p=>{
+        if(apiRankings.tv[p.id]?.length)   RANKINGS.tv[p.id]   =apiRankings.tv[p.id];
+        if(apiRankings.movie[p.id]?.length) RANKINGS.movie[p.id]=apiRankings.movie[p.id];
+      });
+      if(apiRankings.movie['boxoffice']?.length)
+        RANKINGS.movie['boxoffice']=apiRankings.movie['boxoffice'];
+      renderGrids();
+    }
+  }catch(e){console.warn(period+' 랭킹 로드 실패:',e);}
+}
 function switchCat(btn,cat){document.querySelectorAll('.ctab').forEach(b=>b.classList.remove('on'));btn.classList.add('on');curCat=cat;renderGrids();}
 
 window.addEventListener('resize',()=>{buzzIdx=0;renderBuzz();});
@@ -819,25 +846,8 @@ async function init(){
   document.getElementById('updateTxt').textContent=`${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 09:00 업데이트`;
   renderGrids();renderYT();renderComm();renderBuzz();
 
-  // ── API에서 실제 랭킹 데이터 로드 ──
-  try {
-    const res = await fetch(`${API}/rankings`);
-    const json = await res.json();
-    if (json.ok && json.data.length > 0) {
-      const apiRankings = buildRankings(json.data);
-      // RANKINGS 객체 업데이트 (TV: 5개 플랫폼, 영화: 박스오피스 포함)
-      PLATFORMS.forEach(p => {
-        if (apiRankings.tv[p.id]?.length)    RANKINGS.tv[p.id]    = apiRankings.tv[p.id];
-        if (apiRankings.movie[p.id]?.length)  RANKINGS.movie[p.id] = apiRankings.movie[p.id];
-      });
-      // 박스오피스 업데이트
-      if (apiRankings.movie['boxoffice']?.length)
-        RANKINGS.movie['boxoffice'] = apiRankings.movie['boxoffice'];
-      renderGrids();
-    }
-  } catch(e) {
-    console.warn('API 로드 실패, 목 데이터 사용:', e);
-  }
+  // ── API에서 실제 랭킹 데이터 로드 (일간 기본) ──
+  await loadRankings('daily');
 
   // TMDB 포스터 + BUZZ 동시 로드
   const buzzLoad=(async()=>{
