@@ -9,34 +9,31 @@ TMDB_PROXY = "https://tmdb-proxy.tdidream.workers.dev/tmdb"
 
 
 def search_tmdb(title_ko, title_en="", media_type="tv"):
-    """TMDB에서 제목 검색 → (tmdb_id, poster_path) 반환"""
+    """TMDB에서 제목 검색 → (tmdb_id, poster_path, title_ko_found) 반환"""
     tmdb_type = "tv" if media_type == "tv" else "movie"
 
-    # 검색 우선순위:
-    # 1) title_ko 한국어 검색 (ko-KR)
-    # 2) title_en 영어 검색 - 단어 2개 이상만 (1단어는 오매핑 위험)
-    # 3) title_ko 영어 검색 (TMDB에 원제로 등록된 경우 대비)
     queries = []
-
     if title_ko and title_ko.strip():
         queries.append((title_ko.strip(), "ko-KR"))
-
     if title_en and title_en.strip() and title_en.strip() != title_ko.strip():
         words = title_en.strip().split()
-        if len(words) >= 2:  # 단어 1개짜리 영어 제목은 오매핑 위험
+        if len(words) >= 2:
             queries.append((title_en.strip(), "en-US"))
-
     if title_ko and title_ko.strip():
         queries.append((title_ko.strip(), "en-US"))
 
     for query, lang in queries:
         try:
             url = f"{TMDB_PROXY}/search/{tmdb_type}"
-            resp = requests.get(url, params={"query": query, "language": lang}, timeout=10)
+            resp = requests.get(url, params={"query": query, "language": "ko-KR"}, timeout=10)
             if resp.status_code != 200:
                 continue
 
             results = resp.json().get("results", [])
+
+            def get_ko_title(r):
+                """TMDB ko-KR 결과에서 한국어 제목 추출"""
+                return r.get("name") or r.get("title") or ""
 
             # 1순위: 제목 정확 일치 + poster
             q_lower = query.lower()
@@ -47,8 +44,9 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
             ]
             if exact:
                 best = sorted(exact, key=lambda x: x.get("popularity", 0), reverse=True)[0]
-                print(f"    → TMDB 정확매칭({lang}): {best.get('title') or best.get('name')}")
-                return best.get("id"), best.get("poster_path")
+                ko_title = get_ko_title(best)
+                print(f"    → TMDB 정확매칭: {ko_title}")
+                return best.get("id"), best.get("poster_path"), ko_title
 
             # 2순위: popularity 10 이상 + poster
             popular = [
@@ -57,22 +55,24 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
             ]
             if popular:
                 best = sorted(popular, key=lambda x: x.get("popularity", 0), reverse=True)[0]
-                print(f"    → TMDB 인기매칭({lang}): {best.get('title') or best.get('name')}")
-                return best.get("id"), best.get("poster_path")
+                ko_title = get_ko_title(best)
+                print(f"    → TMDB 인기매칭: {ko_title}")
+                return best.get("id"), best.get("poster_path"), ko_title
 
-            # 3순위: poster 있는 것 중 최고 (한국 작품 대응)
+            # 3순위: poster 있는 것 중 최고
             with_poster = [r for r in results if r.get("poster_path")]
             if with_poster:
                 best = sorted(with_poster, key=lambda x: x.get("popularity", 0), reverse=True)[0]
-                print(f"    → TMDB 폴백({lang}): {best.get('title') or best.get('name')}")
-                return best.get("id"), best.get("poster_path")
+                ko_title = get_ko_title(best)
+                print(f"    → TMDB 폴백: {ko_title}")
+                return best.get("id"), best.get("poster_path"), ko_title
 
         except Exception as e:
             print(f"  TMDB 오류 ({query}/{lang}): {e}")
 
         time.sleep(0.3)
 
-    return None, None
+    return None, None, None
 
 
 def get_today():
@@ -103,32 +103,30 @@ def init_db():
 
 def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
          tmdb_id_override=None, poster_override=None):
-    """
-    tmdb_id_override: 크롤러가 TMDB ID를 직접 확보했을 때 사용 (검색 생략)
-    poster_override:  크롤러가 poster_path를 직접 확보했을 때 사용
-    """
     today = get_today()
 
     if tmdb_id_override and poster_override:
-        # 크롤러가 직접 TMDB ID + poster 확보 → 검색 불필요
         tmdb_id, poster_path = tmdb_id_override, poster_override
-        print(f"  [{platform}][{category}] {rank:2d}. {title_ko} → tmdb_id={tmdb_id} ✓(직접)")
+        # tmdb_id로 한국어 제목 조회
+        title_ko_final = _get_ko_title_by_id(tmdb_id, "tv" if category == "tv" else "movie") or title_ko
+        print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(직접)")
     elif tmdb_id_override:
-        # TMDB ID는 알지만 poster가 없는 경우 → ID로 직접 조회
         tmdb_id = tmdb_id_override
         poster_path = _get_poster_by_id(tmdb_id, "tv" if category == "tv" else "movie")
-        print(f"  [{platform}][{category}] {rank:2d}. {title_ko} → tmdb_id={tmdb_id} ✓(ID조회)")
+        title_ko_final = _get_ko_title_by_id(tmdb_id, "tv" if category == "tv" else "movie") or title_ko
+        print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
     else:
-        # FlixPatrol에 TMDB 링크 없거나 티빙 등 → 제목으로 검색
-        tmdb_id, poster_path = search_tmdb(title_ko, title_en, media_type=category)
+        tmdb_id, poster_path, title_ko_found = search_tmdb(title_ko, title_en, media_type=category)
+        # TMDB에서 한국어 제목 찾았으면 우선 사용, 없으면 원래 제목 유지
+        title_ko_final = title_ko_found if title_ko_found else title_ko
         status = "✓" if poster_path else "✗ 포스터 없음"
-        print(f"  [{platform}][{category}] {rank:2d}. {title_ko} → tmdb_id={tmdb_id} {status}")
+        print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
 
     conn.execute("""
         INSERT OR REPLACE INTO rankings
             (date, platform, category, rank, title_ko, title_en, score, tmdb_id, poster_path)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (today, platform, category, rank, title_ko, title_en, score, tmdb_id, poster_path))
+    """, (today, platform, category, rank, title_ko_final, title_en, score, tmdb_id, poster_path))
     conn.commit()
 
 
@@ -139,6 +137,19 @@ def _get_poster_by_id(tmdb_id: int, media_type: str):
         resp = requests.get(url, params={"language": "ko-KR"}, timeout=10)
         if resp.status_code == 200:
             return resp.json().get("poster_path")
+    except Exception:
+        pass
+    return None
+
+
+def _get_ko_title_by_id(tmdb_id: int, media_type: str):
+    """tmdb_id로 한국어 제목 직접 조회"""
+    try:
+        url = f"{TMDB_PROXY}/{media_type}/{tmdb_id}"
+        resp = requests.get(url, params={"language": "ko-KR"}, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("name") or data.get("title") or None
     except Exception:
         pass
     return None
