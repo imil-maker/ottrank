@@ -11,6 +11,16 @@ HEADERS = {
     "timezone_id": "Asia/Seoul",
 }
 
+# 플랫폼별 테이블 순서 (FlixPatrol 페이지 기준)
+# netflix: Movies 먼저, TV 나중
+# 나머지: TV 먼저, Movies 나중
+CATEGORY_ORDER = {
+    "netflix": ["movie", "tv"],
+    "wavve":   ["tv", "movie"],
+    "coupang": ["tv", "movie"],
+    "disney":  ["tv", "movie"],
+}
+
 async def crawl_flixpatrol(url: str, platform: str, conn):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -31,8 +41,8 @@ async def crawl_flixpatrol(url: str, platform: str, conn):
             tables = await page.query_selector_all("table.card-table")
             print(f"  [{platform}] card-table 개수: {len(tables)}")
 
-            # FlixPatrol: Movies 먼저(index 0), TV Shows 나중(index 1)
-            for idx, category in enumerate(["movie", "tv"]):
+            order = CATEGORY_ORDER.get(platform, ["tv", "movie"])
+            for idx, category in enumerate(order):
                 if idx >= len(tables):
                     print(f"  [{platform}][{category}] ⚠️  테이블 없음")
                     continue
