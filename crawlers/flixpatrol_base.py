@@ -61,7 +61,7 @@ async def _parse_table(table, conn, platform: str, category: str):
                 title_el = await row.query_selector("td a[href*='/title/']")
                 if not rank_el or not title_el:
                     continue
-                rank_txt  = (await rank_el.inner_text()).strip().rstrip(".")
+                rank_txt  = (await rank_el.inner_text()).strip().rstrip(".").strip()
                 title_txt = (await title_el.inner_text()).strip()
                 if not rank_txt.isdigit() or not title_txt:
                     continue
