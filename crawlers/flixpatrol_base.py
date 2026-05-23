@@ -1,5 +1,4 @@
 """FlixPatrol 공통 크롤링 로직"""
-import asyncio
 from playwright.async_api import async_playwright
 
 HEADERS = {
@@ -13,7 +12,7 @@ HEADERS = {
 }
 
 async def crawl_flixpatrol(url: str, platform: str, conn):
-    """FlixPatrol 페이지에서 TV/영화 TOP 10 크롤링"""
+    """FlixPatrol 페이지에서 TOP 10 크롤링"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -28,66 +27,58 @@ async def crawl_flixpatrol(url: str, platform: str, conn):
 
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=40000)
-            await page.wait_for_selector("table.table, .top10-table, table", timeout=20000)
+            # card-table 이 로드될 때까지 대기
+            await page.wait_for_selector("table.card-table", timeout=20000)
 
-            # TV / 영화 섹션 각각 파싱
-            for category in ["tv", "movie"]:
-                await _parse_section(page, conn, platform, category)
+            # card-table 이 TV/Movie 순서로 2개 존재
+            tables = await page.query_selector_all("table.card-table")
+
+            for idx, category in enumerate(["tv", "movie"]):
+                if idx >= len(tables):
+                    print(f"  [{platform}][{category}] ⚠️  테이블 없음")
+                    continue
+                await _parse_table(tables[idx], conn, platform, category)
 
         except Exception as e:
             print(f"  [{platform}] 페이지 로드 에러: {e}")
         finally:
             await browser.close()
 
-async def _parse_section(page, conn, platform: str, category: str):
+async def _parse_table(table, conn, platform: str, category: str):
     from db import save
 
-    # FlixPatrol 테이블 구조: TV섹션 먼저, Movie섹션 다음
-    # section id: "tv" / "movies"
-    section_id = "tv" if category == "tv" else "movies"
-
     try:
-        # 섹션별 테이블 행 선택
-        rows = await page.query_selector_all(
-            f"#{section_id} table tbody tr, "
-            f"[data-id='{section_id}'] table tbody tr"
-        )
-
-        if not rows:
-            # fallback: 순서대로 첫번째=TV, 두번째=영화
-            tables = await page.query_selector_all("table.table tbody, table tbody")
-            idx = 0 if category == "tv" else 1
-            if idx < len(tables):
-                rows = await tables[idx].query_selector_all("tr")
+        # tr.table-group 행만 선택 (헤더 제외)
+        rows = await table.query_selector_all("tbody tr.table-group")
 
         count = 0
         for row in rows:
             if count >= 10:
                 break
             try:
-                # 순위 셀
-                rank_el = await row.query_selector("td:first-child")
-                title_el = await row.query_selector("td a, td:nth-child(2) a, td:nth-child(2)")
+                # 순위: td.table-td-w-12 (첫번째 td)
+                rank_el  = await row.query_selector("td.table-td-w-12")
+                # 타이틀: td.table-td > a
+                title_el = await row.query_selector("td.table-td a")
 
                 if not rank_el or not title_el:
                     continue
 
-                rank_txt = (await rank_el.inner_text()).strip()
+                rank_txt  = (await rank_el.inner_text()).strip().rstrip(".")
                 title_txt = (await title_el.inner_text()).strip()
 
                 if not rank_txt.isdigit() or not title_txt:
                     continue
 
                 rank = int(rank_txt)
-                title = title_txt
+                save(conn, platform, category, rank, title_ko=title_txt, title_en=title_txt)
                 count += 1
-                save(conn, platform, category, rank, title_ko=title, title_en=title)
 
             except Exception:
                 continue
 
         if count == 0:
-            print(f"  [{platform}][{category}] ⚠️  데이터 없음 (셀렉터 불일치 가능)")
-
+            print(f"  [{platform}][{category}] ⚠️  데이터 없음")
+        
     except Exception as e:
         print(f"  [{platform}][{category}] 파싱 에러: {e}")
