@@ -2,27 +2,42 @@ name: OTT Ranking Crawler
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *'   # 매일 09:00 KST (UTC 00:00)
+  workflow_dispatch:        # 수동 실행
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           pip install playwright
           playwright install chromium
           playwright install-deps chromium
+
       - name: Run crawler
         run: python run_all.py
+
+      - name: Export rankings to SQL
+        run: python export_to_sql.py
+
+      - name: Upload to Cloudflare D1
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 execute ottrank-db --file=./rankings_insert.sql --remote
+
       - name: Commit rankings.db
         run: |
           git config user.name "github-actions[bot]"
