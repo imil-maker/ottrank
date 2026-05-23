@@ -10,7 +10,7 @@ SQL_PATH = "rankings_insert.sql"
 def export():
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute("""
-        SELECT date, platform, category, rank, title_ko, title_en, score
+        SELECT date, platform, category, rank, title_ko, title_en, score, tmdb_id, poster_path
         FROM rankings
         WHERE date = ?
         ORDER BY platform, category, rank
@@ -19,13 +19,16 @@ def export():
 
     lines = []
     for row in rows:
-        date, platform, category, rank, title_ko, title_en, score = row
-        # SQL injection 방지: 작은따옴표 이스케이프
+        date, platform, category, rank, title_ko, title_en, score, tmdb_id, poster_path = row
         title_ko = title_ko.replace("'", "''")
         title_en = title_en.replace("'", "''") if title_en else ""
+        poster_path = poster_path.replace("'", "''") if poster_path else ""
+        tmdb_id_val = tmdb_id if tmdb_id else "NULL"
+        poster_val = f"'{poster_path}'" if poster_path else "NULL"
         lines.append(
-            f"INSERT OR REPLACE INTO rankings (date, platform, category, rank, title_ko, title_en, score) "
-            f"VALUES ('{date}', '{platform}', '{category}', {rank}, '{title_ko}', '{title_en}', {score});"
+            f"INSERT OR REPLACE INTO rankings "
+            f"(date, platform, category, rank, title_ko, title_en, score, tmdb_id, poster_path) "
+            f"VALUES ('{date}', '{platform}', '{category}', {rank}, '{title_ko}', '{title_en}', {score}, {tmdb_id_val}, {poster_val});"
         )
 
     with open(SQL_PATH, "w", encoding="utf-8") as f:
