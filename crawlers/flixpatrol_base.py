@@ -77,7 +77,11 @@ async def _parse_table(table, conn, platform: str, category: str):
             except Exception:
                 continue
 
-        if count == 0:
+         if count == 0:
+            # 디버그: 첫 번째 행 HTML 출력
+            if rows:
+                first_html = await rows[0].inner_html()
+                print(f"  [{platform}][{category}] 첫행HTML: {first_html[:300]}")
             print(f"  [{platform}][{category}] ⚠️  데이터 없음")
 
     except Exception as e:
