@@ -66,10 +66,14 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
                     print(f"    → 정확매칭({lang}): {ko_title or query}")
                     return tmdb_id, poster, ko_title
 
-                # 2순위: popularity 10 이상 + poster
+                # 2순위: popularity 10 이상 + poster + 최근 10년 이내
+                import datetime
+                current_year = datetime.datetime.now().year
                 popular = [
                     r for r in results
-                    if r.get("poster_path") and r.get("popularity", 0) >= 10
+                    if r.get("poster_path")
+                    and r.get("popularity", 0) >= 10
+                    and _is_recent(r, current_year, 10)
                 ]
                 if popular:
                     best = sorted(popular, key=lambda x: x.get("popularity", 0), reverse=True)[0]
@@ -79,10 +83,12 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
                     print(f"    → 인기매칭({lang}): {ko_title or query}")
                     return tmdb_id, poster, ko_title
 
-                # 3순위: poster 있는 것 중 최고
+                # 3순위: poster 있는 것 중 최고 (최근 10년 이내 우선)
                 with_poster = [r for r in results if r.get("poster_path")]
-                if with_poster:
-                    best = sorted(with_poster, key=lambda x: x.get("popularity", 0), reverse=True)[0]
+                recent = [r for r in with_poster if _is_recent(r, current_year, 10)]
+                candidates = recent if recent else with_poster
+                if candidates:
+                    best = sorted(candidates, key=lambda x: x.get("popularity", 0), reverse=True)[0]
                     tmdb_id = best.get("id")
                     ko_title, poster = _fetch_detail(tmdb_id, tmdb_type)
                     poster = poster or best.get("poster_path", "")
@@ -159,6 +165,17 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
     """, (today, platform, category, rank, title_ko_final, title_en, score, tmdb_id, poster_path))
     conn.commit()
 
+
+def _is_recent(r: dict, current_year: int, years: int) -> bool:
+    """TMDB 결과가 최근 N년 이내인지 확인"""
+    date_str = r.get("release_date") or r.get("first_air_date") or ""
+    if not date_str:
+        return True  # 날짜 없으면 통과
+    try:
+        year = int(date_str[:4])
+        return year >= current_year - years
+    except Exception:
+        return True
 
 def _is_korean(text: str) -> bool:
     """문자열에 한글이 포함되어 있는지 확인"""
