@@ -64,7 +64,7 @@ async def _parse_table(table, conn, platform: str, category: str):
             if count >= 10:
                 break
             try:
-                rank_el  = await row.query_selector("td.table-td-w-12, td[class*='w-12']")
+                rank_el  = await row.query_selector("td.table-td.w-12, td[class*='w-12']")
                 title_el = await row.query_selector("td.table-td a")
                 if not rank_el or not title_el:
                     continue
