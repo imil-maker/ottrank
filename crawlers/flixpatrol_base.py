@@ -60,14 +60,20 @@ async def _parse_table(table, conn, platform: str, category: str):
                 rank_el  = await row.query_selector("td:first-child")
                 title_el = await row.query_selector("a[href*='/title/']")
                 if not rank_el or not title_el:
+                    if count == 0:
+                        print(f"  [{platform}][{category}] rank_el={rank_el} title_el={title_el}")
                     continue
                 rank_txt  = (await rank_el.inner_text()).strip().rstrip(".").strip()
                 title_txt = (await title_el.inner_text()).strip()
+                if count == 0:
+                    print(f"  [{platform}][{category}] rank='{rank_txt}' title='{title_txt}'")
                 if not rank_txt.isdigit() or not title_txt:
                     continue
                 save(conn, platform, category, int(rank_txt), title_ko=title_txt, title_en=title_txt)
                 count += 1
-            except Exception:
+            except Exception as e:
+                if count == 0:
+                    print(f"  [{platform}][{category}] row 에러: {e}")
                 continue
         if count == 0:
             if rows:
