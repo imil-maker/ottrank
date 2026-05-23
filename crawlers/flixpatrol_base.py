@@ -11,9 +11,6 @@ HEADERS = {
     "timezone_id": "Asia/Seoul",
 }
 
-# 플랫폼별 테이블 순서 (FlixPatrol 페이지 기준)
-# netflix: Movies 먼저, TV 나중
-# 나머지: TV 먼저, Movies 나중
 CATEGORY_ORDER = {
     "netflix": ["movie", "tv"],
     "wavve":   ["tv", "movie"],
@@ -33,21 +30,18 @@ async def crawl_flixpatrol(url: str, platform: str, conn):
             timezone_id=HEADERS["timezone_id"],
         )
         page = await context.new_page()
-
         try:
             resp = await page.goto(url, wait_until="domcontentloaded", timeout=40000)
             print(f"  [{platform}] HTTP status: {resp.status}")
             await page.wait_for_selector("table.card-table", timeout=20000)
             tables = await page.query_selector_all("table.card-table")
             print(f"  [{platform}] card-table 개수: {len(tables)}")
-
             order = CATEGORY_ORDER.get(platform, ["tv", "movie"])
             for idx, category in enumerate(order):
                 if idx >= len(tables):
                     print(f"  [{platform}][{category}] ⚠️  테이블 없음")
                     continue
                 await _parse_table(tables[idx], conn, platform, category)
-
         except Exception as e:
             print(f"  [{platform}] 에러: {e}")
         finally:
@@ -58,7 +52,6 @@ async def _parse_table(table, conn, platform: str, category: str):
     try:
         rows = await table.query_selector_all("tbody tr")
         print(f"  [{platform}][{category}] 행 개수: {len(rows)}")
-
         count = 0
         for row in rows:
             if count >= 10:
@@ -76,13 +69,10 @@ async def _parse_table(table, conn, platform: str, category: str):
                 count += 1
             except Exception:
                 continue
-
-         if count == 0:
-            # 디버그: 첫 번째 행 HTML 출력
+        if count == 0:
             if rows:
                 first_html = await rows[0].inner_html()
                 print(f"  [{platform}][{category}] 첫행HTML: {first_html[:300]}")
             print(f"  [{platform}][{category}] ⚠️  데이터 없음")
-
     except Exception as e:
         print(f"  [{platform}][{category}] 파싱 에러: {e}")
