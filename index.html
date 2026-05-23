@@ -467,7 +467,15 @@ const PLATFORMS = [
   {id:'coupang', name:'쿠팡플레이', color:'#1ac44d'},
   {id:'wavve',   name:'웨이브',     color:'#0070f3'},
 ];
-const PC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3'};
+/* 영화 섹션: 티빙 자리에 박스오피스 */
+const MOVIE_PLATFORMS = [
+  {id:'netflix',   name:'넷플릭스',      color:'#e50914'},
+  {id:'boxoffice', name:'🎬 박스오피스', color:'#f0b429'},
+  {id:'disney',    name:'디즈니+',      color:'#06b6d4'},
+  {id:'coupang',   name:'쿠팡플레이',    color:'#1ac44d'},
+  {id:'wavve',     name:'웨이브',        color:'#0070f3'},
+];
+const PC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
 
 const API = 'https://ottrank-api.tdidream.workers.dev';
 
@@ -475,6 +483,7 @@ const API = 'https://ottrank-api.tdidream.workers.dev';
 function buildRankings(rows) {
   const result = { tv: {}, movie: {} };
   PLATFORMS.forEach(p => { result.tv[p.id] = []; result.movie[p.id] = []; });
+  result.movie['boxoffice'] = [];  // 박스오피스 슬롯 추가
   rows.forEach(row => {
     const cat = row.category;
     const pid = row.platform;
@@ -684,7 +693,12 @@ async function tmdbSearch(q,type){
 }
 async function enrichAll(data){
   const unique=new Map();
-  Object.values(data).forEach(pd=>Object.values(pd).forEach(items=>items.forEach(item=>{if(!unique.has(item.q))unique.set(item.q,item);})));
+  // poster_path 없는 항목(_poster가 null/undefined)을 우선 등록, 이미 있으면 덮어쓰지 않음
+  Object.values(data).forEach(pd=>Object.values(pd).forEach(items=>items.forEach(item=>{
+    if(!unique.has(item.q)){unique.set(item.q,item);}
+    // 같은 q라도 _poster가 없는 쪽이 있으면 그쪽으로 교체 (TMDB 검색 필요)
+    else if(!item._poster){unique.set(item.q,item);}
+  })));
   // 3개씩 묶어서 순차 처리 (속도 제한 방지)
   const entries=[...unique.entries()];
   const BATCH=3;
@@ -694,7 +708,7 @@ async function enrichAll(data){
       // API에서 poster_path로 이미 _poster가 세팅된 항목은 TMDB 검색 생략
       if(item._poster)return;
       const info=await tmdbSearch(q,item.type);
-      if(info){Object.values(data).forEach(pd=>Object.values(pd).forEach(items=>items.forEach(i=>{if(i.q===q){i._poster=info.poster;i._ko=info.title_ko;}})));}
+      if(info){Object.values(data).forEach(pd=>Object.values(pd).forEach(items=>items.forEach(i=>{if(i.q===q&&!i._poster){i._poster=info.poster;i._ko=info.title_ko;}})));}
     }));
     if(i+BATCH<entries.length)await new Promise(r=>setTimeout(r,200));
     renderGrids(); // 배치마다 화면 갱신
@@ -718,7 +732,7 @@ function chB(ch){if(ch==='new')return'<span class="cn">NEW</span>';if(ch==='=')r
 function renderCard(p,items){if(!items||!items.length)return'';const f=items[0],rest=items.slice(1);const posterEl=f._poster?`<img src="${f._poster}" alt="${f._ko||f.t}" loading="lazy">`:`<div class="p-hero-ph"><span class="ph-emoji">🎬</span><span class="ph-title">${f._ko||f.t}</span></div>`;return`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><span class="p-name" style="color:${p.color}">${p.name}</span><span class="p-cat">TOP 10</span></div><div class="p-hero" onclick="alert('${f.t} 상세보기')">${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${f.r}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${f.r}</span>`:''}<span>${chB(f.ch)}</span></div></div></div><div class="p-list">${rest.map((item,i)=>`<div class="p-row" onclick="alert('${item.t} 상세보기')"><span class="p-rank ${i<2?'hi':''}">${i+2}</span><span class="p-ch">${chB(item.ch)}</span><span class="p-title">${item._ko||item.t}</span><span class="p-score">★${item.r}</span></div>`).join('')}</div></div>`;}
 
 let curCat='tv';
-function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS[curCat][p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');}
+function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS[curCat][p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');}
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th"><div class="yt-th-ph">▶</div><div class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</div><div class="yt-dur">${v.dur}</div></div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-ch">${v.channel}</div><div class="yt-vw">${v.views}</div></div></div>`).join('');}
 function renderComm(){document.getElementById('commList').innerHTML=POSTS.map(p=>`<div class="comm-item"><div class="comm-dot" style="background:${PC[p.p]||'#888'}"></div><div class="comm-emoji">${p.e}</div><div class="comm-body"><div class="comm-title">${p.title}</div><div class="comm-meta"><span style="color:${PC[p.p]}">${p.work}</span><span>·</span><span>${p.author}</span><span>·</span><span>${p.time}</span></div></div><div class="comm-stats"><span>♥ ${p.likes}</span><span>💬 ${p.comments}</span></div></div>`).join('');document.getElementById('commSide').innerHTML=`<div class="widget"><div class="widget-head">🔥 HOT 토픽</div>${HOT.map((h,i)=>`<div class="hot-row"><span class="hot-n">${i+1}</span><span class="hot-t">${h.t}</span><span class="hot-c">${h.c}</span></div>`).join('')}</div>`;}
 
@@ -811,11 +825,14 @@ async function init(){
     const json = await res.json();
     if (json.ok && json.data.length > 0) {
       const apiRankings = buildRankings(json.data);
-      // RANKINGS 객체 업데이트
+      // RANKINGS 객체 업데이트 (TV: 5개 플랫폼, 영화: 박스오피스 포함)
       PLATFORMS.forEach(p => {
         if (apiRankings.tv[p.id]?.length)    RANKINGS.tv[p.id]    = apiRankings.tv[p.id];
         if (apiRankings.movie[p.id]?.length)  RANKINGS.movie[p.id] = apiRankings.movie[p.id];
       });
+      // 박스오피스 업데이트
+      if (apiRankings.movie['boxoffice']?.length)
+        RANKINGS.movie['boxoffice'] = apiRankings.movie['boxoffice'];
       renderGrids();
     }
   } catch(e) {
