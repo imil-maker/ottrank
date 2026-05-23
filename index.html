@@ -766,14 +766,18 @@ async function init(){
   const today=new Date();
   document.getElementById('updateTxt').textContent=`${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 09:00 업데이트`;
   renderGrids();renderYT();renderComm();renderBuzz();
-  // RANKINGS 포스터 로드
-  await enrichAll(RANKINGS);renderGrids();
-  // BUZZ 포스터 로드
-  for(const item of BUZZ){
-    const info=await tmdbSearch(item.q,item.type);
-    if(info){item._poster=info.poster;}
-  }
-  renderBuzz();
+
+  // RANKINGS와 BUZZ 동시에 로드
+  const buzzLoad=(async()=>{
+    for(const item of BUZZ){
+      const info=await tmdbSearch(item.q,item.type);
+      if(info){item._poster=info.poster;}
+      renderBuzz();
+    }
+  })();
+
+  await Promise.all([enrichAll(RANKINGS),buzzLoad]);
+  renderGrids();
 }
 init();
 </script>
