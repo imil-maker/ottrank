@@ -31,7 +31,8 @@ async def crawl_flixpatrol(url: str, platform: str, conn):
             tables = await page.query_selector_all("table.card-table")
             print(f"  [{platform}] card-table 개수: {len(tables)}")
 
-            for idx, category in enumerate(["tv", "movie"]):
+            # FlixPatrol: Movies 먼저(index 0), TV Shows 나중(index 1)
+            for idx, category in enumerate(["movie", "tv"]):
                 if idx >= len(tables):
                     print(f"  [{platform}][{category}] ⚠️  테이블 없음")
                     continue
@@ -45,7 +46,6 @@ async def crawl_flixpatrol(url: str, platform: str, conn):
 async def _parse_table(table, conn, platform: str, category: str):
     from db import save
     try:
-        # tr.table-group 대신 tbody > tr 전체 선택
         rows = await table.query_selector_all("tbody tr")
         print(f"  [{platform}][{category}] 행 개수: {len(rows)}")
 
@@ -54,31 +54,20 @@ async def _parse_table(table, conn, platform: str, category: str):
             if count >= 10:
                 break
             try:
-                # 순위: class에 'w-12' 포함된 td
                 rank_el  = await row.query_selector("td.table-td-w-12, td[class*='w-12']")
-                # 타이틀: class='table-td' 안의 a 태그
                 title_el = await row.query_selector("td.table-td a")
-
                 if not rank_el or not title_el:
                     continue
-
                 rank_txt  = (await rank_el.inner_text()).strip().rstrip(".")
                 title_txt = (await title_el.inner_text()).strip()
-
                 if not rank_txt.isdigit() or not title_txt:
                     continue
-
                 save(conn, platform, category, int(rank_txt), title_ko=title_txt, title_en=title_txt)
                 count += 1
-
             except Exception:
                 continue
 
         if count == 0:
-            # 디버그: 첫 번째 행 HTML 출력
-            if rows:
-                html = await rows[0].inner_html()
-                print(f"  [{platform}][{category}] 첫행 HTML: {html[:300]}")
             print(f"  [{platform}][{category}] ⚠️  데이터 없음")
 
     except Exception as e:
