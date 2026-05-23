@@ -57,8 +57,8 @@ async def _parse_table(table, conn, platform: str, category: str):
             if count >= 10:
                 break
             try:
-                rank_el  = await row.query_selector("td.w-12")
-                title_el = await row.query_selector("td a[href*='/title/']")
+                rank_el  = await row.query_selector("td:first-child")
+                title_el = await row.query_selector("a[href*='/title/']")
                 if not rank_el or not title_el:
                     continue
                 rank_txt  = (await rank_el.inner_text()).strip().rstrip(".").strip()
