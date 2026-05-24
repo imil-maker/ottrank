@@ -645,6 +645,27 @@ document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))hideS
  * 이 정보는 TMDB에서 enrichAll 시 item에 저장해두거나,
  * 없으면 현재연도로 폴백 (title.html에서 TMDB 재조회 후 canonical 확정)
  */
+
+/* ── 순위 변동 아이콘 ── */
+function chB(ch){
+  if(ch==='new') return '<span class="cn">NEW</span>';
+  if(ch==='=')   return '<span class="cs">─</span>';
+  if(ch&&ch.startsWith('+')) return `<span class="cu">▲${ch.slice(1)}</span>`;
+  if(ch&&ch.startsWith('-')) return `<span class="cd">▼${ch.slice(1)}</span>`;
+  return '<span class="cs">─</span>';
+}
+
+/* ── AI 추천 초기화 ── */
+function resetAI(){
+  document.querySelectorAll('#typeChips .chip').forEach(b=>{b.classList.remove('type-on','on');});
+  document.querySelector('#typeChips .chip')?.classList.add('type-on');
+  aiType='all';
+  document.querySelectorAll('#ottChips .chip, #genreChips .chip').forEach(b=>b.classList.remove('on'));
+  document.querySelector('#ottChips .chip')?.classList.add('on');
+  document.querySelector('#genreChips .chip')?.classList.add('on');
+  document.getElementById('aiResult')?.classList.remove('show');
+}
+
 function makeSlug(title){
   return title.replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
 }
