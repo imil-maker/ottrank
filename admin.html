@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>오뜨랑 관리자 — 랭킹 수동 수정</title>
+<title>오뜨랑 관리자</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -94,14 +94,71 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
 .empty{text-align:center;padding:60px;color:var(--muted)}
 .loading{text-align:center;padding:40px;color:var(--muted);font-family:var(--mono)}
+
+/* 페이지 탭 */
+.page-tabs{display:flex;gap:2px;padding:0 28px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.page-tab{padding:12px 20px;font-size:14px;color:var(--muted2);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans);transition:all .15s}
+.page-tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.page-tab:hover{color:var(--text)}
+
+/* 해외반응 섹션 */
+.reaction-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.yt-input-wrap{flex:1;min-width:280px;position:relative}
+.yt-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 16px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none}
+.yt-input:focus{border-color:var(--accent)}
+.btn-yt-load{background:rgba(230,57,70,.15);color:var(--accent);border:1px solid rgba(230,57,70,.3);padding:10px 18px;border-radius:8px;font-size:14px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-yt-load:hover{background:rgba(230,57,70,.25)}
+
+/* 영상 미리보기 카드 */
+.yt-preview{background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:20px;display:none}
+.yt-preview.show{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.yt-thumb-wrap{position:relative;width:200px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--bg3)}
+.yt-thumb-wrap img{width:100%;display:block}
+.yt-thumb-wrap .yt-dur{position:absolute;bottom:5px;right:7px;background:rgba(0,0,0,.85);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 6px;border-radius:3px}
+.yt-info-wrap{flex:1;min-width:200px}
+.yt-vtitle{font-size:15px;font-weight:600;margin-bottom:8px;line-height:1.4}
+.yt-channel{font-size:12px;color:var(--muted2);margin-bottom:6px}
+.yt-stats{display:flex;gap:12px;font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:12px;flex-wrap:wrap}
+.yt-link-work{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.work-search-inp{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;font-family:var(--sans);outline:none;width:220px}
+.work-search-inp:focus{border-color:var(--border2)}
+.work-search-results{position:absolute;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;z-index:50;width:300px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:200px;overflow-y:auto}
+.work-result-item{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:13px;border-bottom:1px solid var(--border)}
+.work-result-item:last-child{border-bottom:none}
+.work-result-item:hover{background:var(--bg3)}
+.work-result-poster{width:28px;height:40px;object-fit:cover;border-radius:3px;background:var(--bg3);flex-shrink:0}
+.btn-yt-register{background:var(--green);color:#000;padding:10px 20px;border-radius:8px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.btn-yt-register:disabled{opacity:.4;cursor:default}
+
+/* 해외반응 목록 */
+.reaction-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.reaction-card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .15s}
+.reaction-card:hover{border-color:var(--border2)}
+.rc-thumb{position:relative;aspect-ratio:16/9;background:var(--bg3)}
+.rc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.rc-platform{position:absolute;top:7px;left:7px;background:rgba(0,0,0,.8);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:3px}
+.rc-manual{position:absolute;top:7px;right:7px;background:rgba(240,180,41,.9);color:#000;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:3px;font-weight:700}
+.rc-body{padding:12px}
+.rc-work{font-size:11px;color:var(--accent);font-family:var(--mono);margin-bottom:4px}
+.rc-title{font-size:13px;font-weight:500;line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rc-meta{font-size:11px;color:var(--muted);font-family:var(--mono);display:flex;gap:8px;flex-wrap:wrap}
+.rc-footer{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
+.btn-rc-del{background:rgba(230,57,70,.1);color:var(--accent);border:1px solid rgba(230,57,70,.2);padding:5px 12px;border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--mono)}
+.btn-rc-del:hover{background:rgba(230,57,70,.2)}
 </style>
 </head>
 <body>
 
 <div class="header">
   <h1>🎬 오뜨랑 관리자</h1>
-  <span class="badge">RANKING EDITOR</span>
+  <span class="badge">ADMIN</span>
   <span id="logoutBtn" style="margin-left:auto;cursor:pointer;color:var(--muted);font-size:13px;display:none" onclick="logout()">로그아웃</span>
+</div>
+<div id="pageTabs" style="display:none">
+  <div class="page-tabs">
+    <button class="page-tab on" onclick="switchPage('ranking',this)">📊 랭킹 관리</button>
+    <button class="page-tab" onclick="switchPage('reaction',this)">🌍 해외반응 관리</button>
+  </div>
 </div>
 
 <!-- 로그인 -->
@@ -152,6 +209,61 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
+<!-- 해외반응 관리 섹션 -->
+<div id="reactionSection" class="main" style="display:none">
+
+  <!-- YouTube URL 입력 -->
+  <div class="reaction-toolbar">
+    <div class="yt-input-wrap">
+      <input class="yt-input" id="ytUrlInp" type="text"
+        placeholder="YouTube URL 입력  예) https://www.youtube.com/watch?v=abc123"
+        oninput="onYtUrlInput(this.value)">
+    </div>
+    <button class="btn-yt-load" onclick="fetchYtInfo()">영상 정보 가져오기</button>
+  </div>
+
+  <!-- YouTube 영상 미리보기 + 작품 연결 -->
+  <div class="yt-preview" id="ytPreview">
+    <div class="yt-thumb-wrap">
+      <img id="ytThumbImg" src="" alt="">
+    </div>
+    <div class="yt-info-wrap">
+      <div class="yt-vtitle" id="ytVtitle"></div>
+      <div class="yt-channel" id="ytChannel"></div>
+      <div class="yt-stats">
+        <span id="ytViews"></span>
+        <span id="ytLikes"></span>
+        <span id="ytDate"></span>
+      </div>
+
+      <!-- 작품 연결 -->
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">연결할 작품 검색</div>
+      <div class="yt-link-work" style="position:relative">
+        <input class="work-search-inp" id="workSearchInp" type="text"
+          placeholder="작품명 검색..."
+          oninput="searchWorks(this.value)"
+          autocomplete="off">
+        <div class="work-search-results" id="workSearchResults" style="display:none;position:absolute;top:38px;left:0"></div>
+        <div id="selectedWork" style="font-size:13px;color:var(--green);font-family:var(--mono)"></div>
+      </div>
+
+      <button class="btn-yt-register" id="btnRegister" onclick="registerReaction()" disabled>
+        ✅ 등록하기
+      </button>
+    </div>
+  </div>
+
+  <!-- 등록된 해외반응 목록 -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:600">등록된 해외반응</div>
+    <div class="stat" id="reactionStat"></div>
+    <button class="btn-load" onclick="loadReactions()" style="margin-left:auto">새로고침</button>
+  </div>
+  <div class="reaction-list" id="reactionList">
+    <div class="loading">불러오는 중...</div>
+  </div>
+</div>
+
 <!-- 수정 모달 -->
 <div class="overlay" id="editOverlay" onclick="if(event.target===this)closeModal()">
   <div class="modal">
@@ -199,9 +311,11 @@ function login() {
   document.getElementById('loginSection').style.display = 'none';
   document.getElementById('mainSection').style.display = 'block';
   document.getElementById('logoutBtn').style.display = 'block';
+  document.getElementById('pageTabs').style.display = 'block';
   // 오늘 날짜 기본 세팅
   document.getElementById('dateInp').value = new Date().toISOString().slice(0,10);
   loadData();
+  loadReactions();
 }
 
 function logout() {
@@ -353,6 +467,238 @@ async function unfix(id) {
     if (json.ok) { showToast('고정 해제됨', 'ok'); loadData(); }
   } catch(e) { showToast('오류', 'err'); }
 }
+
+/* ══════════════════════════════════════════════
+   페이지 탭 전환
+══════════════════════════════════════════════ */
+function switchPage(page, btn) {
+  document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('mainSection').style.display    = page === 'ranking'  ? 'block' : 'none';
+  document.getElementById('reactionSection').style.display = page === 'reaction' ? 'block' : 'none';
+}
+
+/* ══════════════════════════════════════════════
+   해외반응 관리 — YouTube
+══════════════════════════════════════════════ */
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const IMG2 = 'https://image.tmdb.org/t/p/w92';
+let ytVideoData = null;   // 현재 미리보기 중인 YouTube 영상 데이터
+let selectedWorkData = null; // 연결할 작품
+
+/* YouTube URL에서 video_id 추출 */
+function extractVideoId(url) {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&
+?#]+)/,
+    /youtube\.com\/shorts\/([^&
+?#]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function onYtUrlInput(val) {
+  const vid = extractVideoId(val);
+  if (!vid) {
+    document.getElementById('ytPreview').classList.remove('show');
+    ytVideoData = null;
+  }
+}
+
+/* YouTube oEmbed API로 영상 정보 가져오기 (API 키 불필요) */
+async function fetchYtInfo() {
+  const url = document.getElementById('ytUrlInp').value.trim();
+  const videoId = extractVideoId(url);
+  if (!videoId) { showToast('올바른 YouTube URL을 입력해주세요', 'err'); return; }
+
+  showToast('영상 정보 가져오는 중...', 'ok');
+  try {
+    /* oEmbed로 제목·채널 가져오기 */
+    const oembed = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+    );
+    if (!oembed.ok) throw new Error('영상을 찾을 수 없습니다');
+    const od = await oembed.json();
+
+    ytVideoData = {
+      video_id:     videoId,
+      video_title:  od.title || '',
+      channel_name: od.author_name || '',
+      thumbnail:    `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+      view_count:   0,
+      like_count:   0,
+      published_at: new Date().toISOString(),
+    };
+
+    /* 미리보기 표시 */
+    document.getElementById('ytThumbImg').src    = ytVideoData.thumbnail;
+    document.getElementById('ytVtitle').textContent   = ytVideoData.video_title;
+    document.getElementById('ytChannel').textContent  = '📺 ' + ytVideoData.channel_name;
+    document.getElementById('ytViews').textContent    = '조회수 정보 없음';
+    document.getElementById('ytLikes').textContent    = '';
+    document.getElementById('ytDate').textContent     = '';
+    document.getElementById('ytPreview').classList.add('show');
+    document.getElementById('workSearchInp').focus();
+    showToast('영상 정보를 가져왔습니다!', 'ok');
+  } catch(e) {
+    showToast('오류: ' + e.message, 'err');
+  }
+}
+
+/* 작품 검색 (rankings에서) */
+let workSearchTimer = null;
+async function searchWorks(q) {
+  clearTimeout(workSearchTimer);
+  const el = document.getElementById('workSearchResults');
+  if (!q || q.length < 1) { el.style.display = 'none'; return; }
+
+  workSearchTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(`${API}/rankings`);
+      const json = await res.json();
+      const rows = (json.data || [])
+        .filter(r => r.title_ko && r.title_ko.includes(q) && r.tmdb_id)
+        .reduce((acc, r) => {
+          if (!acc.find(x => x.tmdb_id === r.tmdb_id)) acc.push(r);
+          return acc;
+        }, [])
+        .slice(0, 8);
+
+      if (!rows.length) { el.style.display = 'none'; return; }
+
+      el.innerHTML = rows.map(r => `
+        <div class="work-result-item" onclick="selectWork(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+          ${r.poster_path
+            ? `<img class="work-result-poster" src="${IMG+r.poster_path}" alt="">`
+            : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`
+          }
+          <div>
+            <div style="font-weight:500">${r.title_ko}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${r.platform} · tmdb:${r.tmdb_id}</div>
+          </div>
+        </div>`).join('');
+      el.style.display = 'block';
+    } catch(e) {}
+  }, 300);
+}
+
+function selectWork(r) {
+  selectedWorkData = r;
+  document.getElementById('workSearchInp').value = r.title_ko;
+  document.getElementById('workSearchResults').style.display = 'none';
+  document.getElementById('selectedWork').textContent = `✅ ${r.title_ko} (tmdb:${r.tmdb_id})`;
+  document.getElementById('btnRegister').disabled = !ytVideoData;
+}
+
+/* 해외반응 등록 */
+async function registerReaction() {
+  if (!ytVideoData || !selectedWorkData) {
+    showToast('영상과 작품을 모두 선택해주세요', 'err'); return;
+  }
+  try {
+    const body = {
+      tmdb_id:      selectedWorkData.tmdb_id,
+      title_ko:     selectedWorkData.title_ko,
+      poster_path:  selectedWorkData.poster_path || '',
+      video_id:     ytVideoData.video_id,
+      video_title:  ytVideoData.video_title,
+      channel_name: ytVideoData.channel_name,
+      thumbnail:    ytVideoData.thumbnail,
+      view_count:   ytVideoData.view_count,
+      like_count:   ytVideoData.like_count,
+      published_at: ytVideoData.published_at,
+    };
+    const res  = await fetch(`${API}/admin/reactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(`✅ "${selectedWorkData.title_ko}" 해외반응 등록 완료!`, 'ok');
+      /* 초기화 */
+      document.getElementById('ytUrlInp').value = '';
+      document.getElementById('ytPreview').classList.remove('show');
+      document.getElementById('workSearchInp').value = '';
+      document.getElementById('selectedWork').textContent = '';
+      document.getElementById('btnRegister').disabled = true;
+      ytVideoData = null; selectedWorkData = null;
+      loadReactions();
+    } else {
+      showToast('등록 실패: ' + json.message, 'err');
+    }
+  } catch(e) {
+    showToast('오류: ' + e.message, 'err');
+  }
+}
+
+/* 등록된 해외반응 목록 로드 */
+async function loadReactions() {
+  const el = document.getElementById('reactionList');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    const res  = await fetch(`${API}/reactions`);
+    const json = await res.json();
+    const data = json.data || [];
+    document.getElementById('reactionStat').textContent = `총 ${data.length}개`;
+    if (!data.length) {
+      el.innerHTML = '<div class="empty">등록된 해외반응이 없습니다<br><small style="color:var(--muted);font-size:12px">위에서 YouTube URL을 입력해 등록해주세요</small></div>';
+      return;
+    }
+    el.innerHTML = data.map(r => `
+      <div class="reaction-card">
+        <div class="rc-thumb">
+          <img src="${r.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'">
+          <span class="rc-platform">YouTube</span>
+          ${r.is_manual ? '<span class="rc-manual">수동</span>' : '<span class="rc-manual" style="background:rgba(52,211,153,.9)">자동</span>'}
+        </div>
+        <div class="rc-body">
+          <div class="rc-work">🎬 ${r.title_ko || 'tmdb:'+r.tmdb_id}</div>
+          <div class="rc-title">${r.video_title}</div>
+          <div class="rc-meta">
+            <span>📺 ${r.channel_name}</span>
+            ${r.view_count ? `<span>👁 ${Number(r.view_count).toLocaleString()}</span>` : ''}
+          </div>
+        </div>
+        <div class="rc-footer">
+          <button class="btn-rc-del" onclick="deleteReaction(${r.id}, '${(r.video_title||'').replace(/'/g,'').slice(0,20)}')">🗑 삭제</button>
+          <a href="https://youtube.com/watch?v=${r.video_id}" target="_blank"
+            style="font-size:11px;color:var(--muted2);font-family:var(--mono);margin-left:auto;text-decoration:none;align-self:center">
+            YouTube ↗
+          </a>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty">오류: ${e.message}</div>`;
+  }
+}
+
+/* 해외반응 삭제 */
+async function deleteReaction(id, title) {
+  if (!confirm(`"${title}..." 영상을 삭제할까요?
+관련 번역 댓글도 모두 삭제됩니다.`)) return;
+  try {
+    const res  = await fetch(`${API}/admin/reactions/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (json.ok) { showToast('삭제 완료', 'ok'); loadReactions(); }
+    else showToast('삭제 실패: ' + json.message, 'err');
+  } catch(e) {
+    showToast('오류: ' + e.message, 'err');
+  }
+}
+
+/* 클릭 시 작품검색 드롭다운 닫기 */
+document.addEventListener('click', e => {
+  if (!e.target.closest('.yt-link-work'))
+    document.getElementById('workSearchResults').style.display = 'none';
+});
 
 function showToast(msg, type='ok') {
   const t = document.getElementById('toast');
