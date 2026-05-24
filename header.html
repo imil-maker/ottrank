@@ -220,7 +220,7 @@ function initHeader(){
           const slugTitle=(r.title_ko||'').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
           const s=1, y=new Date().getFullYear(), tid=r.tmdb_id||'';
           const slugUrl=tid ? `/title/${slugTitle}-${s}${y}${tid}` : '#';
-          const onclick=`onclick="(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${r.tmdb_id||'null'},type:'${r.category||'tv'}',platform:'${r.platform||''}',rank:${r.rank||1},title:'${(r.title_ko||'').replace(/'/g,'')}'  ,season:1,year:${y}}));location.href='${slugUrl}';})()"`;
+          const onclick=`onclick="(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${r.tmdb_id||'null'},type:'${r.category||'tv'}',platform:'${r.platform||''}',rank:${r.rank||1},title:'${(r.title_ko||'').replace(/'/g,'')}',season:1,year:${y}}));sessionStorage.setItem('ottrang_slug','${slugUrl}');location.href='${slugUrl}';})()"`;
           return `<div class="ottrang-sr-item" ${onclick} style="cursor:pointer">
             <span class="ottrang-sr-pf" style="background:${C[r.platform]||'#666'}">${PC[r.platform]||r.platform}</span>
             <span class="ottrang-sr-title">${r.title_ko}</span>
