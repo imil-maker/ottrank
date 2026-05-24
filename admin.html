@@ -488,17 +488,10 @@ let selectedWorkData = null; // 연결할 작품
 
 /* YouTube URL에서 video_id 추출 */
 function extractVideoId(url) {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&
-?#]+)/,
-    /youtube\.com\/shorts\/([^&
-?#]+)/,
-  ];
-  for (const p of patterns) {
-    const m = url.match(p);
-    if (m) return m[1];
-  }
-  return null;
+  if (!url) return null;
+  // watch?v=, youtu.be/, embed/, shorts/ 형식 모두 지원
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
 }
 
 function onYtUrlInput(val) {
