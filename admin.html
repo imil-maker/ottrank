@@ -728,8 +728,7 @@ async function loadReactions() {
             🗑 삭제
           </button>
           <button class="btn-rc-del" style="background:rgba(55,138,221,.1);color:#378ADD;border-color:rgba(55,138,221,.3)"
-            onclick="editReaction(${r.id},'${(r.custom_title||r.video_title||'').replace(/'/g,'').replace(/
-/g,'')}')">
+            onclick="editReaction(${r.id},'${(r.custom_title||r.video_title||'').replace(/'/g,'')}')">
             ✏ 수정
           </button>
           <button class="btn-rc-del"
@@ -779,8 +778,7 @@ async function setFeatured(id, isFeatured) {
       showToast('메인 지정이 해제됐습니다', 'ok'); loadReactions();
     } catch(e) { showToast('오류: ' + e.message, 'err'); }
   } else {
-    if (!confirm('이 영상을 게시판 메인으로 지정할까요?
-기존 메인 영상은 자동으로 해제됩니다.')) return;
+    if (!confirm('이 영상을 게시판 메인으로 지정할까요? 기존 메인 영상은 자동으로 해제됩니다.')) return;
     try {
       const res  = await fetch(`${API}/admin/reactions/${id}/featured`, {
         method: 'PUT',
