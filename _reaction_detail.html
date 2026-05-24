@@ -26,10 +26,10 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh;overflow-x:hidden}
 
 #ottrang-header{position:sticky;top:0;z-index:200}
-.page-wrap{max-width:var(--max-w);margin:0 auto;padding:20px 20px 80px}
+.page-wrap{width:100%;max-width:900px;margin:0 auto;padding:20px 20px 80px}
 
 /* ── 뒤로가기 ── */
 .back{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted2);padding:7px 14px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;cursor:pointer;text-decoration:none;margin-bottom:16px;transition:background .15s}
@@ -37,7 +37,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* ── 영상 플레이어 ── */
 .video-wrap{
-  width:100%;max-width:900px;aspect-ratio:16/9;background:#000;
+  width:100%;aspect-ratio:16/9;background:#000;
   border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px;
 }
 .video-wrap iframe{width:100%;height:100%;border:none;display:block}
