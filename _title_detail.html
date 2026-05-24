@@ -883,7 +883,22 @@ async function loadTmdb(){
       WORK.type   = WORK.type || (det.number_of_seasons ? 'tv' : 'movie');
 
       document.getElementById('mainTitle').textContent=title;
-      document.getElementById('origTitle').textContent=origTitle?`${origTitle} · ${year}`:year;
+      /* 제작 국가 */
+      const countries = det.production_countries||det.origin_country||[];
+      const countryMap = {
+        'KR':'한국','US':'미국','JP':'일본','GB':'영국','FR':'프랑스',
+        'DE':'독일','CN':'중국','TH':'태국','IN':'인도','IT':'이탈리아',
+        'ES':'스페인','AU':'호주','CA':'캐나다','MX':'멕시코','TW':'대만',
+      };
+      let countryStr = '';
+      if(Array.isArray(countries) && countries.length){
+        countryStr = countries.slice(0,2).map(c=>{
+          const code = typeof c==='string' ? c : (c.iso_3166_1||'');
+          return countryMap[code] || code;
+        }).filter(Boolean).join(' · ');
+      }
+      document.getElementById('origTitle').textContent =
+        [countryStr, year].filter(Boolean).join(' · ') || origTitle || '';
 
       const rating=det.tmdb_rating||det.vote_average||0;
       const votes=det.vote_count||0;
@@ -897,10 +912,66 @@ async function loadTmdb(){
       const genres=det.genres||(genreStr?genreStr.split(',').map(g=>({name:g.trim()})):[]);
       document.getElementById('genreTags').innerHTML=genres.map(g=>`<span class="tag">${g.name||g}</span>`).join('');
 
-      const seas=det.number_of_seasons?`<div class="meta-item">시즌 <b>${det.number_of_seasons}</b></div>`:'';
-      const eps=det.number_of_episodes?`<div class="meta-item"><b>${det.number_of_episodes}화</b></div>`:'';
-      const rt=det.runtime?`<div class="meta-item"><b>${det.runtime}분</b></div>`:'';
-      document.getElementById('metaRow').innerHTML=`${seas}${eps}${rt}<div class="meta-item">개봉 <b>${year||'—'}</b></div>`;
+      /* ── 시즌 ── */
+      const seasHtml = det.number_of_seasons
+        ? `<div class="meta-item">시즌 <b>${det.number_of_seasons}</b></div>` : '';
+
+      /* ── 총 부작 (TV: number_of_episodes, 영화: runtime분) ── */
+      let episodeHtml = '';
+      if(det.number_of_episodes){
+        episodeHtml = `<div class="meta-item">총 <b>${det.number_of_episodes}부작</b></div>`;
+      } else if(det.runtime){
+        episodeHtml = `<div class="meta-item"><b>${det.runtime}분</b></div>`;
+      } else if(det.episode_run_time && det.episode_run_time.length){
+        episodeHtml = `<div class="meta-item">회당 <b>${det.episode_run_time[0]}분</b></div>`;
+      }
+
+      /* ── 개봉일 (년-월-일 요일) ── */
+      const dateRaw = det.first_air_date || det.release_date || '';
+      let dateHtml = '';
+      if(dateRaw){
+        const d = new Date(dateRaw);
+        const days = ['일','월','화','수','목','금','토'];
+        const dayKo = days[d.getDay()];
+        const dateFormatted = `${dateRaw.replace(/-/g,'.')} (${dayKo})`;
+        dateHtml = `<div class="meta-item">개봉 <b>${dateFormatted}</b></div>`;
+      }
+
+      /* ── 관람등급 (TMDB content_ratings / release_dates) ── */
+      let ratingHtml = '';
+      try {
+        /* TV: content_ratings, 영화: release_dates */
+        const rType = det.number_of_seasons ? 'content_ratings' : 'release_dates';
+        const rRes  = await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${rType}?language=ko-KR`);
+        const rData = await rRes.json();
+        let cert = '';
+        if(det.number_of_seasons){
+          /* TV: KR 등급 우선, 없으면 US */
+          const results = rData.results||[];
+          const kr = results.find(r=>r.iso_3166_1==='KR');
+          const us = results.find(r=>r.iso_3166_1==='US');
+          cert = kr?.rating || us?.rating || '';
+        } else {
+          /* 영화: KR 릴리즈 등급 우선 */
+          const results = rData.results||[];
+          const kr = results.find(r=>r.iso_3166_1==='KR');
+          const us = results.find(r=>r.iso_3166_1==='US');
+          const krCert = kr?.release_dates?.find(d=>d.certification)?.certification;
+          const usCert = us?.release_dates?.find(d=>d.certification)?.certification;
+          cert = krCert || usCert || '';
+        }
+        /* 등급 표시 변환 */
+        const certMap = {
+          'ALL':'전체관람가','12':'12세이상','15':'15세이상','18':'청소년관람불가',
+          'G':'전체관람가','PG':'PG등급','PG-13':'13세이상(미국)','R':'17세이상(미국)',
+          'TV-Y':'전체','TV-G':'전체','TV-PG':'보호자지도','TV-14':'14세이상','TV-MA':'성인',
+          'NR':'등급없음',
+        };
+        if(cert) ratingHtml = `<div class="meta-item">🔞 <b>${certMap[cert]||cert}</b></div>`;
+      } catch(e){}
+
+      document.getElementById('metaRow').innerHTML =
+        `${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
 
       /* SEO */
       updateSEO(title,ov,poster,WORK.platform,WORK.rank);
