@@ -542,7 +542,7 @@ async function fetchYtInfo() {
   }
 }
 
-/* 작품 검색 (rankings에서) */
+/* 작품 검색 — TMDB 검색 (랭킹 없는 작품도 가능) */
 let workSearchTimer = null;
 async function searchWorks(q) {
   clearTimeout(workSearchTimer);
@@ -551,32 +551,60 @@ async function searchWorks(q) {
 
   workSearchTimer = setTimeout(async () => {
     try {
-      const res  = await fetch(`${API}/rankings`);
-      const json = await res.json();
-      const rows = (json.data || [])
-        .filter(r => r.title_ko && r.title_ko.includes(q) && r.tmdb_id)
-        .reduce((acc, r) => {
-          if (!acc.find(x => x.tmdb_id === r.tmdb_id)) acc.push(r);
-          return acc;
-        }, [])
-        .slice(0, 8);
+      /* TMDB 멀티검색: TV + 영화 동시 */
+      const [tvRes, mvRes] = await Promise.all([
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+      ]);
+      const tvData = await tvRes.json();
+      const mvData = await mvRes.json();
 
-      if (!rows.length) { el.style.display = 'none'; return; }
+      /* TV + 영화 합치고 인기순 정렬 */
+      const tvRows = (tvData.results || []).slice(0, 5).map(r => ({
+        tmdb_id:    r.id,
+        title_ko:   r.name || r.original_name || '',
+        title_en:   r.original_name || '',
+        poster_path: r.poster_path || '',
+        category:   'tv',
+        year:       (r.first_air_date || '').slice(0, 4),
+        popularity: r.popularity || 0,
+      }));
+      const mvRows = (mvData.results || []).slice(0, 5).map(r => ({
+        tmdb_id:    r.id,
+        title_ko:   r.title || r.original_title || '',
+        title_en:   r.original_title || '',
+        poster_path: r.poster_path || '',
+        category:   'movie',
+        year:       (r.release_date || '').slice(0, 4),
+        popularity: r.popularity || 0,
+      }));
+
+      const rows = [...tvRows, ...mvRows]
+        .sort((a, b) => b.popularity - a.popularity)
+        .slice(0, 10);
+
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--muted)">검색 결과 없음</div>';
+        el.style.display = 'block';
+        return;
+      }
 
       el.innerHTML = rows.map(r => `
         <div class="work-result-item" onclick="selectWork(${JSON.stringify(r).replace(/"/g,'&quot;')})">
           ${r.poster_path
-            ? `<img class="work-result-poster" src="${IMG+r.poster_path}" alt="">`
+            ? `<img class="work-result-poster" src="https://image.tmdb.org/t/p/w92${r.poster_path}" alt="">`
             : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`
           }
           <div>
             <div style="font-weight:500">${r.title_ko}</div>
-            <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${r.platform} · tmdb:${r.tmdb_id}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${r.category==='tv'?'📺 TV':'🎬 영화'} · ${r.year} · tmdb:${r.tmdb_id}</div>
           </div>
         </div>`).join('');
       el.style.display = 'block';
-    } catch(e) {}
-  }, 300);
+    } catch(e) {
+      console.error('작품검색 오류:', e);
+    }
+  }, 400);
 }
 
 function selectWork(r) {
