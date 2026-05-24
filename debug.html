@@ -71,6 +71,24 @@ h2 { font-size:16px; color:#a0a0bc; border-bottom:1px solid rgba(255,255,255,.08
 </div>
 
 <script>
+/* 현재 페이지 URL 상태 즉시 표시 */
+window.addEventListener('DOMContentLoaded', () => {
+  const box = document.createElement('div');
+  box.className = 'status info';
+  box.style.marginBottom = '16px';
+  box.innerHTML = `<b>현재 페이지 URL 상태</b><br>
+    pathname: <code>${location.pathname}</code><br>
+    search: <code>${location.search||'(없음)'}</code><br>
+    href: <code>${location.href}</code>`;
+  document.querySelector('h1').after(box);
+});
+
+function testUrl(fullUrl, relUrl){
+  /* sessionStorage 없이 직접 이동 → 슬러그 파싱 테스트 */
+  console.log('이동:', fullUrl);
+  location.href = fullUrl;
+}
+
 const API = 'https://ottrank-api.tdidream.workers.dev';
 const IMG = 'https://image.tmdb.org/t/p/w500';
 const PC  = {netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'};
@@ -142,8 +160,8 @@ async function main(){
           <td style="color:#7a7a96">${tid}</td>
           <td class="slug-url">${url}</td>
           <td>
-            <a class="btn" href="${fullUrl}" target="_blank">열기</a>
-            <a class="btn btn-red" href="${fullUrl}" >이 탭</a>
+            <a class="btn" href="${fullUrl}" target="_blank">새탭</a>
+            <button class="btn btn-red" onclick="testUrl('${fullUrl}','${url}')">이 탭</button>
           </td>
         </tr>`;
     });
