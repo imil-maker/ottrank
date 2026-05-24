@@ -662,6 +662,11 @@ function parseSlug(pathname){
 let WORK = { tmdb_id:null, type:'tv', platform:'netflix', rank:'—', title:'작품명', season:1, year:null };
 
 (function initWork(){
+  /* ── 디버그: 실제 pathname 확인 ── */
+  console.log('[OTTRANG] location.pathname:', location.pathname);
+  console.log('[OTTRANG] location.search:', location.search);
+  console.log('[OTTRANG] location.href:', location.href);
+
   /* 1순위: sessionStorage */
   try{
     const stored = sessionStorage.getItem('ottrang_work');
