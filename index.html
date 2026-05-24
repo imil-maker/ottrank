@@ -681,25 +681,46 @@ function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div 
 function renderComm(){document.getElementById('commList').innerHTML=POSTS.map(p=>`<div class="comm-item"><div class="comm-dot" style="background:${PC[p.p]||'#888'}"></div><div class="comm-emoji">${p.e}</div><div class="comm-body"><div class="comm-title">${p.title}</div><div class="comm-meta"><span style="color:${PC[p.p]}">${p.work}</span><span>·</span><span>${p.author}</span><span>·</span><span>${p.time}</span></div></div><div class="comm-stats"><span>♥ ${p.likes}</span><span>💬 ${p.comments}</span></div></div>`).join('');document.getElementById('commSide').innerHTML=`<div class="widget"><div class="widget-head">🔥 HOT 토픽</div>${HOT.map((h,i)=>`<div class="hot-row"><span class="hot-n">${i+1}</span><span class="hot-t">${h.t}</span><span class="hot-c">${h.c}</span></div>`).join('')}</div>`;}
 
 
-/* AI 추천 */
+/* AI 추천 — 실제 랭킹 기반 규칙 필터링 */
 let aiType='all';
 function selType(btn,type){document.querySelectorAll('#typeChips .chip').forEach(b=>{b.classList.remove('type-on','on');});btn.classList.add('type-on');aiType=type;}
 function toggleChip(btn){btn.classList.toggle('on');}
 function getSelected(groupId){return[...document.getElementById(groupId).querySelectorAll('.chip.on')].map(b=>b.textContent.trim());}
+
+const OTT_MAP={'넷플릭스':'netflix','티빙':'tving','디즈니+':'disney','쿠팡플레이':'coupang','웨이브':'wavve'};
+function makeReason(rank,platformName){
+  const r=[`${platformName} ${rank}위 작품으로 지금 가장 많이 시청되고 있습니다.`,`현재 ${platformName}에서 인기 급상승 중인 작품입니다.`,`오늘 ${platformName} 랭킹 TOP ${rank}에 오른 화제작입니다.`];
+  return r[(rank-1)%3];
+}
+
 function runAI(){
-  const result=document.getElementById('aiResult');const picks=document.getElementById('aiPicks');
+  const result=document.getElementById('aiResult');
+  const picks=document.getElementById('aiPicks');
   result.classList.add('show');
   picks.innerHTML='<div class="ai-loading"><div class="spin"></div>오늘 랭킹 기반 분석 중...</div>';
   const selOtt=getSelected('ottChips'),selGenre=getSelected('genreChips');
+  const tLabel=aiType==='tv'?'TV 시리즈':aiType==='movie'?'영화':'전체';
+  document.getElementById('aiDesc').textContent=`${tLabel} · ${selOtt.join('·')||'전체 OTT'} · ${selGenre.join('·')||'전체 장르'}`;
   setTimeout(()=>{
-    let filtered=AI_DB.filter(x=>{const tOk=aiType==='all'||x.type===aiType;const oOk=selOtt.length===0||selOtt.some(o=>x.ott.includes(o));const gOk=selGenre.length===0||selGenre.some(g=>x.genre.includes(g));return tOk&&oOk&&gOk;}).slice(0,3);
-    if(!filtered.length)filtered=AI_DB.slice(0,3);
-    const tLabel=aiType==='tv'?'TV 시리즈':aiType==='movie'?'영화':'전체';
-    document.getElementById('aiDesc').textContent=`${tLabel} · ${selOtt.join('·')||'전체 OTT'} · ${selGenre.join('·')||'전체 장르'}`;
-    picks.innerHTML=filtered.map((item,i)=>`<div class="pick-card" onclick="goDetail('${item.title}')" style="cursor:pointer"><div class="pick-no">추천 ${i+1}</div><div class="pick-title">${item.title}</div><span class="pick-pf" style="background:${item.color}">${item.platform}</span><div class="pick-reason">${item.reason}</div><div class="pick-rating">⭐ ${item.rating}</div><div style="margin-top:6px;font-size:12px;color:var(--muted2)">상세 페이지 →</div></div>`).join('');
-  },1100);
+    const selPids=selOtt.length?selOtt.map(o=>OTT_MAP[o]).filter(Boolean):Object.values(OTT_MAP);
+    const candidates=[];
+    selPids.forEach(pid=>{
+      const p=PLATFORMS.find(p=>p.id===pid)||MOVIE_PLATFORMS.find(p=>p.id===pid);
+      if(!p)return;
+      if(aiType!=='movie'){(RANKINGS.tv[pid]||[]).forEach((item,i)=>candidates.push({title:item.t,platform:p.name,color:p.color,rank:i+1,score:item.r||0,_poster:item._poster||null}));}
+      if(aiType!=='tv'){(RANKINGS.movie[pid]||[]).forEach((item,i)=>candidates.push({title:item.t,platform:p.name,color:p.color,rank:i+1,score:item.r||0,_poster:item._poster||null}));}
+    });
+    candidates.sort((a,b)=>a.rank-b.rank||b.score-a.score);
+    const seen=new Set(),top3=[];
+    for(const c of candidates){if(!seen.has(c.title)){seen.add(c.title);top3.push(c);}if(top3.length>=3)break;}
+    if(!top3.length){PLATFORMS.forEach(p=>{(RANKINGS.tv[p.id]||[]).slice(0,2).forEach((item,i)=>{if(top3.length<3)top3.push({title:item.t,platform:p.name,color:p.color,rank:i+1,score:item.r||0,_poster:item._poster||null});});});}
+    picks.innerHTML=top3.map((item,i)=>{
+      const posterEl=item._poster?`<img src="${item._poster}" alt="${item.title}" style="width:60px;height:90px;object-fit:cover;border-radius:6px;flex-shrink:0">`:`<div style="width:60px;height:90px;border-radius:6px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">🎬</div>`;
+      return`<div class="pick-card" style="display:flex;gap:12px;align-items:flex-start">${posterEl}<div style="flex:1;min-width:0"><div class="pick-no">추천 ${i+1}</div><div class="pick-title">${item.title}</div><span class="pick-pf" style="background:${item.color}">${item.platform}</span><div class="pick-reason" style="margin-top:8px">${makeReason(item.rank,item.platform)}</div>${item.score?`<div class="pick-rating">⭐ ${item.score}</div>`:''}</div></div>`;
+    }).join('');
+  },600);
 }
-function resetAI(){document.getElementById('aiResult').classList.remove('show');document.querySelectorAll('#typeChips .chip').forEach((b,i)=>{b.classList.remove('type-on','on');if(i===0)b.classList.add('type-on');});aiType='all';document.querySelectorAll('#ottChips .chip').forEach((b,i)=>b.classList.toggle('on',i===0));document.querySelectorAll('#genreChips .chip').forEach((b,i)=>b.classList.toggle('on',i===0));}
+
 
 let curPeriod='daily';
 async function setPeriod(p,btn){
