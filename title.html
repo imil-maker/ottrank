@@ -749,6 +749,13 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   const canon=document.getElementById('seoCanonical');
   if(canon) canon.href=canonical;
 
+  /* ── 브라우저 주소창을 슬러그 URL로 업데이트 ──
+   * replaceState: 뒤로가기 히스토리를 오염시키지 않고 URL만 교체
+   * 조건: 이미 올바른 슬러그 URL이면 불필요한 호출 방지 */
+  if(tid && slug && location.pathname !== `/title/${slug}`){
+    history.replaceState(null, '', `/title/${slug}`);
+  }
+
   if(posterUrl){
     const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;
     setMeta('seoOgImg','content',ogImg);
