@@ -1,0 +1,223 @@
+<!-- ══════════════════════════════════════════════
+     오뜨랑 공용 헤더 (header.html)
+     사용법: 각 페이지 <body> 상단에 JS로 삽입
+     <script>
+       fetch('/header.html').then(r=>r.text()).then(h=>{
+         document.getElementById('ottrang-header').innerHTML=h;
+         initHeader();
+       });
+     </script>
+     ══════════════════════════════════════════════ -->
+
+<!-- ── 헤더 CSS ── -->
+<style id="header-style">
+:root {
+  --bg:#0c0c10;
+  --bg2:#13131a;
+  --bg3:#1a1a24;
+  --card:#16161f;
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.16);
+  --text:#ededf0;
+  --muted:#7a7a96;
+  --muted2:#a0a0bc;
+  --accent:#e63946;
+  --gold:#f0b429;
+  --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
+  --mono:'DM Mono',monospace;
+  --sans:'Noto Sans KR',sans-serif;
+  --disp:'Bebas Neue',sans-serif;
+  --r:10px;
+  --max-w:1440px;
+}
+.ottrang-header-outer {
+  position:sticky;top:0;z-index:200;
+  background:rgba(12,12,16,.96);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  font-family:var(--sans);
+}
+.ottrang-header-inner {
+  max-width:var(--max-w);margin:0 auto;
+  padding:0 28px;height:64px;
+  display:flex;align-items:center;gap:24px;
+}
+.ottrang-logo {
+  text-decoration:none;display:flex;align-items:center;flex-shrink:0;
+}
+.ottrang-logo-text {
+  font-family:var(--disp);font-size:26px;letter-spacing:2px;
+  color:var(--text);line-height:1;
+}
+.ottrang-logo-text span { color:var(--accent); }
+.ottrang-nav { display:flex;gap:2px;flex-shrink:0; }
+.ottrang-nav a {
+  padding:7px 14px;border-radius:7px;
+  color:var(--muted2);font-size:15px;font-weight:500;
+  text-decoration:none;white-space:nowrap;
+  transition:all .15s;
+}
+.ottrang-nav a:hover,
+.ottrang-nav a.on { color:var(--text);background:var(--bg3); }
+
+/* 검색 */
+.ottrang-search-wrap { margin-left:auto;position:relative;flex-shrink:0; }
+.ottrang-search-input {
+  width:220px;height:40px;
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:22px;padding:0 40px 0 16px;
+  color:var(--text);font-family:var(--sans);font-size:14px;
+  outline:none;transition:all .2s;
+}
+.ottrang-search-input::placeholder { color:var(--muted); }
+.ottrang-search-input:focus { width:300px;border-color:var(--border2);background:var(--bg2); }
+.ottrang-search-icon {
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--muted);font-size:17px;cursor:pointer;
+  display:flex;align-items:center;
+}
+.ottrang-search-results {
+  display:none;position:absolute;top:46px;left:0;right:0;
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:12px;overflow:hidden;z-index:300;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
+}
+.ottrang-search-results.show { display:block; }
+.ottrang-sr-item {
+  display:flex;align-items:center;gap:10px;
+  padding:11px 16px;cursor:pointer;transition:background .12s;
+}
+.ottrang-sr-item:hover { background:var(--bg3); }
+.ottrang-sr-pf {
+  font-size:10px;padding:2px 7px;border-radius:3px;
+  color:#fff;font-weight:600;flex-shrink:0;
+}
+.ottrang-sr-title { font-size:14px;color:var(--text);flex:1; }
+.ottrang-sr-rank { font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0; }
+.ottrang-sr-empty { padding:18px;text-align:center;font-size:14px;color:var(--muted); }
+
+/* 우측 버튼 */
+.ottrang-hright { display:flex;align-items:center;gap:10px;flex-shrink:0; }
+.ottrang-btn-login {
+  padding:8px 16px;border-radius:8px;
+  border:1px solid var(--border2);background:transparent;
+  color:var(--text);font-family:var(--sans);font-size:14px;cursor:pointer;
+  white-space:nowrap;transition:background .15s;
+}
+.ottrang-btn-login:hover { background:var(--bg3); }
+.ottrang-btn-join {
+  padding:8px 18px;border-radius:8px;
+  background:var(--accent);color:#fff;
+  font-family:var(--sans);font-size:14px;font-weight:500;
+  border:none;cursor:pointer;white-space:nowrap;transition:background .15s;
+}
+.ottrang-btn-join:hover { background:#ff4d58; }
+
+/* 슬로건 배너 */
+.ottrang-banner {
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  font-family:var(--sans);
+}
+.ottrang-banner-inner {
+  max-width:var(--max-w);margin:0 auto;
+  padding:10px 28px;display:flex;align-items:center;justify-content:center;
+}
+.ottrang-slogan { font-size:13px;color:var(--muted2);letter-spacing:.3px;text-align:center; }
+.ottrang-slogan b {
+  background:linear-gradient(90deg,#FF5177,#FF9A3C);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;font-weight:700;
+}
+
+/* 모바일 */
+@media(max-width:768px){
+  .ottrang-header-inner { padding:0 16px;gap:12px; }
+  .ottrang-nav { display:none; }
+  .ottrang-search-input { width:160px; }
+  .ottrang-search-input:focus { width:200px; }
+}
+</style>
+
+<!-- ── 헤더 HTML ── -->
+<div class="ottrang-header-outer">
+  <div class="ottrang-header-inner">
+    <a class="ottrang-logo" href="/" aria-label="오뜨랑 홈">
+      <span class="ottrang-logo-text">오뜨랑<span>.</span></span>
+    </a>
+    <nav class="ottrang-nav" id="ottrangNav">
+      <a href="/#tv" id="navTV">TV 시리즈</a>
+      <a href="/#movie" id="navMovie">영화</a>
+      <a href="/#youtube" id="navYt">유튜브</a>
+      <a href="/#community" id="navComm">커뮤니티</a>
+    </nav>
+    <div class="ottrang-search-wrap">
+      <input class="ottrang-search-input" id="ottrangSearch" type="text"
+        placeholder="🔍 작품, 배우, 감독 검색"
+        oninput="ottrangOnSearch(this.value)"
+        onfocus="ottrangShowSR()"
+        onblur="setTimeout(ottrangHideSR,200)"
+        autocomplete="off">
+      <button class="ottrang-search-icon"
+        onclick="document.getElementById('ottrangSearch').focus()"
+        aria-label="검색">⌕</button>
+      <div class="ottrang-search-results" id="ottrangSearchResults"></div>
+    </div>
+    <div class="ottrang-hright">
+      <button class="ottrang-btn-login" id="ottrangBtnLogin">로그인</button>
+      <button class="ottrang-btn-join" id="ottrangBtnJoin">가입</button>
+    </div>
+  </div>
+</div>
+<div class="ottrang-banner">
+  <div class="ottrang-banner-inner">
+    <p class="ottrang-slogan">오늘 OTT 뭐 볼까?&nbsp;&nbsp;<b>오뜨랑에서 확인</b>&nbsp;&nbsp;—&nbsp;&nbsp;넷플릭스 · 티빙 · 디즈니+ · 쿠팡플레이 · 웨이브 랭킹 한눈에</p>
+  </div>
+</div>
+
+<script>
+/* ── 헤더 공용 JS ── */
+function initHeader(){
+  /* 현재 페이지에 맞는 nav 활성화 */
+  const path=location.pathname;
+  if(path==='/'||path==='/index.html') document.getElementById('navTV')?.classList.add('on');
+  else if(path.includes('title')) { /* 작품 상세 - 없음 */ }
+
+  /* 간단 검색 (실제 API 연동은 각 페이지에서 override 가능) */
+  window.ottrangShowSR=function(){
+    const el=document.getElementById('ottrangSearchResults');
+    if(el&&el.innerHTML.trim()) el.classList.add('show');
+  };
+  window.ottrangHideSR=function(){
+    document.getElementById('ottrangSearchResults')?.classList.remove('show');
+  };
+  window.ottrangOnSearch=async function(q){
+    const el=document.getElementById('ottrangSearchResults');
+    if(!el) return;
+    if(!q||q.length<2){ el.innerHTML=''; el.classList.remove('show'); return; }
+    const API='https://ottrank-api.tdidream.workers.dev';
+    const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브'};
+    const C={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3'};
+    try{
+      const res=await fetch(`${API}/rankings`);
+      const json=await res.json();
+      if(!json.ok) return;
+      const rows=(json.data||[]).filter(r=>r.title_ko&&r.title_ko.includes(q)).slice(0,8);
+      if(!rows.length){
+        el.innerHTML=`<div class="ottrang-sr-empty">검색 결과 없음</div>`;
+      } else {
+        el.innerHTML=rows.map(r=>`
+          <div class="ottrang-sr-item" onclick="location.href='/title.html?tmdb_id=${r.tmdb_id}&type=${r.category}&platform=${r.platform}&rank=${r.rank}&title=${encodeURIComponent(r.title_ko)}'">
+            <span class="ottrang-sr-pf" style="background:${C[r.platform]||'#666'}">${PC[r.platform]||r.platform}</span>
+            <span class="ottrang-sr-title">${r.title_ko}</span>
+            <span class="ottrang-sr-rank">${r.rank}위</span>
+          </div>`).join('');
+      }
+      el.classList.add('show');
+    } catch(e){ el.innerHTML=''; }
+  };
+}
+/* 헤더가 직접 삽입된 경우 자동 초기화 */
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', initHeader);
+} else { initHeader(); }
+</script>
