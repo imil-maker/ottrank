@@ -84,8 +84,9 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function testUrl(fullUrl, relUrl){
-  /* sessionStorage 없이 직접 이동 → 슬러그 파싱 테스트 */
-  console.log('이동:', fullUrl);
+  console.log('이동:', fullUrl, 'slug:', relUrl);
+  /* _title_detail.html이 slug를 못 받는 경우 대비해 sessionStorage에 저장 */
+  sessionStorage.setItem('ottrang_slug', relUrl);
   location.href = fullUrl;
 }
 
