@@ -770,7 +770,7 @@ async function loadTranslatedComments(reactionId){
     el.innerHTML = data.map(c=>`
       <div class="tc-item">
         <div class="tc-header">
-          <span class="tc-author" style="font-weight:600">@${c.author||'익명'}</span>
+          <span class="tc-author" style="font-weight:600">@${(c.author||'익명').replace(/^@/,'')}</span>
           <span class="tc-likes">👍 ${Number(c.like_count||0).toLocaleString()}</span>
         </div>
         <div class="tc-text">${c.translated_text||c.original_text||''}</div>
