@@ -388,21 +388,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 </div>
 
-<!-- 인라인 플레이어 모달 -->
-<div class="player-modal" id="playerModal" onclick="handleModalClick(event)">
-  <div class="player-wrap" id="playerWrap">
-    <div class="player-head">
-      <span class="player-title" id="playerTitle"></span>
-      <button class="player-close" onclick="closePlayer()" aria-label="닫기">✕</button>
-    </div>
-    <div class="player-video">
-      <iframe id="playerFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="해외반응 영상"></iframe>
-    </div>
-    <div class="player-body" id="playerBody">
-      <!-- 작품 정보 + 번역 댓글 + 사용자 댓글 -->
-    </div>
-  </div>
-</div>
+<!-- 플레이어 모달 제거됨 - /reaction/:id 별도 페이지 사용 -->
 
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
@@ -528,7 +514,7 @@ function _renderFeaturedCard(r, el){
   const dateStr = r.published_at ? new Date(r.published_at).toLocaleDateString('ko-KR') : '';
 
   el.innerHTML = `
-    <div class="featured-card" onclick="openPlayer(${r.id},'${r.video_id}','${(r.video_title||'').replace(/'/g,"\\'")}',${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,"\\'")}','${r.poster_path||''}')">
+    <div class="featured-card" onclick="goReaction(${r.id})">
       <div class="featured-thumb">
         <img src="${r.thumbnail||`https://img.youtube.com/vi/${r.video_id}/mqdefault.jpg`}" alt="${r.video_title||''}" loading="eager">
         <div class="featured-play"><div class="play-icon"><i class="ti ti-player-play" style="font-size:18px"></i></div></div>
@@ -552,7 +538,7 @@ function _renderFeaturedCard(r, el){
           </div>
         </div>
         <div class="featured-cta">
-          <button class="btn-view-reaction">반응 보기 →</button>
+          <button class="btn-view-reaction" onclick="event.stopPropagation();goReaction(${r.id})">반응 보기 →</button>
         </div>
       </div>
     </div>`;
@@ -609,7 +595,7 @@ function renderGrid(){
     const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('ko-KR') : '';
 
     return `
-      <div class="rc" onclick="openPlayer(${r.id},'${r.video_id}','${(r.video_title||'').replace(/'/g,"\\'")}',${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,"\\'")}','${r.poster_path||''}')">
+        <div class="rc" onclick="goReaction(${r.id})">
         <div class="rc-thumb">
           <img src="${thumb}" alt="${r.video_title||''}" loading="lazy" onerror="this.style.display='none'">
           <div class="rc-play"><div class="rc-play-icon"><i class="ti ti-player-play" style="font-size:12px"></i></div></div>
@@ -630,7 +616,7 @@ function renderGrid(){
         <div class="rc-footer" style="gap:6px;flex-wrap:wrap">
           <button class="rc-footer-btn"
             style="background:rgba(230,57,70,.12);color:var(--accent);border-color:rgba(230,57,70,.35)"
-            onclick="event.stopPropagation();openPlayer(${r.id},'${r.video_id}','${(r.custom_title||r.video_title||'').replace(/'/g,"\\'")}',${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,"\\'")}','${r.poster_path||''}')">
+            onclick="event.stopPropagation();goReaction(${r.id})">
             🌍 해외반응 댓글보기
           </button>
           <button class="rc-footer-btn"
@@ -662,7 +648,13 @@ function goPage(p){
   document.querySelector('.filter-bar').scrollIntoView({behavior:'smooth'});
 }
 
-/* ══ 플레이어 ══ */
+/* ══ 반응 상세 페이지 이동 ══ */
+function goReaction(id){
+  sessionStorage.setItem('ottrang_reaction', JSON.stringify({id}));
+  location.href = `/reaction/${id}`;
+}
+
+/* ══ 플레이어 (미사용 - 별도 페이지로 대체) ══ */
 async function openPlayer(reactionId, videoId, title, tmdbId, titleKo, posterPath){
   curReactionId = reactionId;
   document.getElementById('playerTitle').textContent = title;
