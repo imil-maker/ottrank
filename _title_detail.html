@@ -132,8 +132,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 ═══════════════════════════════ */
 .ratings-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
 .r-card{background:var(--bg2);border-radius:var(--r);padding:16px 12px;text-align:center;border:.5px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
-.r-label{font-size:11px;color:var(--muted);margin-bottom:10px;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap}
-.r-logo{font-size:13px;font-weight:800;letter-spacing:1px;margin-bottom:6px}
+.r-label{font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap}
+.r-logo{font-size:16px;font-weight:800;letter-spacing:1px;margin-bottom:8px}
 .r-score{font-size:30px;font-weight:700;line-height:1}
 .r-sub{font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
 .empty-rating{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;cursor:pointer;border-radius:var(--r);border:1px dashed var(--border);transition:all .15s}
@@ -411,38 +411,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <!-- IMDB -->
   <div class="r-card">
     <div class="r-logo" style="color:#F5C518">IMDb</div>
-    <div class="r-label">/ 10</div>
     <div class="r-score" id="imdbScore" style="color:#F5C518">—</div>
-    <div class="r-sub" id="imdbVotes">—</div>
+    <div class="r-sub" id="imdbVotes" style="font-size:11px;margin-top:4px">—</div>
   </div>
 
   <!-- TMDB -->
   <div class="r-card">
     <div class="r-logo" style="color:#01b4e4">TMDB</div>
-    <div class="r-label">/ 10</div>
     <div class="r-score" id="tmdbScore" style="color:#01b4e4">—</div>
-    <div class="r-sub" id="tmdbVotes">—</div>
+    <div class="r-sub" id="tmdbVotes" style="font-size:11px;margin-top:4px">—</div>
   </div>
 
   <!-- 오뜨랑 유저 평점 -->
   <div class="r-card" style="position:relative">
     <div class="r-logo" style="background:linear-gradient(90deg,#FF5177,#FF9A3C);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">오뜨랑</div>
-    <div class="r-label">/ 10 유저평점</div>
     <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="scrollToRating()">
       <span style="font-size:28px">🎬</span>
       <span style="font-size:10px;color:var(--muted2);font-family:var(--font-mono);text-align:center;line-height:1.4">이 작품의 첫번째<br>평점을 남겨보세요</span>
     </div>
-    <div id="userRatingFilled" style="display:none;text-align:center;width:100%">
+    <div id="userRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
       <div class="r-score" id="userScore" style="color:var(--accent)">—</div>
-      <div style="font-size:13px;color:var(--gold);margin:4px 0;letter-spacing:1px" id="userStarDisplay"></div>
-      <div class="r-sub" id="userVotes">—</div>
+      <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="userStarDisplay"></div>
+      <div class="r-sub" id="userVotes" style="font-size:11px;margin-top:6px">—</div>
     </div>
   </div>
 
   <!-- 내 평점 -->
   <div class="r-card">
     <div class="r-logo" style="color:var(--muted2)">내 평점</div>
-    <div class="r-label">/ 10</div>
     <div id="myRatingDisplay" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="scrollToRating()">
       <span style="font-size:28px">✍️</span>
       <span style="font-size:11px;color:var(--info);font-family:var(--font-mono)">평점 남기기</span>
@@ -928,26 +924,45 @@ async function loadTmdb(){
       document.getElementById('tmdbScore').textContent = tmdbRating ? parseFloat(tmdbRating).toFixed(1) : '—';
       document.getElementById('tmdbVotes').textContent = tmdbVotes ? `${tmdbVotes.toLocaleString()}명` : '—';
 
-      /* IMDB 평점: external_ids → imdb_id 확인 */
+      /* IMDB 평점: TMDB external_ids → imdb_id → OMDB API */
       try{
         const extRes  = await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/external_ids`);
         const extData = await extRes.json();
         const imdbId  = extData.imdb_id;
         if(imdbId){
-          /* IMDB 링크 표시 + TMDB에서 제공하는 imdb 평점은 없으므로
-           * imdb_id가 있을 때 카드를 클릭 가능하게 링크 연결 */
+          /* IMDb 카드 클릭 → IMDb 페이지 이동 */
           const imdbCard = document.getElementById('imdbScore').closest('.r-card');
           imdbCard.style.cursor = 'pointer';
           imdbCard.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`,'_blank');
           imdbCard.title = 'IMDb에서 보기';
-          /* IMDB 평점은 별도 API 없이 TMDB imdb vote_average 활용 불가
-           * → "IMDb" 텍스트 아래 링크 아이콘으로 안내 */
-          document.getElementById('imdbScore').textContent = '↗';
-          document.getElementById('imdbScore').style.fontSize = '22px';
-          document.getElementById('imdbVotes').textContent = imdbId;
-          document.getElementById('imdbVotes').style.color = '#F5C518';
+
+          /* ① tmdb_id + imdb_id 매핑을 DB에 저장 */
+          fetch(`${OTTRANK_API}/imdb/save`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ tmdb_id: WORK.tmdb_id, imdb_id: imdbId })
+          }).catch(()=>{});
+
+          /* ② IMDB 평점 조회 (D1 캐시 → OMDB API) */
+          try{
+            const omdbRes  = await fetch(`${OTTRANK_API}/imdb/${imdbId}`);
+            if(omdbRes.ok){
+              const omdbData = await omdbRes.json();
+              if(omdbData.ok && omdbData.rating){
+                document.getElementById('imdbScore').textContent = omdbData.rating;
+                document.getElementById('imdbVotes').textContent =
+                  omdbData.votes ? omdbData.votes.replace(/,/g,'')+'명' : '';
+              } else { throw new Error('no rating'); }
+            } else { throw new Error('api not ready'); }
+          }catch(e){
+            /* Workers 엔드포인트 준비 중 → IMDb 링크로 표시 */
+            document.getElementById('imdbScore').innerHTML =
+              `<span style="font-size:20px;display:block;margin:4px 0">↗</span>`;
+            document.getElementById('imdbVotes').innerHTML =
+              `<span style="color:#F5C518;font-size:10px">IMDb에서 보기</span>`;
+          }
         }
-      }catch(e){}
+      }catch(e){ console.error('IMDB fetch 오류:',e); }
 
       const ov=det.overview||'줄거리 정보가 없습니다.';
       document.getElementById('overview').textContent=ov;
