@@ -45,11 +45,15 @@
 .ottrang-logo {
   text-decoration:none;display:flex;align-items:center;flex-shrink:0;
 }
-.ottrang-logo-text {
-  font-family:var(--disp);font-size:26px;letter-spacing:2px;
-  color:var(--text);line-height:1;
+.ottrang-logo-img {
+  height:44px;
+  width:auto;
+  max-width:220px;
+  object-fit:contain;
+  /* 검정 배경 로고 → 다크 헤더에 자연스럽게 합성 */
+  mix-blend-mode:lighten;
+  display:block;
 }
-.ottrang-logo-text span { color:var(--accent); }
 .ottrang-nav { display:flex;gap:2px;flex-shrink:0; }
 .ottrang-nav a {
   padding:7px 14px;border-radius:7px;
@@ -142,7 +146,14 @@
 <div class="ottrang-header-outer">
   <div class="ottrang-header-inner">
     <a class="ottrang-logo" href="/" aria-label="오뜨랑 홈">
-      <span class="ottrang-logo-text">오뜨랑<span>.</span></span>
+      <img
+        class="ottrang-logo-img"
+        src="/logo.png"
+        alt="오뜨랑 OTTRANK"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+      >
+      <!-- 이미지 로드 실패 시 텍스트 폴백 -->
+      <span style="display:none;font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#ededf0;line-height:1">오뜨랑<span style="color:#e63946">.</span></span>
     </a>
     <nav class="ottrang-nav" id="ottrangNav">
       <a href="/#tv" id="navTV">TV 시리즈</a>
@@ -205,12 +216,18 @@ function initHeader(){
       if(!rows.length){
         el.innerHTML=`<div class="ottrang-sr-empty">검색 결과 없음</div>`;
       } else {
-        el.innerHTML=rows.map(r=>`
-          <div class="ottrang-sr-item" onclick="location.href='/title.html?tmdb_id=${r.tmdb_id}&type=${r.category}&platform=${r.platform}&rank=${r.rank}&title=${encodeURIComponent(r.title_ko)}'">
+        el.innerHTML=rows.map(r=>{
+          /* 슬러그 생성: sessionStorage에 데이터 저장 후 슬러그 URL로 이동 */
+          const slugTitle=(r.title_ko||'').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
+          const s=1, y=new Date().getFullYear(), tid=r.tmdb_id||'';
+          const slugUrl=tid ? `/title/${slugTitle}-${s}${y}${tid}` : '#';
+          const onclick=`onclick="(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${r.tmdb_id||'null'},type:'${r.category||'tv'}',platform:'${r.platform||''}',rank:${r.rank||1},title:'${(r.title_ko||'').replace(/'/g,'')}'  ,season:1,year:${y}}));location.href='${slugUrl}';})()"`;
+          return `<div class="ottrang-sr-item" ${onclick} style="cursor:pointer">
             <span class="ottrang-sr-pf" style="background:${C[r.platform]||'#666'}">${PC[r.platform]||r.platform}</span>
             <span class="ottrang-sr-title">${r.title_ko}</span>
             <span class="ottrang-sr-rank">${r.rank}위</span>
-          </div>`).join('');
+          </div>`;
+        }).join('');
       }
       el.classList.add('show');
     } catch(e){ el.innerHTML=''; }
