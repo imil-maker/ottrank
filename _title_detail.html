@@ -130,10 +130,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ═══════════════════════════════
    평점 3종
 ═══════════════════════════════ */
-.ratings-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
-.r-card{background:var(--bg2);border-radius:var(--r);padding:18px;text-align:center;border:.5px solid var(--border)}
-.r-label{font-size:12px;color:var(--muted);margin-bottom:10px;font-family:var(--font-mono);letter-spacing:.5px}
-.r-score{font-size:34px;font-weight:700;line-height:1}
+.ratings-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.r-card{background:var(--bg2);border-radius:var(--r);padding:16px 12px;text-align:center;border:.5px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+.r-label{font-size:11px;color:var(--muted);margin-bottom:10px;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap}
+.r-logo{font-size:13px;font-weight:800;letter-spacing:1px;margin-bottom:6px}
+.r-score{font-size:30px;font-weight:700;line-height:1}
 .r-sub{font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
 .empty-rating{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;cursor:pointer;border-radius:var(--r);border:1px dashed var(--border);transition:all .15s}
 .empty-rating:hover{border-color:var(--border2);background:var(--bg)}
@@ -320,8 +321,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 @media(max-width:640px){
   .hero-row{grid-template-columns:140px 1fr;gap:16px}
   .main-title{font-size:20px}
-  .ratings-row{grid-template-columns:1fr 1fr 1fr}
-  .r-score{font-size:26px}
+  .ratings-row{grid-template-columns:1fr 1fr}
+  .r-score{font-size:24px}
+  .r-label{font-size:10px}
   .yt-grid{grid-template-columns:1fr}
   .rating-cta-banner{flex-direction:column;align-items:flex-start}
   .page-wrap{padding:16px 14px 60px}
@@ -403,32 +405,50 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
-<!-- 평점 3종 -->
+<!-- 평점 4블록 -->
 <div class="ratings-row">
+
+  <!-- IMDB -->
   <div class="r-card">
-    <div class="r-label">TMDB 평점</div>
-    <div class="r-score" id="tmdbScore" style="color:var(--gold)">—</div>
+    <div class="r-logo" style="color:#F5C518">IMDb</div>
+    <div class="r-label">/ 10</div>
+    <div class="r-score" id="imdbScore" style="color:#F5C518">—</div>
+    <div class="r-sub" id="imdbVotes">—</div>
+  </div>
+
+  <!-- TMDB -->
+  <div class="r-card">
+    <div class="r-logo" style="color:#01b4e4">TMDB</div>
+    <div class="r-label">/ 10</div>
+    <div class="r-score" id="tmdbScore" style="color:#01b4e4">—</div>
     <div class="r-sub" id="tmdbVotes">—</div>
   </div>
-  <div class="r-card">
-    <div class="r-label">오뜨랑 평점</div>
-    <div id="userRatingEmpty" class="empty-rating" onclick="scrollToRating()" style="height:100%">
-      <span style="font-size:22px">⭐</span>
-      <span class="empty-rating-cta">첫 평점 남기기</span>
+
+  <!-- 오뜨랑 유저 평점 -->
+  <div class="r-card" style="position:relative">
+    <div class="r-logo" style="background:linear-gradient(90deg,#FF5177,#FF9A3C);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">오뜨랑</div>
+    <div class="r-label">/ 10 유저평점</div>
+    <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="scrollToRating()">
+      <span style="font-size:28px">🎬</span>
+      <span style="font-size:10px;color:var(--muted2);font-family:var(--font-mono);text-align:center;line-height:1.4">이 작품의 첫번째<br>평점을 남겨보세요</span>
     </div>
-    <div id="userRatingFilled" style="display:none;text-align:center">
+    <div id="userRatingFilled" style="display:none;text-align:center;width:100%">
       <div class="r-score" id="userScore" style="color:var(--accent)">—</div>
-      <div style="font-size:16px;color:var(--gold);margin:4px 0" id="userStarDisplay"></div>
+      <div style="font-size:13px;color:var(--gold);margin:4px 0;letter-spacing:1px" id="userStarDisplay"></div>
       <div class="r-sub" id="userVotes">—</div>
     </div>
   </div>
+
+  <!-- 내 평점 -->
   <div class="r-card">
-    <div class="r-label">내 평점</div>
-    <div class="empty-rating" onclick="scrollToRating()" id="myRatingDisplay" style="height:100%">
-      <span style="font-size:22px">✍</span>
-      <span class="empty-rating-cta">평점 남기기</span>
+    <div class="r-logo" style="color:var(--muted2)">내 평점</div>
+    <div class="r-label">/ 10</div>
+    <div id="myRatingDisplay" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="scrollToRating()">
+      <span style="font-size:28px">✍️</span>
+      <span style="font-size:11px;color:var(--info);font-family:var(--font-mono)">평점 남기기</span>
     </div>
   </div>
+
 </div>
 
 <!-- ★ 평점 CTA 배너 ★ -->
@@ -443,7 +463,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 </div>
 
 <!-- 순위 히스토리 -->
-<div class="rank-hist-card">
+<div id="rankHistSection" class="rank-hist-card">
   <div class="sec-title">
     <i class="ti ti-chart-line" style="font-size:16px" aria-hidden="true"></i>
     30일 순위 히스토리
@@ -525,6 +545,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 </div>
 
 <!-- 사용자 댓글 -->
+<div id="commentSection">
 <div class="sec-title">
   <i class="ti ti-message-circle" style="font-size:16px" aria-hidden="true"></i>
   사용자 댓글 <small id="commentCount">0개</small>
@@ -535,6 +556,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 </div>
 <div id="commentsArea"></div>
 <div id="pagination" class="pagination"></div>
+</div>
 
 <!-- 유튜브 -->
 <div class="yt-section">
@@ -900,10 +922,32 @@ async function loadTmdb(){
       document.getElementById('origTitle').textContent =
         [countryStr, year].filter(Boolean).join(' · ') || origTitle || '';
 
-      const rating=det.tmdb_rating||det.vote_average||0;
-      const votes=det.vote_count||0;
-      document.getElementById('tmdbScore').textContent=parseFloat(rating).toFixed(1);
-      document.getElementById('tmdbVotes').textContent=votes?`${votes.toLocaleString()}명 참여`:'—';
+      /* TMDB 평점 (10점 만점) */
+      const tmdbRating = det.tmdb_rating||det.vote_average||0;
+      const tmdbVotes  = det.vote_count||0;
+      document.getElementById('tmdbScore').textContent = tmdbRating ? parseFloat(tmdbRating).toFixed(1) : '—';
+      document.getElementById('tmdbVotes').textContent = tmdbVotes ? `${tmdbVotes.toLocaleString()}명` : '—';
+
+      /* IMDB 평점: external_ids → imdb_id 확인 */
+      try{
+        const extRes  = await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/external_ids`);
+        const extData = await extRes.json();
+        const imdbId  = extData.imdb_id;
+        if(imdbId){
+          /* IMDB 링크 표시 + TMDB에서 제공하는 imdb 평점은 없으므로
+           * imdb_id가 있을 때 카드를 클릭 가능하게 링크 연결 */
+          const imdbCard = document.getElementById('imdbScore').closest('.r-card');
+          imdbCard.style.cursor = 'pointer';
+          imdbCard.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`,'_blank');
+          imdbCard.title = 'IMDb에서 보기';
+          /* IMDB 평점은 별도 API 없이 TMDB imdb vote_average 활용 불가
+           * → "IMDb" 텍스트 아래 링크 아이콘으로 안내 */
+          document.getElementById('imdbScore').textContent = '↗';
+          document.getElementById('imdbScore').style.fontSize = '22px';
+          document.getElementById('imdbVotes').textContent = imdbId;
+          document.getElementById('imdbVotes').style.color = '#F5C518';
+        }
+      }catch(e){}
 
       const ov=det.overview||'줄거리 정보가 없습니다.';
       document.getElementById('overview').textContent=ov;
@@ -1130,13 +1174,18 @@ function submitComment(){
 }
 function updateUserRatingCard(){
   if(!ALL_COMMENTS.length){document.getElementById('userRatingEmpty').style.display='flex';document.getElementById('userRatingFilled').style.display='none';return;}
-  const avg=(ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length).toFixed(1);
-  const stars=Math.round(parseFloat(avg));
-  document.getElementById('userScore').textContent=avg;
-  document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명 평가`;
-  document.getElementById('userStarDisplay').textContent='★'.repeat(stars)+'☆'.repeat(5-stars);
+  /* 별점(5점) → 10점 만점 환산 */
+  const avg5  = ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
+  const avg10 = (avg5 * 2).toFixed(1); // 5점 만점 × 2 = 10점 만점
+  const stars = Math.round(avg5);
+  document.getElementById('userScore').textContent = avg10;
+  document.getElementById('userVotes').textContent = `${ALL_COMMENTS.length}명 평가`;
+  document.getElementById('userStarDisplay').textContent = '★'.repeat(stars)+'☆'.repeat(5-stars);
   document.getElementById('userRatingEmpty').style.display='none';
-  document.getElementById('userRatingFilled').style.display='block';
+  document.getElementById('userRatingFilled').style.display='flex';
+
+  /* 유저 평점 1개 이상이면 댓글섹션을 순위히스토리 앞으로 이동 */
+  reorderSections();
 }
 function getEtagCount(){return document.querySelectorAll('.etag.on').length+customTags.length;}
 function updateEtagCount(){
@@ -1156,6 +1205,23 @@ function removeCustomTag(t){customTags=customTags.filter(x=>x!==t);renderCustomT
 function renderCustomTags(){document.getElementById('customTagList').innerHTML=customTags.map(t=>`<span class="custom-tag-chip">${t}<button onclick="removeCustomTag('${t}')" aria-label="${t} 삭제">✕</button></span>`).join('');}
 function updateCharCount(el){const len=el.value.length;const el2=document.getElementById('charCount');el2.textContent=`${len} / 140`;el2.classList.toggle('warn',len>120);}
 function scrollToRating(){document.getElementById('ratingInputArea').scrollIntoView({behavior:'smooth',block:'start'});}
+
+/* 유저 평점 1개 이상이면: 댓글섹션 → 평점입력 → 순위히스토리 순으로 재배치 */
+function reorderSections(){
+  if(ALL_COMMENTS.length < 1) return;
+  const rankEl    = document.getElementById('rankHistSection');
+  const commentEl = document.getElementById('commentSection');
+  const ratingEl  = document.getElementById('ratingInputArea');
+  if(!rankEl || !commentEl || !ratingEl) return;
+  /* 이미 재배치됐으면 중복 실행 방지 */
+  if(commentEl._reordered) return;
+  commentEl._reordered = true;
+  /* 댓글섹션을 평점 CTA 배너 바로 뒤에 삽입 (순위히스토리 앞) */
+  const ctaBanner = document.querySelector('.rating-cta-banner');
+  if(ctaBanner && ctaBanner.nextSibling){
+    ctaBanner.parentNode.insertBefore(commentEl, rankEl);
+  }
+}
 
 /* ══ 유튜브 ══ */
 const YT_MOCK=[
@@ -1217,7 +1283,7 @@ function showDetail(){
 
 /* ══ 초기화 ══ */
 async function init(){
-  renderComments(); updateUserRatingCard(); renderChart(WORK.platform); renderYt();
+  renderComments(); updateUserRatingCard(); reorderSections(); renderChart(WORK.platform); renderYt();
   await loadTmdb();
   if(location.hash) setTimeout(()=>{const el=document.querySelector(location.hash);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},700);
 }
