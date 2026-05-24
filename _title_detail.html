@@ -135,6 +135,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .r-label{font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap}
 .r-logo{font-size:16px;font-weight:800;letter-spacing:1px;margin-bottom:8px}
 .r-score{font-size:30px;font-weight:700;line-height:1}
+.r-score-wrap{display:flex;align-items:baseline;gap:3px}
+.r-out-of{font-size:13px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
 .r-sub{font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
 .empty-rating{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;cursor:pointer;border-radius:var(--r);border:1px dashed var(--border);transition:all .15s}
 .empty-rating:hover{border-color:var(--border2);background:var(--bg)}
@@ -411,14 +413,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <!-- IMDB -->
   <div class="r-card">
     <div class="r-logo" style="color:#F5C518">IMDb</div>
-    <div class="r-score" id="imdbScore" style="color:#F5C518">—</div>
+    <div class="r-score-wrap">
+      <div class="r-score" id="imdbScore" style="color:#F5C518">—</div>
+      <span class="r-out-of">/10</span>
+    </div>
     <div class="r-sub" id="imdbVotes" style="font-size:11px;margin-top:4px">—</div>
   </div>
 
   <!-- TMDB -->
   <div class="r-card">
     <div class="r-logo" style="color:#01b4e4">TMDB</div>
-    <div class="r-score" id="tmdbScore" style="color:#01b4e4">—</div>
+    <div class="r-score-wrap">
+      <div class="r-score" id="tmdbScore" style="color:#01b4e4">—</div>
+      <span class="r-out-of">/10</span>
+    </div>
     <div class="r-sub" id="tmdbVotes" style="font-size:11px;margin-top:4px">—</div>
   </div>
 
@@ -430,7 +438,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <span style="font-size:10px;color:var(--muted2);font-family:var(--font-mono);text-align:center;line-height:1.4">이 작품의 첫번째<br>평점을 남겨보세요</span>
     </div>
     <div id="userRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
-      <div class="r-score" id="userScore" style="color:var(--accent)">—</div>
+      <div class="r-score-wrap">
+        <div class="r-score" id="userScore" style="color:var(--accent)">—</div>
+        <span class="r-out-of">/10</span>
+      </div>
       <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="userStarDisplay"></div>
       <div class="r-sub" id="userVotes" style="font-size:11px;margin-top:6px">—</div>
     </div>
