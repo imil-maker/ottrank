@@ -761,7 +761,7 @@ async function loadTranslatedComments(reactionId){
         <div style="font-size:28px;margin-bottom:10px">🌍</div>
         <div style="font-size:14px;font-weight:600;margin-bottom:6px">번역 댓글 준비 중</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.6">
-          YouTube 댓글 크롤러가 수집 후 자동으로 표시됩니다<br>
+          관리자 페이지에서 💬 댓글수집 버튼을 눌러주세요<br>
           아래 오뜨랑 댓글로 먼저 반응을 남겨보세요! 👇
         </div>
       </div>`;
@@ -770,13 +770,11 @@ async function loadTranslatedComments(reactionId){
     el.innerHTML = data.map(c=>`
       <div class="tc-item">
         <div class="tc-header">
-          <span class="tc-flag">${getSentimentFlag(c.sentiment)}</span>
-          <span class="tc-author">${c.author||'익명'}</span>
-          ${c.sentiment?`<span class="tc-sentiment ${c.sentiment||'neutral'}">${sentimentLabel(c.sentiment)}</span>`:''}
-          <span class="tc-likes">👍 ${c.like_count||0}</span>
+          <span class="tc-author" style="font-weight:600">@${c.author||'익명'}</span>
+          <span class="tc-likes">👍 ${Number(c.like_count||0).toLocaleString()}</span>
         </div>
         <div class="tc-text">${c.translated_text||c.original_text||''}</div>
-        ${c.original_text&&c.translated_text?`<div class="tc-orig" id="orig_${c.id}">${c.original_text}</div>`:''}
+        ${c.original_text?`<div class="tc-orig" id="orig_${c.id}">${c.original_text}</div>`:''}
       </div>`).join('');
   }catch(e){
     el.innerHTML='<div class="empty-comments">댓글을 불러올 수 없습니다</div>';
@@ -895,16 +893,7 @@ function fmtTime(t){
   if(diff<86400) return Math.floor(diff/3600)+'시간 전';
   return d.toLocaleDateString('ko-KR');
 }
-function getSentimentFlag(s){
-  if(s==='positive') return '😊';
-  if(s==='negative') return '😤';
-  return '💬';
-}
-function sentimentLabel(s){
-  if(s==='positive') return '긍정';
-  if(s==='negative') return '부정';
-  return '중립';
-}
+
 function showToast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
