@@ -602,15 +602,91 @@ const IMG='https://image.tmdb.org/t/p/w500';
 const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브'};
 const CC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3'};
 
-/* URL 파라미터 */
-const params=new URLSearchParams(location.search);
-const WORK={
-  tmdb_id:params.get('tmdb_id')||null,
-  type:params.get('type')||'tv',
-  platform:params.get('platform')||'netflix',
-  rank:params.get('rank')||'—',
-  title:params.get('title')||'작품명',
-};
+/* ══════════════════════════════════════════════
+   URL 파싱: 슬러그 방식 + 하위호환
+   ──────────────────────────────────────────────
+   우선순위:
+   1. sessionStorage (index.html에서 클릭해 온 경우)
+   2. 슬러그 파싱  /title/원더풀스-12026259837
+      └ 맨 끝 숫자 덩어리에서 역순으로:
+        tmdb_id = 마지막 N자리  (가변, TMDB ID는 최대 7자리)
+        year    = 그 앞 4자리
+        season  = 그 앞 나머지 숫자
+   3. 구 쿼리스트링 (?tmdb_id=…) — 하위호환
+   ══════════════════════════════════════════════ */
+function parseSlug(pathname){
+  // /title/원더풀스-12026259837 → slug = "원더풀스-12026259837"
+  const slug = pathname.replace(/^\/title\/?/, '').replace(/\.html$/, '');
+  if(!slug) return null;
+
+  // 맨 끝 연속 숫자 추출 (시즌+연도+tmdbId 결합 덩어리)
+  const m = slug.match(/-(\d+)$/);
+  if(!m) return null;
+
+  const numStr = m[1]; // e.g. "12026259837"
+  // tmdb_id: TMDB ID는 보통 5~7자리. 연도는 항상 4자리, 시즌은 1~2자리
+  // → 뒤에서 연도(4)+시즌(나머지)로 분리, tmdb_id는 남은 뒷부분
+  // 전략: 전체 숫자에서 앞 자리가 시즌, 그다음 4자리가 연도, 나머지가 tmdb_id
+  //   numStr = S + YYYY + tmdb_id
+  //   연도는 1900~2100 범위
+  let season=1, year=new Date().getFullYear(), tmdb_id=null;
+  if(numStr.length >= 6){ // 최소 시즌1자리+연도4자리+tmdb_id1자리
+    // 연도 위치: 오른쪽에서 tmdb_id 제거 후 4자리
+    // tmdb_id 길이를 역산: numStr 전체에서 앞에 시즌이 1~2자리, 다음 4자리가 연도
+    // 앞에서부터: 시즌 자리수를 1~2자리로 시도
+    for(let sLen=1; sLen<=2; sLen++){
+      const s   = parseInt(numStr.slice(0, sLen));
+      const y   = parseInt(numStr.slice(sLen, sLen+4));
+      const tid = numStr.slice(sLen+4);
+      if(tid.length >= 1 && y >= 1900 && y <= 2100 && s >= 1){
+        season   = s;
+        year     = y;
+        tmdb_id  = parseInt(tid);
+        break;
+      }
+    }
+  }
+  const titlePart = slug.slice(0, m.index); // "원더풀스"
+  return { tmdb_id, season, year, titleSlug: titlePart };
+}
+
+/* ── WORK 객체 초기화 ── */
+let WORK = { tmdb_id:null, type:'tv', platform:'netflix', rank:'—', title:'작품명', season:1, year:null };
+
+(function initWork(){
+  /* 1순위: sessionStorage */
+  try{
+    const stored = sessionStorage.getItem('ottrang_work');
+    if(stored){
+      const d = JSON.parse(stored);
+      if(d && d.tmdb_id){
+        Object.assign(WORK, d);
+        sessionStorage.removeItem('ottrang_work'); // 1회 사용 후 제거
+        return;
+      }
+    }
+  }catch(e){}
+
+  /* 2순위: 슬러그 파싱 */
+  if(location.pathname.startsWith('/title/')){
+    const parsed = parseSlug(location.pathname);
+    if(parsed && parsed.tmdb_id){
+      WORK.tmdb_id = parsed.tmdb_id;
+      WORK.season  = parsed.season;
+      WORK.year    = parsed.year;
+      WORK.title   = decodeURIComponent(parsed.titleSlug.replace(/-/g,' ')) || '작품명';
+      return;
+    }
+  }
+
+  /* 3순위: 구 쿼리스트링 하위호환 */
+  const params = new URLSearchParams(location.search);
+  WORK.tmdb_id  = params.get('tmdb_id') ? parseInt(params.get('tmdb_id')) : null;
+  WORK.type     = params.get('type')     || 'tv';
+  WORK.platform = params.get('platform') || 'netflix';
+  WORK.rank     = params.get('rank')     || '—';
+  WORK.title    = params.get('title')    || '작품명';
+})();
 
 /* 상태 */
 let myStars=0, hoverVal=0, myChart=null, curSort='latest', curPage=1;
@@ -644,8 +720,14 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   const seoT=`${t} 평점·후기·해외반응 | ${pName} ${rank}위 | 오뜨랑`;
   const seoD=`${t} ${pName} ${rank}위. 사용자 평점, 한줄 후기, 해외반응, 30일 순위 히스토리를 오뜨랑에서 확인하세요. OTT 드라마·영화 랭킹 서비스.`;
   const seoKw=`${t} 평점, ${t} 후기, ${t} 해외반응, ${t} ${pName}, ${pName} 순위, OTT 랭킹, 드라마 평점, 영화 평점`;
-  const slug=`${WORK.tmdb_id}-${t.toLowerCase().replace(/[^a-z0-9가-힣]/g,'-')}`;
-  const canonical=`https://ottrank.kr/title/${slug}`;
+
+  /* ── 슬러그 생성: {작품명}-{시즌}{연도}{tmdb_id} ── */
+  const s    = WORK.season || 1;
+  const y    = WORK.year   || (new Date().getFullYear());
+  const tid  = WORK.tmdb_id || '';
+  const slugTitle = t.replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
+  const slug = `${slugTitle}-${s}${y}${tid}`;
+  const canonical = `https://ottrank.kr/title/${slug}`;
 
   document.title=seoT;
   setMeta('seoTitle',seoT,'textContent');
@@ -724,6 +806,14 @@ async function loadTmdb(){
       const title=det.title_ko||det.name||det.title||WORK.title;
       const origTitle=det.title_en||det.original_name||det.original_title||'';
       const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
+      const season=det.number_of_seasons||1;
+
+      /* WORK에 시즌·연도 확정값 저장 → SEO canonical에 반영 */
+      WORK.title  = title;
+      WORK.season = season;
+      WORK.year   = year || WORK.year || new Date().getFullYear();
+      WORK.type   = WORK.type || (det.number_of_seasons ? 'tv' : 'movie');
+
       document.getElementById('mainTitle').textContent=title;
       document.getElementById('origTitle').textContent=origTitle?`${origTitle} · ${year}`:year;
 
@@ -859,7 +949,11 @@ function renderPagination(){
 function goPage(p){const t=Math.ceil(ALL_COMMENTS.length/PER_PAGE);if(p<1||p>t)return;curPage=p;renderComments();document.getElementById('commentsArea').scrollIntoView({behavior:'smooth',block:'start'});}
 
 /* ══ 공유 ══ */
-function getShareUrl(){return`https://ottrank.kr/title.html${location.search}`;}
+function getShareUrl(){
+  const t=(document.getElementById('mainTitle').textContent||WORK.title).replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
+  const s=WORK.season||1, y=WORK.year||new Date().getFullYear(), tid=WORK.tmdb_id||'';
+  return `https://ottrank.kr/title/${t}-${s}${y}${tid}`;
+}
 function shareX(){window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`"${WORK.title}" OTT 랭킹 평점·후기 확인하기 👉`)}&url=${encodeURIComponent(getShareUrl())}`,'_blank');}
 function copyLink(){navigator.clipboard.writeText(getShareUrl()).then(()=>showToast('링크가 복사됐어요!'));}
 function shareNative(){
