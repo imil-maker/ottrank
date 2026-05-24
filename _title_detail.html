@@ -782,8 +782,24 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   /* ── 브라우저 주소창을 슬러그 URL로 업데이트 ──
    * replaceState: 뒤로가기 히스토리를 오염시키지 않고 URL만 교체
    * 조건: 이미 올바른 슬러그 URL이면 불필요한 호출 방지 */
-  if(tid && slug && location.pathname !== `/title/${slug}`){
-    history.replaceState(null, '', `/title/${slug}`);
+  if(tid && slug){
+    const targetUrl = `/title/${slug}`;
+    /* 주소창 업데이트 */
+    if(location.pathname !== targetUrl){
+      history.replaceState(null, '', targetUrl);
+    }
+    /* 새로고침 대비: sessionStorage에 slug 유지 */
+    sessionStorage.setItem('ottrang_slug', targetUrl);
+    /* WORK 데이터도 갱신 */
+    sessionStorage.setItem('ottrang_work', JSON.stringify({
+      tmdb_id: WORK.tmdb_id,
+      type: WORK.type,
+      platform: WORK.platform,
+      rank: WORK.rank,
+      title: WORK.title,
+      season: WORK.season,
+      year: WORK.year,
+    }));
   }
 
   if(posterUrl){
@@ -827,11 +843,21 @@ async function loadTmdb(){
   }
   try{
     let det=null;
-    /* /works/ API 미구현 → TMDB 직접 조회 */
+    /* /works/ API 미구현 → TMDB 직접 조회 (tv/movie 둘 다 시도) */
     try{
-      const type = WORK.type==='movie' ? 'movie' : 'tv';
-      const r=await fetch(`${TMDB_PROXY}/${type}/${WORK.tmdb_id}?language=ko-KR`);
-      det=await r.json();
+      const types = WORK.type==='movie' ? ['movie','tv'] : ['tv','movie'];
+      for(const type of types){
+        try{
+          const r = await fetch(`${TMDB_PROXY}/${type}/${WORK.tmdb_id}?language=ko-KR`);
+          const d = await r.json();
+          /* 유효한 응답인지 확인 (id가 있으면 성공) */
+          if(d && d.id){
+            det = d;
+            WORK.type = type; // 실제 타입으로 업데이트
+            break;
+          }
+        }catch(e){}
+      }
     }catch(e){ console.error('TMDB fetch 오류:', e); }
     if(det){
       const poster=det.poster_path;
