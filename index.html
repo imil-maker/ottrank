@@ -394,6 +394,8 @@ function buildRankings(rows) {
       r: row.score || 0,
       _poster: row.poster_path ? IMG + row.poster_path : null,
       tmdb_id: row.tmdb_id || null,
+      _season: row.season || 1,               // API가 season 내려줄 때 활용
+      _year:   String(row.release_year || ''), // API가 release_year 내려줄 때 활용
     });
   });
   return result;
@@ -589,7 +591,14 @@ async function tmdbSearch(q,type){
     // 2차: 포스터 없으면 앞 3단어만으로 재검색 (긴 제목 대응)
     if(!x&&q.split(' ').length>3){x=await doSearch(q.split(' ').slice(0,3).join(' '));}
     if(!x)return null;
-    const info={poster:IMG+x.poster_path,title_ko:x.title||x.name||q};
+    /* 시즌·연도도 함께 저장 */
+    const year = (x.first_air_date||x.release_date||'').slice(0,4) || '';
+    const info={
+      poster:   IMG+x.poster_path,
+      title_ko: x.title||x.name||q,
+      season:   x.number_of_seasons||1,  // TV 시리즈만 존재, 영화는 1
+      year:     year,
+    };
     pCache[k]=info;
     return info;
   }catch{return null;}
@@ -611,7 +620,12 @@ async function enrichAll(data){
       // API에서 poster_path로 이미 _poster가 세팅된 항목은 TMDB 검색 생략
       if(item._poster)return;
       const info=await tmdbSearch(q,item.type);
-      if(info){Object.values(data).forEach(pd=>Object.values(pd).forEach(items=>items.forEach(i=>{if(i.q===q&&!i._poster){i._poster=info.poster;i._ko=info.title_ko;}})));}
+      if(info){Object.values(data).forEach(pd=>Object.values(pd).forEach(items=>items.forEach(i=>{if(i.q===q&&!i._poster){
+        i._poster = info.poster;
+        i._ko     = info.title_ko;
+        i._season = info.season || 1;
+        i._year   = info.year   || '';
+      }})));}
     }));
     if(i+BATCH<entries.length)await new Promise(r=>setTimeout(r,200));
     renderGrids(); // 배치마다 화면 갱신
@@ -621,29 +635,41 @@ async function enrichAll(data){
 /* 검색 */
 const SIDX=[];
 PLATFORMS.forEach(p=>{['tv','movie'].forEach(cat=>{(RANKINGS[cat][p.id]||[]).forEach((item,i)=>{SIDX.push({title:item.t,platform:p.name,platformId:p.id,color:p.color,rank:i+1,cat});});});});
-function onSearch(q){const val=q.trim();if(!val){hideSR();return;}const lower=val.toLowerCase();const hits=SIDX.filter(x=>x.title.includes(val)||x.title.toLowerCase().includes(lower)).slice(0,8);const el=document.getElementById('searchResults');if(!hits.length){el.innerHTML=`<div class="sr-empty">검색 결과가 없습니다</div>`;}else{const tv=hits.filter(x=>x.cat==='tv'),mv=hits.filter(x=>x.cat==='movie');let h='';if(tv.length){h+=`<div class="sr-section">TV 시리즈</div>`;h+=tv.map(x=>`<div class="sr-item" onclick="alert('${x.title} 상세보기')"><span class="sr-pf" style="background:${x.color}">${x.platform}</span><span class="sr-title">${x.title}</span><span class="sr-rank">${x.rank}위</span></div>`).join('');}if(mv.length){h+=`<div class="sr-section">영화</div>`;h+=mv.map(x=>`<div class="sr-item" onclick="alert('${x.title} 상세보기')"><span class="sr-pf" style="background:${x.color}">${x.platform}</span><span class="sr-title">${x.title}</span><span class="sr-rank">${x.rank}위</span></div>`).join('');}el.innerHTML=h;}el.classList.add('show');}
-function goDetail(title){
-  // 실서비스: window.location.href = '/title/' + encodeURIComponent(title);
-  alert(title + ' 상세 페이지\n(배포 시 작품 상세 페이지로 연결됩니다)');
-}
+function onSearch(q){const val=q.trim();if(!val){hideSR();return;}const lower=val.toLowerCase();const hits=SIDX.filter(x=>x.title.includes(val)||x.title.toLowerCase().includes(lower)).slice(0,8);const el=document.getElementById('searchResults');if(!hits.length){el.innerHTML=`<div class="sr-empty">검색 결과가 없습니다</div>`;}else{const tv=hits.filter(x=>x.cat==='tv'),mv=hits.filter(x=>x.cat==='movie');let h='';if(tv.length){h+=`<div class="sr-section">TV 시리즈</div>`;h+=tv.map(x=>`<div class="sr-item" onclick="goDetail(${x.tmdb_id||'null'},'tv','${x.platformId}',${x.rank},'${x.title.replace(/'/g,'')}')"><span class="sr-pf" style="background:${x.color}">${x.platform}</span><span class="sr-title">${x.title}</span><span class="sr-rank">${x.rank}위</span></div>`).join('');}if(mv.length){h+=`<div class="sr-section">영화</div>`;h+=mv.map(x=>`<div class="sr-item" onclick="goDetail(${x.tmdb_id||'null'},'movie','${x.platformId}',${x.rank},'${x.title.replace(/'/g,'')}')"><span class="sr-pf" style="background:${x.color}">${x.platform}</span><span class="sr-title">${x.title}</span><span class="sr-rank">${x.rank}위</span></div>`).join('');}el.innerHTML=h;}el.classList.add('show');}
 function showSR(){const v=document.getElementById('searchInput').value.trim();if(v)onSearch(v);}
 function hideSR(){document.getElementById('searchResults').classList.remove('show');}
 document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))hideSR();});
 
-/* 렌더 */
-function chB(ch){if(ch==='new')return'<span class="cn">NEW</span>';if(ch==='=')return'<span class="cs">─</span>';if(ch.startsWith('+'))return`<span class="cu">▲${ch.slice(1)}</span>`;return`<span class="cd">▼${ch.slice(1)}</span>`;}
-function goDetail(tmdbId, type, platform, rank, title){
+/* ── 슬러그 생성 유틸 ──
+ * 형식: /title/{작품명}-{시즌}{제작년도}{tmdb_id}
+ * 예시: /title/원더풀스-12026259837
+ *   시즌: number_of_seasons 없으면 기본값 1
+ *   제작년도: release_year or first_air_date[:4] or release_date[:4]
+ * 이 정보는 TMDB에서 enrichAll 시 item에 저장해두거나,
+ * 없으면 현재연도로 폴백 (title.html에서 TMDB 재조회 후 canonical 확정)
+ */
+function makeSlug(title){
+  return title.replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
+}
+function goDetail(tmdbId, type, platform, rank, title, season, year){
   if(!tmdbId) return;
-  location.href='title.html?tmdb_id='+tmdbId+'&type='+type+'&platform='+platform+'&rank='+rank+'&title='+encodeURIComponent(title);
+  const s = season || 1;                        // 시즌 없으면 1
+  const y = year   || new Date().getFullYear(); // 연도 없으면 현재연도
+  const slug = makeSlug(title||'work');
+  /* 슬러그 URL로 이동 — 내부 데이터는 sessionStorage에 보관 */
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type, platform, rank, title, season: s, year: y
+  }));
+  location.href = `/title/${slug}-${s}${y}${tmdbId}`;
 }
 function renderCard(p,items){
   if(!items||!items.length)return'';
   const f=items[0],rest=items.slice(1);
   const posterEl=f._poster?`<img src="${f._poster}" alt="${f._ko||f.t}" loading="lazy">`:`<div class="p-hero-ph"><span class="ph-emoji">🎬</span><span class="ph-title">${f._ko||f.t}</span></div>`;
-  const fClick=f.tmdb_id?`onclick="goDetail(${f.tmdb_id},'${f.type||'tv'}','${p.id}',1,'${(f._ko||f.t).replace(/'/g,'')}')" style="cursor:pointer"`:'' ;
+  const fClick=f.tmdb_id?`onclick="goDetail(${f.tmdb_id},'${f.type||'tv'}','${p.id}',1,'${(f._ko||f.t).replace(/'/g,'')}',${f._season||1},'${f._year||''}')" style="cursor:pointer"`:'' ;
   const card=`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><span class="p-name" style="color:${p.color}">${p.name}</span><span class="p-cat">TOP 10</span></div><div class="p-hero" ${fClick}>${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${f.r}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${f.r}</span>`:''}<span>${chB(f.ch)}</span></div></div></div><div class="p-list">`;
   const rows=rest.map((item,i)=>{
-    const rClick=item.tmdb_id?`onclick="goDetail(${item.tmdb_id},'${item.type||'tv'}','${p.id}',${i+2},'${(item._ko||item.t).replace(/'/g,'')}')" style="cursor:pointer"`:'' ;
+    const rClick=item.tmdb_id?`onclick="goDetail(${item.tmdb_id},'${item.type||'tv'}','${p.id}',${i+2},'${(item._ko||item.t).replace(/'/g,'')}',${item._season||1},'${item._year||''}')" style="cursor:pointer"`:'' ;
     return`<div class="p-row" ${rClick}><span class="p-rank ${i<2?'hi':''}">${i+2}</span><span class="p-ch">${chB(item.ch)}</span><span class="p-title">${item._ko||item.t}</span><span class="p-score">★${item.r}</span></div>`;
   }).join('');
   return card+rows+'</div></div>';
