@@ -33,7 +33,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero{
   background:linear-gradient(135deg,rgba(230,57,70,.15) 0%,rgba(55,138,221,.1) 50%,rgba(0,0,0,0) 100%);
   border-bottom:1px solid var(--border);
-  padding:40px 28px 32px;
+  padding:20px 28px 16px;
   position:relative;overflow:hidden;
 }
 .hero::before{
@@ -50,12 +50,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   padding:4px 12px;border-radius:20px;background:rgba(230,57,70,.08);
   margin-bottom:14px;
 }
-.hero-title{font-size:36px;font-weight:700;line-height:1.2;margin-bottom:8px}
+.hero-title{font-size:26px;font-weight:700;line-height:1.2;margin-bottom:6px}
 .hero-title span{
   background:linear-gradient(90deg,#FF5177,#FF9A3C);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
-.hero-sub{font-size:14px;color:var(--muted2);margin-bottom:20px}
+.hero-sub{font-size:13px;color:var(--muted2);margin-bottom:8px}
 .hero-stats{display:flex;gap:20px;flex-wrap:wrap}
 .hstat{text-align:center}
 .hstat-num{font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--text)}
@@ -90,13 +90,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .search-inp::placeholder{color:var(--muted)}
 
 /* ── 메인 레이아웃 ── */
-.page-wrap{max-width:var(--max-w);margin:0 auto;padding:28px 20px 80px}
+.page-wrap{max-width:var(--max-w);margin:0 auto;padding:16px 20px 60px}
 
 /* ── 피처드 (최신 1개 큰 카드) ── */
 .featured-card{
-  display:grid;grid-template-columns:1fr 420px;gap:0;
+  display:grid;grid-template-columns:1fr 1fr;gap:0;
   background:var(--card);border:.5px solid var(--border);border-radius:var(--r-lg);
-  overflow:hidden;margin-bottom:28px;cursor:pointer;transition:border-color .2s;
+  overflow:hidden;margin-bottom:20px;cursor:pointer;transition:border-color .2s;
 }
 .featured-card:hover{border-color:var(--border2)}
 .featured-thumb{position:relative;aspect-ratio:16/9;background:var(--bg3);overflow:hidden}
@@ -347,11 +347,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <div class="hero-badge">🌍 GLOBAL REACTION</div>
     <h1 class="hero-title">K-콘텐츠 <span>해외반응</span></h1>
     <p class="hero-sub">외국인들의 드라마·영화 반응을 한국어로 번역해서 전해드립니다</p>
-    <div class="hero-stats">
-      <div class="hstat"><div class="hstat-num" id="statVideos">—</div><div class="hstat-label">반응 영상</div></div>
-      <div class="hstat"><div class="hstat-num" id="statComments">—</div><div class="hstat-label">번역 댓글</div></div>
-      <div class="hstat"><div class="hstat-num" id="statWorks">—</div><div class="hstat-label">작품</div></div>
-    </div>
+
   </div>
 </div>
 
@@ -445,11 +441,7 @@ async function loadReactions(){
     const json = await res.json();
     allData = json.data || [];
 
-    /* 통계 업데이트 */
-    const works = new Set(allData.map(r=>r.tmdb_id)).size;
-    document.getElementById('statVideos').textContent   = allData.length;
-    document.getElementById('statComments').textContent = '—';
-    document.getElementById('statWorks').textContent    = works;
+
 
     /* 메인 지정 영상 피처드로 표시 */
     const featured = allData.find(r=>r.is_featured===1||r.is_featured==='1');
