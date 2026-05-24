@@ -236,8 +236,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <span id="ytDate"></span>
       </div>
 
+      <!-- 관리자 제목 입력 -->
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">게시판 제목 <span style="color:var(--accent)">*</span> <span style="color:var(--muted);font-size:10px">(직접 입력, 미입력 시 영상 제목 사용)</span></div>
+      <input class="work-search-inp" id="customTitleInp" type="text" placeholder="예) 원더풀스 1화 외국인 반응 모음" maxlength="100" style="width:100%;margin-bottom:12px">
+
       <!-- 작품 연결 -->
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">연결할 작품 검색</div>
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">연결할 작품 검색 <span style="color:var(--muted);font-size:10px">(작품명 또는 tmdb_id 입력)</span></div>
       <div class="yt-link-work" style="position:relative">
         <input class="work-search-inp" id="workSearchInp" type="text"
           placeholder="작품명 검색..."
@@ -551,6 +555,31 @@ async function searchWorks(q) {
 
   workSearchTimer = setTimeout(async () => {
     try {
+      /* tmdb_id 직접 입력 시 바로 조회 */
+      if (/^\d{3,8}$/.test(q)) {
+        const [tvRes, mvRes] = await Promise.all([
+          fetch(`${TMDB_PROXY}/tv/${q}?language=ko-KR`),
+          fetch(`${TMDB_PROXY}/movie/${q}?language=ko-KR`),
+        ]);
+        const tvD = await tvRes.json();
+        const mvD = await mvRes.json();
+        const rows = [];
+        if (tvD.id) rows.push({ tmdb_id: tvD.id, title_ko: tvD.name||tvD.original_name||'', poster_path: tvD.poster_path||'', category:'tv', year:(tvD.first_air_date||'').slice(0,4) });
+        if (mvD.id) rows.push({ tmdb_id: mvD.id, title_ko: mvD.title||mvD.original_title||'', poster_path: mvD.poster_path||'', category:'movie', year:(mvD.release_date||'').slice(0,4) });
+        if (rows.length) {
+          const el = document.getElementById('workSearchResults');
+          el.innerHTML = rows.map(r => `
+            <div class="work-result-item" onclick="selectWork(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+              ${r.poster_path ? `<img class="work-result-poster" src="https://image.tmdb.org/t/p/w92${r.poster_path}" alt="">` : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`}
+              <div>
+                <div style="font-weight:500">${r.title_ko}</div>
+                <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${r.category==='tv'?'📺 TV':'🎬 영화'} · ${r.year} · tmdb:${r.tmdb_id}</div>
+              </div>
+            </div>`).join('');
+          el.style.display = 'block';
+          return;
+        }
+      }
       /* TMDB 멀티검색: TV + 영화 동시 */
       const [tvRes, mvRes] = await Promise.all([
         fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
@@ -627,6 +656,7 @@ async function registerReaction() {
       poster_path:  selectedWorkData.poster_path || '',
       video_id:     ytVideoData.video_id,
       video_title:  ytVideoData.video_title,
+      custom_title: document.getElementById('customTitleInp')?.value.trim() || ytVideoData.video_title,
       channel_name: ytVideoData.channel_name,
       thumbnail:    ytVideoData.thumbnail,
       view_count:   ytVideoData.view_count,
@@ -643,6 +673,7 @@ async function registerReaction() {
       showToast(`✅ "${selectedWorkData.title_ko}" 해외반응 등록 완료!`, 'ok');
       /* 초기화 */
       document.getElementById('ytUrlInp').value = '';
+      document.getElementById('customTitleInp').value = '';
       document.getElementById('ytPreview').classList.remove('show');
       document.getElementById('workSearchInp').value = '';
       document.getElementById('selectedWork').textContent = '';
@@ -671,30 +702,94 @@ async function loadReactions() {
       return;
     }
     el.innerHTML = data.map(r => `
-      <div class="reaction-card">
+      <div class="reaction-card" id="rc_${r.id}">
         <div class="rc-thumb">
           <img src="${r.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'">
           <span class="rc-platform">YouTube</span>
-          ${r.is_manual ? '<span class="rc-manual">수동</span>' : '<span class="rc-manual" style="background:rgba(52,211,153,.9)">자동</span>'}
+          ${r.is_featured
+            ? '<span class="rc-manual" style="background:rgba(240,180,41,.9);color:#000">⭐ 메인</span>'
+            : r.is_manual ? '<span class="rc-manual">수동</span>' : '<span class="rc-manual" style="background:rgba(52,211,153,.9)">자동</span>'}
         </div>
         <div class="rc-body">
           <div class="rc-work">🎬 ${r.title_ko || 'tmdb:'+r.tmdb_id}</div>
-          <div class="rc-title">${r.video_title}</div>
+          <div class="rc-title">
+            ${r.custom_title || r.video_title}
+            ${r.custom_title && r.custom_title !== r.video_title
+              ? '<span style="font-size:9px;color:var(--accent);margin-left:4px;font-family:var(--mono)">수정됨</span>' : ''}
+          </div>
           <div class="rc-meta">
             <span>📺 ${r.channel_name}</span>
             ${r.view_count ? `<span>👁 ${Number(r.view_count).toLocaleString()}</span>` : ''}
           </div>
         </div>
-        <div class="rc-footer">
-          <button class="btn-rc-del" onclick="deleteReaction(${r.id}, '${(r.video_title||'').replace(/'/g,'').slice(0,20)}')">🗑 삭제</button>
+        <div class="rc-footer" style="flex-wrap:wrap;gap:4px">
+          <button class="btn-rc-del"
+            onclick="deleteReaction(${r.id},'${(r.custom_title||r.video_title||'').replace(/'/g,'').slice(0,20)}')">
+            🗑 삭제
+          </button>
+          <button class="btn-rc-del" style="background:rgba(55,138,221,.1);color:#378ADD;border-color:rgba(55,138,221,.3)"
+            onclick="editReaction(${r.id},'${(r.custom_title||r.video_title||'').replace(/'/g,'').replace(/
+/g,'')}')">
+            ✏ 수정
+          </button>
+          <button class="btn-rc-del"
+            style="${r.is_featured
+              ? 'background:rgba(240,180,41,.2);color:#c89a10;border-color:rgba(240,180,41,.4)'
+              : 'background:rgba(52,211,153,.1);color:var(--green);border-color:rgba(52,211,153,.3)'}"
+            onclick="setFeatured(${r.id},${r.is_featured?1:0})">
+            ${r.is_featured ? '⭐ 메인해제' : '⭐ 메인'}
+          </button>
           <a href="https://youtube.com/watch?v=${r.video_id}" target="_blank"
-            style="font-size:11px;color:var(--muted2);font-family:var(--mono);margin-left:auto;text-decoration:none;align-self:center">
-            YouTube ↗
-          </a>
+            style="font-size:11px;color:var(--muted2);font-family:var(--mono);margin-left:auto;text-decoration:none;align-self:center">↗</a>
         </div>
       </div>`).join('');
   } catch(e) {
     el.innerHTML = `<div class="empty">오류: ${e.message}</div>`;
+  }
+}
+
+/* 해외반응 제목 수정 */
+async function editReaction(id, currentTitle) {
+  const newTitle = prompt('게시판 제목을 수정하세요:', currentTitle);
+  if (newTitle === null) return;           // 취소
+  if (!newTitle.trim()) { showToast('제목을 입력해주세요', 'err'); return; }
+  try {
+    const res  = await fetch(`${API}/admin/reactions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ custom_title: newTitle.trim() }),
+    });
+    const json = await res.json();
+    if (json.ok) { showToast('제목이 수정됐습니다', 'ok'); loadReactions(); }
+    else showToast('수정 실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+
+/* 메인 영상 지정 / 해제 */
+async function setFeatured(id, isFeatured) {
+  if (isFeatured) {
+    // 이미 메인 → 해제 (is_featured=0으로 직접 PATCH)
+    if (!confirm('메인 지정을 해제할까요?')) return;
+    try {
+      await fetch(`${API}/admin/reactions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_featured_off: true }),
+      });
+      showToast('메인 지정이 해제됐습니다', 'ok'); loadReactions();
+    } catch(e) { showToast('오류: ' + e.message, 'err'); }
+  } else {
+    if (!confirm('이 영상을 게시판 메인으로 지정할까요?
+기존 메인 영상은 자동으로 해제됩니다.')) return;
+    try {
+      const res  = await fetch(`${API}/admin/reactions/${id}/featured`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.ok) { showToast('⭐ 메인 영상으로 지정됐습니다!', 'ok'); loadReactions(); }
+      else showToast('실패: ' + json.message, 'err');
+    } catch(e) { showToast('오류: ' + e.message, 'err'); }
   }
 }
 
