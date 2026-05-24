@@ -80,10 +80,14 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
                     tmdb_id = best.get("id")
                     ko_title, poster = _fetch_detail(tmdb_id, tmdb_type)
                     poster = poster or best.get("poster_path", "")
-                    print(f"    → 인기매칭({lang}): {ko_title or query}")
-                    return tmdb_id, poster, ko_title
+                    # 한국어 제목이 확인된 경우만 신뢰 (오매핑 방지)
+                    if _is_korean(ko_title):
+                        print(f"    → 인기매칭({lang}): {ko_title}")
+                        return tmdb_id, poster, ko_title
+                    else:
+                        print(f"    → 인기매칭 불신뢰(한국어 제목 없음): {ko_title or query} → 스킵")
 
-                # 3순위: poster 있는 것 중 최고 (최근 10년 이내 우선)
+                # 3순위: poster 있는 것 중 최고 (최근 10년 이내 우선, 한국어 제목 필수)
                 with_poster = [r for r in results if r.get("poster_path")]
                 recent = [r for r in with_poster if _is_recent(r, current_year, 10)]
                 candidates = recent if recent else with_poster
@@ -92,8 +96,12 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
                     tmdb_id = best.get("id")
                     ko_title, poster = _fetch_detail(tmdb_id, tmdb_type)
                     poster = poster or best.get("poster_path", "")
-                    print(f"    → 폴백매칭({lang}): {ko_title or query}")
-                    return tmdb_id, poster, ko_title
+                    # 한국어 제목이 확인된 경우만 신뢰
+                    if _is_korean(ko_title):
+                        print(f"    → 폴백매칭({lang}): {ko_title}")
+                        return tmdb_id, poster, ko_title
+                    else:
+                        print(f"    → 폴백 불신뢰(한국어 제목 없음): {ko_title or query} → 스킵")
 
                 time.sleep(0.2)
 
@@ -133,6 +141,17 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
          tmdb_id_override=None, poster_override=None):
     today = get_today()
     media_type = "tv" if category == "tv" else "movie"
+
+    # is_manual=1인 행은 크롤러가 덮어쓰지 않음
+    existing = conn.execute("""
+        SELECT is_manual, tmdb_id, poster_path, title_ko
+        FROM rankings
+        WHERE date = ? AND platform = ? AND category = ? AND rank = ?
+    """, (today, platform, category, rank)).fetchone()
+
+    if existing and existing[0] == 1:
+        print(f"  [{platform}][{category}] {rank:2d}. {existing[3]} → 수동고정, 스킵")
+        return
 
     if tmdb_id_override and poster_override:
         tmdb_id = tmdb_id_override
