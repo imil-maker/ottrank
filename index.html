@@ -435,6 +435,7 @@ function buildRankings(rows) {
       ch: '=',
       r: row.score || 0,
       _poster: row.poster_path ? IMG + row.poster_path : null,
+      tmdb_id: row.tmdb_id || null,
     });
   });
   return result;
@@ -673,7 +674,14 @@ document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))hideS
 
 /* 렌더 */
 function chB(ch){if(ch==='new')return'<span class="cn">NEW</span>';if(ch==='=')return'<span class="cs">─</span>';if(ch.startsWith('+'))return`<span class="cu">▲${ch.slice(1)}</span>`;return`<span class="cd">▼${ch.slice(1)}</span>`;}
-function renderCard(p,items){if(!items||!items.length)return'';const f=items[0],rest=items.slice(1);const posterEl=f._poster?`<img src="${f._poster}" alt="${f._ko||f.t}" loading="lazy">`:`<div class="p-hero-ph"><span class="ph-emoji">🎬</span><span class="ph-title">${f._ko||f.t}</span></div>`;return`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><span class="p-name" style="color:${p.color}">${p.name}</span><span class="p-cat">TOP 10</span></div><div class="p-hero" onclick="alert('${f.t} 상세보기')">${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${f.r}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${f.r}</span>`:''}<span>${chB(f.ch)}</span></div></div></div><div class="p-list">${rest.map((item,i)=>`<div class="p-row" onclick="alert('${item.t} 상세보기')"><span class="p-rank ${i<2?'hi':''}">${i+2}</span><span class="p-ch">${chB(item.ch)}</span><span class="p-title">${item._ko||item.t}</span><span class="p-score">★${item.r}</span></div>`).join('')}</div></div>`;}
+function goDetail(item, platform, rank){
+  if(!item.tmdb_id && !item._tmdbId) return; // tmdb_id 없으면 이동 안함
+  const tid = item.tmdb_id || item._tmdbId;
+  const type = item.type||'tv';
+  const title = encodeURIComponent(item.t||item.title_ko||'');
+  location.href=`title.html?tmdb_id=${tid}&type=${type}&platform=${platform}&rank=${rank}&title=${title}`;
+}
+function renderCard(p,items){if(!items||!items.length)return'';const f=items[0],rest=items.slice(1);const posterEl=f._poster?`<img src="${f._poster}" alt="${f._ko||f.t}" loading="lazy">`:`<div class="p-hero-ph"><span class="ph-emoji">🎬</span><span class="ph-title">${f._ko||f.t}</span></div>`;const heroClick=f.tmdb_id?`onclick="goDetail(${JSON.stringify({t:f.t,type:f.type,tmdb_id:f.tmdb_id})},'${p.id}',1)"`:f._tmdbId?`onclick="goDetail(${JSON.stringify({t:f.t,type:f.type,_tmdbId:f._tmdbId})},'${p.id}',1)"`:`onclick="void(0)"`;return`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><span class="p-name" style="color:${p.color}">${p.name}</span><span class="p-cat">TOP 10</span></div><div class="p-hero" ${heroClick} style="${(f.tmdb_id||f._tmdbId)?'cursor:pointer':''}">${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${f.r}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${f.r}</span>`:''}<span>${chB(f.ch)}</span></div></div></div><div class="p-list">${rest.map((item,i)=>{const rowClick=item.tmdb_id?`onclick="goDetail(${JSON.stringify({t:item.t,type:item.type,tmdb_id:item.tmdb_id})},'${p.id}',${i+2})"`:item._tmdbId?`onclick="goDetail(${JSON.stringify({t:item.t,type:item.type,_tmdbId:item._tmdbId})},'${p.id}',${i+2})"`:'';return`<div class="p-row" ${rowClick} style="${(item.tmdb_id||item._tmdbId)?'cursor:pointer':''}"><span class="p-rank ${i<2?'hi':''}">${i+2}</span><span class="p-ch">${chB(item.ch)}</span><span class="p-title">${item._ko||item.t}</span><span class="p-score">★${item.r}</span></div>`;}).join('')}</div></div>`;}
 
 let curCat='tv';
 function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS[curCat][p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');}
