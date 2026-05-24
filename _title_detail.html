@@ -684,9 +684,11 @@ let WORK = { tmdb_id:null, type:'tv', platform:'netflix', rank:'—', title:'작
    * Cloudflare Pages rewrite 후에는 location.pathname이 rewrite된 파일 경로가 아닌
    * 원래 요청 경로(/title/군체-...)를 유지함. 단 파일명과 충돌 시 다를 수 있으므로
    * document.referrer, sessionStorage slug, 여러 경로를 시도 */
+  const storedSlug = sessionStorage.getItem('ottrang_slug')||'';
+  console.log('[OTTRANG] ottrang_slug from sessionStorage:', storedSlug);
   const candidatePaths = [
-    location.pathname,                          // 일반적으로 원래 경로 유지
-    sessionStorage.getItem('ottrang_slug')||'', // goDetail에서 저장한 원래 slug
+    location.pathname,
+    storedSlug,
   ];
   for(const p of candidatePaths){
     if(!p || !p.includes('/title/')) continue;
@@ -825,15 +827,12 @@ async function loadTmdb(){
   }
   try{
     let det=null;
+    /* /works/ API 미구현 → TMDB 직접 조회 */
     try{
-      const wr=await fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}`);
-      const wj=await wr.json();
-      if(wj.ok) det=wj.data;
-    }catch(e){}
-    if(!det){
-      const r=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}?language=ko-KR`);
+      const type = WORK.type==='movie' ? 'movie' : 'tv';
+      const r=await fetch(`${TMDB_PROXY}/${type}/${WORK.tmdb_id}?language=ko-KR`);
       det=await r.json();
-    }
+    }catch(e){ console.error('TMDB fetch 오류:', e); }
     if(det){
       const poster=det.poster_path;
       if(poster){
