@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- ── SEO: JS로 동적 업데이트됨, 기본값 ── -->
+<title id="seoTitle">작품 상세 | 오뜨랑 — OTT 랭킹·평점·후기</title>
+<meta id="seoDesc" name="description" content="OTT 작품 평점, 사용자 후기, 해외반응, 순위 히스토리를 오뜨랑에서 확인하세요.">
+<meta id="seoKw" name="keywords" content="OTT 평점, 드라마 후기, 영화 후기, 넷플릭스 평점, 티빙 평점, 해외반응">
+<meta name="robots" content="index, follow">
+<link id="seoCanonical" rel="canonical" href="https://ottrank.kr/title.html">
+
+<!-- OG -->
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="오뜨랑">
+<meta id="seoOgTitle" property="og:title" content="작품 상세 | 오뜨랑">
+<meta id="seoOgDesc" property="og:description" content="OTT 작품 평점과 사용자 후기를 확인하세요.">
+<meta id="seoOgUrl" property="og:url" content="https://ottrank.kr/title.html">
+<meta id="seoOgImg" property="og:image" content="https://ottrank.kr/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ko_KR">
+
+<!-- 트위터 카드 -->
+<meta name="twitter:card" content="summary_large_image">
+<meta id="seoTwTitle" name="twitter:title" content="작품 상세 | 오뜨랑">
+<meta id="seoTwDesc" name="twitter:description" content="OTT 작품 평점과 사용자 후기를 확인하세요.">
+<meta id="seoTwImg" name="twitter:image" content="https://ottrank.kr/og-image.png">
+
+<!-- 구조화 데이터 (JS에서 동적 삽입) -->
+<script id="ldJson" type="application/ld+json">{}</script>
+
+<!-- 폰트·아이콘 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+<style>
+/* ══ 기본 변수 (index.html과 통일) ══ */
+:root{
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429; --green:#34d399;
+  --info:#378ADD; --info-bg:rgba(55,138,221,.12); --info-border:rgba(55,138,221,.35);
+  --warn-bg:rgba(240,180,41,.12); --warn-border:rgba(240,180,41,.35);
+  --danger-bg:rgba(230,57,70,.12); --danger-border:rgba(230,57,70,.35);
+  --font-sans:'Noto Sans KR',sans-serif;
+  --font-mono:'DM Mono',monospace;
+  --font-disp:'Bebas Neue',sans-serif;
+  --r:10px; --r-lg:14px;
+  /* ── 데스크탑 본문 폭 확장 (기존 680px → 900px) ── */
+  --content-w:900px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:16px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+
+/* ── 페이지 래퍼 ── */
+.page-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
+
+/* ── 뒤로가기 ── */
+.back{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted2);cursor:pointer;margin-bottom:20px;padding:7px 14px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;transition:background .15s;text-decoration:none}
+.back:hover{background:var(--bg3)}
+
+/* ═══════════════════════════════
+   히어로 영역 (포스터 + 정보)
+═══════════════════════════════ */
+.hero-row{display:grid;grid-template-columns:200px 1fr;gap:28px;margin-bottom:28px}
+.poster-wrap{position:relative;border-radius:var(--r-lg);overflow:hidden;border:.5px solid var(--border);aspect-ratio:2/3;background:var(--bg3)}
+.poster-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px}
+.platform-pill{position:absolute;top:10px;left:10px;color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:4px;font-family:var(--font-mono);letter-spacing:.5px}
+.rank-badge{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,.8);color:var(--gold);font-size:13px;font-family:var(--font-mono);padding:4px 10px;border-radius:5px;font-weight:500}
+
+/* ── 포스터 하단 CTA (평점 남기기) ── */
+.poster-cta{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(to top,rgba(0,0,0,.92) 60%,transparent);
+  padding:40px 14px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.poster-cta-btn{
+  width:100%;padding:10px 0;border-radius:var(--r);border:none;cursor:pointer;
+  background:var(--accent);color:#fff;font-size:14px;font-weight:700;
+  font-family:var(--font-sans);letter-spacing:.3px;
+  transition:background .15s,transform .1s;
+}
+.poster-cta-btn:hover{background:#ff4d58;transform:scale(1.02)}
+.poster-cta-sub{font-size:11px;color:rgba(255,255,255,.6);font-family:var(--font-mono)}
+
+.info-col{display:flex;flex-direction:column;gap:12px}
+.main-title{font-size:28px;font-weight:700;line-height:1.2}
+.orig-title{font-size:14px;color:var(--muted);margin-top:2px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.tag{font-size:12px;padding:4px 12px;border-radius:20px;border:.5px solid var(--border2);color:var(--muted2);font-family:var(--font-mono)}
+.meta-row{display:flex;gap:18px;flex-wrap:wrap}
+.meta-item{font-size:14px;color:var(--muted2)}
+.meta-item b{color:var(--text);font-weight:600}
+.overview{font-size:15px;color:var(--muted2);line-height:1.75;border-left:2px solid var(--border2);padding-left:14px}
+
+/* ── 배우/감독 ── */
+.people-row{display:flex;flex-direction:column;gap:8px}
+.people-label{font-size:11px;color:var(--muted);font-family:var(--font-mono);letter-spacing:.5px;text-transform:uppercase}
+.people-list{display:flex;flex-wrap:wrap;gap:6px}
+.people-chip{font-size:13px;padding:4px 12px;border-radius:20px;border:.5px solid var(--border2);color:var(--info);cursor:pointer;text-decoration:none;background:transparent;transition:background .15s}
+.people-chip:hover{background:var(--info-bg)}
+
+/* ── 공유 바 ── */
+.share-bar{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap}
+.share-label{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+.share-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s;font-family:var(--font-sans)}
+.share-btn:hover{border-color:var(--border2);color:var(--text);background:var(--bg3)}
+.share-btn.kakao{border-color:rgba(240,180,41,.5);color:#b8860b}
+.share-btn.kakao:hover{background:var(--warn-bg)}
+/* 큰 공유 버튼 */
+.share-btn-lg{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;padding:11px 0;border-radius:var(--r);
+  border:.5px solid var(--info-border);background:var(--info-bg);
+  color:var(--info);font-size:14px;font-weight:600;cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;
+}
+.share-btn-lg:hover{background:rgba(55,138,221,.2);border-color:var(--info)}
+
+/* ── 토스트 ── */
+.share-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
+.share-toast.show{opacity:1}
+
+/* ═══════════════════════════════
+   평점 3종
+═══════════════════════════════ */
+.ratings-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.r-card{background:var(--bg2);border-radius:var(--r);padding:18px;text-align:center;border:.5px solid var(--border)}
+.r-label{font-size:12px;color:var(--muted);margin-bottom:10px;font-family:var(--font-mono);letter-spacing:.5px}
+.r-score{font-size:34px;font-weight:700;line-height:1}
+.r-sub{font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
+.empty-rating{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;cursor:pointer;border-radius:var(--r);border:1px dashed var(--border);transition:all .15s}
+.empty-rating:hover{border-color:var(--border2);background:var(--bg)}
+.empty-rating-cta{font-size:11px;color:var(--info);font-family:var(--font-mono)}
+
+/* ═══════════════════════════════
+   평점 남기기 CTA 배너 (섹션)
+═══════════════════════════════ */
+.rating-cta-banner{
+  background:linear-gradient(135deg,rgba(230,57,70,.15),rgba(240,180,41,.1));
+  border:1px solid rgba(230,57,70,.3);
+  border-radius:var(--r-lg);padding:20px 24px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-bottom:24px;
+}
+.rating-cta-copy h3{font-size:17px;font-weight:700;margin-bottom:4px}
+.rating-cta-copy p{font-size:13px;color:var(--muted2)}
+.rating-cta-stars{display:flex;gap:4px;font-size:22px;color:var(--border2);cursor:pointer}
+.rating-cta-stars span:hover,
+.rating-cta-stars span.lit{color:var(--gold)}
+
+/* ═══════════════════════════════
+   섹션 공통
+═══════════════════════════════ */
+.sec-title{font-size:17px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sec-title small{font-size:12px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
+.card-box{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);margin-bottom:24px}
+
+/* ═══════════════════════════════
+   순위 히스토리
+═══════════════════════════════ */
+.rank-hist-card{padding:18px;margin-bottom:24px;background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg)}
+.ptabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.ptab{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
+.ptab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.rank-highlight{background:var(--warn-bg);border:.5px solid var(--warn-border);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12px;color:#c89a10;display:flex;align-items:center;gap:8px}
+#rankChart{width:100%!important;height:220px!important}
+
+/* ═══════════════════════════════
+   별점 입력 구역
+═══════════════════════════════ */
+.user-rating-box{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:24px}
+.star-input{display:flex;gap:2px;margin:12px 0;align-items:center}
+.star-wrap{position:relative;width:38px;height:38px;cursor:pointer;flex-shrink:0}
+.star-wrap .s-full,.star-wrap .s-half{position:absolute;top:0;left:0;font-size:34px;line-height:1;color:var(--border);transition:color .1s;user-select:none}
+.star-wrap .s-full{z-index:1}
+.star-wrap .s-half{width:50%;overflow:hidden;z-index:2}
+.star-wrap.half .s-half{color:var(--gold)}
+.star-wrap.half .s-full{color:var(--border)}
+.star-wrap.full .s-full{color:var(--gold)}
+.star-wrap.full .s-half{color:var(--gold)}
+#starLabel{font-size:14px;color:var(--muted);margin-left:12px}
+.etag-list{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.etag{padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s}
+.etag.on{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
+.etag.disabled{opacity:.35;cursor:default}
+.etag-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:6px}
+.custom-tag-row{display:flex;gap:8px;align-items:center;margin-top:6px}
+.custom-tag-input{flex:1;padding:7px 14px;border-radius:20px;border:.5px dashed var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-family:var(--font-sans);outline:none;max-width:220px}
+.custom-tag-add{padding:7px 16px;border-radius:20px;border:.5px solid var(--border2);background:transparent;font-size:12px;color:var(--muted);cursor:pointer}
+.custom-tag-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);font-size:12px}
+.custom-tag-chip button{background:none;border:none;cursor:pointer;font-size:12px;color:#c89a10;padding:0;line-height:1}
+.comment-input-row{display:flex;gap:8px;margin-top:14px}
+.comment-input-row textarea{flex:1;resize:none;font-size:14px;padding:10px 14px;border-radius:var(--r);border:.5px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--font-sans);height:68px;outline:none;transition:border-color .15s}
+.comment-input-row textarea:focus{border-color:var(--border2)}
+.char-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);text-align:right;margin-top:4px}
+.char-count.warn{color:#c89a10}
+.submit-btn{align-self:flex-end;padding:10px 20px;border-radius:var(--r);background:var(--accent);border:none;font-size:14px;color:#fff;cursor:pointer;font-weight:700;transition:background .15s}
+.submit-btn:hover{background:#ff4d58}
+
+/* 댓글 공유 강조 */
+.comment-share-row{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:.5px solid var(--border)}
+.comment-share-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s}
+.comment-share-btn:hover{color:var(--info);border-color:var(--info-border);background:var(--info-bg)}
+
+/* ═══════════════════════════════
+   댓글 정렬 탭
+═══════════════════════════════ */
+.comment-sort-row{display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.sort-btn{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;background:transparent;font-family:var(--font-mono)}
+.sort-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+
+/* 댓글 목록 */
+.comments-section{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:14px}
+.empty-comments{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:10px;text-align:center;border:.5px solid var(--border);border-radius:var(--r-lg);margin-bottom:14px}
+.empty-comments-btn{margin-top:6px;padding:10px 24px;border-radius:var(--r);background:var(--info-bg);color:var(--info);border:.5px solid var(--info-border);font-size:14px;font-weight:600;cursor:pointer}
+.comment-item{padding:16px 18px;border-bottom:.5px solid var(--border)}
+.comment-item:last-child{border-bottom:none}
+.comment-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--info);flex-shrink:0;cursor:pointer}
+.avatar:hover{opacity:.75}
+.c-name-wrap{display:flex;align-items:center;gap:6px;cursor:pointer}
+.c-name{font-size:14px;font-weight:600;color:var(--text)}
+.c-name:hover{color:var(--info);text-decoration:underline}
+.user-avg-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-family:var(--font-mono);font-weight:600;padding:2px 8px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);white-space:nowrap}
+.c-stars{display:flex;gap:1px}
+.c-star{font-size:12px;color:var(--gold)}
+.c-star.off{color:var(--border2)}
+.c-time{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-left:auto}
+.c-text{font-size:15px;color:var(--muted2);line-height:1.65;margin-bottom:8px}
+.c-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.c-share{font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;background:none;border:none;padding:0;transition:color .15s}
+.c-share:hover{color:var(--info)}
+.c-like{font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:10px;border:.5px solid var(--border);transition:all .15s}
+.c-like:hover{color:var(--accent);border-color:rgba(230,57,70,.4);background:var(--danger-bg)}
+.c-ebadge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
+.c-cbadge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--warn-bg);color:#c89a10;font-family:var(--font-mono)}
+.sp-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--danger-bg);color:var(--accent);font-family:var(--font-mono)}
+
+/* 페이지네이션 */
+.pagination{display:flex;align-items:center;justify-content:center;gap:4px;padding:10px 0 24px}
+.pg-btn{min-width:34px;height:34px;padding:0 8px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;font-size:13px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.pg-btn:hover{background:var(--bg3);color:var(--text)}
+.pg-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2);font-weight:600}
+.pg-btn:disabled{opacity:.3;cursor:default}
+.pg-dots{font-size:12px;color:var(--muted);padding:0 4px}
+
+/* ═══════════════════════════════
+   유튜브 섹션
+═══════════════════════════════ */
+.yt-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.yt-card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:border-color .15s}
+.yt-card:hover{border-color:var(--border2)}
+.yt-thumb{position:relative;aspect-ratio:16/9;background:var(--bg3);overflow:hidden}
+.yt-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.yt-thumb-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--muted)}
+.yt-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);opacity:0;transition:opacity .15s}
+.yt-card:hover .yt-play{opacity:1}
+.yt-play-icon{width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
+.yt-dur{position:absolute;bottom:5px;right:7px;background:rgba(0,0,0,.85);color:#fff;font-size:10px;font-family:var(--font-mono);padding:2px 6px;border-radius:3px}
+.yt-info{padding:12px}
+.yt-title{font-size:13px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px}
+.yt-meta{display:flex;gap:8px;font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.modal-wrap{display:none;border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:24px;background:var(--bg)}
+.modal-wrap.show{display:block}
+.modal-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:.5px solid var(--border)}
+.modal-ttl{font-size:14px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0;line-height:1}
+.yt-player-wrap{position:relative;width:100%;aspect-ratio:16/9}
+.yt-player-wrap iframe{width:100%;height:100%;border:none;display:block}
+
+/* ═══════════════════════════════
+   사용자 프로필 페이지
+═══════════════════════════════ */
+.profile-hero{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);padding:22px;margin-bottom:18px;display:flex;align-items:flex-start;gap:20px}
+.profile-avatar{width:68px;height:68px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600;color:var(--info);flex-shrink:0}
+.profile-info{flex:1;min-width:0}
+.profile-name{font-size:20px;font-weight:700;margin-bottom:4px}
+.profile-join{font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-bottom:14px}
+.profile-stats{display:flex;gap:24px;flex-wrap:wrap}
+.pstat{text-align:center}
+.pstat-num{font-size:20px;font-weight:700;color:var(--text)}
+.pstat-label{font-size:10px;color:var(--muted);font-family:var(--font-mono);margin-top:2px}
+.dist-card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);padding:18px;margin-bottom:18px}
+.dist-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dist-label{font-size:12px;font-family:var(--font-mono);color:var(--muted);width:22px;text-align:right;flex-shrink:0}
+.dist-bar-bg{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.dist-bar-fill{height:100%;border-radius:4px;background:var(--gold);transition:width .5s ease}
+.dist-count{font-size:11px;font-family:var(--font-mono);color:var(--muted);width:26px;text-align:right;flex-shrink:0}
+.user-reviews{display:flex;flex-direction:column;gap:10px}
+.review-card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);padding:16px;display:flex;gap:14px;cursor:pointer;transition:border-color .15s}
+.review-card:hover{border-color:var(--border2)}
+.review-poster{width:48px;height:68px;border-radius:7px;background:var(--bg3);flex-shrink:0;overflow:hidden}
+.review-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.review-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px}
+.review-body{flex:1;min-width:0}
+.review-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+.review-title{font-size:14px;font-weight:600}
+.review-platform{font-size:10px;padding:2px 7px;border-radius:3px;color:#fff;font-weight:600}
+.review-stars{display:flex;align-items:center;gap:2px;font-size:12px;margin-left:auto}
+.review-star{color:var(--gold)}
+.review-star.off{color:var(--border2)}
+.review-score-num{font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-left:3px}
+.review-text{font-size:13px;color:var(--muted2);line-height:1.55;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+
+/* ── 로딩 스피너 ── */
+.loading-row{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px;color:var(--muted);font-family:var(--font-mono)}
+.spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--info);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ═══ 모바일 반응형 ═══ */
+@media(max-width:640px){
+  .hero-row{grid-template-columns:140px 1fr;gap:16px}
+  .main-title{font-size:20px}
+  .ratings-row{grid-template-columns:1fr 1fr 1fr}
+  .r-score{font-size:26px}
+  .yt-grid{grid-template-columns:1fr}
+  .rating-cta-banner{flex-direction:column;align-items:flex-start}
+  .page-wrap{padding:16px 14px 60px}
+}
+</style>
+<style>
+/* ── 공용 헤더 컨테이너 sticky (fetch 삽입 후에도 동작) ── */
+#ottrang-header {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+</style>
+</head>
+<body>
+
+<!-- ══ 공용 헤더 삽입 지점 ══ -->
+<div id="ottrang-header"></div>
+
+<!-- ══ 작품 상세 페이지 ══ -->
+<div id="detailPage">
+<div class="page-wrap">
+
+<a class="back" href="/" aria-label="메인 페이지로">
+  <i class="ti ti-arrow-left" style="font-size:15px" aria-hidden="true"></i>
+  메인으로
+</a>
+
+<!-- 히어로 로딩 -->
+<div id="heroLoading" class="loading-row">
+  <div class="spinner"></div><span>작품 정보 불러오는 중…</span>
+</div>
+
+<!-- 히어로 -->
+<div id="heroRow" class="hero-row" style="display:none">
+  <div class="poster-wrap">
+    <div class="poster-ph" id="posterPh">🎬</div>
+    <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0" loading="eager">
+    <span class="platform-pill" id="platformPill">플랫폼</span>
+    <span class="rank-badge" id="rankBadge">순위</span>
+    <!-- ★ 포스터 하단 평점 CTA ★ -->
+    <div class="poster-cta">
+      <button class="poster-cta-btn" onclick="scrollToRating()" aria-label="평점 후기 남기기">
+        ✍ 평점 &amp; 후기 남기기
+      </button>
+      <span class="poster-cta-sub">별점 + 감상평 작성</span>
+    </div>
+  </div>
+
+  <div class="info-col">
+    <div>
+      <h1 class="main-title" id="mainTitle">작품명</h1>
+      <div class="orig-title" id="origTitle"></div>
+    </div>
+    <div class="tags" id="genreTags"></div>
+    <div class="meta-row" id="metaRow"></div>
+    <p class="overview" id="overview">줄거리 정보 불러오는 중…</p>
+    <div class="people-row" id="peopleRow" style="display:none">
+      <div>
+        <div class="people-label">감독</div>
+        <div class="people-list" id="directorList"></div>
+      </div>
+      <div>
+        <div class="people-label">출연</div>
+        <div class="people-list" id="castList"></div>
+      </div>
+    </div>
+    <!-- 작품 공유 -->
+    <div class="share-bar">
+      <span class="share-label">공유 →</span>
+      <button class="share-btn" onclick="shareX()" aria-label="X(트위터)에 공유">𝕏 X</button>
+      <button class="share-btn kakao" onclick="copyLink()" aria-label="링크 복사">🔗 링크 복사</button>
+    </div>
+    <!-- 큰 공유 버튼 -->
+    <button class="share-btn-lg" onclick="shareNative()" aria-label="이 작품 공유하기">
+      <i class="ti ti-share" style="font-size:16px" aria-hidden="true"></i>
+      이 작품 공유하기
+    </button>
+  </div>
+</div>
+
+<!-- 평점 3종 -->
+<div class="ratings-row">
+  <div class="r-card">
+    <div class="r-label">TMDB 평점</div>
+    <div class="r-score" id="tmdbScore" style="color:var(--gold)">—</div>
+    <div class="r-sub" id="tmdbVotes">—</div>
+  </div>
+  <div class="r-card">
+    <div class="r-label">오뜨랑 평점</div>
+    <div id="userRatingEmpty" class="empty-rating" onclick="scrollToRating()" style="height:100%">
+      <span style="font-size:22px">⭐</span>
+      <span class="empty-rating-cta">첫 평점 남기기</span>
+    </div>
+    <div id="userRatingFilled" style="display:none;text-align:center">
+      <div class="r-score" id="userScore" style="color:var(--accent)">—</div>
+      <div style="font-size:16px;color:var(--gold);margin:4px 0" id="userStarDisplay"></div>
+      <div class="r-sub" id="userVotes">—</div>
+    </div>
+  </div>
+  <div class="r-card">
+    <div class="r-label">내 평점</div>
+    <div class="empty-rating" onclick="scrollToRating()" id="myRatingDisplay" style="height:100%">
+      <span style="font-size:22px">✍</span>
+      <span class="empty-rating-cta">평점 남기기</span>
+    </div>
+  </div>
+</div>
+
+<!-- ★ 평점 CTA 배너 ★ -->
+<div class="rating-cta-banner">
+  <div class="rating-cta-copy">
+    <h3>이 작품, 어떠셨나요?</h3>
+    <p>별점과 한줄 감상으로 다른 시청자를 도와주세요 👇</p>
+  </div>
+  <div class="rating-cta-stars" onclick="scrollToRating()" aria-label="별점 남기기">
+    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+  </div>
+</div>
+
+<!-- 순위 히스토리 -->
+<div class="rank-hist-card">
+  <div class="sec-title">
+    <i class="ti ti-chart-line" style="font-size:16px" aria-hidden="true"></i>
+    30일 순위 히스토리
+  </div>
+  <div class="ptabs">
+    <button class="ptab on" id="ptab_netflix" onclick="switchP('netflix',this)">넷플릭스</button>
+    <button class="ptab" id="ptab_tving" onclick="switchP('tving',this)">티빙</button>
+    <button class="ptab" id="ptab_disney" onclick="switchP('disney',this)">디즈니+</button>
+    <button class="ptab" id="ptab_coupang" onclick="switchP('coupang',this)">쿠팡플레이</button>
+    <button class="ptab" id="ptab_wavve" onclick="switchP('wavve',this)">웨이브</button>
+  </div>
+  <div id="rankHighlight" class="rank-highlight" style="display:none">
+    <span>⭐</span>
+    <span id="rankHighlightText"></span>
+  </div>
+  <canvas id="rankChart"></canvas>
+</div>
+
+<!-- 별점 입력 -->
+<div class="user-rating-box" id="ratingInputArea">
+  <div class="sec-title">
+    <i class="ti ti-star" style="font-size:16px" aria-hidden="true"></i>
+    평점 &amp; 후기 남기기
+  </div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:4px">별점을 선택하세요 (0.5점 단위)</p>
+  <div class="star-input">
+    <div class="star-wrap" data-v="1" onmousemove="hoverStar(event,1)" onmouseleave="leaveStar()" onclick="setStar(this)">
+      <span class="s-full">★</span><span class="s-half">★</span>
+    </div>
+    <div class="star-wrap" data-v="2" onmousemove="hoverStar(event,2)" onmouseleave="leaveStar()" onclick="setStar(this)">
+      <span class="s-full">★</span><span class="s-half">★</span>
+    </div>
+    <div class="star-wrap" data-v="3" onmousemove="hoverStar(event,3)" onmouseleave="leaveStar()" onclick="setStar(this)">
+      <span class="s-full">★</span><span class="s-half">★</span>
+    </div>
+    <div class="star-wrap" data-v="4" onmousemove="hoverStar(event,4)" onmouseleave="leaveStar()" onclick="setStar(this)">
+      <span class="s-full">★</span><span class="s-half">★</span>
+    </div>
+    <div class="star-wrap" data-v="5" onmousemove="hoverStar(event,5)" onmouseleave="leaveStar()" onclick="setStar(this)">
+      <span class="s-full">★</span><span class="s-half">★</span>
+    </div>
+    <span id="starLabel" style="font-size:14px;color:var(--muted);margin-left:12px">별점을 선택하세요</span>
+  </div>
+  <div class="etag-count" id="etagCount">0 / 3 태그 선택</div>
+  <div class="etag-list">
+    <button class="etag" onclick="toggleEtag(this)">긴장감 넘침</button>
+    <button class="etag" onclick="toggleEtag(this)">몰입감 최고</button>
+    <button class="etag" onclick="toggleEtag(this)">감동적</button>
+    <button class="etag" onclick="toggleEtag(this)">슬프다</button>
+    <button class="etag" onclick="toggleEtag(this)">재미있음</button>
+    <button class="etag" onclick="toggleEtag(this)">결말이 아쉬움</button>
+    <button class="etag" onclick="toggleEtag(this)">독특한 설정</button>
+    <button class="etag" onclick="toggleEtag(this)">정주행 필수</button>
+    <button class="etag" onclick="toggleEtag(this)">연기력 최고</button>
+  </div>
+  <div class="custom-tag-row">
+    <input class="custom-tag-input" id="customTagInput" type="text" placeholder="직접 입력 (최대 12자)" maxlength="12"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomTag()}"
+      oninput="document.getElementById('customTagAddBtn').disabled=!this.value.trim()||getEtagCount()>=3">
+    <button class="custom-tag-add" id="customTagAddBtn" onclick="addCustomTag()" disabled>+ 추가</button>
+  </div>
+  <div id="customTagList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+  <div class="comment-input-row">
+    <textarea id="commentInput" placeholder="한줄 감상을 남겨보세요 (140자 이내)" oninput="updateCharCount(this)"></textarea>
+    <button class="submit-btn" onclick="submitComment()">등록</button>
+  </div>
+  <div class="char-count" id="charCount">0 / 140</div>
+  <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--muted);cursor:pointer">
+    <input type="checkbox" id="spoilerCheck" style="width:13px;height:13px"> 스포일러 포함
+  </label>
+
+  <!-- 후기 공유 유도 -->
+  <div class="comment-share-row" style="margin-top:16px;padding-top:12px;border-top:.5px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="font-size:13px;color:var(--muted)">후기를 등록하면 자동으로 공유할 수 있어요 →</span>
+    <button class="comment-share-btn" onclick="shareNative()" aria-label="이 작품 공유">
+      <i class="ti ti-share" style="font-size:13px" aria-hidden="true"></i> 공유하기
+    </button>
+  </div>
+</div>
+
+<!-- 사용자 댓글 -->
+<div class="sec-title">
+  <i class="ti ti-message-circle" style="font-size:16px" aria-hidden="true"></i>
+  사용자 댓글 <small id="commentCount">0개</small>
+</div>
+<div class="comment-sort-row">
+  <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
+  <button class="sort-btn" id="sortLikes" onclick="setSort('likes')">좋아요순</button>
+</div>
+<div id="commentsArea"></div>
+<div id="pagination" class="pagination"></div>
+
+<!-- 유튜브 -->
+<div class="yt-section">
+  <div class="sec-title">
+    <i class="ti ti-brand-youtube" style="font-size:16px" aria-hidden="true"></i>
+    유튜브 관련 영상 <small id="ytSubtitle"></small>
+  </div>
+  <div id="ytModal" class="modal-wrap">
+    <div class="modal-head">
+      <span class="modal-ttl" id="ytModalTitle"></span>
+      <button class="modal-close" onclick="closePlayer()" aria-label="닫기">✕</button>
+    </div>
+    <div class="yt-player-wrap">
+      <iframe id="ytFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="유튜브 영상"></iframe>
+    </div>
+  </div>
+  <div id="ytArea"></div>
+</div>
+
+</div><!-- /.page-wrap -->
+</div><!-- /#detailPage -->
+
+<!-- ══ 사용자 프로필 페이지 ══ -->
+<div id="profilePage" class="page-wrap" style="display:none">
+<button class="back" onclick="showDetail()">
+  <i class="ti ti-arrow-left" style="font-size:15px" aria-hidden="true"></i>
+  <span id="profileBackLabel">작품으로 돌아가기</span>
+</button>
+<div class="profile-hero">
+  <div class="profile-avatar" id="profileAvatar">?</div>
+  <div class="profile-info">
+    <div class="profile-name" id="profileName">사용자</div>
+    <div class="profile-join" id="profileJoin"></div>
+    <div class="profile-stats">
+      <div class="pstat"><div class="pstat-num" id="pstatReviews">0</div><div class="pstat-label">평점</div></div>
+      <div class="pstat"><div class="pstat-num" id="pstatAvg">—</div><div class="pstat-label">평균 별점</div></div>
+      <div class="pstat"><div class="pstat-num" id="pstatLikes">0</div><div class="pstat-label">받은 좋아요</div></div>
+    </div>
+  </div>
+</div>
+<div class="dist-card">
+  <div class="sec-title"><i class="ti ti-chart-bar" style="font-size:16px" aria-hidden="true"></i>평점 분포</div>
+  <div id="distBars"></div>
+</div>
+<div class="sec-title">
+  <i class="ti ti-history" style="font-size:16px" aria-hidden="true"></i>
+  평점 남긴 작품 <small id="profileReviewCount">0개</small>
+</div>
+<div class="user-reviews" id="userReviews"></div>
+</div>
+
+<!-- 공유 토스트 -->
+<div class="share-toast" id="shareToast"></div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+
+<script>
+/* ══ 헤더 동적 삽입 ══ */
+(function(){
+  const el=document.getElementById('ottrang-header');
+  if(!el) return;
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{el.innerHTML=h;if(typeof initHeader==='function')initHeader();})
+    .catch(()=>{ /* 개발 환경에서 헤더 fetch 실패 시 무시 */ });
+})();
+
+/* ══ 상수 ══ */
+const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
+const IMG='https://image.tmdb.org/t/p/w500';
+const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브'};
+const CC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3'};
+
+/* ══════════════════════════════════════════════
+   URL 파싱: 슬러그 방식 + 하위호환
+   ──────────────────────────────────────────────
+   우선순위:
+   1. sessionStorage (index.html에서 클릭해 온 경우)
+   2. 슬러그 파싱  /title/원더풀스-12026259837
+      └ 맨 끝 숫자 덩어리에서 역순으로:
+        tmdb_id = 마지막 N자리  (가변, TMDB ID는 최대 7자리)
+        year    = 그 앞 4자리
+        season  = 그 앞 나머지 숫자
+   3. 구 쿼리스트링 (?tmdb_id=…) — 하위호환
+   ══════════════════════════════════════════════ */
+function parseSlug(pathname){
+  // /title/원더풀스-12026259837 → slug = "원더풀스-12026259837"
+  const slug = pathname.replace(/^\/title\/?/, '').replace(/\.html$/, '');
+  if(!slug) return null;
+
+  // 맨 끝 연속 숫자 추출 (시즌+연도+tmdbId 결합 덩어리)
+  const m = slug.match(/-(\d+)$/);
+  if(!m) return null;
+
+  const numStr = m[1]; // e.g. "12026259837"
+  // tmdb_id: TMDB ID는 보통 5~7자리. 연도는 항상 4자리, 시즌은 1~2자리
+  // → 뒤에서 연도(4)+시즌(나머지)로 분리, tmdb_id는 남은 뒷부분
+  // 전략: 전체 숫자에서 앞 자리가 시즌, 그다음 4자리가 연도, 나머지가 tmdb_id
+  //   numStr = S + YYYY + tmdb_id
+  //   연도는 1900~2100 범위
+  let season=1, year=new Date().getFullYear(), tmdb_id=null;
+  if(numStr.length >= 6){ // 최소 시즌1자리+연도4자리+tmdb_id1자리
+    // 연도 위치: 오른쪽에서 tmdb_id 제거 후 4자리
+    // tmdb_id 길이를 역산: numStr 전체에서 앞에 시즌이 1~2자리, 다음 4자리가 연도
+    // 앞에서부터: 시즌 자리수를 1~2자리로 시도
+    for(let sLen=1; sLen<=2; sLen++){
+      const s   = parseInt(numStr.slice(0, sLen));
+      const y   = parseInt(numStr.slice(sLen, sLen+4));
+      const tid = numStr.slice(sLen+4);
+      if(tid.length >= 1 && y >= 1900 && y <= 2100 && s >= 1){
+        season   = s;
+        year     = y;
+        tmdb_id  = parseInt(tid);
+        break;
+      }
+    }
+  }
+  const titlePart = slug.slice(0, m.index); // "원더풀스"
+  return { tmdb_id, season, year, titleSlug: titlePart };
+}
+
+/* ── WORK 객체 초기화 ── */
+let WORK = { tmdb_id:null, type:'tv', platform:'netflix', rank:'—', title:'작품명', season:1, year:null };
+
+(function initWork(){
+  /* ── 디버그: 실제 pathname 확인 ── */
+  console.log('[OTTRANG] location.pathname:', location.pathname);
+  console.log('[OTTRANG] location.search:', location.search);
+  console.log('[OTTRANG] location.href:', location.href);
+
+  /* 1순위: sessionStorage */
+  try{
+    const stored = sessionStorage.getItem('ottrang_work');
+    if(stored){
+      const d = JSON.parse(stored);
+      if(d && d.tmdb_id){
+        Object.assign(WORK, d);
+        sessionStorage.removeItem('ottrang_work'); // 1회 사용 후 제거
+        return;
+      }
+    }
+  }catch(e){}
+
+  /* 2순위: 슬러그 파싱 */
+  if(location.pathname.startsWith('/title/')){
+    const parsed = parseSlug(location.pathname);
+    if(parsed && parsed.tmdb_id){
+      WORK.tmdb_id = parsed.tmdb_id;
+      WORK.season  = parsed.season;
+      WORK.year    = parsed.year;
+      WORK.title   = decodeURIComponent(parsed.titleSlug.replace(/-/g,' ')) || '작품명';
+      return;
+    }
+  }
+
+  /* 3순위: 구 쿼리스트링 하위호환 */
+  const params = new URLSearchParams(location.search);
+  WORK.tmdb_id  = params.get('tmdb_id') ? parseInt(params.get('tmdb_id')) : null;
+  WORK.type     = params.get('type')     || 'tv';
+  WORK.platform = params.get('platform') || 'netflix';
+  WORK.rank     = params.get('rank')     || '—';
+  WORK.title    = params.get('title')    || '작품명';
+})();
+
+/* 상태 */
+let myStars=0, hoverVal=0, myChart=null, curSort='latest', curPage=1;
+const PER_PAGE=5;
+let customTags=[];
+
+/* ══ 목데이터 ══ */
+const USER_DB={
+  '킹받는다킴':{init:'킹',joined:'2024년 3월',totalLikes:342,reviews:[
+    {title:'오징어 게임',platform:'netflix',score:5,text:'시즌1부터 쭉 봤는데 이번 시즌이 제일 완성도 높음',emotions:['긴장감 넘침','몰입감 최고'],customTags:[],time:'2시간 전',likes:128,poster:null},
+  ]},
+  '감성드라마덕후':{init:'감',joined:'2023년 11월',totalLikes:218,reviews:[
+    {title:'오징어 게임',platform:'netflix',score:4,text:'결말은 좀 아쉽지만 중간 에피소드들은 진짜 명장면',emotions:['감동적','슬프다'],customTags:[],time:'4시간 전',likes:87,poster:null},
+  ]},
+};
+let ALL_COMMENTS=[
+  {id:'c1',user:'킹받는다킴',init:'킹',score:5,emotions:['긴장감 넘침','몰입감 최고'],customTags:[],text:'시즌1부터 쭉 봤는데 이번 시즌이 제일 완성도 높음. 마지막화 충격이라 3일째 멍때리는 중ㅋㅋ',time:'2시간 전',likes:128,spoiler:false},
+  {id:'c2',user:'감성드라마덕후',init:'감',score:4,emotions:['감동적','슬프다'],customTags:[],text:'결말은 좀 아쉽지만 중간 에피소드들은 진짜 명장면의 연속. 456번 캐릭터 서사가 특히 좋았음',time:'4시간 전',likes:87,spoiler:false},
+  {id:'c3',user:'영화광parkk',init:'영',score:5,emotions:['재미있음','정주행 필수'],customTags:[],text:'주변에 아직 안 본 사람한테 적극 추천 중. 1화부터 끝까지 다 재밌어서 밤 새워버림',time:'6시간 전',likes:73,spoiler:false},
+  {id:'c4',user:'스포주의',init:'스',score:3,emotions:['결말이 아쉬움'],customTags:[],text:'최종 1위 결정 방식이 시즌1이랑 너무 비슷해서 좀 식상했음',time:'8시간 전',likes:45,spoiler:true},
+  {id:'c5',user:'OTT헤비유저',init:'O',score:5,emotions:['연기력 최고','몰입감 최고'],customTags:['에미상감'],text:'이정재 배우 이번에 연기 진짜 미쳤다. 특히 4화 독백씬은 교과서급 명연기.',time:'10시간 전',likes:156,spoiler:false},
+  {id:'c6',user:'첫화부터몰입',init:'첫',score:4,emotions:['독특한 설정'],customTags:[],text:'게임 설정이 시즌1보다 더 창의적임. 황동혁 감독 천재인 듯',time:'12시간 전',likes:62,spoiler:false},
+  {id:'c7',user:'드라마마니아',init:'드',score:5,emotions:['재미있음','긴장감 넘침'],customTags:[],text:'3회 연속 정주행했습니다. 이게 말이 됩니까 ㅋㅋ 심장이 쫄깃하다',time:'14시간 전',likes:94,spoiler:false},
+  {id:'c8',user:'넷플릭스고인물',init:'넷',score:4,emotions:['감동적'],customTags:['철학적'],text:'456번 캐릭터가 결국 그런 선택을 하는 이유가 너무 납득됨. 인간 본성에 대한 질문',time:'16시간 전',likes:71,spoiler:false},
+];
+
+/* ══ SEO 동적 업데이트 ══ */
+function updateSEO(title,overview,posterUrl,platform,rank){
+  const t=title||WORK.title;
+  const pName=PC[platform]||platform||'OTT';
+  const seoT=`${t} 평점·후기·해외반응 | ${pName} ${rank}위 | 오뜨랑`;
+  const seoD=`${t} ${pName} ${rank}위. 사용자 평점, 한줄 후기, 해외반응, 30일 순위 히스토리를 오뜨랑에서 확인하세요. OTT 드라마·영화 랭킹 서비스.`;
+  const seoKw=`${t} 평점, ${t} 후기, ${t} 해외반응, ${t} ${pName}, ${pName} 순위, OTT 랭킹, 드라마 평점, 영화 평점`;
+
+  /* ── 슬러그 생성: {작품명}-{시즌}{연도}{tmdb_id} ── */
+  const s    = WORK.season || 1;
+  const y    = WORK.year   || (new Date().getFullYear());
+  const tid  = WORK.tmdb_id || '';
+  const slugTitle = t.replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
+  const slug = `${slugTitle}-${s}${y}${tid}`;
+  const canonical = `https://ottrank.kr/title/${slug}`;
+
+  document.title=seoT;
+  setMeta('seoTitle',seoT,'textContent');
+  setMeta('seoDesc','content',seoD);
+  setMeta('seoKw','content',seoKw);
+  setMeta('seoOgTitle','content',seoT);
+  setMeta('seoOgDesc','content',seoD);
+  setMeta('seoOgUrl','content',canonical);
+  setMeta('seoTwTitle','content',seoT);
+  setMeta('seoTwDesc','content',seoD);
+  const canon=document.getElementById('seoCanonical');
+  if(canon) canon.href=canonical;
+
+  /* ── 브라우저 주소창을 슬러그 URL로 업데이트 ──
+   * replaceState: 뒤로가기 히스토리를 오염시키지 않고 URL만 교체
+   * 조건: 이미 올바른 슬러그 URL이면 불필요한 호출 방지 */
+  if(tid && slug && location.pathname !== `/title/${slug}`){
+    history.replaceState(null, '', `/title/${slug}`);
+  }
+
+  if(posterUrl){
+    const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;
+    setMeta('seoOgImg','content',ogImg);
+    setMeta('seoTwImg','content',ogImg);
+  }
+
+  /* 구조화 데이터 */
+  const ld={
+    '@context':'https://schema.org',
+    '@type':'TVSeries',
+    'name':t,
+    'description':overview||seoD,
+    'url':canonical,
+    'aggregateRating':{
+      '@type':'AggregateRating',
+      'ratingCount':ALL_COMMENTS.length,
+      'ratingValue':ALL_COMMENTS.length?(ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length).toFixed(1):'0',
+      'bestRating':'5','worstRating':'0.5'
+    }
+  };
+  if(posterUrl) ld.image=`https://image.tmdb.org/t/p/w780${posterUrl}`;
+  const ldEl=document.getElementById('ldJson');
+  if(ldEl) ldEl.textContent=JSON.stringify(ld);
+}
+function setMeta(id,attr,val){
+  const el=document.getElementById(id);
+  if(!el) return;
+  if(attr==='textContent') el.textContent=val;
+  else el.setAttribute(attr,val);
+}
+
+/* ══ TMDB 데이터 로드 ══ */
+async function loadTmdb(){
+  if(!WORK.tmdb_id){
+    document.getElementById('heroLoading').style.display='none';
+    document.getElementById('heroRow').style.display='grid';
+    updateSEO(WORK.title,'',null,WORK.platform,WORK.rank);
+    return;
+  }
+  try{
+    let det=null;
+    try{
+      const wr=await fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}`);
+      const wj=await wr.json();
+      if(wj.ok) det=wj.data;
+    }catch(e){}
+    if(!det){
+      const r=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}?language=ko-KR`);
+      det=await r.json();
+    }
+    if(det){
+      const poster=det.poster_path;
+      if(poster){
+        const img=document.getElementById('posterImg');
+        img.src=IMG+poster; img.alt=det.title_ko||det.name||det.title||WORK.title;
+        img.style.display='block';
+        document.getElementById('posterPh').style.display='none';
+      }
+      document.querySelector('.platform-pill').textContent=PC[WORK.platform]||WORK.platform;
+      document.querySelector('.platform-pill').style.background=CC[WORK.platform]||'#888';
+      document.getElementById('rankBadge').textContent=`오늘 ${WORK.rank}위`;
+
+      const title=det.title_ko||det.name||det.title||WORK.title;
+      const origTitle=det.title_en||det.original_name||det.original_title||'';
+      const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
+      const season=det.number_of_seasons||1;
+
+      /* WORK에 시즌·연도 확정값 저장 → SEO canonical에 반영 */
+      WORK.title  = title;
+      WORK.season = season;
+      WORK.year   = year || WORK.year || new Date().getFullYear();
+      WORK.type   = WORK.type || (det.number_of_seasons ? 'tv' : 'movie');
+
+      document.getElementById('mainTitle').textContent=title;
+      document.getElementById('origTitle').textContent=origTitle?`${origTitle} · ${year}`:year;
+
+      const rating=det.tmdb_rating||det.vote_average||0;
+      const votes=det.vote_count||0;
+      document.getElementById('tmdbScore').textContent=parseFloat(rating).toFixed(1);
+      document.getElementById('tmdbVotes').textContent=votes?`${votes.toLocaleString()}명 참여`:'—';
+
+      const ov=det.overview||'줄거리 정보가 없습니다.';
+      document.getElementById('overview').textContent=ov;
+
+      const genreStr=det.genre||'';
+      const genres=det.genres||(genreStr?genreStr.split(',').map(g=>({name:g.trim()})):[]);
+      document.getElementById('genreTags').innerHTML=genres.map(g=>`<span class="tag">${g.name||g}</span>`).join('');
+
+      const seas=det.number_of_seasons?`<div class="meta-item">시즌 <b>${det.number_of_seasons}</b></div>`:'';
+      const eps=det.number_of_episodes?`<div class="meta-item"><b>${det.number_of_episodes}화</b></div>`:'';
+      const rt=det.runtime?`<div class="meta-item"><b>${det.runtime}분</b></div>`:'';
+      document.getElementById('metaRow').innerHTML=`${seas}${eps}${rt}<div class="meta-item">개봉 <b>${year||'—'}</b></div>`;
+
+      /* SEO */
+      updateSEO(title,ov,poster,WORK.platform,WORK.rank);
+
+      /* 크레딧 */
+      try{
+        const cr=await(await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/credits?language=ko-KR`)).json();
+        const tmdbUrl='https://www.themoviedb.org/person/';
+        const directors=(cr.crew||[]).filter(p=>p.job==='Director'||p.department==='Directing').slice(0,3);
+        const cast=(cr.cast||[]).slice(0,6);
+        if(directors.length||cast.length){
+          document.getElementById('peopleRow').style.display='flex';
+          document.getElementById('directorList').innerHTML=directors.length
+            ?directors.map(p=>`<a class="people-chip" href="${tmdbUrl}${p.id}" target="_blank" rel="noopener">${p.name}</a>`).join('')
+            :'<span style="font-size:13px;color:var(--muted)">정보 없음</span>';
+          document.getElementById('castList').innerHTML=cast.length
+            ?cast.map(p=>`<a class="people-chip" href="${tmdbUrl}${p.id}" target="_blank" rel="noopener">${p.name}</a>`).join('')
+            :'<span style="font-size:13px;color:var(--muted)">정보 없음</span>';
+        }
+      }catch(e){}
+    }
+  }catch(e){console.error('loadTmdb error:',e)}
+  document.getElementById('heroLoading').style.display='none';
+  document.getElementById('heroRow').style.display='grid';
+  checkRankHighlight(WORK.platform);
+}
+
+/* ══ 순위 히스토리 ══ */
+const RANK_DATA={
+  netflix:[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,'new',1,1,1,2,2,3,2,1,1],
+  tving:Array(28).fill(null).concat(['new',3]),
+  coupang:Array(29).fill(null).concat([4]),
+  wavve:Array(30).fill(null),
+  disney:Array(30).fill(null)
+};
+const LABELS=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));return`${d.getMonth()+1}/${d.getDate()}`});
+const RANK_HL={netflix:'2025년 넷플릭스 글로벌 5주간 TOP 10 · 190개국 1위',tving:'2021년 시즌1 론칭 첫 주 티빙 1위',wavve:null,coupang:null,disney:null};
+
+function renderChart(p){
+  const raw=RANK_DATA[p]||[], data=raw.map(v=>v==='new'?11:v);
+  const ctx=document.getElementById('rankChart').getContext('2d');
+  if(myChart) myChart.destroy();
+  myChart=new Chart(ctx,{type:'line',data:{labels:LABELS,datasets:[{label:'순위',data,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.08)',borderWidth:2,pointRadius:data.map(v=>v===null?0:4),pointBackgroundColor:data.map(v=>v===11?'#f0b429':'#378ADD'),fill:true,tension:0.3,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>c.raw===null?'순위 없음':c.raw===11?'신규 진입':`${c.raw}위`}}},scales:{y:{reverse:true,min:1,max:12,ticks:{stepSize:1,callback:v=>v===11?'NEW':v===12?'':v+'위'},grid:{color:'rgba(128,128,128,0.08)'}},x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:10,font:{size:10}},grid:{display:false}}}}});
+}
+function switchP(p,btn){
+  document.querySelectorAll('.ptab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on'); renderChart(p); checkRankHighlight(p);
+}
+function checkRankHighlight(p){
+  const raw=RANK_DATA[p]; const hasRecent=raw&&raw.some(v=>v!==null);
+  const hl=RANK_HL[p]; const el=document.getElementById('rankHighlight');
+  if(!hasRecent&&hl){document.getElementById('rankHighlightText').textContent=hl;el.style.display='flex';}
+  else el.style.display='none';
+}
+
+/* ══ 댓글 ══ */
+function getUserAvgBadge(u){
+  const db=USER_DB[u]; if(!db||!db.reviews.length) return '';
+  const avg=(db.reviews.reduce((s,r)=>s+r.score,0)/db.reviews.length).toFixed(1);
+  return `<span class="user-avg-badge">★ ${avg} 평균</span>`;
+}
+function setSort(t){curSort=t;document.getElementById('sortLatest').classList.toggle('on',t==='latest');document.getElementById('sortLikes').classList.toggle('on',t==='likes');curPage=1;renderComments();}
+function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)=>b.likes-a.likes);return a;}
+function renderHalfStars(score){let h='';for(let i=1;i<=5;i++){if(score>=i)h+=`<span class="c-star">★</span>`;else if(score>=i-0.5)h+=`<span class="c-star" style="position:relative;display:inline-block;overflow:hidden;width:.7em">★</span>`;else h+=`<span class="c-star off">★</span>`;}return h;}
+
+function renderComments(){
+  const el=document.getElementById('commentsArea');
+  const sorted=getSorted();
+  document.getElementById('commentCount').textContent=`${sorted.length}개`;
+  if(!sorted.length){
+    el.innerHTML=`<div class="empty-comments"><div style="font-size:30px;opacity:.4">💬</div><div style="font-size:15px;font-weight:600">아직 댓글이 없어요</div><div style="font-size:13px;color:var(--muted)">이 작품의 첫 평점과 댓글을 남겨보세요!</div><button class="empty-comments-btn" onclick="scrollToRating()">✏ 첫 평점을 달아주세요</button></div>`;
+    document.getElementById('pagination').innerHTML=''; return;
+  }
+  const start=(curPage-1)*PER_PAGE, slice=sorted.slice(start,start+PER_PAGE);
+  el.innerHTML=`<div class="comments-section">${slice.map(c=>`
+    <div class="comment-item" id="${c.id}">
+      <div class="comment-header">
+        <div class="avatar" onclick="showProfile('${c.user}')" title="${c.user} 프로필">${c.init}</div>
+        <div style="flex:1;min-width:0">
+          <div class="c-name-wrap" onclick="showProfile('${c.user}')">
+            <span class="c-name">${c.user}</span>${getUserAvgBadge(c.user)}
+          </div>
+          <div class="c-stars">${renderHalfStars(c.score)}</div>
+        </div>
+        <span class="c-time">${c.time}</span>
+      </div>
+      ${c.spoiler?'<span class="sp-badge" style="display:inline-block;margin-bottom:8px">⚠ 스포일러</span>':''}
+      <div class="c-text">${c.text}</div>
+      <div class="c-footer">
+        <span class="c-like" onclick="likeComment('${c.id}')"><i class="ti ti-heart" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> <span id="like_${c.id}">${c.likes}</span></span>
+        <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">🔗 이 후기 공유</button>
+        ${c.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}
+        ${c.customTags.map(t=>`<span class="c-cbadge">${t}</span>`).join('')}
+      </div>
+    </div>`).join('')}</div>`;
+  renderPagination();
+}
+function likeComment(id){const c=ALL_COMMENTS.find(x=>x.id===id);if(!c)return;c.likes++;const el=document.getElementById('like_'+id);if(el)el.textContent=c.likes;}
+function shareComment(id,user){
+  const url=`${window.location.href.split('#')[0]}#${id}`;
+  const text=`오뜨랑에서 "${WORK.title}" ${user}님의 후기를 확인해보세요!`;
+  if(navigator.share){navigator.share({title:`${WORK.title} 후기 | 오뜨랑`,text,url}).catch(()=>{});}
+  else{navigator.clipboard.writeText(url).then(()=>showToast('후기 링크가 복사됐어요!'));}
+}
+function renderPagination(){
+  const total=Math.ceil(ALL_COMMENTS.length/PER_PAGE);
+  if(total<=1){document.getElementById('pagination').innerHTML='';return;}
+  let html=`<button class="pg-btn" onclick="goPage(${curPage-1})" ${curPage===1?'disabled':''}>‹</button>`;
+  const pages=total<=7?Array.from({length:total},(_,i)=>i+1):[1,...(curPage>3?['…']:[]),...Array.from({length:3},(_,i)=>Math.max(2,curPage-1)+i).filter(p=>p>1&&p<total),...(curPage<total-2?['…']:[]),total];
+  pages.forEach(p=>p==='…'?html+=`<span class="pg-dots">···</span>`:html+=`<button class="pg-btn${p===curPage?' on':''}" onclick="goPage(${p})">${p}</button>`);
+  html+=`<button class="pg-btn" onclick="goPage(${curPage+1})" ${curPage===total?'disabled':''}>›</button>`;
+  document.getElementById('pagination').innerHTML=html;
+}
+function goPage(p){const t=Math.ceil(ALL_COMMENTS.length/PER_PAGE);if(p<1||p>t)return;curPage=p;renderComments();document.getElementById('commentsArea').scrollIntoView({behavior:'smooth',block:'start'});}
+
+/* ══ 공유 ══ */
+function getShareUrl(){
+  const t=(document.getElementById('mainTitle').textContent||WORK.title).replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
+  const s=WORK.season||1, y=WORK.year||new Date().getFullYear(), tid=WORK.tmdb_id||'';
+  return `https://ottrank.kr/title/${t}-${s}${y}${tid}`;
+}
+function shareX(){window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`"${WORK.title}" OTT 랭킹 평점·후기 확인하기 👉`)}&url=${encodeURIComponent(getShareUrl())}`,'_blank');}
+function copyLink(){navigator.clipboard.writeText(getShareUrl()).then(()=>showToast('링크가 복사됐어요!'));}
+function shareNative(){
+  const url=getShareUrl();
+  const title=document.getElementById('mainTitle').textContent||WORK.title;
+  if(navigator.share){navigator.share({title:`${title} | 오뜨랑`,text:`"${title}" OTT 평점·후기를 오뜨랑에서 확인해보세요!`,url}).catch(()=>{});}
+  else{navigator.clipboard.writeText(url).then(()=>showToast('링크가 복사됐어요!'));}
+}
+function showToast(msg){const t=document.getElementById('shareToast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+
+/* ══ 별점 ══ */
+function hoverStar(e,v){const wrap=e.currentTarget;const isLeft=e.offsetX<wrap.offsetWidth/2;hoverVal=isLeft?v-0.5:v;renderStarInput(hoverVal);}
+function leaveStar(){renderStarInput(myStars);}
+function setStar(wrap){myStars=hoverVal||(wrap.dataset.v*1);renderStarInput(myStars);const lbl={0.5:'0.5점',1:'1점',1.5:'1.5점',2:'2점',2.5:'2.5점',3:'3점',3.5:'3.5점',4:'4점',4.5:'4.5점',5:'5점'};document.getElementById('starLabel').textContent=lbl[myStars]||'별점을 선택하세요';}
+function renderStarInput(val){document.querySelectorAll('.star-wrap').forEach((w,i)=>{const v=i+1;w.classList.remove('full','half');if(val>=v)w.classList.add('full');else if(val>=v-0.5)w.classList.add('half');});}
+
+/* ══ 댓글 등록 ══ */
+function submitComment(){
+  const txt=document.getElementById('commentInput').value.trim();
+  if(!myStars){showToast('별점을 먼저 선택해주세요');return;}
+  if(!txt){showToast('한줄 감상을 입력해주세요');return;}
+  const spoiler=document.getElementById('spoilerCheck').checked;
+  const preset=[...document.querySelectorAll('.etag.on')].map(e=>e.textContent);
+  const newId='c'+Date.now();
+  ALL_COMMENTS.unshift({id:newId,user:'나',init:'나',score:myStars,emotions:preset,customTags:[...customTags],text:txt,time:'방금',likes:0,spoiler});
+  curPage=1; renderComments(); updateUserRatingCard();
+  document.getElementById('commentInput').value='';
+  document.getElementById('charCount').textContent='0 / 140';
+  document.getElementById('spoilerCheck').checked=false;
+  renderStarInput(0); myStars=0;
+  document.getElementById('starLabel').textContent='별점을 선택하세요';
+  document.querySelectorAll('.etag').forEach(b=>{b.classList.remove('on','disabled');});
+  customTags=[]; renderCustomTags(); updateEtagCount();
+  showToast('후기가 등록됐어요! 공유해보세요 🎉');
+}
+function updateUserRatingCard(){
+  if(!ALL_COMMENTS.length){document.getElementById('userRatingEmpty').style.display='flex';document.getElementById('userRatingFilled').style.display='none';return;}
+  const avg=(ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length).toFixed(1);
+  const stars=Math.round(parseFloat(avg));
+  document.getElementById('userScore').textContent=avg;
+  document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명 평가`;
+  document.getElementById('userStarDisplay').textContent='★'.repeat(stars)+'☆'.repeat(5-stars);
+  document.getElementById('userRatingEmpty').style.display='none';
+  document.getElementById('userRatingFilled').style.display='block';
+}
+function getEtagCount(){return document.querySelectorAll('.etag.on').length+customTags.length;}
+function updateEtagCount(){
+  const cnt=getEtagCount();
+  document.getElementById('etagCount').textContent=`${cnt} / 3 태그 선택`;
+  document.querySelectorAll('.etag').forEach(b=>{if(!b.classList.contains('on'))b.classList.toggle('disabled',cnt>=3);});
+  document.getElementById('customTagAddBtn').disabled=cnt>=3||!document.getElementById('customTagInput').value.trim();
+}
+function toggleEtag(b){if(b.classList.contains('disabled'))return;b.classList.toggle('on');updateEtagCount();}
+function addCustomTag(){
+  const inp=document.getElementById('customTagInput');
+  const val=inp.value.trim();if(!val)return;
+  if(getEtagCount()>=3){showToast('태그는 최대 3개');return;}
+  customTags.push(val);inp.value='';renderCustomTags();updateEtagCount();
+}
+function removeCustomTag(t){customTags=customTags.filter(x=>x!==t);renderCustomTags();updateEtagCount();}
+function renderCustomTags(){document.getElementById('customTagList').innerHTML=customTags.map(t=>`<span class="custom-tag-chip">${t}<button onclick="removeCustomTag('${t}')" aria-label="${t} 삭제">✕</button></span>`).join('');}
+function updateCharCount(el){const len=el.value.length;const el2=document.getElementById('charCount');el2.textContent=`${len} / 140`;el2.classList.toggle('warn',len>120);}
+function scrollToRating(){document.getElementById('ratingInputArea').scrollIntoView({behavior:'smooth',block:'start'});}
+
+/* ══ 유튜브 ══ */
+const YT_MOCK=[
+  {id:'r_ooE1pij0c',title:'오징어 게임 시즌3 결말 해석 완전 분석',channel:'영화읽어주는남자',views:'284만 조회',dur:'18:32'},
+  {id:'dQw4w9WgXcQ',title:'오징어 게임 시즌3 리뷰 — 황동혁 감독 메시지',channel:'씨네큐',views:'156만 조회',dur:'24:11'},
+  {id:'oHg5SJYRHA0',title:'오징어게임 정주행 반응 풀버전',channel:'리액션왕',views:'98만 조회',dur:'41:05'},
+  {id:'fJ9rUzIMcZQ',title:'오징어 게임 모든 복선과 숨겨진 의미 총정리',channel:'드라마해부',views:'203만 조회',dur:'31:47'},
+  {id:'JGwWNGJdvx8',title:'이정재 인터뷰 — 시즌3 비하인드',channel:'Netflix Korea',views:'445만 조회',dur:'12:20'},
+  {id:'9bZkp7q19f0',title:'왜 오징어게임은 세계를 사로잡았나',channel:'한류리포트',views:'321만 조회',dur:'16:58'},
+];
+function renderYt(){
+  const list=YT_MOCK.slice(0,6);
+  document.getElementById('ytSubtitle').textContent=`${list.length}개 영상`;
+  document.getElementById('ytArea').innerHTML=`<div class="yt-grid">${list.map(v=>`
+    <div class="yt-card" onclick="openPlayer('${v.id}','${v.title.replace(/'/g,"\\'")}')">
+      <div class="yt-thumb">
+        <img src="https://img.youtube.com/vi/${v.id}/mqdefault.jpg" alt="${v.title}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="yt-thumb-ph" style="display:none"><i class="ti ti-brand-youtube" style="font-size:26px" aria-hidden="true"></i></div>
+        <div class="yt-play"><div class="yt-play-icon"><i class="ti ti-player-play" style="font-size:13px" aria-hidden="true"></i></div></div>
+        <div class="yt-dur">${v.dur}</div>
+      </div>
+      <div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta"><span>${v.channel}</span><span>·</span><span>${v.views}</span></div></div>
+    </div>`).join('')}</div>`;
+}
+function openPlayer(id,title){
+  document.getElementById('ytModalTitle').textContent=title;
+  document.getElementById('ytFrame').src=`https://www.youtube.com/embed/${id}?autoplay=1`;
+  document.getElementById('ytModal').classList.add('show');
+  document.getElementById('ytModal').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closePlayer(){document.getElementById('ytFrame').src='';document.getElementById('ytModal').classList.remove('show');}
+
+/* ══ 프로필 ══ */
+function showProfile(username){
+  const db=USER_DB[username]||{init:(username||'?')[0],joined:'알 수 없음',totalLikes:0,reviews:[]};
+  document.getElementById('profileAvatar').textContent=db.init;
+  document.getElementById('profileName').textContent=username;
+  document.getElementById('profileJoin').textContent=`${db.joined} 가입 · 활동 중`;
+  document.getElementById('pstatReviews').textContent=db.reviews.length;
+  document.getElementById('pstatLikes').textContent=db.totalLikes.toLocaleString();
+  document.getElementById('profileBackLabel').textContent=`${document.getElementById('mainTitle').textContent||WORK.title}으로 돌아가기`;
+  const avg=db.reviews.length?(db.reviews.reduce((s,r)=>s+r.score,0)/db.reviews.length).toFixed(1):'—';
+  document.getElementById('pstatAvg').textContent=avg==='—'?'—':avg+'점';
+  const dist={1:0,2:0,3:0,4:0,5:0};
+  db.reviews.forEach(r=>dist[Math.round(r.score)]=(dist[Math.round(r.score)]||0)+1);
+  const maxCnt=Math.max(...Object.values(dist),1);
+  document.getElementById('distBars').innerHTML=[5,4,3,2,1].map(s=>`<div class="dist-row"><span class="dist-label">${s}★</span><div class="dist-bar-bg"><div class="dist-bar-fill" style="width:${Math.round((dist[s]/maxCnt)*100)}%"></div></div><span class="dist-count">${dist[s]}</span></div>`).join('');
+  document.getElementById('profileReviewCount').textContent=`${db.reviews.length}개`;
+  document.getElementById('userReviews').innerHTML=db.reviews.length
+    ?db.reviews.map(r=>`<div class="review-card" onclick="showDetail()"><div class="review-poster"><div class="review-poster-ph">🎬</div></div><div class="review-body"><div class="review-title-row"><span class="review-title">${r.title}</span><span class="review-platform" style="background:${CC[r.platform]||'#888'}">${PC[r.platform]||r.platform}</span><div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${i<=r.score?'':' off'}">★</span>`).join('')}<span class="review-score-num">${r.score}</span></div></div><div class="review-text">${r.text}</div><div class="review-footer"><span class="review-time">${r.time}</span>${r.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}</div></div></div>`).join('')
+    :`<div style="padding:32px;text-align:center;font-size:14px;color:var(--muted)">아직 남긴 평점이 없어요</div>`;
+  document.getElementById('detailPage').style.display='none';
+  document.getElementById('profilePage').style.display='block';
+}
+function showDetail(){
+  document.getElementById('profilePage').style.display='none';
+  document.getElementById('detailPage').style.display='block';
+}
+
+/* ══ 초기화 ══ */
+async function init(){
+  renderComments(); updateUserRatingCard(); renderChart(WORK.platform); renderYt();
+  await loadTmdb();
+  if(location.hash) setTimeout(()=>{const el=document.querySelector(location.hash);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},700);
+}
+init();
+</script>
+</body>
+</html>
