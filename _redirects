@@ -1,2 +1,2 @@
-/title/:slug /work.html 200
-/title/* /work.html 200
+/title/:slug /_title_detail.html 200
+/title/* /_title_detail.html 200
