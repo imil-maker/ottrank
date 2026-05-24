@@ -61,7 +61,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 
 /* ══ 기간 탭 ══ */
-.period-outer{position:sticky;top:64px;z-index:190;background:rgba(12,12,16,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.period-outer{background:rgba(12,12,16,.96);border-bottom:1px solid var(--border)}
 .period-inner{max-width:var(--max-w);margin:0 auto;padding:0 28px;height:46px;display:flex;align-items:center}
 .pb{height:46px;padding:0 18px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:var(--sans);font-size:15px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
 .pb.on{color:var(--text);border-bottom-color:var(--accent)}
@@ -200,6 +200,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .yt-player-views{font-size:13px;color:var(--muted);font-family:var(--mono)}
 .yt-ext-btn{padding:8px 18px;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:500;border:none;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
 .yt-ext-btn:hover{background:#ff4d58}
+</style>
+<style>
+/* ── 공용 헤더 컨테이너 sticky (fetch 삽입 후에도 동작) ── */
+#ottrang-header {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
 </style>
 </head>
 <body>
