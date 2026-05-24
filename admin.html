@@ -678,7 +678,10 @@ async function registerReaction() {
     });
     const json = await res.json();
     if (json.ok) {
-      showToast(`✅ "${selectedWorkData.title_ko}" 해외반응 등록 완료!`, 'ok');
+      const msg = json.collecting
+        ? `✅ "${selectedWorkData.title_ko}" 등록! 댓글 수집·번역 중... (30초 후 확인)`
+        : `✅ "${selectedWorkData.title_ko}" 해외반응 등록 완료!`;
+      showToast(msg, 'ok');
       /* 초기화 */
       document.getElementById('ytUrlInp').value = '';
       document.getElementById('customTitleInp').value = '';
@@ -746,12 +749,36 @@ async function loadReactions() {
             onclick="setFeatured(${r.id},${r.is_featured?1:0})">
             ${r.is_featured ? '⭐ 메인해제' : '⭐ 메인'}
           </button>
+          <button class="btn-rc-del"
+            style="background:rgba(240,180,41,.1);color:#c89a10;border-color:rgba(240,180,41,.3)"
+            onclick="collectComments(${r.id})">
+            💬 댓글수집
+          </button>
           <a href="https://youtube.com/watch?v=${r.video_id}" target="_blank"
             style="font-size:11px;color:var(--muted2);font-family:var(--mono);margin-left:auto;text-decoration:none;align-self:center">↗</a>
         </div>
       </div>`).join('');
   } catch(e) {
     el.innerHTML = `<div class="empty">오류: ${e.message}</div>`;
+  }
+}
+
+/* 댓글 수동 수집 트리거 */
+async function collectComments(id) {
+  showToast('댓글 수집·번역 시작... 약 30초 후 새로고침하세요', 'ok');
+  try {
+    const res  = await fetch(`${API}/admin/reactions/${id}/collect`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('✅ ' + json.message, 'ok');
+    } else {
+      showToast('실패: ' + json.message, 'err');
+    }
+  } catch(e) {
+    showToast('오류: ' + e.message, 'err');
   }
 }
 
