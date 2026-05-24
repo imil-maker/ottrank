@@ -924,45 +924,49 @@ async function loadTmdb(){
       document.getElementById('tmdbScore').textContent = tmdbRating ? parseFloat(tmdbRating).toFixed(1) : '—';
       document.getElementById('tmdbVotes').textContent = tmdbVotes ? `${tmdbVotes.toLocaleString()}명` : '—';
 
-      /* IMDB 평점: TMDB external_ids → imdb_id → OMDB API */
+      /* IMDB 평점: TMDB external_ids → imdb_id → Workers(/imdb) → 표시 */
       try{
-        const extRes  = await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/external_ids`);
-        const extData = await extRes.json();
-        const imdbId  = extData.imdb_id;
+        /* tv/movie 둘 다 시도해서 imdb_id 획득 */
+        let imdbId = null;
+        for(const tryType of [WORK.type, WORK.type==='tv'?'movie':'tv']){
+          try{
+            const extRes  = await fetch(`${TMDB_PROXY}/${tryType}/${WORK.tmdb_id}/external_ids`);
+            const extData = await extRes.json();
+            if(extData.imdb_id){ imdbId = extData.imdb_id; break; }
+          }catch(e){}
+        }
+
         if(imdbId){
-          /* IMDb 카드 클릭 → IMDb 페이지 이동 */
+          /* IMDb 카드 클릭 → IMDb 페이지로 이동 */
           const imdbCard = document.getElementById('imdbScore').closest('.r-card');
           imdbCard.style.cursor = 'pointer';
           imdbCard.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`,'_blank');
-          imdbCard.title = 'IMDb에서 보기';
 
-          /* ① tmdb_id + imdb_id 매핑을 DB에 저장 */
+          /* ① tmdb_id ↔ imdb_id 매핑 DB 저장 (백그라운드) */
           fetch(`${OTTRANK_API}/imdb/save`, {
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body: JSON.stringify({ tmdb_id: WORK.tmdb_id, imdb_id: imdbId })
           }).catch(()=>{});
 
-          /* ② IMDB 평점 조회 (D1 캐시 → OMDB API) */
-          try{
-            const omdbRes  = await fetch(`${OTTRANK_API}/imdb/${imdbId}`);
-            if(omdbRes.ok){
-              const omdbData = await omdbRes.json();
-              if(omdbData.ok && omdbData.rating){
-                document.getElementById('imdbScore').textContent = omdbData.rating;
-                document.getElementById('imdbVotes').textContent =
-                  omdbData.votes ? omdbData.votes.replace(/,/g,'')+'명' : '';
-              } else { throw new Error('no rating'); }
-            } else { throw new Error('api not ready'); }
-          }catch(e){
-            /* Workers 엔드포인트 준비 중 → IMDb 링크로 표시 */
-            document.getElementById('imdbScore').innerHTML =
-              `<span style="font-size:20px;display:block;margin:4px 0">↗</span>`;
-            document.getElementById('imdbVotes').innerHTML =
-              `<span style="color:#F5C518;font-size:10px">IMDb에서 보기</span>`;
+          /* ② Workers API로 평점 조회 (D1 캐시 → OMDB) */
+          const omdbRes  = await fetch(`${OTTRANK_API}/imdb/${imdbId}`);
+          const omdbData = await omdbRes.json();
+
+          if(omdbData.ok && omdbData.rating){
+            document.getElementById('imdbScore').textContent = omdbData.rating;
+            document.getElementById('imdbVotes').textContent =
+              omdbData.votes ? omdbData.votes.replace(/,/g,'') + '명' : '';
+          } else {
+            /* 평점 없는 작품 → 링크만 */
+            document.getElementById('imdbScore').innerHTML = `<span style="font-size:20px">↗</span>`;
+            document.getElementById('imdbVotes').innerHTML = `<span style="font-size:10px;color:#F5C518">IMDb 보기</span>`;
           }
         }
-      }catch(e){ console.error('IMDB fetch 오류:',e); }
+      }catch(e){
+        console.error('[IMDB]', e);
+        /* 오류 시 조용히 실패 (평점 칸은 — 유지) */
+      }
 
       const ov=det.overview||'줄거리 정보가 없습니다.';
       document.getElementById('overview').textContent=ov;
