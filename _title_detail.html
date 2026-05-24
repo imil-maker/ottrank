@@ -708,6 +708,20 @@ let WORK = { tmdb_id:null, type:'tv', platform:'netflix', rank:'—', title:'작
   WORK.platform = params.get('platform') || 'netflix';
   WORK.rank     = params.get('rank')     || '—';
   WORK.title    = params.get('title')    || '작품명';
+
+  /* 4순위: referrer URL에서 슬러그 파싱 (debug.html 등 외부에서 직접 이동 시) */
+  if(!WORK.tmdb_id && document.referrer){
+    try {
+      const refUrl = new URL(document.referrer);
+      if(refUrl.pathname.startsWith('/title/')){
+        const parsed = parseSlug(refUrl.pathname);
+        if(parsed && parsed.tmdb_id){
+          Object.assign(WORK, { tmdb_id:parsed.tmdb_id, season:parsed.season, year:parsed.year });
+          WORK.title = decodeURIComponent(parsed.titleSlug.replace(/-/g,' ')) || '작품명';
+        }
+      }
+    } catch(e){}
+  }
 })();
 
 /* 상태 */
@@ -752,7 +766,7 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   const canonical = `https://ottrank.kr/title/${slug}`;
 
   document.title=seoT;
-  setMeta('seoTitle',seoT,'textContent');
+  setMeta('seoTitle','textContent',seoT);
   setMeta('seoDesc','content',seoD);
   setMeta('seoKw','content',seoKw);
   setMeta('seoOgTitle','content',seoT);
