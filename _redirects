@@ -1,1 +1,2 @@
+/title/:slug /title.html 200
 /title/* /title.html 200
