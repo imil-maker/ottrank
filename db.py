@@ -9,18 +9,28 @@ TMDB_PROXY = "https://tmdb-proxy.tdidream.workers.dev/tmdb"
 
 
 def _fetch_detail(tmdb_id: int, media_type: str):
-    """tmdb_id로 상세정보(한국어 제목 + poster) 조회"""
+    """tmdb_id로 상세정보 조회 → (title_ko, poster, genre, overview, release_year, tmdb_rating)"""
     try:
         url = f"{TMDB_PROXY}/{media_type}/{tmdb_id}"
         resp = requests.get(url, params={"language": "ko-KR"}, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
-            title_ko = data.get("name") or data.get("title") or ""
-            poster   = data.get("poster_path") or ""
-            return title_ko, poster
+            title_ko     = data.get("name") or data.get("title") or ""
+            poster        = data.get("poster_path") or ""
+            # 장르: 한국어 장르명 리스트 → 쉼표 구분 문자열
+            genres        = data.get("genres", [])
+            genre_str     = ",".join(g.get("name", "") for g in genres if g.get("name"))
+            # 줄거리
+            overview      = data.get("overview") or ""
+            # 개봉연도
+            date_str      = data.get("release_date") or data.get("first_air_date") or ""
+            release_year  = int(date_str[:4]) if date_str and len(date_str) >= 4 else None
+            # TMDB 평점
+            tmdb_rating   = data.get("vote_average") or None
+            return title_ko, poster, genre_str, overview, release_year, tmdb_rating
     except Exception:
         pass
-    return "", ""
+    return "", "", "", "", None, None
 
 
 def search_tmdb(title_ko, title_en="", media_type="tv"):
@@ -61,7 +71,7 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
                     best = sorted(exact, key=lambda x: x.get("popularity", 0), reverse=True)[0]
                     tmdb_id = best.get("id")
                     # 반드시 ko-KR 상세 재조회
-                    ko_title, poster = _fetch_detail(tmdb_id, tmdb_type)
+                    ko_title, poster, _, _, _, _ = _fetch_detail(tmdb_id, tmdb_type)
                     poster = poster or best.get("poster_path", "")
                     print(f"    → 정확매칭({lang}): {ko_title or query}")
                     return tmdb_id, poster, ko_title
@@ -78,7 +88,7 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
                 if popular:
                     best = sorted(popular, key=lambda x: x.get("popularity", 0), reverse=True)[0]
                     tmdb_id = best.get("id")
-                    ko_title, poster = _fetch_detail(tmdb_id, tmdb_type)
+                    ko_title, poster, _, _, _, _ = _fetch_detail(tmdb_id, tmdb_type)
                     poster = poster or best.get("poster_path", "")
                     # 한국어 제목이 확인된 경우만 신뢰 (오매핑 방지)
                     if _is_korean(ko_title):
@@ -94,7 +104,7 @@ def search_tmdb(title_ko, title_en="", media_type="tv"):
                 if candidates:
                     best = sorted(candidates, key=lambda x: x.get("popularity", 0), reverse=True)[0]
                     tmdb_id = best.get("id")
-                    ko_title, poster = _fetch_detail(tmdb_id, tmdb_type)
+                    ko_title, poster, _, _, _, _ = _fetch_detail(tmdb_id, tmdb_type)
                     poster = poster or best.get("poster_path", "")
                     # 한국어 제목이 확인된 경우만 신뢰
                     if _is_korean(ko_title):
@@ -153,36 +163,46 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         print(f"  [{platform}][{category}] {rank:2d}. {existing[3]} → 수동고정, 스킵")
         return
 
+    genre = overview = release_year = tmdb_rating = None
+
     if tmdb_id_override and poster_override:
         tmdb_id = tmdb_id_override
         poster_path = poster_override
-        ko_title, _ = _fetch_detail(tmdb_id, media_type)
+        ko_title, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
         title_ko_final = ko_title or title_ko
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(직접)")
 
     elif tmdb_id_override:
         tmdb_id = tmdb_id_override
-        ko_title, poster_path = _fetch_detail(tmdb_id, media_type)
+        ko_title, poster_path, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
         title_ko_final = ko_title or title_ko
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
 
     else:
         tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
-        # ko_title: TMDB ko-KR 상세조회 결과
-        # 한국어 제목이면 그대로, 영어면 원본(크롤링 제목) 유지
         if ko_title and _is_korean(ko_title):
             title_ko_final = ko_title
         else:
-            title_ko_final = title_ko  # 크롤링 원본 유지 (영어여도)
+            title_ko_final = title_ko
+        # tmdb_id 있으면 추가 상세정보 조회
+        if tmdb_id:
+            _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
         status = "✓" if poster_path else "✗ 포스터 없음"
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
 
     conn.execute("""
         INSERT OR REPLACE INTO rankings
-            (date, platform, category, rank, title_ko, title_en, score, tmdb_id, poster_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (today, platform, category, rank, title_ko_final, title_en, score, tmdb_id, poster_path))
+            (date, platform, category, rank, title_ko, title_en, score,
+             tmdb_id, poster_path, genre, overview, release_year, tmdb_rating)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (today, platform, category, rank, title_ko_final, title_en, score,
+          tmdb_id, poster_path, genre or None, overview or None, release_year, tmdb_rating))
     conn.commit()
+
+    # works 테이블에도 저장 (작품 마스터 — tmdb_id 기준 upsert)
+    if tmdb_id:
+        _upsert_work(conn, tmdb_id, media_type, title_ko_final, title_en,
+                     poster_path, genre, overview, release_year, tmdb_rating)
 
 
 def _is_recent(r: dict, current_year: int, years: int) -> bool:
@@ -204,3 +224,29 @@ def _is_korean(text: str) -> bool:
 def _get_poster_by_id(tmdb_id: int, media_type: str):
     _, poster = _fetch_detail(tmdb_id, media_type)
     return poster or None
+
+
+def _upsert_work(conn, tmdb_id, category, title_ko, title_en,
+                 poster_path, genre, overview, release_year, tmdb_rating):
+    """works 테이블에 작품 정보 upsert (tmdb_id 기준)"""
+    try:
+        conn.execute("""
+            INSERT INTO works
+                (tmdb_id, category, title_ko, title_en, poster_path,
+                 genre, overview, release_year, tmdb_rating, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+            ON CONFLICT(tmdb_id) DO UPDATE SET
+                title_ko     = excluded.title_ko,
+                title_en     = excluded.title_en,
+                poster_path  = COALESCE(excluded.poster_path, poster_path),
+                genre        = COALESCE(excluded.genre, genre),
+                overview     = COALESCE(excluded.overview, overview),
+                release_year = COALESCE(excluded.release_year, release_year),
+                tmdb_rating  = COALESCE(excluded.tmdb_rating, tmdb_rating),
+                updated_at   = datetime('now','localtime')
+        """, (tmdb_id, category, title_ko, title_en or '',
+              poster_path or None, genre or None, overview or None,
+              release_year, tmdb_rating))
+        conn.commit()
+    except Exception as e:
+        print(f"  works upsert 오류: {e}")
