@@ -683,10 +683,12 @@ function goDetail(tmdbId, type, platform, rank, title, season, year){
   const y = year   || new Date().getFullYear(); // 연도 없으면 현재연도
   const slug = makeSlug(title||'work');
   /* 슬러그 URL로 이동 — 내부 데이터는 sessionStorage에 보관 */
+  const slugUrl = `/title/${slug}-${s}${y}${tmdbId}`;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
     tmdb_id: tmdbId, type, platform, rank, title, season: s, year: y
   }));
-  location.href = `/title/${slug}-${s}${y}${tmdbId}`;
+  sessionStorage.setItem('ottrang_slug', slugUrl); // rewrite 후 pathname 복구용
+  location.href = slugUrl;
 }
 function renderCard(p,items){
   if(!items||!items.length)return'';
