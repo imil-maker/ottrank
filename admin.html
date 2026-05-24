@@ -487,8 +487,9 @@ function switchPage(page, btn) {
 ══════════════════════════════════════════════ */
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const IMG2 = 'https://image.tmdb.org/t/p/w92';
-let ytVideoData = null;   // 현재 미리보기 중인 YouTube 영상 데이터
+let ytVideoData = null;      // 현재 미리보기 중인 YouTube 영상 데이터
 let selectedWorkData = null; // 연결할 작품
+let _workResults = [];       // 작품 검색 결과 임시 저장
 
 /* YouTube URL에서 video_id 추출 */
 function extractVideoId(url) {
@@ -568,8 +569,9 @@ async function searchWorks(q) {
         if (mvD.id) rows.push({ tmdb_id: mvD.id, title_ko: mvD.title||mvD.original_title||'', poster_path: mvD.poster_path||'', category:'movie', year:(mvD.release_date||'').slice(0,4) });
         if (rows.length) {
           const el = document.getElementById('workSearchResults');
-          el.innerHTML = rows.map(r => `
-            <div class="work-result-item" onclick="selectWork(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+          _workResults = rows;
+          el.innerHTML = rows.map((r,i) => `
+            <div class="work-result-item" onclick="selectWorkByIdx(${i})">
               ${r.poster_path ? `<img class="work-result-poster" src="https://image.tmdb.org/t/p/w92${r.poster_path}" alt="">` : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`}
               <div>
                 <div style="font-weight:500">${r.title_ko}</div>
@@ -618,8 +620,9 @@ async function searchWorks(q) {
         return;
       }
 
-      el.innerHTML = rows.map(r => `
-        <div class="work-result-item" onclick="selectWork(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+      _workResults = rows;
+      el.innerHTML = rows.map((r,i) => `
+        <div class="work-result-item" onclick="selectWorkByIdx(${i})">
           ${r.poster_path
             ? `<img class="work-result-poster" src="https://image.tmdb.org/t/p/w92${r.poster_path}" alt="">`
             : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`
@@ -634,6 +637,11 @@ async function searchWorks(q) {
       console.error('작품검색 오류:', e);
     }
   }, 400);
+}
+
+/* 인덱스로 작품 선택 (onclick에서 정규식/따옴표 충돌 방지) */
+function selectWorkByIdx(i) {
+  selectWork(_workResults[i]);
 }
 
 function selectWork(r) {
@@ -712,7 +720,7 @@ async function loadReactions() {
         </div>
         <div class="rc-body">
           <div class="rc-work">🎬 ${r.title_ko || 'tmdb:'+r.tmdb_id}</div>
-          <div class="rc-title">
+          <div class="rc-title" id="rctitle_${r.id}" data-current="${(r.custom_title||r.video_title||'').replace(/"/g,'&quot;')}">
             ${r.custom_title || r.video_title}
             ${r.custom_title && r.custom_title !== r.video_title
               ? '<span style="font-size:9px;color:var(--accent);margin-left:4px;font-family:var(--mono)">수정됨</span>' : ''}
@@ -723,12 +731,12 @@ async function loadReactions() {
           </div>
         </div>
         <div class="rc-footer" style="flex-wrap:wrap;gap:4px">
-          <button class="btn-rc-del"
-            onclick="deleteReaction(${r.id},'${(r.custom_title||r.video_title||'').replace(/'/g,'').slice(0,20)}')">
+          <button class="btn-rc-del" id="rcdel_${r.id}"
+            onclick="deleteReaction(${r.id})">
             🗑 삭제
           </button>
           <button class="btn-rc-del" style="background:rgba(55,138,221,.1);color:#378ADD;border-color:rgba(55,138,221,.3)"
-            onclick="editReaction(${r.id},'${(r.custom_title||r.video_title||'').replace(/'/g,'')}')">
+            onclick="editReaction(${r.id})">
             ✏ 수정
           </button>
           <button class="btn-rc-del"
@@ -748,7 +756,9 @@ async function loadReactions() {
 }
 
 /* 해외반응 제목 수정 */
-async function editReaction(id, currentTitle) {
+async function editReaction(id) {
+  const titleEl = document.getElementById('rctitle_' + id);
+  const currentTitle = titleEl ? titleEl.getAttribute('data-current') : '';
   const newTitle = prompt('게시판 제목을 수정하세요:', currentTitle);
   if (newTitle === null) return;           // 취소
   if (!newTitle.trim()) { showToast('제목을 입력해주세요', 'err'); return; }
@@ -792,9 +802,10 @@ async function setFeatured(id, isFeatured) {
 }
 
 /* 해외반응 삭제 */
-async function deleteReaction(id, title) {
-  if (!confirm(`"${title}..." 영상을 삭제할까요?
-관련 번역 댓글도 모두 삭제됩니다.`)) return;
+async function deleteReaction(id) {
+  const titleEl = document.getElementById('rctitle_' + id);
+  const title = titleEl ? titleEl.getAttribute('data-current').slice(0,20) : '';
+  if (!confirm(`"${title}..." 영상을 삭제할까요? 관련 번역 댓글도 모두 삭제됩니다.`)) return;
   try {
     const res  = await fetch(`${API}/admin/reactions/${id}`, {
       method: 'DELETE',
