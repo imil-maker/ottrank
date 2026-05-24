@@ -447,8 +447,12 @@ async function loadReactions(){
     /* 통계 업데이트 */
     const works = new Set(allData.map(r=>r.tmdb_id)).size;
     document.getElementById('statVideos').textContent   = allData.length;
-    document.getElementById('statComments').textContent = '—'; // 추후 집계
+    document.getElementById('statComments').textContent = '—';
     document.getElementById('statWorks').textContent    = works;
+
+    /* 메인 지정 영상 피처드로 표시 */
+    const featured = allData.find(r=>r.is_featured===1||r.is_featured==='1');
+    if(featured) renderFeaturedItem(featured);
 
     applyFilter();
   } catch(e) {
@@ -511,11 +515,22 @@ function applyFilter(){
   renderPagination();
 }
 
-/* ══ 피처드 카드 ══ */
+/* ══ 피처드 카드 (메인 지정 영상 고정 표시) ══ */
+function renderFeaturedItem(r){
+  const el = document.getElementById('featuredArea');
+  if(!r){ el.innerHTML=''; return; }
+  _renderFeaturedCard(r, el);
+}
 function renderFeatured(){
+  // 피처드 지정 영상 있으면 건너뜀 (renderFeaturedItem에서 처리)
+  const hasFeatured = allData.some(r=>r.is_featured===1||r.is_featured==='1');
+  if(hasFeatured) return;
   const el = document.getElementById('featuredArea');
   if(!filtered.length){ el.innerHTML = ''; return; }
   const r = filtered[0];
+  _renderFeaturedCard(r, el);
+}
+function _renderFeaturedCard(r, el){
   const poster = r.poster_path ? `${IMG_W500}${r.poster_path}` : '';
   const dateStr = r.published_at ? new Date(r.published_at).toLocaleDateString('ko-KR') : '';
 
@@ -531,7 +546,7 @@ function renderFeatured(){
           ${poster ? `<img src="${poster}" alt="">` : '🎬'}
           <span style="font-size:13px;color:var(--accent);font-weight:600">${r.title_ko||'작품명'}</span>
         </div>
-        <div class="featured-vtitle">${r.video_title||''}</div>
+        <div class="featured-vtitle">${r.custom_title||r.video_title||''}</div>
         <div class="featured-channel">
           <i class="ti ti-brand-youtube" style="color:#ff0000;font-size:14px"></i>
           ${r.channel_name||''}
@@ -621,7 +636,7 @@ function renderGrid(){
             }
             <span class="rc-work-name">${r.title_ko||'작품명'}</span>
           </div>
-          <div class="rc-vtitle">${r.video_title||''}</div>
+          <div class="rc-vtitle">${r.custom_title||r.video_title||''}</div>
           <div class="rc-channel">
             <i class="ti ti-brand-youtube" style="color:#ff0000;font-size:12px"></i>
             ${r.channel_name||''}
@@ -631,9 +646,14 @@ function renderGrid(){
             <span>📅 ${dateStr}</span>
           </div>
         </div>
-        <div class="rc-footer">
-          <span>💬 댓글 보기</span>
-          <button class="rc-footer-btn" onclick="event.stopPropagation();goToWork(${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,"\\'")}')">
+        <div class="rc-footer" style="gap:6px;flex-wrap:wrap">
+          <button class="rc-footer-btn"
+            style="background:rgba(230,57,70,.12);color:var(--accent);border-color:rgba(230,57,70,.35)"
+            onclick="event.stopPropagation();openPlayer(${r.id},'${r.video_id}','${(r.custom_title||r.video_title||'').replace(/'/g,"\\'")}',${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,"\\'")}','${r.poster_path||''}')">
+            🌍 해외반응 댓글보기
+          </button>
+          <button class="rc-footer-btn"
+            onclick="event.stopPropagation();goToWork(${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,"\\'")}')">
             작품 상세 ↗
           </button>
         </div>
@@ -737,7 +757,14 @@ async function loadTranslatedComments(reactionId){
     const json = await res.json();
     const data = json.data||[];
     if(!data.length){
-      el.innerHTML='<div class="empty-comments">번역 댓글이 아직 없습니다.<br><small>크롤러가 수집하면 자동으로 표시됩니다</small></div>';
+      el.innerHTML=`<div class="empty-comments" style="padding:24px;text-align:center">
+        <div style="font-size:28px;margin-bottom:10px">🌍</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px">번역 댓글 준비 중</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">
+          YouTube 댓글 크롤러가 수집 후 자동으로 표시됩니다<br>
+          아래 오뜨랑 댓글로 먼저 반응을 남겨보세요! 👇
+        </div>
+      </div>`;
       return;
     }
     el.innerHTML = data.map(c=>`
