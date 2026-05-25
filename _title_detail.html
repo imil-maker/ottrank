@@ -88,6 +88,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 }
 .poster-cta-btn:hover{background:#ff4d58;transform:scale(1.02)}
 .poster-cta-sub{font-size:11px;color:rgba(255,255,255,.6);font-family:var(--font-mono)}
+.wish-btn{
+  width:100%;padding:9px 0;border-radius:var(--r);cursor:pointer;
+  background:transparent;color:#fff;font-size:14px;font-weight:600;
+  font-family:var(--font-sans);letter-spacing:.3px;
+  border:1px solid rgba(255,255,255,.4);
+  transition:all .15s;margin-top:6px;
+}
+.wish-btn:hover{background:rgba(255,255,255,.12);}
+.wish-btn.wished{background:rgba(240,180,41,.15);border-color:var(--gold);color:var(--gold);}
 
 .info-col{display:flex;flex-direction:column;gap:12px}
 .main-title{font-size:28px;font-weight:700;line-height:1.2}
@@ -372,6 +381,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         ✍ 평점 &amp; 후기 남기기
       </button>
       <span class="poster-cta-sub">별점 + 감상평 작성</span>
+      <button class="wish-btn" id="wishBtn" onclick="toggleWish()">♡ 찜하기</button>
     </div>
   </div>
 
@@ -497,19 +507,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
   <p style="font-size:13px;color:var(--muted);margin-bottom:4px">별점을 선택하세요 (0.5점 단위)</p>
   <div class="star-input">
-    <div class="star-wrap" data-v="1" onmousemove="hoverStar(event,1)" onmouseleave="leaveStar()" onclick="setStar(this)">
+    <div class="star-wrap" data-v="1" onmousemove="hoverStar(event,1)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))">
       <span class="s-full">★</span><span class="s-half">★</span>
     </div>
-    <div class="star-wrap" data-v="2" onmousemove="hoverStar(event,2)" onmouseleave="leaveStar()" onclick="setStar(this)">
+    <div class="star-wrap" data-v="2" onmousemove="hoverStar(event,2)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))">
       <span class="s-full">★</span><span class="s-half">★</span>
     </div>
-    <div class="star-wrap" data-v="3" onmousemove="hoverStar(event,3)" onmouseleave="leaveStar()" onclick="setStar(this)">
+    <div class="star-wrap" data-v="3" onmousemove="hoverStar(event,3)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))">
       <span class="s-full">★</span><span class="s-half">★</span>
     </div>
-    <div class="star-wrap" data-v="4" onmousemove="hoverStar(event,4)" onmouseleave="leaveStar()" onclick="setStar(this)">
+    <div class="star-wrap" data-v="4" onmousemove="hoverStar(event,4)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))">
       <span class="s-full">★</span><span class="s-half">★</span>
     </div>
-    <div class="star-wrap" data-v="5" onmousemove="hoverStar(event,5)" onmouseleave="leaveStar()" onclick="setStar(this)">
+    <div class="star-wrap" data-v="5" onmousemove="hoverStar(event,5)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))">
       <span class="s-full">★</span><span class="s-half">★</span>
     </div>
     <span id="starLabel" style="font-size:14px;color:var(--muted);margin-left:12px">별점을 선택하세요</span>
@@ -534,7 +544,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
   <div id="customTagList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
   <div class="comment-input-row">
-    <textarea id="commentInput" placeholder="한줄 감상을 남겨보세요 (140자 이내)" oninput="updateCharCount(this)"></textarea>
+    <textarea id="commentInput" placeholder="한줄 감상을 남겨보세요 (140자 이내)" oninput="updateCharCount(this)" onfocus="checkLoginThenRate(null,this)"></textarea>
     <button class="submit-btn" onclick="submitComment()">등록</button>
   </div>
   <div class="char-count" id="charCount">0 / 140</div>
@@ -1243,6 +1253,71 @@ function removeCustomTag(t){customTags=customTags.filter(x=>x!==t);renderCustomT
 function renderCustomTags(){document.getElementById('customTagList').innerHTML=customTags.map(t=>`<span class="custom-tag-chip">${t}<button onclick="removeCustomTag('${t}')" aria-label="${t} 삭제">✕</button></span>`).join('');}
 function updateCharCount(el){const len=el.value.length;const el2=document.getElementById('charCount');el2.textContent=`${len} / 140`;el2.classList.toggle('warn',len>120);}
 function scrollToRating(){document.getElementById('ratingInputArea').scrollIntoView({behavior:'smooth',block:'start'});}
+
+/* ── 로그인 체크 ── */
+function checkLoginThenRate(cb, inputEl) {
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!sid) {
+    const redirect = encodeURIComponent(location.pathname + location.search);
+    location.href = '/login.html?redirect=' + redirect;
+    return;
+  }
+  if (cb) cb();
+  if (inputEl) inputEl.focus();
+}
+
+/* ── 찜하기 ── */
+const WISH_API = 'https://ottrank-api.tdidream.workers.dev';
+let _wishlisted = false;
+
+async function initWish(tmdbId) {
+  if (!tmdbId) return;
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!sid) return;
+  try {
+    const res = await fetch(`${WISH_API}/wishlist/check/${tmdbId}`, {
+      headers: { Authorization: 'Bearer ' + sid }
+    });
+    const data = await res.json();
+    _wishlisted = data.wishlisted;
+    updateWishBtn();
+  } catch(e) {}
+}
+
+function updateWishBtn() {
+  const btn = document.getElementById('wishBtn');
+  if (!btn) return;
+  if (_wishlisted) {
+    btn.textContent = '♥ 찜한 작품';
+    btn.classList.add('wished');
+  } else {
+    btn.textContent = '♡ 찜하기';
+    btn.classList.remove('wished');
+  }
+}
+
+async function toggleWish() {
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!sid) {
+    const redirect = encodeURIComponent(location.pathname + location.search);
+    location.href = '/login.html?redirect=' + redirect;
+    return;
+  }
+  const tmdbId = WORK?.tmdb_id;
+  if (!tmdbId) return;
+  try {
+    const res = await fetch(`${WISH_API}/wishlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ tmdb_id: tmdbId, title_ko: WORK.title, poster_path: WORK.poster_path || '' }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      _wishlisted = data.wishlisted;
+      updateWishBtn();
+    }
+  } catch(e) {}
+}
 
 /* 유저 평점 1개 이상이면: 댓글섹션 → 평점입력 → 순위히스토리 순으로 재배치 */
 function reorderSections(){
