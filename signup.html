@@ -94,12 +94,13 @@
   <script>
     const API = 'https://ottrank-api.tdidream.workers.dev';
 
-    // URL에서 sid 파라미터 추출
+    // URL에서 sid 파라미터 추출 후 localStorage 저장
     const sid = new URLSearchParams(location.search).get('sid');
     if (!sid) {
-      // sid 없으면 메인으로
       location.href = '/';
     }
+    // localStorage에도 저장 (헤더에서 쓸 수 있도록)
+    if (sid) localStorage.setItem('ottrang_sid', sid);
 
     async function submitNickname() {
       const nickname = document.getElementById('nickname').value.trim();
