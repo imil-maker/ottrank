@@ -1317,7 +1317,9 @@ function _safeParseArr(v){
 }
 function formatTime(isoStr){
   if(!isoStr) return '';
-  const d=new Date(isoStr), now=new Date();
+  // D1 저장 시간은 UTC, isoStr에 Z 없으면 붙여서 UTC로 파싱
+  const str=isoStr.endsWith('Z')||isoStr.includes('+') ? isoStr : isoStr+' UTC';
+  const d=new Date(str), now=new Date();
   const diff=Math.floor((now-d)/1000);
   if(diff<60) return '방금';
   if(diff<3600) return Math.floor(diff/60)+'분 전';
