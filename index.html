@@ -219,6 +219,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     .then(r=>r.ok?r.text():Promise.reject())
     .then(h=>{
       document.getElementById('ottrang-header').innerHTML=h;
+      // innerHTML로 삽입된 script는 실행 안되므로 직접 실행
+      document.getElementById('ottrang-header').querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');
+        ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
       if(typeof initHeader==='function') initHeader();
       /* index.html 전용: 검색을 로컬 SIDX로 연결 */
       window.ottrangOnSearch=function(q){ onSearch(q); };
