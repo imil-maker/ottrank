@@ -1115,11 +1115,7 @@ function checkRankHighlight(p){
 }
 
 /* ══ 댓글 ══ */
-function getUserAvgBadge(u){
-  const db=USER_DB[u]; if(!db||!db.reviews.length) return '';
-  const avg=(db.reviews.reduce((s,r)=>s+r.score,0)/db.reviews.length).toFixed(1);
-  return `<span class="user-avg-badge">★ ${avg} 평균</span>`;
-}
+function getUserAvgBadge(u){ return ''; }
 function setSort(t){curSort=t;document.getElementById('sortLatest').classList.toggle('on',t==='latest');document.getElementById('sortLikes').classList.toggle('on',t==='likes');curPage=1;renderComments();}
 function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)=>b.likes-a.likes);else a.sort((a,b)=>b.id-a.id);return a;}
 function renderHalfStars(score){let h='';for(let i=1;i<=5;i++){if(score>=i)h+=`<span class="c-star">★</span>`;else if(score>=i-0.5)h+=`<span class="c-star" style="position:relative;display:inline-block;overflow:hidden;width:.7em">★</span>`;else h+=`<span class="c-star off">★</span>`;}return h;}
@@ -1441,22 +1437,24 @@ function closePlayer(){document.getElementById('ytFrame').src='';document.getEle
 
 /* ══ 프로필 ══ */
 function showProfile(username){
-  const db=USER_DB[username]||{init:(username||'?')[0],joined:'알 수 없음',totalLikes:0,reviews:[]};
-  document.getElementById('profileAvatar').textContent=db.init;
+  const reviews=ALL_COMMENTS.filter(c=>c.user===username);
+  const init=(username||'?')[0];
+  document.getElementById('profileAvatar').textContent=init;
   document.getElementById('profileName').textContent=username;
-  document.getElementById('profileJoin').textContent=`${db.joined} 가입 · 활동 중`;
-  document.getElementById('pstatReviews').textContent=db.reviews.length;
-  document.getElementById('pstatLikes').textContent=db.totalLikes.toLocaleString();
+  document.getElementById('profileJoin').textContent='오뜨랑 회원';
+  document.getElementById('pstatReviews').textContent=reviews.length;
+  const totalLikes=reviews.reduce((s,r)=>s+r.likes,0);
+  document.getElementById('pstatLikes').textContent=totalLikes.toLocaleString();
   document.getElementById('profileBackLabel').textContent=`${document.getElementById('mainTitle').textContent||WORK.title}으로 돌아가기`;
-  const avg=db.reviews.length?(db.reviews.reduce((s,r)=>s+r.score,0)/db.reviews.length).toFixed(1):'—';
+  const avg=reviews.length?(reviews.reduce((s,r)=>s+r.score,0)/reviews.length).toFixed(1):'—';
   document.getElementById('pstatAvg').textContent=avg==='—'?'—':avg+'점';
   const dist={1:0,2:0,3:0,4:0,5:0};
-  db.reviews.forEach(r=>dist[Math.round(r.score)]=(dist[Math.round(r.score)]||0)+1);
+  reviews.forEach(r=>dist[Math.round(r.score)]=(dist[Math.round(r.score)]||0)+1);
   const maxCnt=Math.max(...Object.values(dist),1);
   document.getElementById('distBars').innerHTML=[5,4,3,2,1].map(s=>`<div class="dist-row"><span class="dist-label">${s}★</span><div class="dist-bar-bg"><div class="dist-bar-fill" style="width:${Math.round((dist[s]/maxCnt)*100)}%"></div></div><span class="dist-count">${dist[s]}</span></div>`).join('');
-  document.getElementById('profileReviewCount').textContent=`${db.reviews.length}개`;
-  document.getElementById('userReviews').innerHTML=db.reviews.length
-    ?db.reviews.map(r=>`<div class="review-card" onclick="showDetail()"><div class="review-poster"><div class="review-poster-ph">🎬</div></div><div class="review-body"><div class="review-title-row"><span class="review-title">${r.title}</span><span class="review-platform" style="background:${CC[r.platform]||'#888'}">${PC[r.platform]||r.platform}</span><div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${i<=r.score?'':' off'}">★</span>`).join('')}<span class="review-score-num">${r.score}</span></div></div><div class="review-text">${r.text}</div><div class="review-footer"><span class="review-time">${r.time}</span>${r.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}</div></div></div>`).join('')
+  document.getElementById('profileReviewCount').textContent=`${reviews.length}개`;
+  document.getElementById('userReviews').innerHTML=reviews.length
+    ?reviews.map(r=>`<div class="review-card" onclick="showDetail()"><div class="review-poster"><div class="review-poster-ph">🎬</div></div><div class="review-body"><div class="review-title-row"><span class="review-title">${WORK.title||''}</span><div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${i<=r.score?'':' off'}">★</span>`).join('')}<span class="review-score-num">${r.score}</span></div></div><div class="review-text">${r.text}</div><div class="review-footer"><span class="review-time">${r.time}</span>${r.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}</div></div></div>`).join('')
     :`<div style="padding:32px;text-align:center;font-size:14px;color:var(--muted)">아직 남긴 평점이 없어요</div>`;
   document.getElementById('detailPage').style.display='none';
   document.getElementById('profilePage').style.display='block';
