@@ -215,7 +215,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <script>
 /* ── 헤더 ── */
 fetch('/header.html').then(r=>r.ok?r.text():Promise.reject())
-  .then(h=>{document.getElementById('ottrang-header').innerHTML=h;if(typeof initHeader==='function')initHeader();})
+  .then(h=>{
+    document.getElementById('ottrang-header').innerHTML=h;
+    document.getElementById('ottrang-header').querySelectorAll('script').forEach(s=>{
+      const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);
+    });
+    if(typeof initHeader==='function')initHeader();
+  })
   .catch(()=>{});
 
 /* ── 상수 ── */
