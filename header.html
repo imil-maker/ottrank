@@ -214,9 +214,23 @@ function initHeader(){
   if(_btnLogin) _btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
   if(_btnJoin)  _btnJoin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
 
+  // URL에서 sid 추출 후 localStorage 저장
+  const _urlSid=new URLSearchParams(location.search).get('sid');
+  if(_urlSid){
+    localStorage.setItem('ottrang_sid', _urlSid);
+    // URL에서 sid 파라미터 제거
+    const _url=new URL(location.href);
+    _url.searchParams.delete('sid');
+    history.replaceState({},'',_url.toString());
+  }
+
   (async()=>{
     try {
-      const res=await fetch(`${API}/auth/me`,{credentials:'include'});
+      const sid=localStorage.getItem('ottrang_sid');
+      const fetchOpts = sid
+        ? { headers:{ Authorization:`Bearer ${sid}` } }
+        : { credentials:'include' };
+      const res=await fetch(`${API}/auth/me`, fetchOpts);
       const data=await res.json();
       const btnLogin=document.getElementById('ottrangBtnLogin');
       const btnJoin=document.getElementById('ottrangBtnJoin');
@@ -229,7 +243,8 @@ function initHeader(){
         if(btnUser){ btnUser.style.display='flex'; }
         if(nick) nick.textContent=data.user.nickname||'유저';
       } else {
-        // 비로그인 상태
+        // 비로그인 상태 - localStorage 초기화
+        localStorage.removeItem('ottrang_sid');
         if(btnLogin){
           btnLogin.style.display='';
           btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
@@ -241,12 +256,10 @@ function initHeader(){
         if(btnUser) btnUser.style.display='none';
       }
     } catch(e) {
-      // 네트워크 오류시 비로그인 상태로 표시
-      const API2='https://ottrank-api.tdidream.workers.dev';
       const btnLogin=document.getElementById('ottrangBtnLogin');
       const btnJoin=document.getElementById('ottrangBtnJoin');
-      if(btnLogin) btnLogin.onclick=()=>{ location.href=`${API2}/auth/kakao`; };
-      if(btnJoin)  btnJoin.onclick=()=>{ location.href=`${API2}/auth/kakao`; };
+      if(btnLogin) btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+      if(btnJoin)  btnJoin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
     }
   })();
 
