@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마이페이지 | 오뜨랑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+:root {
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429; --green:#34d399;
+  --info:#378ADD; --info-bg:rgba(55,138,221,.12); --info-border:rgba(55,138,221,.35);
+  --warn-bg:rgba(240,180,41,.12); --warn-border:rgba(240,180,41,.35);
+  --danger-bg:rgba(230,57,70,.12); --danger-border:rgba(230,57,70,.35);
+  --font-sans:'Noto Sans KR',sans-serif; --font-mono:'DM Mono',monospace;
+  --r:10px; --r-lg:14px; --content-w:860px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
+.page-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
+.loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px}
+.loading-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-wrap p{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
+.login-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;text-align:center}
+.login-prompt-icon{font-size:48px;opacity:.4}
+.login-prompt h2{font-size:20px;font-weight:700}
+.login-prompt p{font-size:14px;color:var(--muted2)}
+.login-prompt-btn{margin-top:8px;padding:12px 32px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans)}
+.login-prompt-btn:hover{background:#ff4d58}
+.profile-card{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%);border:.5px solid var(--border2);border-radius:var(--r-lg);padding:28px 24px;margin-bottom:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
+.profile-card::before{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(230,57,70,.08),transparent 70%);pointer-events:none}
+.profile-emoji-wrap{width:80px;height:80px;border-radius:var(--r-lg);background:var(--bg3);border:.5px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+.profile-emoji-wrap img{width:100%;height:100%;object-fit:cover}
+.profile-emoji-wrap .no-emoji{font-size:36px}
+.profile-info{flex:1;min-width:0}
+.profile-grade-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.profile-grade-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);font-family:var(--font-mono);font-weight:600}
+.profile-grade-badge.special{background:var(--danger-bg);color:var(--accent);border-color:rgba(230,57,70,.3)}
+.profile-nickname{font-size:22px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.profile-nickname-edit{background:none;border:.5px solid var(--border2);border-radius:6px;color:var(--muted2);font-size:11px;font-family:var(--font-mono);padding:3px 10px;cursor:pointer;transition:all .15s}
+.profile-nickname-edit:hover{border-color:var(--info);color:var(--info)}
+.profile-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted2)}
+.profile-meta-item{display:flex;align-items:center;gap:5px}
+.profile-meta-item b{color:var(--text);font-weight:600}
+.profile-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.logout-btn{padding:9px 18px;border-radius:var(--r);border:.5px solid var(--border2);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font-sans);transition:all .15s;display:flex;align-items:center;gap:6px}
+.logout-btn:hover{border-color:var(--accent);color:var(--accent)}
+.nickname-edit-row{display:none;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.nickname-edit-row.show{display:flex}
+.nickname-inp{background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:14px;font-family:var(--font-sans);padding:8px 14px;outline:none;width:200px}
+.nickname-inp:focus{border-color:var(--info)}
+.nickname-save-btn{padding:8px 16px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;font-family:var(--font-sans)}
+.nickname-save-btn:hover{opacity:.85}
+.nickname-cancel-btn{padding:8px 14px;border-radius:var(--r);background:transparent;color:var(--muted2);font-size:13px;border:.5px solid var(--border);cursor:pointer;font-family:var(--font-sans)}
+.next-grade-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;margin-bottom:24px}
+.next-grade-title{font-size:13px;color:var(--muted2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.next-grade-title b{color:var(--text)}
+.progress-list{display:flex;flex-direction:column;gap:8px}
+.progress-item{display:flex;align-items:center;gap:10px}
+.progress-label{font-size:12px;color:var(--muted);font-family:var(--font-mono);min-width:80px}
+.progress-bar-bg{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.progress-bar-fill{height:100%;border-radius:3px;background:var(--info);transition:width .4s}
+.progress-bar-fill.done{background:var(--green)}
+.progress-val{font-size:11px;color:var(--muted2);font-family:var(--font-mono);min-width:60px;text-align:right}
+.progress-val.done{color:var(--green)}
+.sec-wrap{margin-bottom:28px}
+.sec-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.sec-title{font-size:16px;font-weight:600}
+.sec-count{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+.sec-empty{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:36px 20px;text-align:center;font-size:13px;color:var(--muted)}
+.sec-empty i{font-size:28px;opacity:.3;display:block;margin-bottom:8px}
+.wish-privacy-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+.wish-toggle-btn{padding:4px 14px;border-radius:20px;font-size:11px;font-family:var(--font-mono);cursor:pointer;border:.5px solid;transition:all .2s;font-weight:600}
+.wish-toggle-btn.public{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.35)}
+.wish-toggle-btn.public:hover{background:rgba(52,211,153,.22)}
+.wish-toggle-btn.private{background:var(--bg3);color:var(--muted2);border-color:var(--border2)}
+.wish-toggle-btn.private:hover{background:var(--bg2)}
+.wish-privacy-desc{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.wish-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
+.wish-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:border-color .15s,transform .15s;text-decoration:none}
+.wish-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.wish-poster{aspect-ratio:2/3;background:var(--bg3);overflow:hidden}
+.wish-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.wish-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px}
+.wish-title{padding:7px 8px;font-size:11px;color:var(--muted2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.review-list{display:flex;flex-direction:column;gap:10px}
+.review-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;cursor:pointer;transition:border-color .15s;display:flex;gap:14px;align-items:flex-start;text-decoration:none}
+.review-item:hover{border-color:var(--border2)}
+.review-poster{width:42px;height:63px;border-radius:6px;background:var(--bg3);overflow:hidden;flex-shrink:0}
+.review-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px}
+.review-body{flex:1;min-width:0}
+.review-title-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.review-work-title{font-size:14px;font-weight:600;color:var(--text)}
+.review-stars{display:flex;align-items:center;gap:2px;margin-left:auto}
+.review-star{font-size:12px;color:var(--gold)}
+.review-star.off{color:var(--border2)}
+.review-score{font-size:12px;color:var(--gold);font-family:var(--font-mono);margin-left:2px}
+.review-text{font-size:13px;color:var(--muted2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.review-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
+.review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-left:auto}
+.review-likes{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
+.post-tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+.post-tab{padding:5px 16px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
+.post-tab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.post-list{display:flex;flex-direction:column;gap:8px}
+.post-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s;text-decoration:none}
+.post-item:hover{border-color:var(--border2)}
+.post-board-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-family:var(--font-mono);white-space:nowrap;flex-shrink:0}
+.post-board-badge.recommend{background:rgba(240,180,41,.12);color:#c89a10;border:.5px solid rgba(240,180,41,.3)}
+.post-board-badge.free{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-border)}
+.post-board-badge.community{background:rgba(52,211,153,.12);color:var(--green);border:.5px solid rgba(52,211,153,.3)}
+.post-title{font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.post-meta{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.post-meta-item{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
+.toast.show{opacity:1}
+@media(max-width:600px){
+  .profile-card{flex-direction:column;align-items:flex-start}
+  .profile-actions{align-items:flex-start;flex-direction:row;flex-wrap:wrap}
+  .wish-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
+  .wish-privacy-row{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div id="headerArea"></div>
+<div class="page-wrap">
+  <div class="loading-wrap" id="loadingWrap">
+    <div class="loading-spinner"></div>
+    <p>불러오는 중...</p>
+  </div>
+  <div class="login-prompt" id="loginPrompt" style="display:none">
+    <div class="login-prompt-icon">🎬</div>
+    <h2>로그인이 필요해요</h2>
+    <p>마이페이지는 로그인 후 이용할 수 있어요.</p>
+    <button class="login-prompt-btn" onclick="location.href='/login.html?redirect=/mypage.html'">로그인 / 가입하기</button>
+  </div>
+  <div class="login-prompt" id="notFoundPrompt" style="display:none">
+    <div class="login-prompt-icon">🔍</div>
+    <h2>유저를 찾을 수 없어요</h2>
+    <p>존재하지 않는 유저이거나 탈퇴한 계정이에요.</p>
+    <button class="login-prompt-btn" onclick="location.href='/'">홈으로</button>
+  </div>
+  <div id="mypageContent" style="display:none">
+    <div class="profile-card">
+      <div class="profile-emoji-wrap" id="profileEmoji"><span class="no-emoji">🎬</span></div>
+      <div class="profile-info">
+        <div class="profile-grade-row">
+          <span class="profile-grade-badge" id="profileGradeBadge">막내</span>
+        </div>
+        <div class="profile-nickname" id="profileNicknameWrap">
+          <span id="profileNickname">—</span>
+          <button class="profile-nickname-edit" id="nicknameEditBtn" style="display:none" onclick="toggleNicknameEdit()">
+            <i class="ti ti-pencil" style="font-size:11px"></i> 닉네임 수정
+          </button>
+        </div>
+        <div class="nickname-edit-row" id="nicknameEditRow">
+          <input class="nickname-inp" type="text" id="nicknameInp" placeholder="새 닉네임 입력" maxlength="20" onkeydown="if(event.key==='Enter')saveNickname()">
+          <button class="nickname-save-btn" onclick="saveNickname()">저장</button>
+          <button class="nickname-cancel-btn" onclick="toggleNicknameEdit()">취소</button>
+        </div>
+        <div class="profile-meta">
+          <div class="profile-meta-item">
+            <i class="ti ti-heart" style="color:var(--accent);font-size:13px"></i>
+            받은 좋아요 <b id="profileLikes">0</b>개
+          </div>
+          <div class="profile-meta-item">
+            <i class="ti ti-calendar" style="color:var(--muted);font-size:13px"></i>
+            가입 <b id="profileJoinDate">—</b>
+          </div>
+          <div class="profile-meta-item" id="providerItem" style="display:none">
+            <i class="ti ti-user" style="color:var(--muted);font-size:13px" id="providerIcon"></i>
+            <span id="providerLabel" style="color:var(--muted)">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="profile-actions" id="profileActions" style="display:none">
+        <button class="logout-btn" onclick="doLogout()">
+          <i class="ti ti-logout" style="font-size:14px"></i> 로그아웃
+        </button>
+      </div>
+    </div>
+
+    <div class="next-grade-card" id="nextGradeCard" style="display:none">
+      <div class="next-grade-title">
+        <i class="ti ti-trending-up" style="font-size:14px;color:var(--gold)"></i>
+        다음 등급 <b id="nextGradeName"></b> 까지
+      </div>
+      <div class="progress-list" id="progressList"></div>
+    </div>
+
+    <div class="sec-wrap" id="wishSection">
+      <div class="sec-header">
+        <i class="ti ti-heart" style="font-size:16px;color:var(--accent)"></i>
+        <span class="sec-title">찜한 작품</span>
+        <span class="sec-count" id="wishCount">0개</span>
+        <div class="wish-privacy-row" id="wishPrivacyRow" style="display:none">
+          <button class="wish-toggle-btn public" id="wishToggleBtn" onclick="toggleWishPrivacy()">🔓 공개</button>
+          <span class="wish-privacy-desc" id="wishPrivacyDesc">다른 사용자들이 찜 목록을 볼 수 있습니다</span>
+        </div>
+      </div>
+      <div id="wishArea"></div>
+    </div>
+
+    <div class="sec-wrap">
+      <div class="sec-header">
+        <i class="ti ti-star" style="font-size:16px;color:var(--gold)"></i>
+        <span class="sec-title">평점·후기</span>
+        <span class="sec-count" id="reviewCount">0개</span>
+      </div>
+      <div id="reviewArea"></div>
+    </div>
+
+    <div class="sec-wrap">
+      <div class="sec-header">
+        <i class="ti ti-message-circle" style="font-size:16px;color:var(--info)"></i>
+        <span class="sec-title">게시글</span>
+        <span class="sec-count" id="postCount">0개</span>
+      </div>
+      <div class="post-tabs">
+        <button class="post-tab on" onclick="switchPostTab('all',this)">전체</button>
+        <button class="post-tab" onclick="switchPostTab('recommend',this)">추천게시판</button>
+        <button class="post-tab" onclick="switchPostTab('free',this)">자유게시판</button>
+        <button class="post-tab" onclick="switchPostTab('community',this)">커뮤니티</button>
+      </div>
+      <div id="postArea"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const API='https://ottrank-api.tdidream.workers.dev';
+const IMG='https://image.tmdb.org/t/p/w300';
+let ALL_POSTS=[],ALL_GRADES=[],IS_OWN=false,WISH_PUBLIC=true;
+
+fetch('/header.html').then(r=>r.text()).then(html=>{
+  document.getElementById('headerArea').innerHTML=html;
+  document.querySelectorAll('#headerArea script').forEach(s=>{const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);});
+}).catch(()=>{});
+
+async function init(){
+  const params=new URLSearchParams(location.search);
+  const targetUid=params.get('uid');
+  const sid=localStorage.getItem('ottrang_sid');
+  try{
+    const gradeRes=await fetch(`${API}/grade-settings`);
+    const gradeJson=await gradeRes.json();
+    ALL_GRADES=gradeJson.data||[];
+    if(targetUid){
+      IS_OWN=false;
+      const res=await fetch(`${API}/user/${targetUid}`);
+      const json=await res.json();
+      if(!json.ok){
+        document.getElementById('loadingWrap').style.display='none';
+        document.getElementById('notFoundPrompt').style.display='flex';
+        return;
+      }
+      ALL_POSTS=json.posts||[];
+      renderProfile(json.user,json.stats,false);
+      renderWishlist(json.wishlist||[],false,json.wishlist_hidden);
+      renderReviews(json.reviews||[]);
+      renderPosts('all');
+    }else{
+      if(!sid){
+        document.getElementById('loadingWrap').style.display='none';
+        document.getElementById('loginPrompt').style.display='flex';
+        return;
+      }
+      IS_OWN=true;
+      const res=await fetch(`${API}/mypage`,{headers:{Authorization:'Bearer '+sid}});
+      const json=await res.json();
+      if(!json.ok){
+        localStorage.removeItem('ottrang_sid');
+        document.getElementById('loadingWrap').style.display='none';
+        document.getElementById('loginPrompt').style.display='flex';
+        return;
+      }
+      ALL_POSTS=json.posts||[];
+      WISH_PUBLIC=json.user?.wishlist_public!==0;
+      renderProfile(json.user,json.stats,true);
+      renderNextGrade(json.user,json.stats);
+      renderWishlist(json.wishlist||[],true,false);
+      renderReviews(json.reviews||[]);
+      renderPosts('all');
+      document.getElementById('nicknameEditBtn').style.display='inline-flex';
+      document.getElementById('profileActions').style.display='flex';
+      document.getElementById('providerItem').style.display='flex';
+      document.getElementById('wishPrivacyRow').style.display='flex';
+      updateWishToggleUI(WISH_PUBLIC);
+    }
+    document.getElementById('loadingWrap').style.display='none';
+    document.getElementById('mypageContent').style.display='block';
+  }catch(e){
+    document.getElementById('loadingWrap').innerHTML=`<p style="color:var(--accent)">오류: ${e.message}</p>`;
+  }
+}
+
+function renderProfile(user,stats,isOwn){
+  if(!user)return;
+  const ep=document.getElementById('profileEmoji');
+  if(user.grade_emoji_url){ep.innerHTML=`<img src="${user.grade_emoji_url}" alt="" onerror="this.parentNode.innerHTML='<span class=\\'no-emoji\\'>🎬</span>'">`;}
+  else{ep.innerHTML=`<span class="no-emoji">🎬</span>`;}
+  const gb=document.getElementById('profileGradeBadge');
+  gb.textContent=user.grade_name||user.grade||'막내';
+  if(user.grade_is_special)gb.classList.add('special');
+  document.getElementById('profileNickname').textContent=user.nickname||'닉네임 없음';
+  if(isOwn)document.getElementById('nicknameInp').value=user.nickname||'';
+  document.getElementById('profileLikes').textContent=(user.total_likes_received||0).toLocaleString();
+  document.getElementById('profileJoinDate').textContent=user.created_at?user.created_at.slice(0,10).replace(/-/g,'.'):'—';
+  if(isOwn&&user.provider){
+    const pMap={kakao:'카카오',google:'구글',naver:'네이버'};
+    const iMap={kakao:'ti-brand-kakao',google:'ti-brand-google',naver:'ti-brand-naver'};
+    document.getElementById('providerLabel').textContent=pMap[user.provider]||user.provider;
+    document.getElementById('providerIcon').className=`ti ${iMap[user.provider]||'ti-user'}`;
+  }
+  if(!isOwn)document.title=`${user.nickname||'유저'} 프로필 | 오뜨랑`;
+}
+
+function renderNextGrade(user,stats){
+  if(!user||!ALL_GRADES.length||user.grade_is_special)return;
+  const cur=ALL_GRADES.find(g=>g.grade_key===user.grade);
+  const curOrder=cur?.sort_order||1;
+  const next=ALL_GRADES.filter(g=>!g.is_special&&g.sort_order>curOrder).sort((a,b)=>a.sort_order-b.sort_order)[0];
+  if(!next)return;
+  document.getElementById('nextGradeName').textContent=next.grade_name;
+  document.getElementById('nextGradeCard').style.display='block';
+  const act=(stats?.review_count||0)+(stats?.post_count||0);
+  const wish=stats?.wishlist_count||0;
+  const likes=stats?.likes_received||0;
+  const items=[];
+  if(next.min_reviews>0)items.push({label:'평점+게시글',cur:act,max:next.min_reviews});
+  if(next.min_wishlist>0)items.push({label:'찜한 작품',cur:wish,max:next.min_wishlist});
+  if(next.min_likes>0)items.push({label:'받은 좋아요',cur:likes,max:next.min_likes});
+  if(!items.length)return;
+  document.getElementById('progressList').innerHTML=items.map(item=>{
+    const pct=Math.min(100,Math.round((item.cur/item.max)*100));
+    const done=item.cur>=item.max;
+    return `<div class="progress-item"><span class="progress-label">${item.label}</span><div class="progress-bar-bg"><div class="progress-bar-fill ${done?'done':''}" style="width:${pct}%"></div></div><span class="progress-val ${done?'done':''}">${item.cur}/${item.max}${done?' ✓':''}</span></div>`;
+  }).join('');
+}
+
+function renderWishlist(list,isOwn,isHidden){
+  document.getElementById('wishCount').textContent=isHidden?'비공개':`${list.length}개`;
+  const el=document.getElementById('wishArea');
+  if(!isOwn&&isHidden){el.innerHTML=`<div class="sec-empty"><i class="ti ti-lock"></i>비공개 목록이에요</div>`;return;}
+  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-heart"></i>${isOwn?'아직 찜한 작품이 없어요':'찜한 작품이 없어요'}</div>`;return;}
+  el.innerHTML=`<div class="wish-grid">${list.map(w=>`
+    <a class="wish-card" href="/title/${_slug(w.title_ko)}-1${new Date().getFullYear()}${w.tmdb_id}">
+      <div class="wish-poster">${w.poster_path?`<img src="${IMG}${w.poster_path}" alt="${w.title_ko}" loading="lazy">`:`<div class="wish-poster-ph">🎬</div>`}</div>
+      <div class="wish-title">${w.title_ko}</div>
+    </a>`).join('')}</div>`;
+}
+
+function updateWishToggleUI(isPublic){
+  const btn=document.getElementById('wishToggleBtn');
+  const desc=document.getElementById('wishPrivacyDesc');
+  if(isPublic){btn.textContent='🔓 공개';btn.className='wish-toggle-btn public';desc.textContent='다른 사용자들이 찜 목록을 볼 수 있습니다';}
+  else{btn.textContent='🔒 비공개';btn.className='wish-toggle-btn private';desc.textContent='다른 사용자들이 찜 목록을 볼 수 없습니다';}
+}
+
+async function toggleWishPrivacy(){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid)return;
+  const newPublic=!WISH_PUBLIC;
+  try{
+    const res=await fetch(`${API}/mypage/wishlist-public`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({wishlist_public:newPublic})});
+    const json=await res.json();
+    if(json.ok){WISH_PUBLIC=newPublic;updateWishToggleUI(WISH_PUBLIC);showToast(WISH_PUBLIC?'찜 목록이 공개로 변경됐어요':'찜 목록이 비공개로 변경됐어요');}
+    else showToast(json.message||'변경 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+function renderReviews(list){
+  document.getElementById('reviewCount').textContent=`${list.length}개`;
+  const el=document.getElementById('reviewArea');
+  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;return;}
+  el.innerHTML=`<div class="review-list">${list.map(r=>{
+    const emotions=_json(r.emotions,[]);
+    const score=parseFloat(r.score)||0;
+    return `<a class="review-item" href="/title/work-1${new Date().getFullYear()}${r.tmdb_id}#reviews">
+      <div class="review-poster"><div class="review-poster-ph">🎬</div></div>
+      <div class="review-body">
+        <div class="review-title-row">
+          <span class="review-work-title">작품 #${r.tmdb_id}</span>
+          <div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${score>=i?'':' off'}">★</span>`).join('')}<span class="review-score">${score}</span></div>
+        </div>
+        ${r.text?`<div class="review-text">${r.text}</div>`:''}
+        <div class="review-footer">
+          ${emotions.slice(0,3).map(e=>`<span class="review-badge">${e}</span>`).join('')}
+          <span class="review-likes"><i class="ti ti-heart" style="font-size:11px"></i>${r.likes||0}</span>
+          <span class="review-time">${_date(r.created_at)}</span>
+        </div>
+      </div>
+    </a>`;
+  }).join('')}</div>`;
+}
+
+const BLABEL={recommend:'추천게시판',free:'자유게시판',community:'커뮤니티'};
+function switchPostTab(tab,btn){document.querySelectorAll('.post-tab').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderPosts(tab);}
+function renderPosts(tab){
+  const list=tab==='all'?ALL_POSTS:ALL_POSTS.filter(p=>p.board_type===tab);
+  document.getElementById('postCount').textContent=`${ALL_POSTS.length}개`;
+  const el=document.getElementById('postArea');
+  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-pencil"></i>${tab==='all'?'아직 쓴 게시글이 없어요':`${BLABEL[tab]||tab}에 쓴 글이 없어요`}</div>`;return;}
+  el.innerHTML=`<div class="post-list">${list.map(p=>`
+    <a class="post-item" href="/board.html?type=${p.board_type}&id=${p.id}">
+      <span class="post-board-badge ${p.board_type}">${BLABEL[p.board_type]||p.board_type}</span>
+      <span class="post-title">${p.title}</span>
+      <div class="post-meta">
+        <span class="post-meta-item"><i class="ti ti-heart" style="font-size:11px;color:var(--accent)"></i>${p.like_count||0}</span>
+        <span class="post-meta-item"><i class="ti ti-eye" style="font-size:11px"></i>${p.view_count||0}</span>
+        <span class="post-meta-item">${_date(p.created_at)}</span>
+      </div>
+    </a>`).join('')}</div>`;
+}
+
+function toggleNicknameEdit(){const row=document.getElementById('nicknameEditRow');const s=row.classList.toggle('show');if(s)document.getElementById('nicknameInp').focus();}
+async function saveNickname(){
+  const sid=localStorage.getItem('ottrang_sid');
+  const nickname=document.getElementById('nicknameInp').value.trim();
+  if(!nickname){showToast('닉네임을 입력해주세요');return;}
+  try{
+    const res=await fetch(`${API}/auth/nickname`,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({nickname})});
+    const json=await res.json();
+    if(json.ok){document.getElementById('profileNickname').textContent=nickname;document.getElementById('nicknameEditRow').classList.remove('show');showToast('✅ 닉네임이 변경됐어요!');}
+    else showToast(json.message||'변경 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+async function doLogout(){
+  const sid=localStorage.getItem('ottrang_sid');
+  try{await fetch(`${API}/auth/logout`,{method:'POST',headers:{Authorization:'Bearer '+sid}});}catch(e){}
+  localStorage.removeItem('ottrang_sid');
+  location.href='/';
+}
+
+function _json(str,fb){try{return JSON.parse(str);}catch(e){return fb;}}
+function _date(d){if(!d)return'';const k=new Date(new Date(d).getTime()+9*60*60*1000);return`${k.getFullYear()}.${String(k.getMonth()+1).padStart(2,'0')}.${String(k.getDate()).padStart(2,'0')}`;}
+function _slug(s){return(s||'').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3a-zA-Z0-9\-]/g,'')||'work';}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+init();
+</script>
+</body>
+</html>
