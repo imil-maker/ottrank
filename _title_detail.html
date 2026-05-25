@@ -1121,7 +1121,7 @@ function getUserAvgBadge(u){
   return `<span class="user-avg-badge">★ ${avg} 평균</span>`;
 }
 function setSort(t){curSort=t;document.getElementById('sortLatest').classList.toggle('on',t==='latest');document.getElementById('sortLikes').classList.toggle('on',t==='likes');curPage=1;renderComments();}
-function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)=>b.likes-a.likes);return a;}
+function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)=>b.likes-a.likes);else a.sort((a,b)=>b.id-a.id);return a;}
 function renderHalfStars(score){let h='';for(let i=1;i<=5;i++){if(score>=i)h+=`<span class="c-star">★</span>`;else if(score>=i-0.5)h+=`<span class="c-star" style="position:relative;display:inline-block;overflow:hidden;width:.7em">★</span>`;else h+=`<span class="c-star off">★</span>`;}return h;}
 
 function renderComments(){
@@ -1134,7 +1134,7 @@ function renderComments(){
   }
   const start=(curPage-1)*PER_PAGE, slice=sorted.slice(start,start+PER_PAGE);
   el.innerHTML=`<div class="comments-section">${slice.map(c=>`
-    <div class="comment-item" id="${c.id}">
+    <div class="comment-item" id="cmt_${c.id}">
       <div class="comment-header">
         <div class="avatar" onclick="showProfile('${c.user}')" title="${c.user} 프로필">${c.init}</div>
         <div style="flex:1;min-width:0">
@@ -1148,7 +1148,7 @@ function renderComments(){
       ${c.spoiler?'<span class="sp-badge" style="display:inline-block;margin-bottom:8px">⚠ 스포일러</span>':''}
       <div class="c-text">${c.text}</div>
       <div class="c-footer">
-        <span class="c-like" onclick="likeComment('${c.id}')"><i class="ti ti-heart" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> <span id="like_${c.id}">${c.likes}</span></span>
+        <span class="c-like" onclick="likeComment('${c.id}')"><i class="ti ti-heart" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> <span id="like_cmt_${c.id}">${c.likes}</span></span>
         <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">🔗 이 후기 공유</button>
         ${c.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}
         ${c.customTags.map(t=>`<span class="c-cbadge">${t}</span>`).join('')}
@@ -1163,12 +1163,12 @@ async function likeComment(id){
   try{
     await fetch(`${REVIEW_API}/reviews/${tmdbId}/like/${id}`,{method:'POST'});
     c.likes++;
-    const el=document.getElementById('like_'+id);
+    const el=document.getElementById('like_cmt_'+id);
     if(el) el.textContent=c.likes;
   }catch(e){}
 }
 function shareComment(id,user){
-  const url=`${window.location.href.split('#')[0]}#${id}`;
+  const url=`${window.location.href.split('#')[0]}#cmt_${id}`;
   const text=`오뜨랑에서 "${WORK.title}" ${user}님의 후기를 확인해보세요!`;
   if(navigator.share){navigator.share({title:`${WORK.title} 후기 | 오뜨랑`,text,url}).catch(()=>{});}
   else{navigator.clipboard.writeText(url).then(()=>showToast('후기 링크가 복사됐어요!'));}
@@ -1324,7 +1324,7 @@ function addCustomTag(){
 function removeCustomTag(t){customTags=customTags.filter(x=>x!==t);renderCustomTags();updateEtagCount();}
 function renderCustomTags(){document.getElementById('customTagList').innerHTML=customTags.map(t=>`<span class="custom-tag-chip">${t}<button onclick="removeCustomTag('${t}')" aria-label="${t} 삭제">✕</button></span>`).join('');}
 function updateCharCount(el){const len=el.value.length;const el2=document.getElementById('charCount');el2.textContent=`${len} / 140`;el2.classList.toggle('warn',len>120);}
-function scrollToRating(){document.getElementById('ratingInputArea').scrollIntoView({behavior:'smooth',block:'start'});}
+function scrollToRating(){document.getElementById('ratingInputArea').scrollIntoView({behavior:'smooth',block:'center'});}
 
 /* ── 로그인 체크 ── */
 function checkLoginThenRate(cb, inputEl) {
