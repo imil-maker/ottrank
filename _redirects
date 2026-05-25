@@ -2,3 +2,4 @@
 /title/* /_title_detail.html 200
 /reaction/:id /_reaction_detail.html 200
 /reaction/* /_reaction_detail.html 200
+/auth/* https://ottrank-api.tdidream.workers.dev/auth/:splat 200
