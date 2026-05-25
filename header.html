@@ -115,6 +115,16 @@
   border:none;cursor:pointer;white-space:nowrap;transition:background .15s;
 }
 .ottrang-btn-join:hover { background:#ff4d58; }
+.ottrang-btn-user {
+  display:none;align-items:center;gap:8px;
+  padding:7px 14px;border-radius:8px;
+  border:1px solid var(--border2);background:transparent;
+  color:var(--text);font-family:var(--sans);font-size:14px;
+  cursor:pointer;white-space:nowrap;transition:background .15s;
+  text-decoration:none;
+}
+.ottrang-btn-user:hover { background:var(--bg3); }
+.ottrang-btn-user .u-nick { font-weight:500; }
 
 /* 슬로건 배너 */
 .ottrang-banner {
@@ -172,9 +182,12 @@
         aria-label="검색">⌕</button>
       <div class="ottrang-search-results" id="ottrangSearchResults"></div>
     </div>
-    <div class="ottrang-hright">
+    <div class="ottrang-hright" id="ottrangHright">
       <button class="ottrang-btn-login" id="ottrangBtnLogin">로그인</button>
       <button class="ottrang-btn-join" id="ottrangBtnJoin">가입</button>
+      <a class="ottrang-btn-user" id="ottrangBtnUser" href="/mypage.html">
+        <span class="u-nick" id="ottrangNick"></span>
+      </a>
     </div>
   </div>
 </div>
@@ -191,6 +204,41 @@ function initHeader(){
   const path=location.pathname;
   if(path==='/'||path==='/index.html') document.getElementById('navTV')?.classList.add('on');
   else if(path.includes('title')) { /* 작품 상세 - 없음 */ }
+
+  /* 로그인 상태 확인 */
+  const API='https://ottrank-api.tdidream.workers.dev';
+  (async()=>{
+    try {
+      const res=await fetch(`${API}/auth/me`,{credentials:'include'});
+      const data=await res.json();
+      const btnLogin=document.getElementById('ottrangBtnLogin');
+      const btnJoin=document.getElementById('ottrangBtnJoin');
+      const btnUser=document.getElementById('ottrangBtnUser');
+      const nick=document.getElementById('ottrangNick');
+      if(data.ok && data.user){
+        // 로그인 상태
+        if(btnLogin) btnLogin.style.display='none';
+        if(btnJoin)  btnJoin.style.display='none';
+        if(btnUser){ btnUser.style.display='flex'; }
+        if(nick) nick.textContent=data.user.nickname||'유저';
+      } else {
+        // 비로그인 상태
+        if(btnLogin){
+          btnLogin.style.display='';
+          btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+        }
+        if(btnJoin){
+          btnJoin.style.display='';
+          btnJoin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+        }
+        if(btnUser) btnUser.style.display='none';
+      }
+    } catch(e) {
+      // 네트워크 오류시 비로그인 상태로 표시
+      const btnLogin=document.getElementById('ottrangBtnLogin');
+      if(btnLogin) btnLogin.onclick=()=>{ location.href='https://ottrank-api.tdidream.workers.dev/auth/kakao'; };
+    }
+  })();
 
   /* 간단 검색 (실제 API 연동은 각 페이지에서 override 가능) */
   window.ottrangShowSR=function(){
