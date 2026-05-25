@@ -211,8 +211,8 @@ function initHeader(){
   // 기본값으로 먼저 onclick 설정
   const _btnLogin=document.getElementById('ottrangBtnLogin');
   const _btnJoin=document.getElementById('ottrangBtnJoin');
-  if(_btnLogin) _btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
-  if(_btnJoin)  _btnJoin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+  if(_btnLogin) _btnLogin.onclick=()=>{ location.href='/login.html'; };
+  if(_btnJoin)  _btnJoin.onclick=()=>{ location.href='/login.html'; };
 
   // URL에서 sid 추출 후 localStorage 저장
   const _urlSid=new URLSearchParams(location.search).get('sid');
@@ -247,19 +247,19 @@ function initHeader(){
         localStorage.removeItem('ottrang_sid');
         if(btnLogin){
           btnLogin.style.display='';
-          btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+          btnLogin.onclick=()=>{ location.href='/login.html'; };
         }
         if(btnJoin){
           btnJoin.style.display='';
-          btnJoin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+          btnJoin.onclick=()=>{ location.href='/login.html'; };
         }
         if(btnUser) btnUser.style.display='none';
       }
     } catch(e) {
       const btnLogin=document.getElementById('ottrangBtnLogin');
       const btnJoin=document.getElementById('ottrangBtnJoin');
-      if(btnLogin) btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
-      if(btnJoin)  btnJoin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+      if(btnLogin) btnLogin.onclick=()=>{ location.href='/login.html'; };
+      if(btnJoin)  btnJoin.onclick=()=>{ location.href='/login.html'; };
     }
   })();
 
