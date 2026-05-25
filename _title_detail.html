@@ -550,7 +550,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <input class="custom-tag-input" id="customTagInput" type="text" placeholder="직접 입력 (최대 12자)" maxlength="12"
       onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomTag()}"
       oninput="document.getElementById('customTagAddBtn').disabled=!this.value.trim()||getEtagCount()>=3">
-    <button class="custom-tag-add" id="customTagAddBtn" onclick="addCustomTag()" disabled>+ 추가</button>
+    <button class="custom-tag-add" id="customTagAddBtn" onclick="addCustomTag()" disabled>+ 나만의 감정 태그 추가</button>
   </div>
   <div id="customTagList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
   <div class="comment-input-row">
