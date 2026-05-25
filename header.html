@@ -207,6 +207,13 @@ function initHeader(){
 
   /* 로그인 상태 확인 */
   const API='https://ottrank-api.tdidream.workers.dev';
+
+  // 기본값으로 먼저 onclick 설정
+  const _btnLogin=document.getElementById('ottrangBtnLogin');
+  const _btnJoin=document.getElementById('ottrangBtnJoin');
+  if(_btnLogin) _btnLogin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+  if(_btnJoin)  _btnJoin.onclick=()=>{ location.href=`${API}/auth/kakao`; };
+
   (async()=>{
     try {
       const res=await fetch(`${API}/auth/me`,{credentials:'include'});
@@ -235,8 +242,11 @@ function initHeader(){
       }
     } catch(e) {
       // 네트워크 오류시 비로그인 상태로 표시
+      const API2='https://ottrank-api.tdidream.workers.dev';
       const btnLogin=document.getElementById('ottrangBtnLogin');
-      if(btnLogin) btnLogin.onclick=()=>{ location.href='https://ottrank-api.tdidream.workers.dev/auth/kakao'; };
+      const btnJoin=document.getElementById('ottrangBtnJoin');
+      if(btnLogin) btnLogin.onclick=()=>{ location.href=`${API2}/auth/kakao`; };
+      if(btnJoin)  btnJoin.onclick=()=>{ location.href=`${API2}/auth/kakao`; };
     }
   })();
 
