@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>닉네임 설정 — 오뜨랑</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24;
+      --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+      --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+      --accent:#e63946; --sans:'Noto Sans KR',sans-serif;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      background:var(--bg); color:var(--text);
+      font-family:var(--sans); min-height:100vh;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      padding:24px;
+    }
+    .card {
+      background:var(--bg2); border:1px solid var(--border2);
+      border-radius:16px; padding:40px 36px; width:100%; max-width:420px;
+    }
+    .logo {
+      text-align:center; margin-bottom:28px;
+    }
+    .logo-img {
+      height:64px; width:auto; max-width:280px;
+      object-fit:contain; border-radius:8px;
+    }
+    .logo-text {
+      font-family:'Bebas Neue',sans-serif; font-size:28px;
+      letter-spacing:2px; color:var(--text); line-height:1;
+    }
+    .logo-text span { color:var(--accent); }
+    h1 {
+      font-size:20px; font-weight:700; text-align:center;
+      margin-bottom:8px; color:var(--text);
+    }
+    .desc {
+      font-size:14px; color:var(--muted2); text-align:center;
+      margin-bottom:32px; line-height:1.6;
+    }
+    label {
+      display:block; font-size:13px; color:var(--muted2);
+      margin-bottom:8px; font-weight:500;
+    }
+    input[type=text] {
+      width:100%; height:48px; background:var(--bg3);
+      border:1px solid var(--border2); border-radius:10px;
+      padding:0 16px; color:var(--text); font-family:var(--sans);
+      font-size:16px; outline:none; transition:border-color .2s;
+    }
+    input[type=text]:focus { border-color:var(--accent); }
+    input[type=text]::placeholder { color:var(--muted); }
+    .hint {
+      font-size:12px; color:var(--muted); margin-top:8px;
+    }
+    .error {
+      font-size:13px; color:var(--accent); margin-top:8px;
+      display:none;
+    }
+    .btn-submit {
+      width:100%; height:48px; background:var(--accent);
+      border:none; border-radius:10px; color:#fff;
+      font-family:var(--sans); font-size:16px; font-weight:700;
+      cursor:pointer; margin-top:24px; transition:background .15s;
+    }
+    .btn-submit:hover { background:#ff4d58; }
+    .btn-submit:disabled { background:#555; cursor:not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <img class="logo-img" src="/login-logo.jpg" alt="오뜨랑 OTTRANK"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <div class="logo-text" style="display:none">오뜨랑<span>.</span></div>
+    </div>
+    <h1>닉네임을 설정해주세요</h1>
+    <p class="desc">오뜨랑에서 사용할 닉네임을 입력해주세요.<br>나중에 마이페이지에서 변경할 수 있어요.</p>
+
+    <label for="nickname">닉네임</label>
+    <input type="text" id="nickname" placeholder="예: 드라마덕후" maxlength="20" autocomplete="off">
+    <p class="hint">2~20자, 한글/영문/숫자 사용 가능</p>
+    <p class="error" id="errMsg"></p>
+
+    <button class="btn-submit" id="btnSubmit" onclick="submitNickname()">시작하기</button>
+  </div>
+
+  <script>
+    const API = 'https://ottrank-api.tdidream.workers.dev';
+
+    // 로그인 여부 확인
+    (async () => {
+      const res = await fetch(`${API}/auth/me`, { credentials: 'include' });
+      const data = await res.json();
+      if (!data.ok) {
+        // 로그인 안 된 상태면 메인으로
+        location.href = '/';
+      }
+      // 이미 닉네임 설정된 유저면 메인으로
+      if (data.user?.nickname && data.user.nickname !== '카카오유저') {
+        location.href = '/';
+      }
+    })();
+
+    async function submitNickname() {
+      const nickname = document.getElementById('nickname').value.trim();
+      const errMsg   = document.getElementById('errMsg');
+      const btn      = document.getElementById('btnSubmit');
+
+      errMsg.style.display = 'none';
+
+      if (nickname.length < 2) {
+        errMsg.textContent = '닉네임은 2자 이상 입력해주세요.';
+        errMsg.style.display = 'block';
+        return;
+      }
+      if (!/^[가-힣a-zA-Z0-9]+$/.test(nickname)) {
+        errMsg.textContent = '한글, 영문, 숫자만 사용할 수 있어요.';
+        errMsg.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '저장 중...';
+
+      try {
+        const res  = await fetch(`${API}/auth/nickname`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ nickname }),
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          location.href = '/';
+        } else {
+          errMsg.textContent = data.message || '오류가 발생했어요. 다시 시도해주세요.';
+          errMsg.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '시작하기';
+        }
+      } catch(e) {
+        errMsg.textContent = '네트워크 오류가 발생했어요.';
+        errMsg.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '시작하기';
+      }
+    }
+
+    // 엔터키 제출
+    document.getElementById('nickname').addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitNickname();
+    });
+  </script>
+</body>
+</html>
