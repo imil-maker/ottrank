@@ -5,113 +5,126 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>마이페이지 | 오뜨랑</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
-:root {
-  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
-  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
-  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
-  --accent:#e63946; --gold:#f0b429; --green:#34d399;
-  --info:#378ADD; --info-bg:rgba(55,138,221,.12); --info-border:rgba(55,138,221,.35);
-  --warn-bg:rgba(240,180,41,.12); --warn-border:rgba(240,180,41,.35);
-  --danger-bg:rgba(230,57,70,.12); --danger-border:rgba(230,57,70,.35);
-  --font-sans:'Noto Sans KR',sans-serif; --font-mono:'DM Mono',monospace;
-  --r:10px; --r-lg:14px; --content-w:860px;
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;
+  --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
+  --warn-bg:rgba(240,180,41,.12);--warn-border:rgba(240,180,41,.35);
+  --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
+  --r:10px;--r-lg:14px;--content-w:860px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
 .page-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
 .loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px}
 .loading-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-wrap p{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
-.login-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;text-align:center}
-.login-prompt-icon{font-size:48px;opacity:.4}
-.login-prompt h2{font-size:20px;font-weight:700}
-.login-prompt p{font-size:14px;color:var(--muted2)}
-.login-prompt-btn{margin-top:8px;padding:12px 32px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans)}
-.login-prompt-btn:hover{background:#ff4d58}
+.empty-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;text-align:center}
+.empty-icon{font-size:48px;opacity:.4}
+.empty-prompt h2{font-size:20px;font-weight:700}
+.empty-prompt p{font-size:14px;color:var(--muted2)}
+.empty-btn{margin-top:8px;padding:12px 32px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans)}
+/* 프로필 */
 .profile-card{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%);border:.5px solid var(--border2);border-radius:var(--r-lg);padding:28px 24px;margin-bottom:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
 .profile-card::before{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(230,57,70,.08),transparent 70%);pointer-events:none}
 .profile-emoji-wrap{width:80px;height:80px;border-radius:var(--r-lg);background:var(--bg3);border:.5px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
 .profile-emoji-wrap img{width:100%;height:100%;object-fit:cover}
 .profile-emoji-wrap .no-emoji{font-size:36px}
 .profile-info{flex:1;min-width:0}
-.profile-grade-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.profile-grade-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);font-family:var(--font-mono);font-weight:600}
-.profile-grade-badge.special{background:var(--danger-bg);color:var(--accent);border-color:rgba(230,57,70,.3)}
+.profile-grade-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);font-family:var(--font-mono);font-weight:600;display:inline-block;margin-bottom:6px}
+.profile-grade-badge.special{background:rgba(230,57,70,.12);color:var(--accent);border-color:rgba(230,57,70,.3)}
 .profile-nickname{font-size:22px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.profile-nickname-edit{background:none;border:.5px solid var(--border2);border-radius:6px;color:var(--muted2);font-size:11px;font-family:var(--font-mono);padding:3px 10px;cursor:pointer;transition:all .15s}
-.profile-nickname-edit:hover{border-color:var(--info);color:var(--info)}
+.edit-btn{background:none;border:.5px solid var(--border2);border-radius:6px;color:var(--muted2);font-size:11px;font-family:var(--font-mono);padding:3px 10px;cursor:pointer;transition:all .15s}
+.edit-btn:hover{border-color:var(--info);color:var(--info)}
 .profile-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted2)}
 .profile-meta-item{display:flex;align-items:center;gap:5px}
 .profile-meta-item b{color:var(--text);font-weight:600}
-.profile-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
 .logout-btn{padding:9px 18px;border-radius:var(--r);border:.5px solid var(--border2);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font-sans);transition:all .15s;display:flex;align-items:center;gap:6px}
 .logout-btn:hover{border-color:var(--accent);color:var(--accent)}
 .nickname-edit-row{display:none;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .nickname-edit-row.show{display:flex}
-.nickname-inp{background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:14px;font-family:var(--font-sans);padding:8px 14px;outline:none;width:200px}
+.nickname-inp{background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:14px;padding:8px 14px;outline:none;width:200px}
 .nickname-inp:focus{border-color:var(--info)}
-.nickname-save-btn{padding:8px 16px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;font-family:var(--font-sans)}
-.nickname-save-btn:hover{opacity:.85}
-.nickname-cancel-btn{padding:8px 14px;border-radius:var(--r);background:transparent;color:var(--muted2);font-size:13px;border:.5px solid var(--border);cursor:pointer;font-family:var(--font-sans)}
+.nickname-save-btn{padding:8px 16px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer}
+.nickname-cancel-btn{padding:8px 14px;border-radius:var(--r);background:transparent;color:var(--muted2);font-size:13px;border:.5px solid var(--border);cursor:pointer}
+/* 등급 프로그레스 */
 .next-grade-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;margin-bottom:24px}
 .next-grade-title{font-size:13px;color:var(--muted2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .next-grade-title b{color:var(--text)}
-.progress-list{display:flex;flex-direction:column;gap:8px}
-.progress-item{display:flex;align-items:center;gap:10px}
+.progress-item{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .progress-label{font-size:12px;color:var(--muted);font-family:var(--font-mono);min-width:80px}
 .progress-bar-bg{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
 .progress-bar-fill{height:100%;border-radius:3px;background:var(--info);transition:width .4s}
 .progress-bar-fill.done{background:var(--green)}
 .progress-val{font-size:11px;color:var(--muted2);font-family:var(--font-mono);min-width:60px;text-align:right}
 .progress-val.done{color:var(--green)}
+/* 섹션 */
 .sec-wrap{margin-bottom:28px}
 .sec-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .sec-title{font-size:16px;font-weight:600}
 .sec-count{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
 .sec-empty{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:36px 20px;text-align:center;font-size:13px;color:var(--muted)}
 .sec-empty i{font-size:28px;opacity:.3;display:block;margin-bottom:8px}
-.wish-privacy-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+/* 찜 공개/비공개 */
+.wish-privacy-row{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
 .wish-toggle-btn{padding:4px 14px;border-radius:20px;font-size:11px;font-family:var(--font-mono);cursor:pointer;border:.5px solid;transition:all .2s;font-weight:600}
 .wish-toggle-btn.public{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.35)}
 .wish-toggle-btn.public:hover{background:rgba(52,211,153,.22)}
 .wish-toggle-btn.private{background:var(--bg3);color:var(--muted2);border-color:var(--border2)}
-.wish-toggle-btn.private:hover{background:var(--bg2)}
 .wish-privacy-desc{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+/* 찜 그리드 */
 .wish-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
-.wish-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:border-color .15s,transform .15s;text-decoration:none}
+.wish-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .15s,transform .15s;position:relative}
 .wish-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.wish-card-link{text-decoration:none;display:block}
 .wish-poster{aspect-ratio:2/3;background:var(--bg3);overflow:hidden}
 .wish-poster img{width:100%;height:100%;object-fit:cover;display:block}
 .wish-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px}
-.wish-title{padding:7px 8px;font-size:11px;color:var(--muted2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wish-title{padding:6px 8px;font-size:11px;color:var(--muted2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wish-del-btn{position:absolute;top:5px;right:5px;background:rgba(0,0,0,.75);color:#fff;border:none;border-radius:4px;font-size:10px;padding:3px 7px;cursor:pointer;font-family:var(--font-mono);display:none;transition:background .15s}
+.wish-del-btn:hover{background:var(--accent)}
+.wish-card:hover .wish-del-btn{display:block}
+/* 후기 */
 .review-list{display:flex;flex-direction:column;gap:10px}
-.review-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;cursor:pointer;transition:border-color .15s;display:flex;gap:14px;align-items:flex-start;text-decoration:none}
+.review-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;transition:border-color .15s;display:flex;gap:14px;align-items:flex-start}
 .review-item:hover{border-color:var(--border2)}
-.review-poster{width:42px;height:63px;border-radius:6px;background:var(--bg3);overflow:hidden;flex-shrink:0}
-.review-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px}
+.review-poster-link{text-decoration:none;flex-shrink:0}
+.review-poster{width:48px;height:72px;border-radius:6px;background:var(--bg3);overflow:hidden}
+.review-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.review-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px}
 .review-body{flex:1;min-width:0}
-.review-title-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.review-title-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.review-work-link{text-decoration:none}
 .review-work-title{font-size:14px;font-weight:600;color:var(--text)}
-.review-stars{display:flex;align-items:center;gap:2px;margin-left:auto}
-.review-star{font-size:12px;color:var(--gold)}
-.review-star.off{color:var(--border2)}
-.review-score{font-size:12px;color:var(--gold);font-family:var(--font-mono);margin-left:2px}
+.review-work-title:hover{color:var(--accent)}
+/* 10점 별점 */
+.stars-wrap{display:flex;align-items:center;gap:1px;margin-left:auto;flex-shrink:0}
+.star{font-size:13px;color:var(--gold);line-height:1}
+.star.half{position:relative;color:var(--border2)}
+.star.half::before{content:'★';position:absolute;left:0;top:0;width:50%;overflow:hidden;color:var(--gold)}
+.star.off{color:var(--border2)}
+.score-num{font-size:12px;color:var(--gold);font-family:var(--font-mono);margin-left:4px}
 .review-text{font-size:13px;color:var(--muted2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .review-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
-.review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-left:auto}
+.review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
 .review-likes{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
+.del-btn{margin-left:auto;background:none;border:.5px solid rgba(230,57,70,.3);color:var(--accent);font-size:11px;font-family:var(--font-mono);padding:2px 10px;border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0}
+.del-btn:hover{background:rgba(230,57,70,.1)}
+/* 게시글 */
 .post-tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
 .post-tab{padding:5px 16px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
 .post-tab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
 .post-list{display:flex;flex-direction:column;gap:8px}
-.post-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s;text-decoration:none}
+.post-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;transition:border-color .15s}
 .post-item:hover{border-color:var(--border2)}
+.post-item-link{text-decoration:none;flex:1;min-width:0;display:flex;align-items:center;gap:10px}
 .post-board-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-family:var(--font-mono);white-space:nowrap;flex-shrink:0}
 .post-board-badge.recommend{background:rgba(240,180,41,.12);color:#c89a10;border:.5px solid rgba(240,180,41,.3)}
 .post-board-badge.free{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-border)}
@@ -119,11 +132,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .post-title{font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .post-meta{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .post-meta-item{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
+/* 페이지네이션 */
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap}
+.page-btn{width:34px;height:34px;border-radius:8px;border:.5px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;font-family:var(--font-mono);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.page-btn:hover{border-color:var(--border2);color:var(--text)}
+.page-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.page-btn.arrow{font-size:16px}
+/* 토스트 */
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
 .toast.show{opacity:1}
 @media(max-width:600px){
   .profile-card{flex-direction:column;align-items:flex-start}
-  .profile-actions{align-items:flex-start;flex-direction:row;flex-wrap:wrap}
   .wish-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
   .wish-privacy-row{margin-left:0;width:100%}
 }
@@ -136,67 +155,55 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <div class="loading-spinner"></div>
     <p>불러오는 중...</p>
   </div>
-  <div class="login-prompt" id="loginPrompt" style="display:none">
-    <div class="login-prompt-icon">🎬</div>
+  <div class="empty-prompt" id="loginPrompt" style="display:none">
+    <div class="empty-icon">🎬</div>
     <h2>로그인이 필요해요</h2>
     <p>마이페이지는 로그인 후 이용할 수 있어요.</p>
-    <button class="login-prompt-btn" onclick="location.href='/login.html?redirect=/mypage.html'">로그인 / 가입하기</button>
+    <button class="empty-btn" onclick="location.href='/login.html?redirect=/mypage.html'">로그인 / 가입하기</button>
   </div>
-  <div class="login-prompt" id="notFoundPrompt" style="display:none">
-    <div class="login-prompt-icon">🔍</div>
+  <div class="empty-prompt" id="notFoundPrompt" style="display:none">
+    <div class="empty-icon">🔍</div>
     <h2>유저를 찾을 수 없어요</h2>
     <p>존재하지 않는 유저이거나 탈퇴한 계정이에요.</p>
-    <button class="login-prompt-btn" onclick="location.href='/'">홈으로</button>
+    <button class="empty-btn" onclick="location.href='/'">홈으로</button>
   </div>
   <div id="mypageContent" style="display:none">
+    <!-- 프로필 카드 -->
     <div class="profile-card">
       <div class="profile-emoji-wrap" id="profileEmoji"><span class="no-emoji">🎬</span></div>
       <div class="profile-info">
-        <div class="profile-grade-row">
-          <span class="profile-grade-badge" id="profileGradeBadge">막내</span>
-        </div>
-        <div class="profile-nickname" id="profileNicknameWrap">
+        <div><span class="profile-grade-badge" id="profileGradeBadge">막내</span></div>
+        <div class="profile-nickname">
           <span id="profileNickname">—</span>
-          <button class="profile-nickname-edit" id="nicknameEditBtn" style="display:none" onclick="toggleNicknameEdit()">
+          <button class="edit-btn" id="nicknameEditBtn" style="display:none" onclick="toggleNicknameEdit()">
             <i class="ti ti-pencil" style="font-size:11px"></i> 닉네임 수정
           </button>
         </div>
         <div class="nickname-edit-row" id="nicknameEditRow">
-          <input class="nickname-inp" type="text" id="nicknameInp" placeholder="새 닉네임 입력" maxlength="20" onkeydown="if(event.key==='Enter')saveNickname()">
+          <input class="nickname-inp" type="text" id="nicknameInp" placeholder="새 닉네임" maxlength="20" onkeydown="if(event.key==='Enter')saveNickname()">
           <button class="nickname-save-btn" onclick="saveNickname()">저장</button>
           <button class="nickname-cancel-btn" onclick="toggleNicknameEdit()">취소</button>
         </div>
         <div class="profile-meta">
-          <div class="profile-meta-item">
-            <i class="ti ti-heart" style="color:var(--accent);font-size:13px"></i>
-            받은 좋아요 <b id="profileLikes">0</b>개
-          </div>
-          <div class="profile-meta-item">
-            <i class="ti ti-calendar" style="color:var(--muted);font-size:13px"></i>
-            가입 <b id="profileJoinDate">—</b>
-          </div>
+          <div class="profile-meta-item"><i class="ti ti-heart" style="color:var(--accent);font-size:13px"></i>받은 좋아요 <b id="profileLikes">0</b>개</div>
+          <div class="profile-meta-item"><i class="ti ti-calendar" style="color:var(--muted);font-size:13px"></i>가입 <b id="profileJoinDate">—</b></div>
           <div class="profile-meta-item" id="providerItem" style="display:none">
             <i class="ti ti-user" style="color:var(--muted);font-size:13px" id="providerIcon"></i>
             <span id="providerLabel" style="color:var(--muted)">—</span>
           </div>
         </div>
       </div>
-      <div class="profile-actions" id="profileActions" style="display:none">
-        <button class="logout-btn" onclick="doLogout()">
-          <i class="ti ti-logout" style="font-size:14px"></i> 로그아웃
-        </button>
+      <div id="profileActions" style="display:none">
+        <button class="logout-btn" onclick="doLogout()"><i class="ti ti-logout" style="font-size:14px"></i> 로그아웃</button>
       </div>
     </div>
-
+    <!-- 다음 등급 프로그레스 -->
     <div class="next-grade-card" id="nextGradeCard" style="display:none">
-      <div class="next-grade-title">
-        <i class="ti ti-trending-up" style="font-size:14px;color:var(--gold)"></i>
-        다음 등급 <b id="nextGradeName"></b> 까지
-      </div>
-      <div class="progress-list" id="progressList"></div>
+      <div class="next-grade-title"><i class="ti ti-trending-up" style="font-size:14px;color:var(--gold)"></i>다음 등급 <b id="nextGradeName"></b> 까지</div>
+      <div id="progressList"></div>
     </div>
-
-    <div class="sec-wrap" id="wishSection">
+    <!-- 찜한 작품 -->
+    <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-heart" style="font-size:16px;color:var(--accent)"></i>
         <span class="sec-title">찜한 작품</span>
@@ -207,8 +214,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         </div>
       </div>
       <div id="wishArea"></div>
+      <div class="pagination" id="wishPager"></div>
     </div>
-
+    <!-- 평점·후기 -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-star" style="font-size:16px;color:var(--gold)"></i>
@@ -216,8 +224,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <span class="sec-count" id="reviewCount">0개</span>
       </div>
       <div id="reviewArea"></div>
+      <div class="pagination" id="reviewPager"></div>
     </div>
-
+    <!-- 게시글 -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-message-circle" style="font-size:16px;color:var(--info)"></i>
@@ -231,6 +240,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <button class="post-tab" onclick="switchPostTab('community',this)">커뮤니티</button>
       </div>
       <div id="postArea"></div>
+      <div class="pagination" id="postPager"></div>
     </div>
   </div>
 </div>
@@ -238,7 +248,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <script>
 const API='https://ottrank-api.tdidream.workers.dev';
 const IMG='https://image.tmdb.org/t/p/w300';
-let ALL_POSTS=[],ALL_GRADES=[],IS_OWN=false,WISH_PUBLIC=true;
+let ALL_WISH=[],ALL_REVIEWS=[],ALL_POSTS=[],ALL_GRADES=[];
+let IS_OWN=false,WISH_PUBLIC=true;
+let curPostTab='all';
+let wishPage=1,reviewPage=1,postPage=1;
+const WISH_PER=12,REVIEW_PER=10,POST_PER=10;
 
 fetch('/header.html').then(r=>r.text()).then(html=>{
   document.getElementById('headerArea').innerHTML=html;
@@ -251,62 +265,40 @@ async function init(){
   const sid=localStorage.getItem('ottrang_sid');
   try{
     const gradeRes=await fetch(`${API}/grade-settings`);
-    const gradeJson=await gradeRes.json();
-    ALL_GRADES=gradeJson.data||[];
+    ALL_GRADES=(await gradeRes.json()).data||[];
     if(targetUid){
       IS_OWN=false;
-      const res=await fetch(`${API}/user/${targetUid}`);
-      const json=await res.json();
-      if(!json.ok){
-        document.getElementById('loadingWrap').style.display='none';
-        document.getElementById('notFoundPrompt').style.display='flex';
-        return;
-      }
-      ALL_POSTS=json.posts||[];
+      const json=await(await fetch(`${API}/user/${targetUid}`)).json();
+      if(!json.ok){show('loadingWrap','none');show('notFoundPrompt','flex');return;}
+      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];ALL_POSTS=json.posts||[];
       renderProfile(json.user,json.stats,false);
-      renderWishlist(json.wishlist||[],false,json.wishlist_hidden);
-      renderReviews(json.reviews||[]);
-      renderPosts('all');
+      renderWishlist(1,false,json.wishlist_hidden);
+      renderReviews(1);renderPosts('all',1);
     }else{
-      if(!sid){
-        document.getElementById('loadingWrap').style.display='none';
-        document.getElementById('loginPrompt').style.display='flex';
-        return;
-      }
+      if(!sid){show('loadingWrap','none');show('loginPrompt','flex');return;}
       IS_OWN=true;
-      const res=await fetch(`${API}/mypage`,{headers:{Authorization:'Bearer '+sid}});
-      const json=await res.json();
-      if(!json.ok){
-        localStorage.removeItem('ottrang_sid');
-        document.getElementById('loadingWrap').style.display='none';
-        document.getElementById('loginPrompt').style.display='flex';
-        return;
-      }
-      ALL_POSTS=json.posts||[];
+      const json=await(await fetch(`${API}/mypage`,{headers:{Authorization:'Bearer '+sid}})).json();
+      if(!json.ok){localStorage.removeItem('ottrang_sid');show('loadingWrap','none');show('loginPrompt','flex');return;}
+      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];ALL_POSTS=json.posts||[];
       WISH_PUBLIC=json.user?.wishlist_public!==0;
       renderProfile(json.user,json.stats,true);
       renderNextGrade(json.user,json.stats);
-      renderWishlist(json.wishlist||[],true,false);
-      renderReviews(json.reviews||[]);
-      renderPosts('all');
+      renderWishlist(1,true,false);
+      renderReviews(1);renderPosts('all',1);
       document.getElementById('nicknameEditBtn').style.display='inline-flex';
-      document.getElementById('profileActions').style.display='flex';
+      document.getElementById('profileActions').style.display='block';
       document.getElementById('providerItem').style.display='flex';
       document.getElementById('wishPrivacyRow').style.display='flex';
       updateWishToggleUI(WISH_PUBLIC);
     }
-    document.getElementById('loadingWrap').style.display='none';
-    document.getElementById('mypageContent').style.display='block';
-  }catch(e){
-    document.getElementById('loadingWrap').innerHTML=`<p style="color:var(--accent)">오류: ${e.message}</p>`;
-  }
+    show('loadingWrap','none');show('mypageContent','block');
+  }catch(e){document.getElementById('loadingWrap').innerHTML=`<p style="color:var(--accent)">오류: ${e.message}</p>`;}
 }
 
 function renderProfile(user,stats,isOwn){
   if(!user)return;
   const ep=document.getElementById('profileEmoji');
-  if(user.grade_emoji_url){ep.innerHTML=`<img src="${user.grade_emoji_url}" alt="" onerror="this.parentNode.innerHTML='<span class=\\'no-emoji\\'>🎬</span>'">`;}
-  else{ep.innerHTML=`<span class="no-emoji">🎬</span>`;}
+  ep.innerHTML=user.grade_emoji_url?`<img src="${user.grade_emoji_url}" alt="" onerror="this.parentNode.innerHTML='<span class=\\'no-emoji\\'>🎬</span>'">`:`<span class="no-emoji">🎬</span>`;
   const gb=document.getElementById('profileGradeBadge');
   gb.textContent=user.grade_name||user.grade||'막내';
   if(user.grade_is_special)gb.classList.add('special');
@@ -315,10 +307,10 @@ function renderProfile(user,stats,isOwn){
   document.getElementById('profileLikes').textContent=(user.total_likes_received||0).toLocaleString();
   document.getElementById('profileJoinDate').textContent=user.created_at?user.created_at.slice(0,10).replace(/-/g,'.'):'—';
   if(isOwn&&user.provider){
-    const pMap={kakao:'카카오',google:'구글',naver:'네이버'};
-    const iMap={kakao:'ti-brand-kakao',google:'ti-brand-google',naver:'ti-brand-naver'};
-    document.getElementById('providerLabel').textContent=pMap[user.provider]||user.provider;
-    document.getElementById('providerIcon').className=`ti ${iMap[user.provider]||'ti-user'}`;
+    const pm={kakao:'카카오',google:'구글',naver:'네이버'};
+    const im={kakao:'ti-brand-kakao',google:'ti-brand-google',naver:'ti-brand-naver'};
+    document.getElementById('providerLabel').textContent=pm[user.provider]||user.provider;
+    document.getElementById('providerIcon').className=`ti ${im[user.provider]||'ti-user'}`;
   }
   if(!isOwn)document.title=`${user.nickname||'유저'} 프로필 | 오뜨랑`;
 }
@@ -326,101 +318,207 @@ function renderProfile(user,stats,isOwn){
 function renderNextGrade(user,stats){
   if(!user||!ALL_GRADES.length||user.grade_is_special)return;
   const cur=ALL_GRADES.find(g=>g.grade_key===user.grade);
-  const curOrder=cur?.sort_order||1;
-  const next=ALL_GRADES.filter(g=>!g.is_special&&g.sort_order>curOrder).sort((a,b)=>a.sort_order-b.sort_order)[0];
+  const next=ALL_GRADES.filter(g=>!g.is_special&&g.sort_order>(cur?.sort_order||1)).sort((a,b)=>a.sort_order-b.sort_order)[0];
   if(!next)return;
   document.getElementById('nextGradeName').textContent=next.grade_name;
   document.getElementById('nextGradeCard').style.display='block';
   const act=(stats?.review_count||0)+(stats?.post_count||0);
-  const wish=stats?.wishlist_count||0;
-  const likes=stats?.likes_received||0;
+  const wish=stats?.wishlist_count||0,likes=stats?.likes_received||0;
   const items=[];
   if(next.min_reviews>0)items.push({label:'평점+게시글',cur:act,max:next.min_reviews});
   if(next.min_wishlist>0)items.push({label:'찜한 작품',cur:wish,max:next.min_wishlist});
   if(next.min_likes>0)items.push({label:'받은 좋아요',cur:likes,max:next.min_likes});
-  if(!items.length)return;
   document.getElementById('progressList').innerHTML=items.map(item=>{
-    const pct=Math.min(100,Math.round((item.cur/item.max)*100));
-    const done=item.cur>=item.max;
+    const pct=Math.min(100,Math.round(item.cur/item.max*100)),done=item.cur>=item.max;
     return `<div class="progress-item"><span class="progress-label">${item.label}</span><div class="progress-bar-bg"><div class="progress-bar-fill ${done?'done':''}" style="width:${pct}%"></div></div><span class="progress-val ${done?'done':''}">${item.cur}/${item.max}${done?' ✓':''}</span></div>`;
   }).join('');
 }
 
-function renderWishlist(list,isOwn,isHidden){
-  document.getElementById('wishCount').textContent=isHidden?'비공개':`${list.length}개`;
+/* ══ URL 생성 ══ */
+function makeTitleUrl(title_ko,category,release_year,tmdb_id){
+  const slug=(title_ko||'').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3a-zA-Z0-9\-]/g,'')||'work';
+  const cat=category==='tv'?'tv':'movie';
+  const year=release_year?String(release_year).slice(0,4):'';
+  // /title/작품명-시즌1-2024-12345 형식
+  return `/title/${slug}-${cat==='tv'?'시즌1':''}${year}-${tmdb_id}`;
+}
+
+/* ══ 찜한 작품 ══ */
+function renderWishlist(page,isOwn,isHidden){
+  wishPage=page;
+  document.getElementById('wishCount').textContent=isHidden?'비공개':`${ALL_WISH.length}개`;
   const el=document.getElementById('wishArea');
-  if(!isOwn&&isHidden){el.innerHTML=`<div class="sec-empty"><i class="ti ti-lock"></i>비공개 목록이에요</div>`;return;}
-  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-heart"></i>${isOwn?'아직 찜한 작품이 없어요':'찜한 작품이 없어요'}</div>`;return;}
-  el.innerHTML=`<div class="wish-grid">${list.map(w=>`
-    <a class="wish-card" href="/title/${_slug(w.title_ko)}-1${new Date().getFullYear()}${w.tmdb_id}">
-      <div class="wish-poster">${w.poster_path?`<img src="${IMG}${w.poster_path}" alt="${w.title_ko}" loading="lazy">`:`<div class="wish-poster-ph">🎬</div>`}</div>
-      <div class="wish-title">${w.title_ko}</div>
-    </a>`).join('')}</div>`;
+  if(!isOwn&&isHidden){el.innerHTML=`<div class="sec-empty"><i class="ti ti-lock"></i>비공개 목록이에요</div>`;document.getElementById('wishPager').innerHTML='';return;}
+  if(!ALL_WISH.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-heart"></i>${isOwn?'아직 찜한 작품이 없어요':'찜한 작품이 없어요'}</div>`;document.getElementById('wishPager').innerHTML='';return;}
+  const total=ALL_WISH.length,pages=Math.ceil(total/WISH_PER);
+  const slice=ALL_WISH.slice((page-1)*WISH_PER,page*WISH_PER);
+  el.innerHTML=`<div class="wish-grid">${slice.map(w=>{
+    const href=makeTitleUrl(w.title_ko,w.category,w.release_year,w.tmdb_id);
+    return `<div class="wish-card">
+      <a class="wish-card-link" href="${href}">
+        <div class="wish-poster">${w.poster_path?`<img src="${IMG}${w.poster_path}" alt="${w.title_ko}" loading="lazy">`:`<div class="wish-poster-ph">🎬</div>`}</div>
+        <div class="wish-title">${w.title_ko}</div>
+      </a>
+      ${isOwn?`<button class="wish-del-btn" onclick="delWish(${w.tmdb_id},this)">찜해제</button>`:''}
+    </div>`;
+  }).join('')}</div>`;
+  renderPager('wishPager',page,pages,p=>renderWishlist(p,IS_OWN,false));
 }
 
-function updateWishToggleUI(isPublic){
-  const btn=document.getElementById('wishToggleBtn');
-  const desc=document.getElementById('wishPrivacyDesc');
-  if(isPublic){btn.textContent='🔓 공개';btn.className='wish-toggle-btn public';desc.textContent='다른 사용자들이 찜 목록을 볼 수 있습니다';}
-  else{btn.textContent='🔒 비공개';btn.className='wish-toggle-btn private';desc.textContent='다른 사용자들이 찜 목록을 볼 수 없습니다';}
-}
-
-async function toggleWishPrivacy(){
+async function delWish(tmdb_id,btn){
   const sid=localStorage.getItem('ottrang_sid');
   if(!sid)return;
-  const newPublic=!WISH_PUBLIC;
+  if(!confirm('찜 목록에서 제거할까요?'))return;
   try{
-    const res=await fetch(`${API}/mypage/wishlist-public`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({wishlist_public:newPublic})});
+    const res=await fetch(`${API}/wishlist`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({tmdb_id})});
     const json=await res.json();
-    if(json.ok){WISH_PUBLIC=newPublic;updateWishToggleUI(WISH_PUBLIC);showToast(WISH_PUBLIC?'찜 목록이 공개로 변경됐어요':'찜 목록이 비공개로 변경됐어요');}
-    else showToast(json.message||'변경 실패');
+    if(json.ok&&!json.wishlisted){
+      ALL_WISH=ALL_WISH.filter(w=>w.tmdb_id!==tmdb_id);
+      renderWishlist(wishPage,true,false);
+      showToast('찜 목록에서 제거됐어요');
+    }
   }catch(e){showToast('오류: '+e.message);}
 }
 
-function renderReviews(list){
-  document.getElementById('reviewCount').textContent=`${list.length}개`;
+/* ══ 평점·후기 ══ */
+function renderReviews(page){
+  reviewPage=page;
+  document.getElementById('reviewCount').textContent=`${ALL_REVIEWS.length}개`;
   const el=document.getElementById('reviewArea');
-  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;return;}
-  el.innerHTML=`<div class="review-list">${list.map(r=>{
-    const emotions=_json(r.emotions,[]);
+  if(!ALL_REVIEWS.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;document.getElementById('reviewPager').innerHTML='';return;}
+  const total=ALL_REVIEWS.length,pages=Math.ceil(total/REVIEW_PER);
+  const slice=ALL_REVIEWS.slice((page-1)*REVIEW_PER,page*REVIEW_PER);
+  el.innerHTML=`<div class="review-list">${slice.map(r=>{
     const score=parseFloat(r.score)||0;
-    return `<a class="review-item" href="/title/work-1${new Date().getFullYear()}${r.tmdb_id}#reviews">
-      <div class="review-poster"><div class="review-poster-ph">🎬</div></div>
+    const emotions=_json(r.emotions,[]);
+    const href=makeTitleUrl(r.title_ko,r.category,r.release_year,r.tmdb_id)+'#reviews';
+    // 10점 만점 별점 (별 1개 = 2점, 0.5개 = 1점)
+    const stars=renderStars(score);
+    return `<div class="review-item">
+      <a class="review-poster-link" href="${href}">
+        <div class="review-poster">${r.poster_path?`<img src="${IMG}${r.poster_path}" alt="" loading="lazy">`:`<div class="review-poster-ph">🎬</div>`}</div>
+      </a>
       <div class="review-body">
         <div class="review-title-row">
-          <span class="review-work-title">작품 #${r.tmdb_id}</span>
-          <div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${score>=i?'':' off'}">★</span>`).join('')}<span class="review-score">${score}</span></div>
+          <a class="review-work-link" href="${href}"><span class="review-work-title">${r.title_ko||'작품 #'+r.tmdb_id}</span></a>
+          <div class="stars-wrap">${stars}<span class="score-num">${score}</span></div>
         </div>
         ${r.text?`<div class="review-text">${r.text}</div>`:''}
         <div class="review-footer">
           ${emotions.slice(0,3).map(e=>`<span class="review-badge">${e}</span>`).join('')}
           <span class="review-likes"><i class="ti ti-heart" style="font-size:11px"></i>${r.likes||0}</span>
           <span class="review-time">${_date(r.created_at)}</span>
+          ${IS_OWN?`<button class="del-btn" onclick="delReview(${r.tmdb_id},${r.id})">삭제</button>`:''}
         </div>
       </div>
-    </a>`;
+    </div>`;
   }).join('')}</div>`;
+  renderPager('reviewPager',page,pages,p=>renderReviews(p));
 }
 
+function renderStars(score){
+  // 10점 만점 → 별 5개 표현 (별 1개=2점)
+  let html='';
+  for(let i=1;i<=5;i++){
+    const val=i*2;
+    if(score>=val) html+=`<span class="star">★</span>`;
+    else if(score>=val-1) html+=`<span class="star half">★</span>`;
+    else html+=`<span class="star off">★</span>`;
+  }
+  return html;
+}
+
+async function delReview(tmdb_id,review_id){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!confirm('후기를 삭제할까요?'))return;
+  try{
+    const res=await fetch(`${API}/reviews/${tmdb_id}`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
+    const json=await res.json();
+    if(json.ok){
+      ALL_REVIEWS=ALL_REVIEWS.filter(r=>r.id!==review_id);
+      renderReviews(reviewPage);
+      showToast('후기가 삭제됐어요');
+    }else showToast(json.message||'삭제 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+/* ══ 게시글 ══ */
 const BLABEL={recommend:'추천게시판',free:'자유게시판',community:'커뮤니티'};
-function switchPostTab(tab,btn){document.querySelectorAll('.post-tab').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderPosts(tab);}
-function renderPosts(tab){
+function switchPostTab(tab,btn){
+  curPostTab=tab;
+  document.querySelectorAll('.post-tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderPosts(tab,1);
+}
+function renderPosts(tab,page){
+  postPage=page;
   const list=tab==='all'?ALL_POSTS:ALL_POSTS.filter(p=>p.board_type===tab);
   document.getElementById('postCount').textContent=`${ALL_POSTS.length}개`;
   const el=document.getElementById('postArea');
-  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-pencil"></i>${tab==='all'?'아직 쓴 게시글이 없어요':`${BLABEL[tab]||tab}에 쓴 글이 없어요`}</div>`;return;}
-  el.innerHTML=`<div class="post-list">${list.map(p=>`
-    <a class="post-item" href="/board.html?type=${p.board_type}&id=${p.id}">
-      <span class="post-board-badge ${p.board_type}">${BLABEL[p.board_type]||p.board_type}</span>
-      <span class="post-title">${p.title}</span>
-      <div class="post-meta">
-        <span class="post-meta-item"><i class="ti ti-heart" style="font-size:11px;color:var(--accent)"></i>${p.like_count||0}</span>
-        <span class="post-meta-item"><i class="ti ti-eye" style="font-size:11px"></i>${p.view_count||0}</span>
-        <span class="post-meta-item">${_date(p.created_at)}</span>
-      </div>
-    </a>`).join('')}</div>`;
+  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-pencil"></i>${tab==='all'?'아직 쓴 게시글이 없어요':`${BLABEL[tab]||tab}에 쓴 글이 없어요`}</div>`;document.getElementById('postPager').innerHTML='';return;}
+  const total=list.length,pages=Math.ceil(total/POST_PER);
+  const slice=list.slice((page-1)*POST_PER,page*POST_PER);
+  el.innerHTML=`<div class="post-list">${slice.map(p=>`
+    <div class="post-item">
+      <a class="post-item-link" href="/board.html?type=${p.board_type}&id=${p.id}">
+        <span class="post-board-badge ${p.board_type}">${BLABEL[p.board_type]||p.board_type}</span>
+        <span class="post-title">${p.title}</span>
+        <div class="post-meta">
+          <span class="post-meta-item"><i class="ti ti-heart" style="font-size:11px;color:var(--accent)"></i>${p.like_count||0}</span>
+          <span class="post-meta-item"><i class="ti ti-eye" style="font-size:11px"></i>${p.view_count||0}</span>
+          <span class="post-meta-item">${_date(p.created_at)}</span>
+        </div>
+      </a>
+      ${IS_OWN?`<button class="del-btn" onclick="delPost(${p.id})">삭제</button>`:''}
+    </div>`).join('')}</div>`;
+  renderPager('postPager',page,pages,p=>renderPosts(curPostTab,p));
 }
 
+async function delPost(post_id){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!confirm('게시글을 삭제할까요?'))return;
+  try{
+    const res=await fetch(`${API}/posts/${post_id}`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
+    const json=await res.json();
+    if(json.ok){
+      ALL_POSTS=ALL_POSTS.filter(p=>p.id!==post_id);
+      renderPosts(curPostTab,postPage);
+      showToast('게시글이 삭제됐어요');
+    }else showToast(json.message||'삭제 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+/* ══ 페이지네이션 ══ */
+function renderPager(elId,cur,total,cb){
+  const el=document.getElementById(elId);
+  if(total<=1){el.innerHTML='';return;}
+  let html='';
+  if(cur>1)html+=`<button class="page-btn arrow" onclick="(${cb.toString()})(${cur-1})">‹</button>`;
+  for(let i=1;i<=total;i++){
+    html+=`<button class="page-btn ${i===cur?'on':''}" onclick="(${cb.toString()})(${i})">${i}</button>`;
+  }
+  if(cur<total)html+=`<button class="page-btn arrow" onclick="(${cb.toString()})(${cur+1})">›</button>`;
+  el.innerHTML=html;
+}
+
+/* ══ 찜 공개/비공개 ══ */
+function updateWishToggleUI(isPublic){
+  const btn=document.getElementById('wishToggleBtn'),desc=document.getElementById('wishPrivacyDesc');
+  if(isPublic){btn.textContent='🔓 공개';btn.className='wish-toggle-btn public';desc.textContent='다른 사용자들이 찜 목록을 볼 수 있습니다';}
+  else{btn.textContent='🔒 비공개';btn.className='wish-toggle-btn private';desc.textContent='다른 사용자들이 찜 목록을 볼 수 없습니다';}
+}
+async function toggleWishPrivacy(){
+  const sid=localStorage.getItem('ottrang_sid');
+  const newP=!WISH_PUBLIC;
+  try{
+    const res=await fetch(`${API}/mypage/wishlist-public`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({wishlist_public:newP})});
+    const json=await res.json();
+    if(json.ok){WISH_PUBLIC=newP;updateWishToggleUI(WISH_PUBLIC);showToast(WISH_PUBLIC?'찜 목록이 공개로 변경됐어요':'찜 목록이 비공개로 변경됐어요');}
+    else showToast(json.message||'변경 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+/* ══ 닉네임 수정 ══ */
 function toggleNicknameEdit(){const row=document.getElementById('nicknameEditRow');const s=row.classList.toggle('show');if(s)document.getElementById('nicknameInp').focus();}
 async function saveNickname(){
   const sid=localStorage.getItem('ottrang_sid');
@@ -434,16 +532,17 @@ async function saveNickname(){
   }catch(e){showToast('오류: '+e.message);}
 }
 
+/* ══ 로그아웃 ══ */
 async function doLogout(){
   const sid=localStorage.getItem('ottrang_sid');
   try{await fetch(`${API}/auth/logout`,{method:'POST',headers:{Authorization:'Bearer '+sid}});}catch(e){}
-  localStorage.removeItem('ottrang_sid');
-  location.href='/';
+  localStorage.removeItem('ottrang_sid');location.href='/';
 }
 
+/* ══ 유틸 ══ */
+function show(id,disp){document.getElementById(id).style.display=disp;}
 function _json(str,fb){try{return JSON.parse(str);}catch(e){return fb;}}
 function _date(d){if(!d)return'';const k=new Date(new Date(d).getTime()+9*60*60*1000);return`${k.getFullYear()}.${String(k.getMonth()+1).padStart(2,'0')}.${String(k.getDate()).padStart(2,'0')}`;}
-function _slug(s){return(s||'').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3a-zA-Z0-9\-]/g,'')||'work';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 init();
