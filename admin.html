@@ -409,8 +409,18 @@ function login() {
   document.getElementById('mainSection').style.display = 'block';
   document.getElementById('logoutBtn').style.display = 'block';
   document.getElementById('pageTabs').style.display = 'block';
-  document.getElementById('dateInp').value = new Date().toISOString().slice(0,10);
-  loadData();
+  // DB 최신 날짜 가져와서 세팅
+  fetch(`${API}/latest-date`)
+    .then(r => r.json())
+    .then(json => {
+      const latest = json.data?.date || new Date().toISOString().slice(0,10);
+      document.getElementById('dateInp').value = latest;
+      loadData();
+    })
+    .catch(() => {
+      document.getElementById('dateInp').value = new Date().toISOString().slice(0,10);
+      loadData();
+    });
   loadReactions();
   loadGrades();
 }
