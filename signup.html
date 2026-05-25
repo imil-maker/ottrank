@@ -94,19 +94,12 @@
   <script>
     const API = 'https://ottrank-api.tdidream.workers.dev';
 
-    // 로그인 여부 확인
-    (async () => {
-      const res = await fetch(`${API}/auth/me`, { credentials: 'include' });
-      const data = await res.json();
-      if (!data.ok) {
-        // 로그인 안 된 상태면 메인으로
-        location.href = '/';
-      }
-      // 이미 닉네임 설정된 유저면 메인으로
-      if (data.user?.nickname && data.user.nickname !== '카카오유저') {
-        location.href = '/';
-      }
-    })();
+    // URL에서 sid 파라미터 추출
+    const sid = new URLSearchParams(location.search).get('sid');
+    if (!sid) {
+      // sid 없으면 메인으로
+      location.href = '/';
+    }
 
     async function submitNickname() {
       const nickname = document.getElementById('nickname').value.trim();
@@ -130,11 +123,10 @@
       btn.textContent = '저장 중...';
 
       try {
-        const res  = await fetch(`${API}/auth/nickname`, {
+        const res = await fetch(`${API}/auth/nickname`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ nickname }),
+          body: JSON.stringify({ nickname, sid }),
         });
         const data = await res.json();
 
