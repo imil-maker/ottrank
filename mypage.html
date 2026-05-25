@@ -336,11 +336,14 @@ function renderNextGrade(user,stats){
 
 /* ══ URL 생성 ══ */
 function makeTitleUrl(title_ko,category,release_year,tmdb_id){
-  const slug=(title_ko||'').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3a-zA-Z0-9\-]/g,'')||'work';
-  const cat=category==='tv'?'tv':'movie';
+  // _redirects 규칙: /title/:slug → /_title_detail.html
+  // URL 형식: /title/작품명-2024-12345 또는 /title/작품명-12345
+  const slug=(title_ko||'').trim()
+    .replace(/\s+/g,'-')
+    .replace(/[^\uAC00-\uD7A3a-zA-Z0-9\-]/g,'');
   const year=release_year?String(release_year).slice(0,4):'';
-  // /title/작품명-시즌1-2024-12345 형식
-  return `/title/${slug}-${cat==='tv'?'시즌1':''}${year}-${tmdb_id}`;
+  const parts=[slug,year,String(tmdb_id)].filter(Boolean);
+  return `/title/${parts.join('-')}`;
 }
 
 /* ══ 찜한 작품 ══ */
@@ -417,13 +420,19 @@ function renderReviews(page){
 }
 
 function renderStars(score){
-  // 10점 만점 → 별 5개 표현 (별 1개=2점)
+  // 10점 만점 → 별 5개 표현
+  // 별 1개 = 2점, 별 반개 = 1점
+  // score=4 → 별 2개, score=3.5 → 별 1개+반개+3개off
   let html='';
   for(let i=1;i<=5;i++){
-    const val=i*2;
-    if(score>=val) html+=`<span class="star">★</span>`;
-    else if(score>=val-1) html+=`<span class="star half">★</span>`;
-    else html+=`<span class="star off">★</span>`;
+    const threshold=i*2;        // 이 별을 채우려면 필요한 점수 (2,4,6,8,10)
+    if(score>=threshold){
+      html+=`<span class="star">★</span>`;          // 꽉 찬 별
+    } else if(score>=threshold-1){
+      html+=`<span class="star half">★</span>`;     // 반 별 (threshold-1 ~ threshold 사이)
+    } else {
+      html+=`<span class="star off">★</span>`;      // 빈 별
+    }
   }
   return html;
 }
