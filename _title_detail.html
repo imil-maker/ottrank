@@ -628,7 +628,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   if(!el) return;
   fetch('/header.html')
     .then(r=>r.ok?r.text():Promise.reject())
-    .then(h=>{el.innerHTML=h;if(typeof initHeader==='function')initHeader();})
+    .then(h=>{
+      el.innerHTML=h;
+      el.querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function')initHeader();
+    })
     .catch(()=>{ /* 개발 환경에서 헤더 fetch 실패 시 무시 */ });
 })();
 
