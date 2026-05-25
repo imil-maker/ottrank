@@ -1251,8 +1251,8 @@ async function loadReviews(tmdbId){
         user:r.nickname||'익명',
         init:(r.nickname||'익')[0],
         score:r.score,
-        emotions:JSON.parse(r.emotions||'[]'),
-        customTags:JSON.parse(r.custom_tags||'[]'),
+        emotions:_safeParseArr(r.emotions),
+        customTags:_safeParseArr(r.custom_tags),
         text:r.text||'',
         time:formatTime(r.created_at),
         likes:r.likes||0,
@@ -1279,6 +1279,10 @@ async function loadReviews(tmdbId){
   }catch(e){}
 }
 
+function _safeParseArr(v){
+  if(!v) return [];
+  try{ const r=JSON.parse(v); return Array.isArray(r)?r:[]; }catch(e){ return []; }
+}
 function formatTime(isoStr){
   if(!isoStr) return '';
   const d=new Date(isoStr), now=new Date();
