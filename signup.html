@@ -132,7 +132,8 @@
         const data = await res.json();
 
         if (data.ok) {
-          location.href = '/';
+          const redirect = new URLSearchParams(location.search).get('redirect') || '';
+          location.href = redirect ? redirect + (redirect.includes('?') ? '&' : '?') + 'sid=' + sid : '/';
         } else {
           errMsg.textContent = data.message || '오류가 발생했어요. 다시 시도해주세요.';
           errMsg.style.display = 'block';
