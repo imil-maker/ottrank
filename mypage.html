@@ -335,15 +335,19 @@ function renderNextGrade(user,stats){
 }
 
 /* ══ URL 생성 ══ */
-function makeTitleUrl(title_ko,category,release_year,tmdb_id){
-  // _redirects 규칙: /title/:slug → /_title_detail.html
-  // URL 형식: /title/작품명-2024-12345 또는 /title/작품명-12345
-  const slug=(title_ko||'').trim()
+// _title_detail.html의 parseSlug 형식에 맞춰야 함
+// 형식: /title/{작품명}-{시즌}{연도}{tmdb_id}
+// 예: /title/원더풀스-120261375646 (시즌1 + 2026 + 1375646)
+function makeTitleUrl(title_ko, category, release_year, tmdb_id){
+  if(!tmdb_id) return '#';
+  const slug = (title_ko||'작품')
+    .trim()
     .replace(/\s+/g,'-')
     .replace(/[^\uAC00-\uD7A3a-zA-Z0-9\-]/g,'');
-  const year=release_year?String(release_year).slice(0,4):'';
-  const parts=[slug,year,String(tmdb_id)].filter(Boolean);
-  return `/title/${parts.join('-')}`;
+  const season = 1; // 기본 시즌 1
+  const year   = release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
+  // 시즌+연도+tmdb_id 붙여쓰기 (하이픈 없이!)
+  return `/title/${slug}-${season}${year}${tmdb_id}`;
 }
 
 /* ══ 찜한 작품 ══ */
