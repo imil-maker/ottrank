@@ -786,25 +786,10 @@ let myStars=0, hoverVal=0, myChart=null, curSort='latest', curPage=1;
 const PER_PAGE=5;
 let customTags=[];
 
-/* ══ 목데이터 ══ */
-const USER_DB={
-  '킹받는다킴':{init:'킹',joined:'2024년 3월',totalLikes:342,reviews:[
-    {title:'오징어 게임',platform:'netflix',score:5,text:'시즌1부터 쭉 봤는데 이번 시즌이 제일 완성도 높음',emotions:['긴장감 넘침','몰입감 최고'],customTags:[],time:'2시간 전',likes:128,poster:null},
-  ]},
-  '감성드라마덕후':{init:'감',joined:'2023년 11월',totalLikes:218,reviews:[
-    {title:'오징어 게임',platform:'netflix',score:4,text:'결말은 좀 아쉽지만 중간 에피소드들은 진짜 명장면',emotions:['감동적','슬프다'],customTags:[],time:'4시간 전',likes:87,poster:null},
-  ]},
-};
-let ALL_COMMENTS=[
-  {id:'c1',user:'킹받는다킴',init:'킹',score:5,emotions:['긴장감 넘침','몰입감 최고'],customTags:[],text:'시즌1부터 쭉 봤는데 이번 시즌이 제일 완성도 높음. 마지막화 충격이라 3일째 멍때리는 중ㅋㅋ',time:'2시간 전',likes:128,spoiler:false},
-  {id:'c2',user:'감성드라마덕후',init:'감',score:4,emotions:['감동적','슬프다'],customTags:[],text:'결말은 좀 아쉽지만 중간 에피소드들은 진짜 명장면의 연속. 456번 캐릭터 서사가 특히 좋았음',time:'4시간 전',likes:87,spoiler:false},
-  {id:'c3',user:'영화광parkk',init:'영',score:5,emotions:['재미있음','정주행 필수'],customTags:[],text:'주변에 아직 안 본 사람한테 적극 추천 중. 1화부터 끝까지 다 재밌어서 밤 새워버림',time:'6시간 전',likes:73,spoiler:false},
-  {id:'c4',user:'스포주의',init:'스',score:3,emotions:['결말이 아쉬움'],customTags:[],text:'최종 1위 결정 방식이 시즌1이랑 너무 비슷해서 좀 식상했음',time:'8시간 전',likes:45,spoiler:true},
-  {id:'c5',user:'OTT헤비유저',init:'O',score:5,emotions:['연기력 최고','몰입감 최고'],customTags:['에미상감'],text:'이정재 배우 이번에 연기 진짜 미쳤다. 특히 4화 독백씬은 교과서급 명연기.',time:'10시간 전',likes:156,spoiler:false},
-  {id:'c6',user:'첫화부터몰입',init:'첫',score:4,emotions:['독특한 설정'],customTags:[],text:'게임 설정이 시즌1보다 더 창의적임. 황동혁 감독 천재인 듯',time:'12시간 전',likes:62,spoiler:false},
-  {id:'c7',user:'드라마마니아',init:'드',score:5,emotions:['재미있음','긴장감 넘침'],customTags:[],text:'3회 연속 정주행했습니다. 이게 말이 됩니까 ㅋㅋ 심장이 쫄깃하다',time:'14시간 전',likes:94,spoiler:false},
-  {id:'c8',user:'넷플릭스고인물',init:'넷',score:4,emotions:['감동적'],customTags:['철학적'],text:'456번 캐릭터가 결국 그런 선택을 하는 이유가 너무 납득됨. 인간 본성에 대한 질문',time:'16시간 전',likes:71,spoiler:false},
-];
+/* ══ DB 연동 ══ */
+const REVIEW_API = 'https://ottrank-api.tdidream.workers.dev';
+let ALL_COMMENTS = [];
+let MY_REVIEW = null;
 
 /* ══ SEO 동적 업데이트 ══ */
 function updateSEO(title,overview,posterUrl,platform,rank){
@@ -1171,7 +1156,17 @@ function renderComments(){
     </div>`).join('')}</div>`;
   renderPagination();
 }
-function likeComment(id){const c=ALL_COMMENTS.find(x=>x.id===id);if(!c)return;c.likes++;const el=document.getElementById('like_'+id);if(el)el.textContent=c.likes;}
+async function likeComment(id){
+  const c=ALL_COMMENTS.find(x=>x.id===id);
+  if(!c) return;
+  const tmdbId=WORK?.tmdb_id;
+  try{
+    await fetch(`${REVIEW_API}/reviews/${tmdbId}/like/${id}`,{method:'POST'});
+    c.likes++;
+    const el=document.getElementById('like_'+id);
+    if(el) el.textContent=c.likes;
+  }catch(e){}
+}
 function shareComment(id,user){
   const url=`${window.location.href.split('#')[0]}#${id}`;
   const text=`오뜨랑에서 "${WORK.title}" ${user}님의 후기를 확인해보세요!`;
@@ -1212,23 +1207,90 @@ function setStar(wrap){myStars=hoverVal||(wrap.dataset.v*1);renderStarInput(mySt
 function renderStarInput(val){document.querySelectorAll('.star-wrap').forEach((w,i)=>{const v=i+1;w.classList.remove('full','half');if(val>=v)w.classList.add('full');else if(val>=v-0.5)w.classList.add('half');});}
 
 /* ══ 댓글 등록 ══ */
-function submitComment(){
+async function submitComment(){
   const txt=document.getElementById('commentInput').value.trim();
   if(!myStars){showToast('별점을 먼저 선택해주세요');return;}
   if(!txt){showToast('한줄 감상을 입력해주세요');return;}
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){
+    const redirect=encodeURIComponent(location.pathname+location.search);
+    location.href='/login.html?redirect='+redirect;
+    return;
+  }
   const spoiler=document.getElementById('spoilerCheck').checked;
   const preset=[...document.querySelectorAll('.etag.on')].map(e=>e.textContent);
-  const newId='c'+Date.now();
-  ALL_COMMENTS.unshift({id:newId,user:'나',init:'나',score:myStars,emotions:preset,customTags:[...customTags],text:txt,time:'방금',likes:0,spoiler});
-  curPage=1; renderComments(); updateUserRatingCard();
-  document.getElementById('commentInput').value='';
-  document.getElementById('charCount').textContent='0 / 140';
-  document.getElementById('spoilerCheck').checked=false;
-  renderStarInput(0); myStars=0;
-  document.getElementById('starLabel').textContent='별점을 선택하세요';
-  document.querySelectorAll('.etag').forEach(b=>{b.classList.remove('on','disabled');});
-  customTags=[]; renderCustomTags(); updateEtagCount();
-  showToast('후기가 등록됐어요! 공유해보세요 🎉');
+  const tmdbId=WORK?.tmdb_id;
+  if(!tmdbId){showToast('작품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');return;}
+  try{
+    const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid},
+      body:JSON.stringify({score:myStars,emotions:preset,custom_tags:customTags,text:txt,spoiler}),
+    });
+    const data=await res.json();
+    if(!data.ok){showToast(data.message||'오류가 발생했어요');return;}
+    // 등록 성공 후 목록 새로고침
+    await loadReviews(tmdbId);
+    document.getElementById('commentInput').value='';
+    document.getElementById('charCount').textContent='0 / 140';
+    document.getElementById('spoilerCheck').checked=false;
+    renderStarInput(0); myStars=0;
+    document.getElementById('starLabel').textContent='별점을 선택하세요';
+    document.querySelectorAll('.etag').forEach(b=>{b.classList.remove('on','disabled');});
+    customTags=[]; renderCustomTags(); updateEtagCount();
+    showToast('후기가 등록됐어요! 공유해보세요 🎉');
+  }catch(e){showToast('네트워크 오류가 발생했어요');}
+}
+
+async function loadReviews(tmdbId){
+  if(!tmdbId) return;
+  try{
+    const sid=localStorage.getItem('ottrang_sid');
+    // 전체 후기
+    const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`);
+    const data=await res.json();
+    if(data.ok){
+      ALL_COMMENTS=(data.data||[]).map(r=>({
+        id:r.id,
+        user:r.nickname||'익명',
+        init:(r.nickname||'익')[0],
+        score:r.score,
+        emotions:JSON.parse(r.emotions||'[]'),
+        customTags:JSON.parse(r.custom_tags||'[]'),
+        text:r.text||'',
+        time:formatTime(r.created_at),
+        likes:r.likes||0,
+        spoiler:!!r.spoiler,
+        user_id:r.user_id,
+      }));
+    }
+    // 내 후기
+    if(sid){
+      const meRes=await fetch(`${REVIEW_API}/reviews/${tmdbId}/me`,{
+        headers:{Authorization:'Bearer '+sid}
+      });
+      const meData=await meRes.json();
+      MY_REVIEW=meData.data||null;
+      if(MY_REVIEW){
+        myStars=MY_REVIEW.score;
+        renderStarInput(myStars);
+        document.getElementById('starLabel').textContent=myStars+'점';
+        document.getElementById('commentInput').value=MY_REVIEW.text||'';
+        updateCharCount(document.getElementById('commentInput'));
+      }
+    }
+    curPage=1; renderComments(); updateUserRatingCard();
+  }catch(e){}
+}
+
+function formatTime(isoStr){
+  if(!isoStr) return '';
+  const d=new Date(isoStr), now=new Date();
+  const diff=Math.floor((now-d)/1000);
+  if(diff<60) return '방금';
+  if(diff<3600) return Math.floor(diff/60)+'분 전';
+  if(diff<86400) return Math.floor(diff/3600)+'시간 전';
+  return Math.floor(diff/86400)+'일 전';
 }
 function updateUserRatingCard(){
   if(!ALL_COMMENTS.length){document.getElementById('userRatingEmpty').style.display='flex';document.getElementById('userRatingFilled').style.display='none';return;}
@@ -1406,8 +1468,10 @@ function showDetail(){
 
 /* ══ 초기화 ══ */
 async function init(){
-  renderComments(); updateUserRatingCard(); reorderSections(); renderChart(WORK.platform); renderYt();
+  reorderSections(); renderChart(WORK.platform); renderYt();
   await loadTmdb();
+  if(WORK.tmdb_id) await loadReviews(WORK.tmdb_id);
+  else { renderComments(); updateUserRatingCard(); }
   if(location.hash) setTimeout(()=>{const el=document.querySelector(location.hash);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},700);
 }
 init();
