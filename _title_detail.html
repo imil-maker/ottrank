@@ -257,6 +257,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .c-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .c-share{font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;background:none;border:none;padding:0;transition:color .15s}
 .c-share:hover{color:var(--info)}
+.c-delete-btn{background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer;font-family:var(--font-mono);padding:0;margin-left:4px;}
+.c-delete-btn:hover{text-decoration:underline;}
 .c-like{font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:10px;border:.5px solid var(--border);transition:all .15s}
 .c-like:hover{color:var(--accent);border-color:rgba(230,57,70,.4);background:var(--danger-bg)}
 .c-ebadge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
@@ -1148,6 +1150,7 @@ function renderComments(){
         <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">🔗 이 후기 공유</button>
         ${c.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}
         ${c.customTags.map(t=>`<span class="c-cbadge">${t}</span>`).join('')}
+        ${c.isMe?`<button class="c-delete-btn" onclick="deleteMyReview(${c.id})">삭제</button>`:''}
       </div>
     </div>`).join('')}</div>`;
   renderPagination();
@@ -1258,6 +1261,7 @@ async function loadReviews(tmdbId){
         likes:r.likes||0,
         spoiler:!!r.spoiler,
         user_id:r.user_id,
+        isMe:false,
       }));
     }
     // 내 후기
@@ -1273,10 +1277,38 @@ async function loadReviews(tmdbId){
         document.getElementById('starLabel').textContent=myStars+'점';
         document.getElementById('commentInput').value=MY_REVIEW.text||'';
         updateCharCount(document.getElementById('commentInput'));
+        // 내 글 표시
+        ALL_COMMENTS=ALL_COMMENTS.map(c=>({...c, isMe: c.id===MY_REVIEW.id}));
       }
     }
     curPage=1; renderComments(); updateUserRatingCard();
   }catch(e){}
+}
+
+async function deleteMyReview(reviewId){
+  if(!confirm('이 후기를 삭제할까요?')) return;
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid) return;
+  const tmdbId=WORK?.tmdb_id;
+  try{
+    const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`,{
+      method:'DELETE',
+      headers:{Authorization:'Bearer '+sid},
+    });
+    const data=await res.json();
+    if(data.ok){
+      MY_REVIEW=null;
+      myStars=0;
+      renderStarInput(0);
+      document.getElementById('starLabel').textContent='별점을 선택하세요';
+      document.getElementById('commentInput').value='';
+      document.getElementById('charCount').textContent='0 / 140';
+      await loadReviews(tmdbId);
+      showToast('후기가 삭제됐어요');
+    } else {
+      showToast(data.message||'삭제 실패');
+    }
+  }catch(e){ showToast('네트워크 오류'); }
 }
 
 function _safeParseArr(v){
