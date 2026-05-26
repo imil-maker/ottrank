@@ -567,6 +567,10 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
             status = "✓" if poster_path else "✗ 미매칭(안전)"
             print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
 
+    # 디버그 (박스오피스 확인용)
+    if platform == 'boxoffice':
+        print(f"  [DEBUG] {title_ko_final} | title_en='{title_en}' | tmdb_id={tmdb_id}")
+
     conn.execute("""
         INSERT OR REPLACE INTO rankings
             (date, platform, category, rank, title_ko, title_en, score,
