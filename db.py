@@ -320,6 +320,22 @@ def init_db():
         )
     """)
     conn.commit()
+
+    # 기존 DB에 누락된 컬럼 자동 추가 (ALTER TABLE은 이미 있으면 오류 → 무시)
+    migrations = [
+        "ALTER TABLE rankings ADD COLUMN is_manual   INTEGER DEFAULT 0",
+        "ALTER TABLE rankings ADD COLUMN genre        TEXT    DEFAULT NULL",
+        "ALTER TABLE rankings ADD COLUMN overview     TEXT    DEFAULT NULL",
+        "ALTER TABLE rankings ADD COLUMN release_year INTEGER DEFAULT NULL",
+        "ALTER TABLE rankings ADD COLUMN tmdb_rating  REAL    DEFAULT NULL",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+            conn.commit()
+        except Exception:
+            pass  # 이미 컬럼 있으면 무시
+
     return conn
 
 
