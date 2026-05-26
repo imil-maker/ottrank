@@ -30,40 +30,57 @@ def _fetch_detail(tmdb_id: int, media_type: str):
     """tmdb_id로 상세정보 조회
     반환: (title_ko, poster, genre, overview, release_year, tmdb_rating, title_en)
     media_type 실패 시 반대 타입(tv↔movie)으로 자동 재시도
+    original_title이 한글(한국 작품)이면 en-US로 재조회해서 영어 제목 확보
     """
-    def _fetch(mid, mtype):
+    def _fetch_raw(mid, mtype, lang="ko-KR"):
         try:
             url  = f"{TMDB_PROXY}/{mtype}/{mid}"
-            resp = requests.get(url, params={"language": "ko-KR"}, timeout=10)
+            resp = requests.get(url, params={"language": lang}, timeout=10)
             if resp.status_code == 200:
-                data         = resp.json()
-                title_ko     = data.get("name") or data.get("title") or ""
-                # 영어 원제: original_title(영화) 또는 original_name(TV)
-                title_en     = data.get("original_title") or data.get("original_name") or ""
-                poster       = data.get("poster_path") or ""
-                genres       = data.get("genres", [])
-                genre_str    = ",".join(g.get("name","") for g in genres if g.get("name"))
-                overview     = data.get("overview") or ""
-                date_str     = data.get("release_date") or data.get("first_air_date") or ""
-                release_year = int(date_str[:4]) if date_str and len(date_str) >= 4 else None
-                tmdb_rating  = data.get("vote_average") or None
-                return title_ko, poster, genre_str, overview, release_year, tmdb_rating, title_en
+                return resp.json()
         except Exception:
             pass
         return None
 
-    # 1차 시도
-    result = _fetch(tmdb_id, media_type)
-    if result and result[0]:
-        return result
+    # 1차 시도 (ko-KR)
+    data = _fetch_raw(tmdb_id, media_type)
 
     # 2차 시도 — 반대 타입으로 재시도 (tv↔movie)
-    other_type = 'movie' if media_type == 'tv' else 'tv'
-    result = _fetch(tmdb_id, other_type)
-    if result and result[0]:
-        return result
+    if not data or not (data.get("name") or data.get("title")):
+        other_type = 'movie' if media_type == 'tv' else 'tv'
+        data = _fetch_raw(tmdb_id, other_type)
+        actual_type = other_type
+    else:
+        actual_type = media_type
 
-    return "", "", "", "", None, None, ""
+    if not data:
+        return "", "", "", "", None, None, ""
+
+    title_ko     = data.get("name") or data.get("title") or ""
+    poster       = data.get("poster_path") or ""
+    genres       = data.get("genres", [])
+    genre_str    = ",".join(g.get("name","") for g in genres if g.get("name"))
+    overview     = data.get("overview") or ""
+    date_str     = data.get("release_date") or data.get("first_air_date") or ""
+    release_year = int(date_str[:4]) if date_str and len(date_str) >= 4 else None
+    tmdb_rating  = data.get("vote_average") or None
+    original     = data.get("original_title") or data.get("original_name") or ""
+
+    if original and not _is_korean(original):
+        # original_title이 영어(외국 작품) → 그대로 사용
+        title_en = original
+    else:
+        # original_title이 한글(한국 작품) → en-US로 재조회해서 영어 제목 확보
+        en_data = _fetch_raw(tmdb_id, actual_type, lang="en-US")
+        if not en_data:
+            other_type = 'movie' if actual_type == 'tv' else 'tv'
+            en_data = _fetch_raw(tmdb_id, other_type, lang="en-US")
+        if en_data:
+            title_en = en_data.get("title") or en_data.get("name") or original
+        else:
+            title_en = original
+
+    return title_ko, poster, genre_str, overview, release_year, tmdb_rating, title_en
 
 
 # ══════════════════════════════════════════════════════
