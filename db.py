@@ -395,8 +395,7 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
 
     else:
-        # ── 이전 날짜에서 같은 제목의 매칭 이력 먼저 확인 ──
-        # title_ko 또는 title_en으로 검색, 수동매칭(is_manual=1) 우선
+        # ── 1순위: 이전 날짜 캐시 재사용 ──
         cached = conn.execute("""
             SELECT tmdb_id, poster_path FROM rankings
             WHERE (title_ko = ? OR title_en = ?) AND tmdb_id IS NOT NULL
@@ -410,16 +409,47 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
             title_ko_final = title_ko
             print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(캐시재사용)")
         else:
-            # ── 캐시 없으면 3단계 매칭 전략 실행 ──
-            tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
-            if ko_title and _is_korean(ko_title):
-                title_ko_final = ko_title
+            # ── 2순위: title_map DB에서 영어↔한글 매핑 조회 ──
+            mapped = conn.execute("""
+                SELECT title_ko, tmdb_id FROM title_map
+                WHERE title_en = ? OR title_ko = ?
+                LIMIT 1
+            """, (title_ko, title_ko)).fetchone()
+
+            if not mapped and title_en:
+                mapped = conn.execute("""
+                    SELECT title_ko, tmdb_id FROM title_map
+                    WHERE title_en = ? OR title_ko = ?
+                    LIMIT 1
+                """, (title_en, title_en)).fetchone()
+
+            if mapped and mapped[1]:
+                tmdb_id        = mapped[1]
+                title_ko_final = mapped[0] or title_ko
+                ko, poster_path, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+                poster_path    = poster_path or None
+                print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(title_map매핑)")
             else:
-                title_ko_final = title_ko
-            if tmdb_id:
-                _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-            status = "✓" if poster_path else "✗ 미매칭(안전)"
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
+                # ── 3순위: 3단계 매칭 전략 실행 ──
+                tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
+                if ko_title and _is_korean(ko_title):
+                    title_ko_final = ko_title
+                else:
+                    title_ko_final = title_ko
+                if tmdb_id:
+                    _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+                    # 매칭 성공 시 title_map에 자동 저장 (영어 제목이 있을 때)
+                    if title_en and title_en != title_ko:
+                        try:
+                            conn.execute("""
+                                INSERT OR IGNORE INTO title_map (title_en, title_ko, tmdb_id, category)
+                                VALUES (?, ?, ?, ?)
+                            """, (title_en, title_ko_final, tmdb_id, media_type))
+                            conn.commit()
+                        except Exception:
+                            pass
+                status = "✓" if poster_path else "✗ 미매칭(안전)"
+                print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
 
     conn.execute("""
         INSERT OR REPLACE INTO rankings
