@@ -11,11 +11,18 @@ HEADERS = {
     "locale": "ko-KR",
     "timezone_id": "Asia/Seoul",
 }
-CATEGORY_ORDER = {
-    "netflix": ["movie", "tv"],
-    "wavve":   ["tv", "movie"],
-    "coupang": ["tv", "movie"],
-    "disney":  ["tv", "movie"],
+
+# { platform: { category: table_index } }
+# FlixPatrol 페이지에서 실제 테이블 위치 (0부터 시작)
+# 넷플릭스: Overall(0), TV(1), Movie(2) ... → movie=0, tv=1
+# 쿠팡:    Overall(0), Movie(1), TV(2)   → movie=1, tv=2
+# 웨이브:   Overall(0), Movie(1), TV(2), TV(in korean)(3) → movie=1, tv=3
+# 디즈니:   Overall(0), Movie(1), TV(2)  → movie=1, tv=2
+CATEGORY_TABLE_INDEX = {
+    "netflix": {"movie": 0, "tv": 1},
+    "coupang": {"movie": 1, "tv": 2},
+    "wavve":   {"movie": 1, "tv": 3},
+    "disney":  {"movie": 1, "tv": 2},
 }
 
 async def crawl_flixpatrol(url: str, platform: str, conn):
@@ -36,11 +43,13 @@ async def crawl_flixpatrol(url: str, platform: str, conn):
             await page.wait_for_selector("table.card-table", timeout=20000)
             tables = await page.query_selector_all("table.card-table")
             print(f"  [{platform}] card-table 개수: {len(tables)}")
-            order = CATEGORY_ORDER.get(platform, ["tv", "movie"])
-            for idx, category in enumerate(order):
+
+            table_index = CATEGORY_TABLE_INDEX.get(platform, {"movie": 0, "tv": 1})
+            for category, idx in table_index.items():
                 if idx >= len(tables):
-                    print(f"  [{platform}][{category}] ⚠️  테이블 없음")
+                    print(f"  [{platform}][{category}] ⚠️  테이블 없음 (index={idx}, 전체={len(tables)})")
                     continue
+                print(f"  [{platform}][{category}] 테이블 index={idx} 사용")
                 await _parse_table(tables[idx], conn, platform, category)
         except Exception as e:
             print(f"  [{platform}] 에러: {e}")
