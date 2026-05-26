@@ -73,22 +73,26 @@ def export():
     print(f"  works: {len(works_rows)}개")
 
     # ── 3. title_map (전체 upsert) ───────────────────────────
-    map_rows = conn.execute("""
-        SELECT title_en, title_ko, tmdb_id, category
-        FROM title_map
-        WHERE title_en IS NOT NULL
-        ORDER BY id
-    """).fetchall()
+    try:
+        map_rows = conn.execute("""
+            SELECT title_en, title_ko, tmdb_id, category
+            FROM title_map
+            WHERE title_en IS NOT NULL
+            ORDER BY id
+        """).fetchall()
 
-    for row in map_rows:
-        title_en, title_ko, tmdb_id, category = row
-        lines.append(
-            f"INSERT OR REPLACE INTO title_map "
-            f"(title_en, title_ko, tmdb_id, category) "
-            f"VALUES ({esc(title_en)}, {esc(title_ko)}, "
-            f"{tmdb_id if tmdb_id else 'NULL'}, {esc(category)});"
-        )
-    print(f"  title_map: {len(map_rows)}개")
+        for row in map_rows:
+            title_en, title_ko, tmdb_id, category = row
+            lines.append(
+                f"INSERT OR REPLACE INTO title_map "
+                f"(title_en, title_ko, tmdb_id, category) "
+                f"VALUES ({esc(title_en)}, {esc(title_ko)}, "
+                f"{tmdb_id if tmdb_id else 'NULL'}, {esc(category)});"
+            )
+        print(f"  title_map: {len(map_rows)}개")
+    except Exception as e:
+        map_rows = []
+        print(f"  title_map: 0개 (테이블 없음 — 스킵)")
 
     conn.close()
 
