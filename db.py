@@ -319,9 +319,29 @@ def init_db():
             UNIQUE(date, platform, category, rank)
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS works (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            tmdb_id      INTEGER NOT NULL UNIQUE,
+            category     TEXT    DEFAULT '',
+            title_ko     TEXT    DEFAULT '',
+            title_en     TEXT    DEFAULT '',
+            poster_path  TEXT    DEFAULT NULL,
+            genre        TEXT    DEFAULT NULL,
+            overview     TEXT    DEFAULT NULL,
+            release_year INTEGER DEFAULT NULL,
+            tmdb_rating  REAL    DEFAULT NULL,
+            runtime      INTEGER DEFAULT NULL,
+            imdb_id      TEXT    DEFAULT NULL,
+            imdb_rating  REAL    DEFAULT NULL,
+            imdb_votes   TEXT    DEFAULT NULL,
+            imdb_updated TEXT    DEFAULT NULL,
+            updated_at   TEXT    DEFAULT (datetime('now','localtime'))
+        )
+    """)
     conn.commit()
 
-    # 기존 DB에 누락된 컬럼 자동 추가 (ALTER TABLE은 이미 있으면 오류 → 무시)
+    # 기존 DB에 누락된 컬럼 자동 추가
     migrations = [
         "ALTER TABLE rankings ADD COLUMN is_manual   INTEGER DEFAULT 0",
         "ALTER TABLE rankings ADD COLUMN genre        TEXT    DEFAULT NULL",
