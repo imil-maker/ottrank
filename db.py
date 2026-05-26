@@ -392,16 +392,21 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
 
     # ── FlixPatrol에서 직접 추출한 TMDB ID ──
     if tmdb_id_override and poster_override:
-        tmdb_id        = tmdb_id_override
-        poster_path    = poster_override
+        tmdb_id     = tmdb_id_override
+        poster_path = poster_override
         ko_title, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-        title_ko_final = ko_title or title_ko
+        # title_en = 크롤링 원제 (영어), title_ko = TMDB ko-KR 한글 제목
+        title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
+        if not title_en:
+            title_en = title_ko  # 크롤링 원제를 title_en으로 보존
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(직접)")
 
     elif tmdb_id_override:
-        tmdb_id        = tmdb_id_override
+        tmdb_id = tmdb_id_override
         ko_title, poster_path, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-        title_ko_final = ko_title or title_ko
+        title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
+        if not title_en:
+            title_en = title_ko  # 크롤링 원제를 title_en으로 보존
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
 
     else:
@@ -507,14 +512,16 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
 def _upsert_work(conn, tmdb_id, category, title_ko, title_en,
                  poster_path, genre, overview, release_year, tmdb_rating):
     try:
+        # title_ko가 한글인지 확인 — 한글 아니면 기존 값 유지
+        ko_is_korean = _is_korean(title_ko or '')
         conn.execute("""
             INSERT INTO works
                 (tmdb_id, category, title_ko, title_en, poster_path,
                  genre, overview, release_year, tmdb_rating, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
             ON CONFLICT(tmdb_id) DO UPDATE SET
-                title_ko     = excluded.title_ko,
-                title_en     = excluded.title_en,
+                title_ko     = CASE WHEN ? = 1 THEN excluded.title_ko ELSE title_ko END,
+                title_en     = COALESCE(NULLIF(excluded.title_en,''), title_en),
                 poster_path  = COALESCE(excluded.poster_path, poster_path),
                 genre        = COALESCE(excluded.genre, genre),
                 overview     = COALESCE(excluded.overview, overview),
@@ -523,7 +530,8 @@ def _upsert_work(conn, tmdb_id, category, title_ko, title_en,
                 updated_at   = datetime('now','localtime')
         """, (tmdb_id, category, title_ko, title_en or '',
               poster_path or None, genre or None, overview or None,
-              release_year, tmdb_rating))
+              release_year, tmdb_rating,
+              1 if ko_is_korean else 0))  # CASE WHEN 파라미터
         conn.commit()
     except Exception as e:
         print(f"  works upsert 오류: {e}")
