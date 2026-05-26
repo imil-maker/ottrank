@@ -477,29 +477,30 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
                 if _is_korean(ko or ''):
                     title_ko_final = ko
                     try:
-                        conn.execute(
-                            "UPDATE works SET title_ko = ? WHERE tmdb_id = ?",
-                            (ko, tmdb_id)
-                        )
+                        conn.execute("UPDATE works SET title_ko = ? WHERE tmdb_id = ?", (ko, tmdb_id))
                         conn.commit()
                     except Exception:
                         pass
                 else:
                     title_ko_final = works_row[1] or title_ko
 
-            # title_en 없으면 works의 title_en 또는 TMDB original_title로 채우기
-            if not title_en:
-                title_en = works_row[2] or tmdb_title_en or title_ko
-            # works에 title_en 없으면 업데이트
-            if not works_row[2] and title_en:
-                try:
-                    conn.execute(
-                        "UPDATE works SET title_en = ? WHERE tmdb_id = ?",
-                        (title_en, tmdb_id)
-                    )
-                    conn.commit()
-                except Exception:
-                    pass
+            # title_en 처리 — 한글이거나 비어있으면 TMDB en-US로 재조회
+            works_title_en = works_row[2] or ""
+            if not works_title_en or _is_korean(works_title_en):
+                # TMDB에서 가져온 영어 제목 사용
+                en = tmdb_title_en if (tmdb_title_en and not _is_korean(tmdb_title_en)) else ""
+                if en:
+                    title_en = en
+                    # works 테이블 영어 제목 업데이트
+                    try:
+                        conn.execute("UPDATE works SET title_en = ? WHERE tmdb_id = ?", (en, tmdb_id))
+                        conn.commit()
+                    except Exception:
+                        pass
+                else:
+                    title_en = works_title_en or title_ko
+            else:
+                title_en = works_title_en
 
             print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(works DB)")
 
