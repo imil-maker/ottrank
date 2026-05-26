@@ -429,11 +429,33 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
             """, (title_ko, title_ko)).fetchone()
 
         if works_row and works_row[0]:
-            tmdb_id        = works_row[0]
-            # 한글 제목 우선, 없으면 원제
-            title_ko_final = works_row[1] if _is_korean(works_row[1] or '') else (works_row[1] or title_ko)
-            poster_path    = works_row[3]
+            tmdb_id     = works_row[0]
+            poster_path = works_row[3]
             _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+
+            # title_ko가 한글인지 확인 — 영어면 TMDB ko-KR로 재조회 후 works 업데이트
+            if _is_korean(works_row[1] or ''):
+                title_ko_final = works_row[1]
+            else:
+                ko, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
+                if _is_korean(ko or ''):
+                    title_ko_final = ko
+                    # works 테이블 한글 제목 업데이트 (다음번엔 바로 한글로 나옴)
+                    try:
+                        conn.execute(
+                            "UPDATE works SET title_ko = ? WHERE tmdb_id = ?",
+                            (ko, tmdb_id)
+                        )
+                        conn.commit()
+                    except Exception:
+                        pass
+                else:
+                    title_ko_final = works_row[1] or title_ko
+
+            # title_en 보존 (크롤링 원제)
+            if not title_en:
+                title_en = works_row[2] or title_ko
+
             print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(works DB)")
 
         # ── 1순위: 이전 날짜 캐시 재사용 ──
