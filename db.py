@@ -339,9 +339,19 @@ def init_db():
             updated_at   TEXT    DEFAULT (datetime('now','localtime'))
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS title_map (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            title_en    TEXT NOT NULL UNIQUE,
+            title_ko    TEXT NOT NULL,
+            tmdb_id     INTEGER,
+            category    TEXT DEFAULT 'tv',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_title_map_en ON title_map(title_en)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_title_map_ko ON title_map(title_ko)")
     conn.commit()
-
-    # 기존 DB에 누락된 컬럼 자동 추가
     migrations = [
         "ALTER TABLE rankings ADD COLUMN is_manual   INTEGER DEFAULT 0",
         "ALTER TABLE rankings ADD COLUMN genre        TEXT    DEFAULT NULL",
