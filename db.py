@@ -395,61 +395,86 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
 
     else:
-        # ── 1순위: 이전 날짜 캐시 재사용 ──
-        cached = conn.execute("""
-            SELECT tmdb_id, poster_path FROM rankings
-            WHERE (title_ko = ? OR title_en = ?) AND tmdb_id IS NOT NULL
-            ORDER BY is_manual DESC, date DESC LIMIT 1
-        """, (title_ko, title_en or title_ko)).fetchone()
-
-        if cached and cached[0]:
-            tmdb_id        = cached[0]
-            poster_path    = cached[1]
-            _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-            title_ko_final = title_ko
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(캐시재사용)")
-        else:
-            # ── 2순위: title_map DB에서 영어↔한글 매핑 조회 ──
-            mapped = conn.execute("""
-                SELECT title_ko, tmdb_id FROM title_map
+        # ── 0순위: works 테이블 (우리 DB) 먼저 조회 ──
+        # tmdb_id 기준으로 쌓인 데이터 — 가장 신뢰도 높음
+        works_row = None
+        if title_en and title_en.strip():
+            works_row = conn.execute("""
+                SELECT tmdb_id, title_ko, title_en, poster_path
+                FROM works
                 WHERE title_en = ? OR title_ko = ?
+                LIMIT 1
+            """, (title_en.strip(), title_en.strip())).fetchone()
+        if not works_row:
+            works_row = conn.execute("""
+                SELECT tmdb_id, title_ko, title_en, poster_path
+                FROM works
+                WHERE title_ko = ? OR title_en = ?
                 LIMIT 1
             """, (title_ko, title_ko)).fetchone()
 
-            if not mapped and title_en:
-                mapped = conn.execute("""
-                    SELECT title_ko, tmdb_id FROM title_map
-                    WHERE title_en = ? OR title_ko = ?
-                    LIMIT 1
-                """, (title_en, title_en)).fetchone()
+        if works_row and works_row[0]:
+            tmdb_id        = works_row[0]
+            # 한글 제목 우선, 없으면 원제
+            title_ko_final = works_row[1] if _is_korean(works_row[1] or '') else (works_row[1] or title_ko)
+            poster_path    = works_row[3]
+            _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(works DB)")
 
-            if mapped and mapped[1]:
-                tmdb_id        = mapped[1]
-                title_ko_final = mapped[0] or title_ko
-                ko, poster_path, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-                poster_path    = poster_path or None
-                print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(title_map매핑)")
+        # ── 1순위: 이전 날짜 캐시 재사용 ──
+        elif (cached := conn.execute("""
+            SELECT tmdb_id, poster_path, title_ko FROM rankings
+            WHERE (title_ko = ? OR title_en = ?) AND tmdb_id IS NOT NULL
+            ORDER BY is_manual DESC, date DESC LIMIT 1
+        """, (title_ko, title_en or title_ko)).fetchone()) and cached[0]:
+            tmdb_id     = cached[0]
+            poster_path = cached[1]
+            # 캐시의 title_ko가 한글이면 사용, 아니면 TMDB에서 재조회
+            if _is_korean(cached[2] or ''):
+                title_ko_final = cached[2]
             else:
-                # ── 3순위: 3단계 매칭 전략 실행 ──
-                tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
-                if ko_title and _is_korean(ko_title):
-                    title_ko_final = ko_title
+                ko, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
+                title_ko_final = ko if _is_korean(ko or '') else title_ko
+            _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(캐시재사용)")
+
+        # ── 2순위: title_map DB에서 영어↔한글 매핑 조회 ──
+        elif (mapped := conn.execute("""
+            SELECT title_ko, tmdb_id FROM title_map
+            WHERE title_en = ? OR title_ko = ? OR title_en = ? OR title_ko = ?
+            LIMIT 1
+        """, (title_ko, title_ko, title_en or title_ko, title_en or title_ko)).fetchone()) and mapped[1]:
+            tmdb_id        = mapped[1]
+            title_ko_final = mapped[0] if _is_korean(mapped[0] or '') else title_ko
+            _, poster_path, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(title_map)")
+
+        else:
+            # ── 3순위: TMDB 검색 + Claude 검증 ──
+            tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
+            if ko_title and _is_korean(ko_title):
+                title_ko_final = ko_title
+            else:
+                # 매칭됐어도 한글 제목 없으면 TMDB ko-KR로 재조회
+                if tmdb_id:
+                    ko, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
+                    title_ko_final = ko if _is_korean(ko or '') else (title_ko or title_en or '')
                 else:
                     title_ko_final = title_ko
-                if tmdb_id:
-                    _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-                    # 매칭 성공 시 title_map에 자동 저장 (영어 제목이 있을 때)
-                    if title_en and title_en != title_ko:
-                        try:
-                            conn.execute("""
-                                INSERT OR IGNORE INTO title_map (title_en, title_ko, tmdb_id, category)
-                                VALUES (?, ?, ?, ?)
-                            """, (title_en, title_ko_final, tmdb_id, media_type))
-                            conn.commit()
-                        except Exception:
-                            pass
-                status = "✓" if poster_path else "✗ 미매칭(안전)"
-                print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
+            if tmdb_id:
+                _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+                # 매칭 성공 시 title_map에 자동 저장
+                if title_en and title_en.strip() and title_en.strip() != title_ko_final:
+                    try:
+                        conn.execute("""
+                            INSERT OR IGNORE INTO title_map (title_en, title_ko, tmdb_id, category)
+                            VALUES (?, ?, ?, ?)
+                        """, (title_en.strip(), title_ko_final, tmdb_id, media_type))
+                        conn.commit()
+                    except Exception:
+                        pass
+            status = "✓" if poster_path else "✗ 미매칭(안전)"
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
 
     conn.execute("""
         INSERT OR REPLACE INTO rankings
