@@ -428,14 +428,42 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
 
     # ── FlixPatrol에서 직접 추출한 TMDB ID ──
     if tmdb_id_override and poster_override:
-        tmdb_id     = tmdb_id_override
-        poster_path = poster_override
-        ko_title, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
-        title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
-        # title_en 없으면 TMDB original_title로 채우기
-        if not title_en:
-            title_en = tmdb_title_en or title_ko
-        print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(직접)")
+        # works에 같은 title_en으로 한글 매핑된 데이터가 있으면 우선 사용
+        # (FlixPatrol이 잘못된 TMDB ID를 줄 때 Admin 수동 수정 데이터 보호)
+        manual_works = conn.execute("""
+            SELECT tmdb_id, title_ko, title_en, poster_path FROM works
+            WHERE (title_en = ? OR title_en = ? OR title_ko = ?)
+            AND title_ko GLOB '*[가-힣]*'
+            ORDER BY CASE WHEN title_ko GLOB '*[가-힣]*' THEN 0 ELSE 1 END
+            LIMIT 1
+        """, (title_ko, title_en or title_ko, title_ko)).fetchone()
+
+        if manual_works and manual_works[0] and _is_korean(manual_works[1] or ''):
+            # Admin이 수동 저장한 올바른 데이터 사용
+            tmdb_id        = manual_works[0]
+            poster_path    = manual_works[3] or poster_override
+            title_ko_final = manual_works[1]
+            if not title_en:
+                title_en = manual_works[2] or title_ko
+            _, _, genre, overview, release_year, tmdb_rating, _ = _fetch_detail(tmdb_id, media_type)
+            # 잘못된 works 데이터 삭제 (같은 title_en인데 다른 tmdb_id)
+            try:
+                conn.execute("""
+                    DELETE FROM works 
+                    WHERE title_en = ? AND tmdb_id != ? AND title_ko NOT GLOB '*[가-힣]*'
+                """, (manual_works[2] or title_ko, tmdb_id))
+                conn.commit()
+            except Exception:
+                pass
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(Admin수동우선)")
+        else:
+            tmdb_id     = tmdb_id_override
+            poster_path = poster_override
+            ko_title, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
+            title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
+            if not title_en:
+                title_en = tmdb_title_en or title_ko
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(직접)")
 
     elif tmdb_id_override:
         tmdb_id = tmdb_id_override
@@ -454,6 +482,7 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
                 SELECT tmdb_id, title_ko, title_en, poster_path
                 FROM works
                 WHERE title_en = ? OR title_ko = ?
+                ORDER BY CASE WHEN title_ko GLOB '*[가-힣]*' THEN 0 ELSE 1 END
                 LIMIT 1
             """, (title_en.strip(), title_en.strip())).fetchone()
         if not works_row:
@@ -461,6 +490,7 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
                 SELECT tmdb_id, title_ko, title_en, poster_path
                 FROM works
                 WHERE title_ko = ? OR title_en = ?
+                ORDER BY CASE WHEN title_ko GLOB '*[가-힣]*' THEN 0 ELSE 1 END
                 LIMIT 1
             """, (title_ko, title_ko)).fetchone()
 
