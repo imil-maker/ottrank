@@ -1,4 +1,4 @@
-"""티빙 랭킹 크롤러 - 키노라이츠"""
+"""티빙 랭킹 크롤러 - 키노라이츠 (TV 시리즈만)"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -6,9 +6,9 @@ import asyncio
 from playwright.async_api import async_playwright
 from db import save
 
+# 티빙은 TV 시리즈 랭킹만 운영
 KINOLIGHTS_URLS = {
-    "tv":    "https://m.kinolights.com/ranking/tving?category=series",
-    "movie": "https://m.kinolights.com/ranking/tving?category=movie",
+    "tv": "https://m.kinolights.com/ranking/tving?category=series",
 }
 
 USER_AGENT = (
@@ -60,9 +60,9 @@ async def _crawl_category(page, conn, category: str, url: str):
                 if not title_el:
                     continue
 
-                title = (await title_el.inner_text()).strip()
+                title    = (await title_el.inner_text()).strip()
                 rank_txt = (await rank_el.inner_text()).strip() if rank_el else str(count + 1)
-                rank = int(rank_txt) if rank_txt.isdigit() else count + 1
+                rank     = int(rank_txt) if rank_txt.isdigit() else count + 1
 
                 if title:
                     save(conn, "tving", category, rank, title_ko=title)
