@@ -488,15 +488,15 @@ function renderTable() {
     document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
     return;
   }
-  document.getElementById('tableBody').innerHTML = rows.map(r => `
+  document.getElementById('tableBody').innerHTML = rows.map((r, idx) => `
     <tr>
       <td><span class="rank-num">${r.rank}</span></td>
       <td>${r.poster_path
         ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
         : `<div class="poster-ph">🎬</div>`}</td>
-      <td>
-        <div class="title-ko">${r.title_ko}</div>
-        <div class="title-en">${r.title_en || ''}</div>
+      <td style="max-width:220px">
+        <div class="title-ko" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko)}</div>
+        <div class="title-en" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en||'')}</div>
       </td>
       <td><span class="platform-badge" style="background:${PC[r.platform]||'#888'}">${r.platform}</span></td>
       <td><span class="cat-badge">${r.category}</span></td>
@@ -504,12 +504,27 @@ function renderTable() {
         ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
         : `<span class="no-tmdb">미등록</span>`}</td>
       <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
-      <td style="display:flex;gap:6px;align-items:center">
-        <button class="btn-sm btn-fix" onclick='openModal(${JSON.stringify(r)})'>수정</button>
+      <td style="white-space:nowrap;vertical-align:middle">
+        <button class="btn-sm btn-fix" onclick="openModalById(${idx})">수정</button>
         ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
       </td>
     </tr>
   `).join('');
+}
+
+// HTML 특수문자 이스케이프
+function _esc(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// idx 기반으로 모달 열기 (JSON.stringify로 overview 등 긴 텍스트가 HTML 깨는 문제 방지)
+function openModalById(idx) {
+  const r = allData.filter(row => {
+    if (curFilter === 'no_tmdb') return !row.tmdb_id;
+    if (curFilter !== 'all') return row.platform === curFilter;
+    return true;
+  })[idx];
+  if (r) openModal(r);
 }
 
 function openModal(r) {
