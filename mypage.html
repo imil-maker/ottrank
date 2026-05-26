@@ -242,6 +242,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div id="postArea"></div>
       <div class="pagination" id="postPager"></div>
     </div>
+
+    <!-- 회원탈퇴 (내 페이지 전용, 맨 아래 아주 작게) -->
+    <div id="withdrawArea" style="display:none;text-align:right;padding:8px 4px 0;margin-top:8px">
+      <button onclick="doWithdraw()" style="background:none;border:none;color:var(--muted);font-size:12px;font-family:var(--font-mono);cursor:pointer;text-decoration:underline;opacity:.5">
+        회원탈퇴
+      </button>
+    </div>
+
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -289,6 +297,7 @@ async function init(){
       document.getElementById('profileActions').style.display='block';
       document.getElementById('providerItem').style.display='flex';
       document.getElementById('wishPrivacyRow').style.display='flex';
+      document.getElementById('withdrawArea').style.display='block';
       updateWishToggleUI(WISH_PUBLIC);
     }
     show('loadingWrap','none');show('mypageContent','block');
@@ -550,6 +559,25 @@ async function doLogout(){
   const sid=localStorage.getItem('ottrang_sid');
   try{await fetch(`${API}/auth/logout`,{method:'POST',headers:{Authorization:'Bearer '+sid}});}catch(e){}
   localStorage.removeItem('ottrang_sid');location.href='/';
+}
+
+/* ══ 회원탈퇴 ══ */
+async function doWithdraw(){
+  const nickname=document.getElementById('profileNickname').textContent||'';
+  const confirmed=confirm(`${nickname}님의 찜 목록, 게시글, 평점 후기가 전부 삭제됩니다.\n\n정말 탈퇴하시겠습니까?`);
+  if(!confirmed)return;
+  const sid=localStorage.getItem('ottrang_sid');
+  try{
+    const res=await fetch(`${API}/auth/withdraw`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
+    const json=await res.json();
+    if(json.ok){
+      localStorage.removeItem('ottrang_sid');
+      alert('탈퇴가 완료됐습니다. 이용해 주셔서 감사합니다.');
+      location.href='/';
+    }else{
+      showToast(json.message||'탈퇴 처리 중 오류가 발생했습니다');
+    }
+  }catch(e){showToast('오류: '+e.message);}
 }
 
 /* ══ 유틸 ══ */
