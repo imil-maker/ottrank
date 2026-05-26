@@ -25,8 +25,6 @@ jobs:
         run: python run_all.py
       - name: Export rankings to SQL
         run: python export_to_sql.py
-      - name: Debug SQL (boxoffice 확인)
-        run: grep -i "boxoffice" rankings_insert.sql | head -5
       - name: Upload to Cloudflare D1
         uses: cloudflare/wrangler-action@v3
         with:
