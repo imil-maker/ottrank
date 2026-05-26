@@ -395,16 +395,31 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
 
     else:
-        # ── 3단계 매칭 전략 실행 ──
-        tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
-        if ko_title and _is_korean(ko_title):
-            title_ko_final = ko_title
-        else:
-            title_ko_final = title_ko
-        if tmdb_id:
+        # ── 이전 날짜에서 같은 제목의 매칭 이력 먼저 확인 ──
+        # title_ko 또는 title_en으로 검색, 수동매칭(is_manual=1) 우선
+        cached = conn.execute("""
+            SELECT tmdb_id, poster_path FROM rankings
+            WHERE (title_ko = ? OR title_en = ?) AND tmdb_id IS NOT NULL
+            ORDER BY is_manual DESC, date DESC LIMIT 1
+        """, (title_ko, title_en or title_ko)).fetchone()
+
+        if cached and cached[0]:
+            tmdb_id        = cached[0]
+            poster_path    = cached[1]
             _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-        status = "✓" if poster_path else "✗ 미매칭(안전)"
-        print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
+            title_ko_final = title_ko
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(캐시재사용)")
+        else:
+            # ── 캐시 없으면 3단계 매칭 전략 실행 ──
+            tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
+            if ko_title and _is_korean(ko_title):
+                title_ko_final = ko_title
+            else:
+                title_ko_final = title_ko
+            if tmdb_id:
+                _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+            status = "✓" if poster_path else "✗ 미매칭(안전)"
+            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
 
     conn.execute("""
         INSERT OR REPLACE INTO rankings
