@@ -528,6 +528,7 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         elif (mapped := conn.execute("""
             SELECT title_ko, tmdb_id FROM title_map
             WHERE title_en = ? OR title_ko = ? OR title_en = ? OR title_ko = ?
+            ORDER BY tmdb_id IS NOT NULL DESC
             LIMIT 1
         """, (title_ko, title_ko, title_en or title_ko, title_en or title_ko)).fetchone()) and mapped[1]:
             tmdb_id        = mapped[1]
