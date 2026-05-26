@@ -27,24 +27,43 @@ ANTHROPIC_URL     = "https://api.anthropic.com/v1/messages"
 # TMDB 상세 조회
 # ══════════════════════════════════════════════════════
 def _fetch_detail(tmdb_id: int, media_type: str):
-    """tmdb_id로 상세정보 조회 → (title_ko, poster, genre, overview, release_year, tmdb_rating)"""
-    try:
-        url  = f"{TMDB_PROXY}/{media_type}/{tmdb_id}"
-        resp = requests.get(url, params={"language": "ko-KR"}, timeout=10)
-        if resp.status_code == 200:
-            data         = resp.json()
-            title_ko     = data.get("name") or data.get("title") or ""
-            poster       = data.get("poster_path") or ""
-            genres       = data.get("genres", [])
-            genre_str    = ",".join(g.get("name","") for g in genres if g.get("name"))
-            overview     = data.get("overview") or ""
-            date_str     = data.get("release_date") or data.get("first_air_date") or ""
-            release_year = int(date_str[:4]) if date_str and len(date_str) >= 4 else None
-            tmdb_rating  = data.get("vote_average") or None
-            return title_ko, poster, genre_str, overview, release_year, tmdb_rating
-    except Exception:
-        pass
-    return "", "", "", "", None, None
+    """tmdb_id로 상세정보 조회
+    반환: (title_ko, poster, genre, overview, release_year, tmdb_rating, title_en)
+    media_type 실패 시 반대 타입(tv↔movie)으로 자동 재시도
+    """
+    def _fetch(mid, mtype):
+        try:
+            url  = f"{TMDB_PROXY}/{mtype}/{mid}"
+            resp = requests.get(url, params={"language": "ko-KR"}, timeout=10)
+            if resp.status_code == 200:
+                data         = resp.json()
+                title_ko     = data.get("name") or data.get("title") or ""
+                # 영어 원제: original_title(영화) 또는 original_name(TV)
+                title_en     = data.get("original_title") or data.get("original_name") or ""
+                poster       = data.get("poster_path") or ""
+                genres       = data.get("genres", [])
+                genre_str    = ",".join(g.get("name","") for g in genres if g.get("name"))
+                overview     = data.get("overview") or ""
+                date_str     = data.get("release_date") or data.get("first_air_date") or ""
+                release_year = int(date_str[:4]) if date_str and len(date_str) >= 4 else None
+                tmdb_rating  = data.get("vote_average") or None
+                return title_ko, poster, genre_str, overview, release_year, tmdb_rating, title_en
+        except Exception:
+            pass
+        return None
+
+    # 1차 시도
+    result = _fetch(tmdb_id, media_type)
+    if result and result[0]:
+        return result
+
+    # 2차 시도 — 반대 타입으로 재시도 (tv↔movie)
+    other_type = 'movie' if media_type == 'tv' else 'tv'
+    result = _fetch(tmdb_id, other_type)
+    if result and result[0]:
+        return result
+
+    return "", "", "", "", None, None, ""
 
 
 # ══════════════════════════════════════════════════════
@@ -394,19 +413,19 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
     if tmdb_id_override and poster_override:
         tmdb_id     = tmdb_id_override
         poster_path = poster_override
-        ko_title, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
-        # title_en = 크롤링 원제 (영어), title_ko = TMDB ko-KR 한글 제목
+        ko_title, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
         title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
+        # title_en 없으면 TMDB original_title로 채우기
         if not title_en:
-            title_en = title_ko  # 크롤링 원제를 title_en으로 보존
+            title_en = tmdb_title_en or title_ko
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(직접)")
 
     elif tmdb_id_override:
         tmdb_id = tmdb_id_override
-        ko_title, poster_path, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+        ko_title, poster_path, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
         title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
         if not title_en:
-            title_en = title_ko  # 크롤링 원제를 title_en으로 보존
+            title_en = tmdb_title_en or title_ko
         print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
 
     else:
@@ -431,16 +450,15 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         if works_row and works_row[0]:
             tmdb_id     = works_row[0]
             poster_path = works_row[3]
-            _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+            _, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
 
             # title_ko가 한글인지 확인 — 영어면 TMDB ko-KR로 재조회 후 works 업데이트
             if _is_korean(works_row[1] or ''):
                 title_ko_final = works_row[1]
             else:
-                ko, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
+                ko, _, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
                 if _is_korean(ko or ''):
                     title_ko_final = ko
-                    # works 테이블 한글 제목 업데이트 (다음번엔 바로 한글로 나옴)
                     try:
                         conn.execute(
                             "UPDATE works SET title_ko = ? WHERE tmdb_id = ?",
@@ -452,9 +470,19 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
                 else:
                     title_ko_final = works_row[1] or title_ko
 
-            # title_en 보존 (크롤링 원제)
+            # title_en 없으면 works의 title_en 또는 TMDB original_title로 채우기
             if not title_en:
-                title_en = works_row[2] or title_ko
+                title_en = works_row[2] or tmdb_title_en or title_ko
+            # works에 title_en 없으면 업데이트
+            if not works_row[2] and title_en:
+                try:
+                    conn.execute(
+                        "UPDATE works SET title_en = ? WHERE tmdb_id = ?",
+                        (title_en, tmdb_id)
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
 
             print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(works DB)")
 
@@ -466,13 +494,16 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         """, (title_ko, title_en or title_ko)).fetchone()) and cached[0]:
             tmdb_id     = cached[0]
             poster_path = cached[1]
-            # 캐시의 title_ko가 한글이면 사용, 아니면 TMDB에서 재조회
             if _is_korean(cached[2] or ''):
                 title_ko_final = cached[2]
             else:
-                ko, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
+                ko, _, _, _, _, _, tmdb_en = _fetch_detail(tmdb_id, media_type)
                 title_ko_final = ko if _is_korean(ko or '') else title_ko
-            _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+                if not title_en:
+                    title_en = tmdb_en or title_ko
+            _, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
+            if not title_en:
+                title_en = tmdb_title_en or title_ko
             print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(캐시재사용)")
 
         # ── 2순위: title_map DB에서 영어↔한글 매핑 조회 ──
@@ -483,7 +514,9 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
         """, (title_ko, title_ko, title_en or title_ko, title_en or title_ko)).fetchone()) and mapped[1]:
             tmdb_id        = mapped[1]
             title_ko_final = mapped[0] if _is_korean(mapped[0] or '') else title_ko
-            _, poster_path, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+            _, poster_path, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
+            if not title_en:
+                title_en = tmdb_title_en or title_ko
             print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(title_map)")
 
         else:
@@ -492,14 +525,17 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
             if ko_title and _is_korean(ko_title):
                 title_ko_final = ko_title
             else:
-                # 매칭됐어도 한글 제목 없으면 TMDB ko-KR로 재조회
                 if tmdb_id:
-                    ko, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
+                    ko, _, _, _, _, _, tmdb_en = _fetch_detail(tmdb_id, media_type)
                     title_ko_final = ko if _is_korean(ko or '') else (title_ko or title_en or '')
+                    if not title_en:
+                        title_en = tmdb_en or title_ko
                 else:
                     title_ko_final = title_ko
             if tmdb_id:
-                _, _, genre, overview, release_year, tmdb_rating = _fetch_detail(tmdb_id, media_type)
+                _, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
+                if not title_en:
+                    title_en = tmdb_title_en or title_ko
                 # 매칭 성공 시 title_map에 자동 저장
                 if title_en and title_en.strip() and title_en.strip() != title_ko_final:
                     try:
@@ -534,7 +570,6 @@ def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
 def _upsert_work(conn, tmdb_id, category, title_ko, title_en,
                  poster_path, genre, overview, release_year, tmdb_rating):
     try:
-        # title_ko가 한글인지 확인 — 한글 아니면 기존 값 유지
         ko_is_korean = _is_korean(title_ko or '')
         conn.execute("""
             INSERT INTO works
@@ -553,12 +588,12 @@ def _upsert_work(conn, tmdb_id, category, title_ko, title_en,
         """, (tmdb_id, category, title_ko, title_en or '',
               poster_path or None, genre or None, overview or None,
               release_year, tmdb_rating,
-              1 if ko_is_korean else 0))  # CASE WHEN 파라미터
+              1 if ko_is_korean else 0))
         conn.commit()
     except Exception as e:
         print(f"  works upsert 오류: {e}")
 
 
 def _get_poster_by_id(tmdb_id: int, media_type: str):
-    _, poster, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
+    _, poster, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
     return poster or None
