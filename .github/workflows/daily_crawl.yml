@@ -1,41 +1,74 @@
-name: OTT Ranking Crawler
+name: OTT Ranking Crawler v2
+
 on:
   schedule:
     - cron: '0 0 * * *'   # 매일 09:00 KST (UTC 00:00)
-  workflow_dispatch:        # 수동 실행
+  workflow_dispatch:        # 수동 실행 (Actions 탭에서 버튼으로 실행 가능)
+
 jobs:
   crawl:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
+      # ── 1. 코드 체크아웃 ────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python 설치 ───────────────────────────────────────
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      # ── 3. 의존성 설치 ───────────────────────────────────────
       - name: Install dependencies
         run: |
-          pip install playwright requests
+          pip install playwright requests anthropic
           playwright install chromium
           playwright install-deps chromium
-      - name: Run crawler
+
+      # ── 4. D1 → 로컬 동기화 (⚠️ 절대 삭제 금지!) ───────────
+      # Admin 수동 저장 데이터 + ott_categories 슬롯 설정 로컬 반영
+      - name: Sync D1 data to local DB
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          echo "=== D1 동기화 시작 ==="
+          python sync_works.py
+          echo "=== D1 동기화 완료 ==="
+
+      # ── 5. 크롤링 실행 ───────────────────────────────────────
+      - name: Run crawlers
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
-          python sync_works.py
+          echo "=== 크롤링 시작 ==="
           python run_all.py
+          echo "=== 크롤링 완료 ==="
+
+      # ── 6. SQL 변환 ──────────────────────────────────────────
       - name: Export rankings to SQL
-        run: python export_to_sql.py
+        run: |
+          echo "=== SQL 변환 시작 ==="
+          python export_to_sql.py
+          echo "=== SQL 변환 완료 ==="
+
+      # ── 7. D1 업로드 ─────────────────────────────────────────
       - name: Upload to Cloudflare D1
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: d1 execute ottrank-db --file=./rankings_insert.sql --remote
+
+      # ── 8. rankings.db 커밋 ──────────────────────────────────
       - name: Commit rankings.db
         run: |
           git config user.name "github-actions[bot]"
