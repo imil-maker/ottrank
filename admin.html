@@ -193,6 +193,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div id="pageTabs" style="display:none">
   <div class="page-tabs">
     <button class="page-tab on"  onclick="switchPage('ranking',this)">📊 랭킹 관리</button>
+    <button class="page-tab"     onclick="switchPage('queue',this)">⚠️ 검토 큐 <span id="queueBadge" style="display:none;background:var(--red);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px"></span></button>
+    <button class="page-tab"     onclick="switchPage('categories',this)">⚙️ 카테고리 관리</button>
+    <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
     <button class="page-tab"     onclick="switchPage('reaction',this)">🌍 해외반응 관리</button>
     <button class="page-tab"     onclick="switchPage('grade',this)">🏅 회원등급 설정</button>
     <button class="page-tab"     onclick="switchPage('users',this)">👥 회원 관리</button>
@@ -282,6 +285,99 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <div class="reaction-list" id="reactionList">
     <div class="loading">불러오는 중...</div>
+  </div>
+</div>
+
+
+<!-- ══ 검토 큐 ══ -->
+<div id="queueSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">⚠️ TMDB 매칭 실패 검토 큐</div>
+    <span id="queueStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+    <button class="btn-load" onclick="loadQueue()" style="margin-left:auto">새로고침</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    💡 TMDB ID 입력 후 저장하면 works 테이블에 영구 저장됩니다. 다음 크롤링부터 자동 매칭됩니다.
+  </div>
+  <div class="filter-tabs" id="queueFilterTabs">
+    <button class="ftab on" onclick="setQueueFilter('all',this)">전체</button>
+    <button class="ftab" onclick="setQueueFilter('netflix',this)">넷플릭스</button>
+    <button class="ftab" onclick="setQueueFilter('disney',this)">디즈니+</button>
+    <button class="ftab" onclick="setQueueFilter('wavve',this)">웨이브</button>
+    <button class="ftab" onclick="setQueueFilter('coupang',this)">쿠팡플레이</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>날짜</th><th>플랫폼</th><th>카테고리</th><th>순위</th>
+          <th>영어 원제</th><th>Claude 번역</th><th>TMDB ID 입력</th><th>저장</th>
+        </tr>
+      </thead>
+      <tbody id="queueTableBody">
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ 카테고리 관리 ══ -->
+<div id="categoriesSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">⚙️ OTT 카테고리 슬롯 관리</div>
+    <span id="catStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+    <button class="btn-load" onclick="loadCategories()" style="margin-left:auto">새로고침</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    💡 is_active=OFF 로 설정하면 크롤링에서 제외됩니다. display_name은 프론트엔드에 표시되는 이름입니다.
+  </div>
+  <div class="filter-tabs" id="catFilterTabs">
+    <button class="ftab on" onclick="setCatFilter('all',this)">전체</button>
+    <button class="ftab" onclick="setCatFilter('netflix',this)">넷플릭스</button>
+    <button class="ftab" onclick="setCatFilter('disney',this)">디즈니+</button>
+    <button class="ftab" onclick="setCatFilter('wavve',this)">웨이브</button>
+    <button class="ftab" onclick="setCatFilter('coupang',this)">쿠팡플레이</button>
+    <button class="ftab" onclick="setCatFilter('tving',this)">티빙</button>
+    <button class="ftab" onclick="setCatFilter('boxoffice',this)">박스오피스</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>플랫폼</th><th>슬롯</th><th>크롤링 원본명</th>
+          <th>프론트 표시명</th><th>크롤 limit</th><th>메인 limit</th><th>플랫폼 limit</th><th>크롤링</th><th>저장</th>
+        </tr>
+      </thead>
+      <tbody id="catTableBody">
+        <tr><td colspan="9" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ works 관리 ══ -->
+<div id="worksSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">🎬 works 테이블 관리</div>
+    <input class="date-inp" type="text" id="worksSearchInp" placeholder="제목 검색..." oninput="searchWorksTable(this.value)" style="width:200px">
+    <button class="btn-load" onclick="loadWorks()" style="margin-left:auto">새로고침</button>
+    <span id="worksStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    ⚠️ works 테이블은 Admin만 수정/삭제 가능합니다. 크롤러는 INSERT만 허용됩니다. 모든 변경은 admin_logs에 기록됩니다.
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>포스터</th><th>TMDB ID</th><th>한글 제목</th><th>영어 제목</th>
+          <th>매칭 출처</th><th>신뢰도</th><th>수정</th><th>삭제</th>
+        </tr>
+      </thead>
+      <tbody id="worksTableBody">
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -428,6 +524,7 @@ function login() {
     });
   loadReactions();
   loadGrades();
+  loadQueueCount();
 }
 
 function logout() {
@@ -447,11 +544,17 @@ window.addEventListener('DOMContentLoaded', () => {
 function switchPage(page, btn) {
   document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
-  document.getElementById('mainSection').style.display      = page === 'ranking'  ? 'block' : 'none';
-  document.getElementById('reactionSection').style.display  = page === 'reaction' ? 'block' : 'none';
-  document.getElementById('gradeSection').style.display     = page === 'grade'    ? 'block' : 'none';
-  document.getElementById('usersSection').style.display     = page === 'users'    ? 'block' : 'none';
-  if (page === 'users') loadUsers();
+  document.getElementById('mainSection').style.display       = page === 'ranking'    ? 'block' : 'none';
+  document.getElementById('queueSection').style.display      = page === 'queue'      ? 'block' : 'none';
+  document.getElementById('categoriesSection').style.display = page === 'categories' ? 'block' : 'none';
+  document.getElementById('worksSection').style.display      = page === 'works'      ? 'block' : 'none';
+  document.getElementById('reactionSection').style.display   = page === 'reaction'   ? 'block' : 'none';
+  document.getElementById('gradeSection').style.display      = page === 'grade'      ? 'block' : 'none';
+  document.getElementById('usersSection').style.display      = page === 'users'      ? 'block' : 'none';
+  if (page === 'users')      loadUsers();
+  if (page === 'queue')      loadQueue();
+  if (page === 'categories') loadCategories();
+  if (page === 'works')      loadWorks();
 }
 
 // ════════════════════════════════════════════════════
@@ -1062,6 +1165,324 @@ function showToast(msg, type='ok') {
   t.className = `toast show ${type}`;
   setTimeout(() => t.classList.remove('show'), 3000);
 }
+
+
+// ════════════════════════════════════════════════════
+// 검토 큐 (review_queue)
+// ════════════════════════════════════════════════════
+let allQueueData = [];
+let curQueueFilter = 'all';
+
+async function loadQueueCount() {
+  try {
+    const res = await fetch(`${API}/admin/review-queue/count`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    const count = json.count || 0;
+    const badge = document.getElementById('queueBadge');
+    if (count > 0) {
+      badge.textContent = count;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+async function loadQueue() {
+  document.getElementById('queueTableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin/review-queue?status=pending`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    allQueueData = json.data || [];
+    document.getElementById('queueStat').textContent = `대기 ${allQueueData.length}건`;
+    renderQueue();
+  } catch(e) {
+    document.getElementById('queueTableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function setQueueFilter(f, btn) {
+  curQueueFilter = f;
+  document.querySelectorAll('#queueFilterTabs .ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderQueue();
+}
+
+function renderQueue() {
+  let rows = allQueueData;
+  if (curQueueFilter !== 'all') rows = rows.filter(r => r.platform === curQueueFilter);
+  if (!rows.length) {
+    document.getElementById('queueTableBody').innerHTML = '<tr><td colspan="8" class="empty">✅ 검토 큐 비어있음</td></tr>';
+    return;
+  }
+  const PC = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
+  document.getElementById('queueTableBody').innerHTML = rows.map(r => `
+    <tr id="qrow-${r.id}">
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.crawled_date}</span></td>
+      <td><span style="color:${PC[r.platform]||'#fff'};font-size:12px;font-weight:600">${r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td><span style="font-family:var(--mono);font-size:12px">${r.rank}</span></td>
+      <td style="max-width:180px">
+        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en)}</div>
+      </td>
+      <td style="max-width:160px">
+        <div style="font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko_guess||'')}</div>
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="qtmdb-${r.id}" placeholder="TMDB ID"
+          style="width:110px;font-size:12px" oninput="previewQueuePoster(${r.id},this.value)">
+        <div id="qposter-${r.id}" style="margin-top:4px"></div>
+      </td>
+      <td>
+        <button class="btn-sm btn-fix" onclick="resolveQueue(${r.id})">저장</button>
+        <button class="btn-sm btn-unfix" onclick="ignoreQueue(${r.id})" style="margin-top:4px">무시</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function previewQueuePoster(qid, tmdbId) {
+  const el = document.getElementById(`qposter-${qid}`);
+  if (!tmdbId || tmdbId.length < 4) { el.innerHTML = ''; return; }
+  for (const mtype of ['tv','movie']) {
+    try {
+      const res = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
+      const d = await res.json();
+      if (d.poster_path) {
+        el.innerHTML = `<img src="${IMG2}${d.poster_path}" style="width:40px;border-radius:4px"> <span style="font-size:11px;color:var(--green)">${_esc(d.name||d.title||'')}</span>`;
+        return;
+      }
+    } catch(e) {}
+  }
+  el.innerHTML = '<span style="font-size:11px;color:var(--red)">포스터 없음</span>';
+}
+
+async function resolveQueue(qid) {
+  const tmdbId = document.getElementById(`qtmdb-${qid}`).value;
+  if (!tmdbId) { showToast('TMDB ID를 입력하세요', 'err'); return; }
+  try {
+    const res = await fetch(`${API}/admin/review-queue/${qid}/resolve`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id: parseInt(tmdbId) })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    showToast(`✅ 저장 완료 — ${json.title_ko || tmdbId}`, 'ok');
+    document.getElementById(`qrow-${qid}`)?.remove();
+    allQueueData = allQueueData.filter(r => r.id !== qid);
+    document.getElementById('queueStat').textContent = `대기 ${allQueueData.length}건`;
+    loadQueueCount();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function ignoreQueue(qid) {
+  try {
+    document.getElementById(`qrow-${qid}`)?.remove();
+    allQueueData = allQueueData.filter(r => r.id !== qid);
+    document.getElementById('queueStat').textContent = `대기 ${allQueueData.length}건`;
+  } catch(e) {}
+}
+
+
+// ════════════════════════════════════════════════════
+// 카테고리 관리 (ott_categories)
+// ════════════════════════════════════════════════════
+let allCatData = [];
+let curCatFilter = 'all';
+
+async function loadCategories() {
+  document.getElementById('catTableBody').innerHTML = '<tr><td colspan="9" class="loading">불러오는 중...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin/categories`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    allCatData = json.data || [];
+    document.getElementById('catStat').textContent = `총 ${allCatData.length}개`;
+    renderCategories();
+  } catch(e) {
+    document.getElementById('catTableBody').innerHTML = `<tr><td colspan="9" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function setCatFilter(f, btn) {
+  curCatFilter = f;
+  document.querySelectorAll('#catFilterTabs .ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderCategories();
+}
+
+function renderCategories() {
+  let rows = allCatData;
+  if (curCatFilter !== 'all') rows = rows.filter(r => r.platform === curCatFilter);
+  if (!rows.length) {
+    document.getElementById('catTableBody').innerHTML = '<tr><td colspan="9" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  const PC = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
+  document.getElementById('catTableBody').innerHTML = rows.map(r => `
+    <tr>
+      <td><span style="color:${PC[r.platform]||'#fff'};font-weight:600;font-size:12px">${r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td style="max-width:160px">
+        <span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span>
+      </td>
+      <td>
+        <input class="date-inp" type="text" id="cat-dname-${r.id}"
+          value="${_esc(r.display_name||'')}" placeholder="프론트 표시명"
+          style="width:120px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="cat-climit-${r.id}"
+          value="${r.crawl_limit}" style="width:60px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="cat-mlimit-${r.id}"
+          value="${r.main_limit}" style="width:60px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="cat-plimit-${r.id}"
+          value="${r.platform_limit}" style="width:60px;font-size:12px">
+      </td>
+      <td>
+        <button class="btn-sm ${r.is_active ? 'btn-fix' : 'btn-unfix'}" id="cat-active-${r.id}"
+          onclick="toggleCatActive(${r.id},${r.is_active})">
+          ${r.is_active ? '✅ ON' : '⛔ OFF'}
+        </button>
+      </td>
+      <td>
+        <button class="btn-sm btn-save" onclick="saveCat(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function toggleCatActive(id, cur) {
+  const newVal = cur ? 0 : 1;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: newVal })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    const btn = document.getElementById(`cat-active-${id}`);
+    if (newVal) { btn.textContent = '✅ ON'; btn.className = 'btn-sm btn-fix'; }
+    else        { btn.textContent = '⛔ OFF'; btn.className = 'btn-sm btn-unfix'; }
+    // 로컬 데이터 업데이트
+    const item = allCatData.find(r => r.id === id);
+    if (item) item.is_active = newVal;
+    showToast(`크롤링 ${newVal ? 'ON' : 'OFF'} 저장 완료`, 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function saveCat(id) {
+  const display_name    = document.getElementById(`cat-dname-${id}`)?.value || null;
+  const crawl_limit     = parseInt(document.getElementById(`cat-climit-${id}`)?.value) || null;
+  const main_limit      = parseInt(document.getElementById(`cat-mlimit-${id}`)?.value) || null;
+  const platform_limit  = parseInt(document.getElementById(`cat-plimit-${id}`)?.value) || null;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name, crawl_limit, main_limit, platform_limit })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    showToast('✅ 카테고리 설정 저장 완료', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+
+// ════════════════════════════════════════════════════
+// works 관리
+// ════════════════════════════════════════════════════
+let worksTimer = null;
+
+async function loadWorks() {
+  document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  try {
+    const q = document.getElementById('worksSearchInp')?.value || '';
+    const url = q ? `${API}/admin/works?q=${encodeURIComponent(q)}` : `${API}/admin/works`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    const rows = json.data || [];
+    document.getElementById('worksStat').textContent = `${rows.length}개`;
+    renderWorks(rows);
+  } catch(e) {
+    document.getElementById('worksTableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function searchWorksTable(val) {
+  clearTimeout(worksTimer);
+  worksTimer = setTimeout(loadWorks, 400);
+}
+
+function renderWorks(rows) {
+  if (!rows.length) {
+    document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  const srcColor = { admin:'var(--green)', auto_claude:'var(--info)', auto_tmdb:'var(--muted2)' };
+  document.getElementById('worksTableBody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.poster_path
+        ? `<img class="poster-thumb" src="${IMG}${r.poster_path}" alt="" loading="lazy">`
+        : `<div class="poster-ph">🎬</div>`}
+      </td>
+      <td><span style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${r.tmdb_id}</span></td>
+      <td>
+        <input class="date-inp" type="text" id="wtko-${r.tmdb_id}" value="${_esc(r.title_ko||'')}"
+          style="width:140px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="text" id="wten-${r.tmdb_id}" value="${_esc(r.title_en||'')}"
+          style="width:140px;font-size:12px">
+      </td>
+      <td><span style="font-size:11px;color:${srcColor[r.match_source]||'var(--muted)'}">${r.match_source||'admin'}</span></td>
+      <td><span style="font-family:var(--mono);font-size:12px">${r.confidence_score||100}</span></td>
+      <td>
+        <button class="btn-sm btn-fix" onclick="saveWork(${r.tmdb_id})">저장</button>
+      </td>
+      <td>
+        <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)"
+          onclick="deleteWork(${r.tmdb_id},'${_esc(r.title_ko||r.title_en||'')}')">삭제</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function saveWork(tmdbId) {
+  const title_ko = document.getElementById(`wtko-${tmdbId}`)?.value;
+  const title_en = document.getElementById(`wten-${tmdbId}`)?.value;
+  try {
+    const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title_ko, title_en })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    showToast(`✅ works 저장 완료 (${tmdbId})`, 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function deleteWork(tmdbId, title) {
+  if (!confirm(`⚠️ works에서 삭제합니다.\n"${title}" (tmdb_id: ${tmdbId})\n\n삭제 후 다음 크롤링에서 재매칭됩니다. 계속하시겠습니까?`)) return;
+  try {
+    const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id: tmdbId })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '삭제 실패', 'err'); return; }
+    showToast(`🗑️ 삭제 완료 (${tmdbId})`, 'ok');
+    loadWorks();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
 </script>
 </body>
 </html>
