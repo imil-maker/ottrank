@@ -120,6 +120,7 @@ def init_db() -> sqlite3.Connection:
             imdb_updated   TEXT    DEFAULT NULL,
             match_source   TEXT    DEFAULT 'auto_claude',
             confidence_score INTEGER DEFAULT 95,
+            first_matched_date TEXT   DEFAULT (date('now','localtime')),
             updated_at     TEXT    DEFAULT (datetime('now','localtime'))
         )
     """)
@@ -178,6 +179,7 @@ def init_db() -> sqlite3.Connection:
         "ALTER TABLE rankings ADD COLUMN source_name TEXT",
         "ALTER TABLE works ADD COLUMN match_source TEXT DEFAULT 'admin'",
         "ALTER TABLE works ADD COLUMN confidence_score INTEGER DEFAULT 100",
+        "ALTER TABLE works ADD COLUMN first_matched_date TEXT",
     ]
     for sql in migrations:
         try:
@@ -528,8 +530,9 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
         conn.execute("""
             INSERT INTO works
                 (tmdb_id, title_ko, title_en, poster_path, genre, overview,
-                 release_year, tmdb_rating, match_source, confidence_score, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+                 release_year, tmdb_rating, match_source, confidence_score,
+                 first_matched_date, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now','localtime'), datetime('now','localtime'))
             ON CONFLICT(tmdb_id) DO NOTHING
         """, (
             tmdb_data["tmdb_id"],
