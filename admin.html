@@ -193,7 +193,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div id="pageTabs" style="display:none">
   <div class="page-tabs">
     <button class="page-tab on"  onclick="switchPage('ranking',this)">📊 랭킹 관리</button>
-    <button class="page-tab"     onclick="switchPage('queue',this)">⚠️ 검토 큐 <span id="queueBadge" style="display:none;background:var(--red);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px"></span></button>
+    <button class="page-tab"     onclick="switchPage('queue',this)">⚠️ 검토 큐</button>
     <button class="page-tab"     onclick="switchPage('categories',this)">⚙️ 카테고리 관리</button>
     <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
     <button class="page-tab"     onclick="switchPage('reaction',this)">🌍 해외반응 관리</button>
@@ -225,7 +225,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="ftab" onclick="setFilter('coupang',this)">쿠팡플레이</button>
     <button class="ftab" onclick="setFilter('wavve',this)">웨이브</button>
     <button class="ftab" onclick="setFilter('boxoffice',this)">박스오피스</button>
-    <button class="ftab" style="margin-left:auto;border-color:rgba(247,129,113,.3);color:var(--red)" onclick="setFilter('no_tmdb',this)">⚠ TMDB없음</button>
+    <button class="ftab" id="btnNoTmdb" style="margin-left:auto;border-color:rgba(247,129,113,.3);color:var(--red)" onclick="setFilter('no_tmdb',this)">⚠ TMDB없음 <span id="noTmdbCount"></span></button>
+    <button class="ftab" id="btnNewMatch" style="border-color:rgba(52,211,153,.3);color:var(--green)" onclick="setFilter('new_match',this)">🆕 신규매칭 <span id="newMatchCount"></span></button>
   </div>
   <div class="table-wrap">
     <table>
@@ -570,6 +571,11 @@ async function loadData() {
     const json = await res.json();
     allData = json.data || [];
     document.getElementById('statTxt').textContent = `총 ${allData.length}개`;
+    // TMDB없음 건수 업데이트
+    const noTmdbCnt = allData.filter(r => !r.tmdb_id).length;
+    document.getElementById('noTmdbCount').textContent = noTmdbCnt > 0 ? `(${noTmdbCnt})` : '';
+    // 신규매칭 건수 로드
+    loadNewMatchCount(date);
     renderTable();
   } catch(e) {
     document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
@@ -585,8 +591,9 @@ function setFilter(f, btn) {
 
 function renderTable() {
   let rows = allData;
-  if (curFilter === 'no_tmdb') rows = rows.filter(r => !r.tmdb_id);
-  else if (curFilter !== 'all') rows = rows.filter(r => r.platform === curFilter);
+  if (curFilter === 'no_tmdb')    rows = rows.filter(r => !r.tmdb_id);
+  else if (curFilter === 'new_match') rows = rows.filter(r => newMatchIds.has(r.tmdb_id));
+  else if (curFilter !== 'all')   rows = rows.filter(r => r.platform === curFilter);
   if (!rows.length) {
     document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
     return;
@@ -1178,13 +1185,8 @@ async function loadQueueCount() {
     const res = await fetch(`${API}/admin/review-queue/count`, { headers: { Authorization: `Bearer ${token}` } });
     const json = await res.json();
     const count = json.count || 0;
-    const badge = document.getElementById('queueBadge');
-    if (count > 0) {
-      badge.textContent = count;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
+    // 검토 큐 탭 제목 업데이트 (숫자 없이 유지)
+    // 건수는 랭킹 테이블 필터 버튼에서 표시
   } catch(e) {}
 }
 
@@ -1481,6 +1483,38 @@ async function deleteWork(tmdbId, title) {
     showToast(`🗑️ 삭제 완료 (${tmdbId})`, 'ok');
     loadWorks();
   } catch(e) { showToast(e.message, 'err'); }
+}
+
+
+
+// ════════════════════════════════════════════════════
+// 신규매칭 (new_match) 기능
+// ════════════════════════════════════════════════════
+let newMatchIds = new Set(); // 신규매칭 tmdb_id 목록
+
+async function loadNewMatchCount(date) {
+  if (!date || !token) return;
+  try {
+    // 신규매칭 건수 API
+    const res = await fetch(`${API}/admin/new-match-count?date=${date}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    const count = json.count || 0;
+    document.getElementById('newMatchCount').textContent = count > 0 ? `(${count})` : '';
+
+    // 신규매칭 tmdb_id 목록 로드 (필터용)
+    if (count > 0) {
+      const res2 = await fetch(
+        `${API}/admin/works?filter=new_match&date=${date}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const json2 = await res2.json();
+      newMatchIds = new Set((json2.data || []).map(w => w.tmdb_id));
+    } else {
+      newMatchIds = new Set();
+    }
+  } catch(e) {}
 }
 
 </script>
