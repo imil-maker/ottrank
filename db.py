@@ -362,7 +362,7 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> d
     """
     TMDB 검색 실행
     결과 1개 → 바로 반환
-    결과 여러개 → 가장 최신 작품 반환
+    결과 여러개 → 한국 작품 우선 → 그 중 최신 → 없으면 전체 최신
     lang: "ko-KR" (한글 검색) 또는 "en-US" (영어 폴백)
     """
     try:
@@ -387,7 +387,6 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> d
         if len(valid) == 1:
             return _build_result(valid[0], media_type)
 
-        # 결과 여러개 → 가장 최신 작품 우선 (release_date / first_air_date 기준)
         def get_year(r):
             date_str = r.get("release_date") or r.get("first_air_date") or "0000"
             try:
@@ -395,8 +394,22 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> d
             except Exception:
                 return 0
 
-        latest = max(valid, key=get_year)
-        return _build_result(latest, media_type)
+        def is_korean(r):
+            """한국 작품 여부 확인 (origin_country 또는 original_language)"""
+            countries = r.get("origin_country") or []
+            if isinstance(countries, list) and "KR" in countries:
+                return True
+            if r.get("original_language") == "ko":
+                return True
+            return False
+
+        # 1순위: 한국 작품 (origin_country=KR 또는 original_language=ko) 중 최신
+        korean = [r for r in valid if is_korean(r)]
+        if korean:
+            return _build_result(max(korean, key=get_year), media_type)
+
+        # 2순위: 한국 작품 없으면 전체 결과 중 최신
+        return _build_result(max(valid, key=get_year), media_type)
 
     except Exception as e:
         print(f"    TMDB 검색 오류 ({query}, {media_type}): {e}")
