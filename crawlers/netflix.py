@@ -1,20 +1,23 @@
-"""넷플릭스 랭킹 크롤러 - FlixPatrol"""
+"""넷플릭스 랭킹 크롤러 v2 - FlixPatrol"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import asyncio
 from crawlers.flixpatrol_base import crawl_flixpatrol
 
-URL = "https://flixpatrol.com/top10/netflix/south-korea/"
-
-async def run(conn):
-    print("\n[넷플릭스] 크롤링 중...")
-    await crawl_flixpatrol(URL, "netflix", conn)
+async def run(local_conn, save_fn):
+    """
+    local_conn : 로컬 SQLite 연결 (ott_categories 슬롯 설정 읽기용)
+    save_fn    : db.py의 save_ranking 함수 (크롤링 결과 저장)
+    """
+    print("\n[넷플릭스] 크롤링 시작...")
+    results = await crawl_flixpatrol("netflix", local_conn)
+    for item in results:
+        await save_fn(local_conn, item)
+    print(f"[넷플릭스] 완료 — 총 {len(results)}개")
 
 if __name__ == "__main__":
-    import sys, os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-    from db import init_db
+    from db import init_db, save_ranking
     conn = init_db()
-    asyncio.run(run(conn))
+    asyncio.run(run(conn, save_ranking))
     conn.close()
