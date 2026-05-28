@@ -53,22 +53,19 @@ jobs:
           python run_all.py
           echo "=== 크롤링 완료 ==="
 
-      # ── 6. SQL 변환 ──────────────────────────────────────────
-      - name: Export rankings to SQL
-        run: |
-          echo "=== SQL 변환 시작 ==="
-          python export_to_sql.py
-          echo "=== SQL 변환 완료 ==="
-
-      # ── 7. D1 업로드 ─────────────────────────────────────────
+      # ── 6. D1 직접 업로드 (wrangler-action 대체) ────────────
+      # Python으로 D1 REST API 직접 호출 → 안정성 향상
       - name: Upload to Cloudflare D1
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: d1 execute ottrank-db --file=./rankings_insert.sql --remote
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          echo "=== D1 업로드 시작 ==="
+          python upload_to_d1.py
+          echo "=== D1 업로드 완료 ==="
 
-      # ── 8. rankings.db 커밋 ──────────────────────────────────
+      # ── 7. rankings.db 커밋 ──────────────────────────────────
       - name: Commit rankings.db
         run: |
           git config user.name "github-actions[bot]"
