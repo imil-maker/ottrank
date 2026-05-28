@@ -229,14 +229,15 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
 # ③ Claude API — 영어 제목 → 한글 제목 번역 (배치)
 # ══════════════════════════════════════════════════════════════
 
-def translate_titles_to_korean(titles: list[str]) -> dict[str, str]:
+def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[str, str]:
     """
     Claude API로 영어 제목 목록을 한글 제목으로 배치 번역
     반환: { "Brave Citizen": "용감한 시민", "Tempest": "북극성", ... }
 
-    - 한 번에 배치 처리 → API 비용 최소화
-    - works에 없는 신규 작품만 호출
-    - 실패 시 빈 dict 반환 (review_queue로 처리)
+    핵심 개선:
+    - 플랫폼 정보 + OTT 서비스 맥락 제공 → 직역 방지
+    - 모델을 Sonnet으로 업그레이드 → 정확도 향상
+    - 확실하지 않으면 원제 유지 (직역 금지)
     """
     if not ANTHROPIC_API_KEY:
         print("  [Claude] API 키 없음 → 번역 스킵")
@@ -244,20 +245,37 @@ def translate_titles_to_korean(titles: list[str]) -> dict[str, str]:
     if not titles:
         return {}
 
-    # 번역 요청 목록 구성
+    # 플랫폼 표시명 매핑
+    platform_names = {
+        "netflix": "넷플릭스",
+        "disney":  "디즈니플러스",
+        "wavve":   "웨이브",
+        "coupang": "쿠팡플레이",
+        "tving":   "티빙",
+    }
+    platform_ko = platform_names.get(platform, "한국 OTT")
+
     titles_text = "\n".join(f"- {t}" for t in titles)
 
-    prompt = f"""다음은 한국 OTT 플랫폼(웨이브, 쿠팡플레이, 디즈니플러스, 넷플릭스)에서 현재 인기 있는 작품들의 영어 제목 목록입니다.
-각 작품의 한국어 공식 제목을 알려주세요.
+    prompt = f"""당신은 한국 OTT 스트리밍 콘텐츠 전문가입니다.
 
-영어 제목 목록:
+아래는 현재 {platform_ko}에서 인기 있는 작품들의 영어/외국어 제목 목록입니다.
+각 작품이 한국에서 실제로 서비스되는 공식 제목을 알려주세요.
+
+작품 목록:
 {titles_text}
 
-규칙:
-1. 한국 작품이면 원래 한국어 제목으로 답하세요 (예: "Brave Citizen" → "용감한 시민")
-2. 외국 작품이면 한국 공식 개봉/출시 제목으로 답하세요 (예: "Oppenheimer" → "오펜하이머")
-3. 한국 공식 제목을 모르면 영어 제목 그대로 유지하세요
-4. 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+중요 규칙:
+1. 반드시 한국 OTT/극장에서 실제 사용하는 공식 한국어 서비스 제목으로 답하세요
+2. 절대 직역하지 마세요
+   - 틀린 예: "A Shop for Killers" → "킬러의 상점" (직역 금지)
+   - 맞는 예: "A Shop for Killers" → "킬러들의 쇼핑몰" (실제 서비스 제목)
+3. 한국 작품이면 원래 한국어 제목으로 답하세요
+   - 예: "Brave Citizen" → "용감한 시민"
+4. 일본/중국 작품이면 한국 정식 서비스 제목으로 답하세요
+   - 예: "Ringu" → "링", "My Dearest" → "나의 사랑 나의 신부"
+5. 공식 한국 제목을 확실히 모르면 영어 원제 그대로 유지하세요 (절대 추측으로 직역하지 마세요)
+6. 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 
 {{"translations": {{"영어제목1": "한글제목1", "영어제목2": "한글제목2"}}}}"""
 
@@ -270,7 +288,7 @@ def translate_titles_to_korean(titles: list[str]) -> dict[str, str]:
                 "content-type":      "application/json",
             },
             json={
-                "model":      "claude-haiku-4-5-20251001",
+                "model":      "claude-sonnet-4-20250514",
                 "max_tokens": 2000,
                 "messages":   [{"role": "user", "content": prompt}],
             },
@@ -291,58 +309,66 @@ def translate_titles_to_korean(titles: list[str]) -> dict[str, str]:
     except Exception as e:
         print(f"  [Claude] 번역 오류: {e}")
         return {}
-
-
-# ══════════════════════════════════════════════════════════════
-# ④ TMDB 한글 검색
-# ══════════════════════════════════════════════════════════════
-
 def search_tmdb_korean(title_ko: str, title_en: str = "") -> dict | None:
     """
-    TMDB 한글 검색으로 작품 매칭
+    TMDB 검색으로 작품 매칭 (한글 우선 + 영어 폴백)
     반환: { tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating }
     또는 None (매칭 실패)
 
-    검색 규칙:
-    1. 한글 제목으로 검색
-    2. 결과 1개 → 바로 확정
-    3. 결과 여러개 → 가장 최신 작품 우선
-    4. 시즌 포함 제목 (예: "약한영웅 2") → 시즌 번호 제거 후 재검색
-    5. 한글 검색 실패 시 → None 반환 (review_queue 처리)
+    검색 순서:
+    1. 한글 제목으로 tv/movie 검색
+    2. 시즌 번호 제거 후 한글 재검색 (예: "약한영웅 2" → "약한영웅")
+    3. 영어 원제로 tv/movie 검색 (폴백 — 한글 번역이 달라도 커버)
+    4. 영어 원제 시즌 번호 제거 후 재검색
+    5. 전부 실패 → None (review_queue 처리)
     """
     if not title_ko:
         return None
 
-    # movie / tv 둘 다 시도 (category 판단 없음)
+    # 1단계: 한글 제목으로 검색 (tv/movie 둘 다)
     for media_type in ["tv", "movie"]:
         result = _search_tmdb_by_title(title_ko, media_type)
         if result:
-            result["media_type"] = media_type
             return result
 
-    # 시즌 번호 제거 후 재검색
-    stripped = _strip_season_number(title_ko)
-    if stripped != title_ko:
-        print(f"    시즌 제거 재검색: '{title_ko}' → '{stripped}'")
+    # 2단계: 시즌 번호 제거 후 한글 재검색
+    stripped_ko = _strip_season_number(title_ko)
+    if stripped_ko != title_ko:
+        print(f"    [한글 시즌제거] '{title_ko}' → '{stripped_ko}'")
         for media_type in ["tv", "movie"]:
-            result = _search_tmdb_by_title(stripped, media_type)
+            result = _search_tmdb_by_title(stripped_ko, media_type)
             if result:
-                result["media_type"] = media_type
                 return result
 
+    # 3단계: 영어 원제로 폴백 검색 (한글 번역이 TMDB와 달라도 커버)
+    if title_en and title_en.strip() and title_en.strip() != title_ko:
+        print(f"    [영어 폴백] '{title_ko}' → 영어 '{title_en}' 으로 재검색")
+        for media_type in ["tv", "movie"]:
+            result = _search_tmdb_by_title(title_en.strip(), media_type, lang="en-US")
+            if result:
+                return result
+
+        # 4단계: 영어 원제 시즌 번호 제거 후 재검색
+        stripped_en = _strip_season_number(title_en.strip())
+        if stripped_en != title_en.strip():
+            print(f"    [영어 시즌제거] '{title_en}' → '{stripped_en}'")
+            for media_type in ["tv", "movie"]:
+                result = _search_tmdb_by_title(stripped_en, media_type, lang="en-US")
+                if result:
+                    return result
+
     return None
-
-
-def _search_tmdb_by_title(query: str, media_type: str) -> dict | None:
+def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> dict | None:
     """
     TMDB 검색 실행
     결과 1개 → 바로 반환
     결과 여러개 → 가장 최신 작품 반환
+    lang: "ko-KR" (한글 검색) 또는 "en-US" (영어 폴백)
     """
     try:
         resp = requests.get(
             f"{TMDB_PROXY}/search/{media_type}",
-            params={"query": query, "language": "ko-KR"},
+            params={"query": query, "language": lang},
             timeout=10,
         )
         if resp.status_code != 200:
@@ -591,9 +617,9 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
 
     # ── ③ Claude API 번역 (단일 항목) ────────────────────────
     # 배치 처리는 save_rankings_batch() 사용 권장
-    # 단일 호출 시 여기서 처리
+    # 단일 호출 시 여기서 처리 (플랫폼 정보 포함)
     title_ko_guess = ""
-    translations = translate_titles_to_korean([title_en])
+    translations = translate_titles_to_korean([title_en], platform=platform)
     title_ko_guess = translations.get(title_en, title_en)
 
     if title_ko_guess and title_ko_guess != title_en:
@@ -658,9 +684,19 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
     if not unmatched_items:
         return
 
-    # ── ③ Claude API 배치 번역 (신규 항목만) ────────────────
-    new_titles = [item["title_en"] for item in unmatched_items]
-    translations = translate_titles_to_korean(new_titles)
+    # ── ③ Claude API 배치 번역 (신규 항목만, 플랫폼별 분리) ──
+    # 플랫폼 정보를 같이 넘겨야 직역 방지 가능
+    # 플랫폼별로 그룹핑해서 번역
+    from collections import defaultdict
+    platform_groups = defaultdict(list)
+    for item in unmatched_items:
+        platform_groups[item["platform"]].append(item)
+
+    translations = {}
+    for plt, plt_items in platform_groups.items():
+        plt_titles = [item["title_en"] for item in plt_items]
+        plt_translations = translate_titles_to_korean(plt_titles, platform=plt)
+        translations.update(plt_translations)
 
     # ── ④ TMDB 한글 검색 + 저장 ─────────────────────────────
     for item in unmatched_items:
@@ -673,6 +709,7 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
         else:
             title_ko_guess = title_en
 
+        # title_en을 같이 넘겨서 한글 검색 실패 시 영어 폴백 가능하도록
         tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
         time.sleep(0.2)  # TMDB API rate limit 방지
 
