@@ -1,210 +1,247 @@
 """
-오뜨랑 DB + TMDB 매칭 모듈
-매칭 전략 (3단계):
-  1단계: FlixPatrol TMDB 링크 직접 추출 (flixpatrol_base.py에서 처리)
-  2단계: 제목 정확 일치 + 엄격한 조건만 매칭 (오매칭 최소화)
-  3단계: 불확실한 후보들 → Claude API로 검증
-  4단계: 그래도 모르면 None (오매칭 > 미매칭)
+오뜨랑 DB + TMDB 매칭 모듈 v2
+────────────────────────────────────────────────────────────────
+매칭 파이프라인 (순서 엄수):
+
+  ① 크롤링 결과 수신 (title_en, platform, category_slot)
+
+  ② works 테이블 우선 조회 (title_en 기준)
+     → 있으면: 저장된 tmdb_id + title_ko + title_en 그대로 사용
+     → 없으면: 다음 단계
+
+  ③ Claude API — 영어 제목 → 한글 제목 번역 (신규 작품만, 배치)
+     → "Brave Citizen" → "용감한 시민"
+
+  ④ TMDB 한글 검색
+     규칙1: 결과 1개 → 바로 확정
+     규칙2: 결과 여러개 → 가장 최신 작품 우선
+     규칙3: 시즌 포함 "약한영웅 2" → "약한영웅" 으로 재검색
+     → 성공: works 테이블 INSERT + rankings 저장
+     → 실패: review_queue 저장 (Admin 검토 큐)
+
+핵심 원칙:
+  - works 테이블: 크롤러는 INSERT만, UPDATE/DELETE 절대 금지
+  - 크롤링이 몇 번을 돌아도 기존 works 데이터 절대 덮어쓰기 없음
+  - Admin만 works를 수정/삭제 가능 (admin_logs에 기록)
+────────────────────────────────────────────────────────────────
 """
 
 import sqlite3
 import requests
 import time
 import json
+import re
 import os
 from datetime import datetime, timezone, timedelta
 
-KST       = timezone(timedelta(hours=9))
-DB_PATH   = "rankings.db"
+KST        = timezone(timedelta(hours=9))
+DB_PATH    = "rankings.db"
 TMDB_PROXY = "https://tmdb-proxy.tdidream.workers.dev/tmdb"
 
-# Claude API — 환경변수에서 읽기
+# Claude API 설정
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_URL     = "https://api.anthropic.com/v1/messages"
 
 
-# ══════════════════════════════════════════════════════
-# TMDB 상세 조회
-# ══════════════════════════════════════════════════════
-def _fetch_detail(tmdb_id: int, media_type: str):
-    """tmdb_id로 상세정보 조회
-    반환: (title_ko, poster, genre, overview, release_year, tmdb_rating, title_en)
-    media_type 실패 시 반대 타입(tv↔movie)으로 자동 재시도
-    original_title이 한글(한국 작품)이면 en-US로 재조회해서 영어 제목 확보
-    """
-    def _fetch_raw(mid, mtype, lang="ko-KR"):
-        try:
-            url  = f"{TMDB_PROXY}/{mtype}/{mid}"
-            resp = requests.get(url, params={"language": lang}, timeout=10)
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception:
-            pass
-        return None
+# ══════════════════════════════════════════════════════════════
+# 유틸 함수
+# ══════════════════════════════════════════════════════════════
 
-    # 1차 시도 (ko-KR)
-    data = _fetch_raw(tmdb_id, media_type)
+def get_today() -> str:
+    return datetime.now(KST).strftime("%Y-%m-%d")
 
-    # 2차 시도 — 반대 타입으로 재시도 (tv↔movie)
-    if not data or not (data.get("name") or data.get("title")):
-        other_type = 'movie' if media_type == 'tv' else 'tv'
-        data = _fetch_raw(tmdb_id, other_type)
-        actual_type = other_type
-    else:
-        actual_type = media_type
-
-    if not data:
-        return "", "", "", "", None, None, ""
-
-    title_ko     = data.get("name") or data.get("title") or ""
-    poster       = data.get("poster_path") or ""
-    genres       = data.get("genres", [])
-    genre_str    = ",".join(g.get("name","") for g in genres if g.get("name"))
-    overview     = data.get("overview") or ""
-    date_str     = data.get("release_date") or data.get("first_air_date") or ""
-    release_year = int(date_str[:4]) if date_str and len(date_str) >= 4 else None
-    tmdb_rating  = data.get("vote_average") or None
-    original     = data.get("original_title") or data.get("original_name") or ""
-
-    if original and not _is_korean(original):
-        # original_title이 영어(외국 작품) → 그대로 사용
-        title_en = original
-    else:
-        # original_title이 한글(한국 작품) → en-US로 재조회해서 영어 제목 확보
-        en_data = _fetch_raw(tmdb_id, actual_type, lang="en-US")
-        if not en_data:
-            other_type = 'movie' if actual_type == 'tv' else 'tv'
-            en_data = _fetch_raw(tmdb_id, other_type, lang="en-US")
-        if en_data:
-            title_en = en_data.get("title") or en_data.get("name") or original
-        else:
-            title_en = original
-
-    return title_ko, poster, genre_str, overview, release_year, tmdb_rating, title_en
-
-
-# ══════════════════════════════════════════════════════
-# 유틸
-# ══════════════════════════════════════════════════════
 def _is_korean(text: str) -> bool:
+    """한글 포함 여부 확인"""
     return any('\uAC00' <= c <= '\uD7A3' or '\u1100' <= c <= '\u11FF' for c in (text or ""))
 
-def _is_recent(r: dict, current_year: int, years: int) -> bool:
-    date_str = r.get("release_date") or r.get("first_air_date") or ""
-    if not date_str:
-        return True
-    try:
-        return int(date_str[:4]) >= current_year - years
-    except Exception:
-        return True
+def _strip_season_number(title: str) -> str:
+    """
+    시즌 번호 제거
+    예: "약한영웅 2" → "약한영웅", "Stranger Things 4" → "Stranger Things"
+    """
+    # 끝에 숫자만 붙은 경우 제거 (공백 + 숫자)
+    stripped = re.sub(r'\s+\d+$', '', title.strip())
+    return stripped.strip()
 
 def _normalize(text: str) -> str:
     """제목 정규화 — 소문자, 공백·특수문자 제거"""
-    import re
     return re.sub(r'[\s\-\_\:\.\,\'\"]+', '', (text or "").lower().strip())
 
 
-# ══════════════════════════════════════════════════════
-# 2단계: 엄격한 TMDB 검색
-# ══════════════════════════════════════════════════════
-def _strict_search(title: str, tmdb_type: str) -> list:
-    """
-    제목으로 TMDB 검색 후 후보 목록 반환.
-    각 후보: { id, title_display, title_ko, poster_path, popularity, year }
-    """
-    candidates = []
-    seen_ids   = set()
+# ══════════════════════════════════════════════════════════════
+# DB 초기화
+# ══════════════════════════════════════════════════════════════
 
-    for lang in ["ko-KR", "en-US"]:
-        try:
-            resp = requests.get(
-                f"{TMDB_PROXY}/search/{tmdb_type}",
-                params={"query": title, "language": lang},
-                timeout=10
-            )
-            if resp.status_code != 200:
-                continue
-            results = resp.json().get("results", [])
-            for r in results[:10]:
-                rid = r.get("id")
-                if not rid or rid in seen_ids:
-                    continue
-                seen_ids.add(rid)
-                date_str = r.get("release_date") or r.get("first_air_date") or ""
-                candidates.append({
-                    "id":          rid,
-                    "title_en":    r.get("title") or r.get("name") or "",
-                    "title_ko":    "",   # 나중에 채움
-                    "poster_path": r.get("poster_path") or "",
-                    "popularity":  r.get("popularity", 0),
-                    "year":        date_str[:4] if date_str else "",
-                    "overview":    r.get("overview") or "",
-                })
-            time.sleep(0.15)
-        except Exception as e:
-            print(f"    TMDB 검색 오류({lang}): {e}")
+def init_db() -> sqlite3.Connection:
+    """로컬 SQLite DB 초기화 (GitHub Actions 크롤링 환경용)"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
 
-    return candidates
+    # rankings 테이블 (category_slot 방식)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS rankings (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            date          TEXT    NOT NULL,
+            platform      TEXT    NOT NULL,
+            category_slot TEXT    NOT NULL,
+            source_name   TEXT,
+            rank          INTEGER NOT NULL,
+            title_ko      TEXT    NOT NULL,
+            title_en      TEXT    DEFAULT '',
+            score         REAL    DEFAULT 0.0,
+            tmdb_id       INTEGER DEFAULT NULL,
+            poster_path   TEXT    DEFAULT NULL,
+            is_manual     INTEGER DEFAULT 0,
+            genre         TEXT    DEFAULT NULL,
+            overview      TEXT    DEFAULT NULL,
+            release_year  INTEGER DEFAULT NULL,
+            tmdb_rating   REAL    DEFAULT NULL,
+            created_at    TEXT    DEFAULT (datetime('now','localtime')),
+            UNIQUE(date, platform, category_slot, rank)
+        )
+    """)
+
+    # works 테이블 (크롤러 INSERT만 허용)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS works (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            tmdb_id        INTEGER NOT NULL UNIQUE,
+            title_ko       TEXT    DEFAULT '',
+            title_en       TEXT    DEFAULT '',
+            poster_path    TEXT    DEFAULT NULL,
+            genre          TEXT    DEFAULT NULL,
+            overview       TEXT    DEFAULT NULL,
+            release_year   INTEGER DEFAULT NULL,
+            tmdb_rating    REAL    DEFAULT NULL,
+            runtime        INTEGER DEFAULT NULL,
+            imdb_id        TEXT    DEFAULT NULL,
+            imdb_rating    REAL    DEFAULT NULL,
+            imdb_votes     TEXT    DEFAULT NULL,
+            imdb_updated   TEXT    DEFAULT NULL,
+            match_source   TEXT    DEFAULT 'auto_claude',
+            confidence_score INTEGER DEFAULT 95,
+            updated_at     TEXT    DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    # ott_categories 테이블 (sync_works.py로 D1에서 동기화)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS ott_categories (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform       TEXT    NOT NULL,
+            category_slot  TEXT    NOT NULL,
+            table_index    INTEGER NOT NULL DEFAULT 0,
+            source_name    TEXT    NOT NULL,
+            display_name   TEXT,
+            crawl_limit    INTEGER NOT NULL DEFAULT 20,
+            main_limit     INTEGER NOT NULL DEFAULT 10,
+            platform_limit INTEGER NOT NULL DEFAULT 20,
+            is_active      INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(platform, category_slot)
+        )
+    """)
+
+    # review_queue 테이블
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS review_queue (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform          TEXT    NOT NULL,
+            category_slot     TEXT    NOT NULL,
+            rank              INTEGER NOT NULL,
+            title_en          TEXT    NOT NULL,
+            title_ko_guess    TEXT,
+            tmdb_search_tried TEXT,
+            fail_reason       TEXT,
+            crawled_date      TEXT    NOT NULL,
+            crawled_at        TEXT    DEFAULT (datetime('now')),
+            status            TEXT    NOT NULL DEFAULT 'pending',
+            resolved_tmdb_id  INTEGER,
+            resolved_at       TEXT
+        )
+    """)
+
+    # title_map 테이블 (기존 유지)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS title_map (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            title_en   TEXT NOT NULL UNIQUE,
+            title_ko   TEXT NOT NULL,
+            tmdb_id    INTEGER,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    # 인덱스
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_works_title_en ON works(title_en)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_rankings_slot ON rankings(date, platform, category_slot)")
+    conn.commit()
+
+    return conn
 
 
-def _exact_match(title: str, candidates: list, tmdb_type: str):
+# ══════════════════════════════════════════════════════════════
+# ② works 테이블 우선 조회
+# ══════════════════════════════════════════════════════════════
+
+def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
     """
-    후보 중 제목이 정확히 일치하는 것 반환.
-    정규화 후 비교 → 확실한 경우만 반환.
+    works 테이블에서 영어 제목으로 조회
+    반환: { tmdb_id, title_ko, title_en, poster_path } 또는 None
+
+    ⚠️ 핵심 원칙: 이 함수만 works를 읽음
+    크롤러는 works를 절대 UPDATE/DELETE 하지 않음
     """
-    norm_query = _normalize(title)
-    for c in candidates:
-        # TMDB en 제목 비교
-        if _normalize(c["title_en"]) == norm_query:
-            return c
+    if not title_en or not title_en.strip():
+        return None
+
+    row = conn.execute("""
+        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+        FROM works
+        WHERE title_en = ?
+        LIMIT 1
+    """, (title_en.strip(),)).fetchone()
+
+    if row and row["tmdb_id"]:
+        return dict(row)
+
     return None
 
 
-# ══════════════════════════════════════════════════════
-# 3단계: Claude API 검증
-# ══════════════════════════════════════════════════════
-def _claude_verify(ott_title: str, media_type: str, candidates: list) -> dict | None:
+# ══════════════════════════════════════════════════════════════
+# ③ Claude API — 영어 제목 → 한글 제목 번역 (배치)
+# ══════════════════════════════════════════════════════════════
+
+def translate_titles_to_korean(titles: list[str]) -> dict[str, str]:
     """
-    OTT 랭킹 작품명과 TMDB 후보 목록을 Claude에게 넘겨서
-    가장 올바른 매칭을 선택하게 함.
-    확신할 수 없으면 None 반환.
+    Claude API로 영어 제목 목록을 한글 제목으로 배치 번역
+    반환: { "Brave Citizen": "용감한 시민", "Tempest": "북극성", ... }
+
+    - 한 번에 배치 처리 → API 비용 최소화
+    - works에 없는 신규 작품만 호출
+    - 실패 시 빈 dict 반환 (review_queue로 처리)
     """
     if not ANTHROPIC_API_KEY:
-        print("    [Claude] API 키 없음 → 스킵")
-        return None
-    if not candidates:
-        return None
+        print("  [Claude] API 키 없음 → 번역 스킵")
+        return {}
+    if not titles:
+        return {}
 
-    # 후보 목록 텍스트 구성 (최대 8개)
-    cand_lines = []
-    for i, c in enumerate(candidates[:8]):
-        line = (
-            f"{i+1}. ID={c['id']} | 제목={c['title_en']}"
-            f" | 연도={c['year']} | 인기도={c['popularity']:.1f}"
-            f" | 줄거리={c['overview'][:80]}"
-        )
-        cand_lines.append(line)
+    # 번역 요청 목록 구성
+    titles_text = "\n".join(f"- {t}" for t in titles)
 
-    prompt = f"""당신은 OTT 스트리밍 랭킹 데이터를 처리하는 전문가입니다.
+    prompt = f"""다음은 한국 OTT 플랫폼(웨이브, 쿠팡플레이, 디즈니플러스, 넷플릭스)에서 현재 인기 있는 작품들의 영어 제목 목록입니다.
+각 작품의 한국어 공식 제목을 알려주세요.
 
-한국 OTT 플랫폼 랭킹에 아래 작품이 올라와 있습니다:
-- 작품명: "{ott_title}"
-- 유형: {"TV 시리즈" if media_type == "tv" else "영화"}
-
-TMDB에서 검색된 후보 목록입니다:
-{chr(10).join(cand_lines)}
-
-위 작품명이 한국 OTT에서 현재 방영/상영 중인 작품임을 고려하여,
-가장 올바르게 매칭되는 후보의 번호를 선택하세요.
+영어 제목 목록:
+{titles_text}
 
 규칙:
-1. 확실하게 매칭되는 후보가 있으면 해당 번호 선택
-2. 비슷하지만 확신할 수 없으면 "0" 반환
-3. 전혀 관련 없는 후보들뿐이면 "0" 반환
-4. 동명이인/동명작품이 여럿이고 구분 불가하면 "0" 반환
+1. 한국 작품이면 원래 한국어 제목으로 답하세요 (예: "Brave Citizen" → "용감한 시민")
+2. 외국 작품이면 한국 공식 개봉/출시 제목으로 답하세요 (예: "Oppenheimer" → "오펜하이머")
+3. 한국 공식 제목을 모르면 영어 제목 그대로 유지하세요
+4. 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 
-반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{{"choice": 숫자, "reason": "선택 이유 한 줄"}}"""
+{{"translations": {{"영어제목1": "한글제목1", "영어제목2": "한글제목2"}}}}"""
 
     try:
         resp = requests.post(
@@ -216,433 +253,415 @@ TMDB에서 검색된 후보 목록입니다:
             },
             json={
                 "model":      "claude-haiku-4-5-20251001",
-                "max_tokens": 200,
+                "max_tokens": 2000,
                 "messages":   [{"role": "user", "content": prompt}],
             },
-            timeout=20,
+            timeout=30,
         )
+
         if resp.status_code != 200:
-            print(f"    [Claude] API 오류: {resp.status_code}")
-            return None
+            print(f"  [Claude] API 오류: {resp.status_code}")
+            return {}
 
         raw  = resp.json().get("content", [{}])[0].get("text", "").strip()
-        # JSON 파싱
-        raw  = raw.replace("```json","").replace("```","").strip()
+        raw  = raw.replace("```json", "").replace("```", "").strip()
         data = json.loads(raw)
-        choice = int(data.get("choice", 0))
-        reason = data.get("reason", "")
-
-        if choice == 0:
-            print(f"    [Claude] '{ott_title}' → 확신 없음: {reason}")
-            return None
-
-        selected = candidates[choice - 1]
-        print(f"    [Claude] '{ott_title}' → #{choice} ID={selected['id']} | {reason}")
-        return selected
+        translations = data.get("translations", {})
+        print(f"  [Claude] 번역 완료: {len(translations)}개")
+        return translations
 
     except Exception as e:
-        print(f"    [Claude] 오류: {e}")
+        print(f"  [Claude] 번역 오류: {e}")
+        return {}
+
+
+# ══════════════════════════════════════════════════════════════
+# ④ TMDB 한글 검색
+# ══════════════════════════════════════════════════════════════
+
+def search_tmdb_korean(title_ko: str, title_en: str = "") -> dict | None:
+    """
+    TMDB 한글 검색으로 작품 매칭
+    반환: { tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating }
+    또는 None (매칭 실패)
+
+    검색 규칙:
+    1. 한글 제목으로 검색
+    2. 결과 1개 → 바로 확정
+    3. 결과 여러개 → 가장 최신 작품 우선
+    4. 시즌 포함 제목 (예: "약한영웅 2") → 시즌 번호 제거 후 재검색
+    5. 한글 검색 실패 시 → None 반환 (review_queue 처리)
+    """
+    if not title_ko:
+        return None
+
+    # movie / tv 둘 다 시도 (category 판단 없음)
+    for media_type in ["tv", "movie"]:
+        result = _search_tmdb_by_title(title_ko, media_type)
+        if result:
+            result["media_type"] = media_type
+            return result
+
+    # 시즌 번호 제거 후 재검색
+    stripped = _strip_season_number(title_ko)
+    if stripped != title_ko:
+        print(f"    시즌 제거 재검색: '{title_ko}' → '{stripped}'")
+        for media_type in ["tv", "movie"]:
+            result = _search_tmdb_by_title(stripped, media_type)
+            if result:
+                result["media_type"] = media_type
+                return result
+
+    return None
+
+
+def _search_tmdb_by_title(query: str, media_type: str) -> dict | None:
+    """
+    TMDB 검색 실행
+    결과 1개 → 바로 반환
+    결과 여러개 → 가장 최신 작품 반환
+    """
+    try:
+        resp = requests.get(
+            f"{TMDB_PROXY}/search/{media_type}",
+            params={"query": query, "language": "ko-KR"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+
+        results = resp.json().get("results", [])
+        if not results:
+            return None
+
+        # poster 있는 것만 필터
+        valid = [r for r in results if r.get("poster_path")]
+        if not valid:
+            valid = results
+
+        # 결과 1개 → 바로 확정
+        if len(valid) == 1:
+            return _build_result(valid[0], media_type)
+
+        # 결과 여러개 → 가장 최신 작품 우선 (release_date / first_air_date 기준)
+        def get_year(r):
+            date_str = r.get("release_date") or r.get("first_air_date") or "0000"
+            try:
+                return int(date_str[:4])
+            except Exception:
+                return 0
+
+        latest = max(valid, key=get_year)
+        return _build_result(latest, media_type)
+
+    except Exception as e:
+        print(f"    TMDB 검색 오류 ({query}, {media_type}): {e}")
         return None
 
 
-# ══════════════════════════════════════════════════════
-# 메인 매칭 함수
-# ══════════════════════════════════════════════════════
-def search_tmdb(title_ko, title_en="", media_type="tv"):
-    """
-    TMDB 매칭 (3단계 전략)
-    반환: (tmdb_id, poster_path, title_ko_korean)
-    """
-    tmdb_type = "tv" if media_type == "tv" else "movie"
-    current_year = datetime.now().year
+def _build_result(tmdb_item: dict, media_type: str) -> dict:
+    """TMDB 검색 결과 → 표준 dict 변환"""
+    tmdb_id  = tmdb_item.get("id")
+    title_ko = tmdb_item.get("name") or tmdb_item.get("title") or ""
+    date_str = tmdb_item.get("release_date") or tmdb_item.get("first_air_date") or ""
 
-    # 검색 쿼리 목록 (한글 제목 우선, 영어 제목도 시도)
-    queries = []
-    if title_ko and title_ko.strip():
-        queries.append(title_ko.strip())
-    if title_en and title_en.strip() and title_en.strip() != title_ko.strip():
-        if len(title_en.strip().split()) >= 1:
-            queries.append(title_en.strip())
+    # 영어 제목은 en-US로 재조회
+    title_en = _fetch_english_title(tmdb_id, media_type)
 
-    all_candidates = []
-    seen_ids       = set()
+    # 상세 정보 조회 (genre, overview 등)
+    detail = _fetch_detail(tmdb_id, media_type)
 
-    for query in queries:
-        candidates = _strict_search(query, tmdb_type)
-        for c in candidates:
-            if c["id"] not in seen_ids:
-                seen_ids.add(c["id"])
-                all_candidates.append(c)
-
-        # ── 2단계: 제목 정확 일치 확인 ──
-        exact = _exact_match(query, candidates, tmdb_type)
-        if exact:
-            # poster 있고 최근 작품인지 확인
-            if exact["poster_path"] and _is_recent(
-                {"release_date": exact["year"]+"-01-01", "first_air_date": exact["year"]+"-01-01"},
-                current_year, 15
-            ):
-                tmdb_id = exact["id"]
-                ko_title, poster, _, _, _, _ = _fetch_detail(tmdb_id, tmdb_type)
-                poster = poster or exact["poster_path"]
-                print(f"    → [2단계 정확매칭] '{query}' → {ko_title or query} (ID={tmdb_id})")
-                return tmdb_id, poster, ko_title or title_ko
-
-    if not all_candidates:
-        print(f"    → [미매칭] '{title_ko}' — 후보 없음")
-        return None, None, None
-
-    # 후보를 인기도 순으로 정렬, poster 있는 것 우선
-    ranked = sorted(
-        [c for c in all_candidates if c["poster_path"]],
-        key=lambda x: x["popularity"],
-        reverse=True
-    )
-    if not ranked:
-        ranked = sorted(all_candidates, key=lambda x: x["popularity"], reverse=True)
-
-    # ── 3단계: Claude 검증 ──
-    # 상위 후보들에 ko-KR 제목 채우기 (Claude 판단에 도움)
-    for c in ranked[:5]:
-        try:
-            ko, _, _, _, _, _ = _fetch_detail(c["id"], tmdb_type)
-            c["title_ko"] = ko or ""
-            time.sleep(0.1)
-        except Exception:
-            pass
-
-    verified = _claude_verify(title_ko or title_en, tmdb_type, ranked[:8])
-
-    if verified:
-        tmdb_id  = verified["id"]
-        ko_title, poster, _, _, _, _ = _fetch_detail(tmdb_id, tmdb_type)
-        poster   = poster or verified["poster_path"]
-        print(f"    → [3단계 Claude검증] '{title_ko}' → {ko_title or title_ko} (ID={tmdb_id})")
-        return tmdb_id, poster, ko_title or title_ko
-
-    # ── 4단계: None 반환 (오매칭 방지) ──
-    print(f"    → [미매칭 처리] '{title_ko}' — Claude 검증 실패, 오매칭 방지를 위해 None")
-    return None, None, None
+    return {
+        "tmdb_id":      tmdb_id,
+        "title_ko":     detail.get("title_ko") or title_ko,
+        "title_en":     title_en,
+        "poster_path":  detail.get("poster_path") or tmdb_item.get("poster_path") or "",
+        "genre":        detail.get("genre", ""),
+        "overview":     detail.get("overview", ""),
+        "release_year": int(date_str[:4]) if date_str and len(date_str) >= 4 else None,
+        "tmdb_rating":  tmdb_item.get("vote_average") or None,
+    }
 
 
-# ══════════════════════════════════════════════════════
-# DB 초기화
-# ══════════════════════════════════════════════════════
-def get_today():
-    return datetime.now(KST).strftime("%Y-%m-%d")
-
-
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS rankings (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            date        TEXT    NOT NULL,
-            platform    TEXT    NOT NULL,
-            category    TEXT    NOT NULL,
-            rank        INTEGER NOT NULL,
-            title_ko    TEXT    NOT NULL,
-            title_en    TEXT    DEFAULT '',
-            score       REAL    DEFAULT 0.0,
-            created_at  TEXT    DEFAULT (datetime('now','localtime')),
-            tmdb_id     INTEGER DEFAULT NULL,
-            poster_path TEXT    DEFAULT NULL,
-            is_manual   INTEGER DEFAULT 0,
-            genre       TEXT    DEFAULT NULL,
-            overview    TEXT    DEFAULT NULL,
-            release_year INTEGER DEFAULT NULL,
-            tmdb_rating REAL    DEFAULT NULL,
-            UNIQUE(date, platform, category, rank)
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS works (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            tmdb_id      INTEGER NOT NULL UNIQUE,
-            category     TEXT    DEFAULT '',
-            title_ko     TEXT    DEFAULT '',
-            title_en     TEXT    DEFAULT '',
-            poster_path  TEXT    DEFAULT NULL,
-            genre        TEXT    DEFAULT NULL,
-            overview     TEXT    DEFAULT NULL,
-            release_year INTEGER DEFAULT NULL,
-            tmdb_rating  REAL    DEFAULT NULL,
-            runtime      INTEGER DEFAULT NULL,
-            imdb_id      TEXT    DEFAULT NULL,
-            imdb_rating  REAL    DEFAULT NULL,
-            imdb_votes   TEXT    DEFAULT NULL,
-            imdb_updated TEXT    DEFAULT NULL,
-            updated_at   TEXT    DEFAULT (datetime('now','localtime'))
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS title_map (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            title_en    TEXT NOT NULL UNIQUE,
-            title_ko    TEXT NOT NULL,
-            tmdb_id     INTEGER,
-            category    TEXT DEFAULT 'tv',
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_title_map_en ON title_map(title_en)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_title_map_ko ON title_map(title_ko)")
-    conn.commit()
-    migrations = [
-        "ALTER TABLE rankings ADD COLUMN is_manual   INTEGER DEFAULT 0",
-        "ALTER TABLE rankings ADD COLUMN genre        TEXT    DEFAULT NULL",
-        "ALTER TABLE rankings ADD COLUMN overview     TEXT    DEFAULT NULL",
-        "ALTER TABLE rankings ADD COLUMN release_year INTEGER DEFAULT NULL",
-        "ALTER TABLE rankings ADD COLUMN tmdb_rating  REAL    DEFAULT NULL",
-    ]
-    for sql in migrations:
-        try:
-            conn.execute(sql)
-            conn.commit()
-        except Exception:
-            pass  # 이미 컬럼 있으면 무시
-
-    return conn
-
-
-# ══════════════════════════════════════════════════════
-# 랭킹 저장
-# ══════════════════════════════════════════════════════
-def save(conn, platform, category, rank, title_ko, title_en="", score=0.0,
-         tmdb_id_override=None, poster_override=None):
-    today      = get_today()
-    media_type = "tv" if category == "tv" else "movie"
-
-    # is_manual=1인 행은 크롤러가 덮어쓰지 않음
-    existing = conn.execute("""
-        SELECT is_manual, tmdb_id, poster_path, title_ko
-        FROM rankings
-        WHERE date = ? AND platform = ? AND category = ? AND rank = ?
-    """, (today, platform, category, rank)).fetchone()
-
-    if existing and existing[0] == 1:
-        print(f"  [{platform}][{category}] {rank:2d}. {existing[3]} → 수동고정, 스킵")
-        return
-
-    genre = overview = release_year = tmdb_rating = None
-
-    # ── FlixPatrol에서 직접 추출한 TMDB ID ──
-    if tmdb_id_override and poster_override:
-        # works에 같은 title_en으로 한글 매핑된 데이터가 있으면 우선 사용
-        # (FlixPatrol이 잘못된 TMDB ID를 줄 때 Admin 수동 수정 데이터 보호)
-        manual_works = conn.execute("""
-            SELECT tmdb_id, title_ko, title_en, poster_path FROM works
-            WHERE (title_en = ? OR title_en = ? OR title_ko = ?)
-            AND title_ko GLOB '*[가-힣]*'
-            ORDER BY CASE WHEN title_ko GLOB '*[가-힣]*' THEN 0 ELSE 1 END
-            LIMIT 1
-        """, (title_ko, title_en or title_ko, title_ko)).fetchone()
-
-        if manual_works and manual_works[0] and _is_korean(manual_works[1] or ''):
-            # Admin이 수동 저장한 올바른 데이터 사용
-            tmdb_id        = manual_works[0]
-            poster_path    = manual_works[3] or poster_override
-            title_ko_final = manual_works[1]
-            if not title_en:
-                title_en = manual_works[2] or title_ko
-            _, _, genre, overview, release_year, tmdb_rating, _ = _fetch_detail(tmdb_id, media_type)
-            # 잘못된 works 데이터 삭제 (같은 title_en인데 다른 tmdb_id)
-            try:
-                conn.execute("""
-                    DELETE FROM works 
-                    WHERE title_en = ? AND tmdb_id != ? AND title_ko NOT GLOB '*[가-힣]*'
-                """, (manual_works[2] or title_ko, tmdb_id))
-                conn.commit()
-            except Exception:
-                pass
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(Admin수동우선)")
-        else:
-            tmdb_id     = tmdb_id_override
-            poster_path = poster_override
-            ko_title, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
-            title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
-            if not title_en:
-                title_en = tmdb_title_en or title_ko
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(직접)")
-
-    elif tmdb_id_override:
-        tmdb_id = tmdb_id_override
-        ko_title, poster_path, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
-        title_ko_final = ko_title if _is_korean(ko_title or '') else (ko_title or title_ko)
-        if not title_en:
-            title_en = tmdb_title_en or title_ko
-        print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(ID조회)")
-
-    else:
-        # ── 0순위: works 테이블 (우리 DB) 먼저 조회 ──
-        # tmdb_id 기준으로 쌓인 데이터 — 가장 신뢰도 높음
-        works_row = None
-        if title_en and title_en.strip():
-            works_row = conn.execute("""
-                SELECT tmdb_id, title_ko, title_en, poster_path
-                FROM works
-                WHERE title_en = ? OR title_ko = ?
-                ORDER BY CASE WHEN title_ko GLOB '*[가-힣]*' THEN 0 ELSE 1 END
-                LIMIT 1
-            """, (title_en.strip(), title_en.strip())).fetchone()
-        if not works_row:
-            works_row = conn.execute("""
-                SELECT tmdb_id, title_ko, title_en, poster_path
-                FROM works
-                WHERE title_ko = ? OR title_en = ?
-                ORDER BY CASE WHEN title_ko GLOB '*[가-힣]*' THEN 0 ELSE 1 END
-                LIMIT 1
-            """, (title_ko, title_ko)).fetchone()
-
-        if works_row and works_row[0]:
-            tmdb_id     = works_row[0]
-            poster_path = works_row[3]
-            _, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
-
-            # title_ko가 한글인지 확인 — 영어면 TMDB ko-KR로 재조회 후 works 업데이트
-            if _is_korean(works_row[1] or ''):
-                title_ko_final = works_row[1]
-            else:
-                ko, _, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
-                if _is_korean(ko or ''):
-                    title_ko_final = ko
-                    try:
-                        conn.execute("UPDATE works SET title_ko = ? WHERE tmdb_id = ?", (ko, tmdb_id))
-                        conn.commit()
-                    except Exception:
-                        pass
-                else:
-                    title_ko_final = works_row[1] or title_ko
-
-            # title_en 처리 — 한글이거나 비어있으면 TMDB en-US로 재조회
-            works_title_en = works_row[2] or ""
-            if not works_title_en or _is_korean(works_title_en):
-                # TMDB에서 가져온 영어 제목 사용
-                en = tmdb_title_en if (tmdb_title_en and not _is_korean(tmdb_title_en)) else ""
-                if en:
-                    title_en = en
-                    # works 테이블 영어 제목 업데이트
-                    try:
-                        conn.execute("UPDATE works SET title_en = ? WHERE tmdb_id = ?", (en, tmdb_id))
-                        conn.commit()
-                    except Exception:
-                        pass
-                else:
-                    title_en = works_title_en or title_ko
-            else:
-                title_en = works_title_en
-
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(works DB)")
-
-        # ── 1순위: 이전 날짜 캐시 재사용 ──
-        elif (cached := conn.execute("""
-            SELECT tmdb_id, poster_path, title_ko FROM rankings
-            WHERE (title_ko = ? OR title_en = ?) AND tmdb_id IS NOT NULL
-            ORDER BY is_manual DESC, date DESC LIMIT 1
-        """, (title_ko, title_en or title_ko)).fetchone()) and cached[0]:
-            tmdb_id     = cached[0]
-            poster_path = cached[1]
-            if _is_korean(cached[2] or ''):
-                title_ko_final = cached[2]
-            else:
-                ko, _, _, _, _, _, tmdb_en = _fetch_detail(tmdb_id, media_type)
-                title_ko_final = ko if _is_korean(ko or '') else title_ko
-                if not title_en:
-                    title_en = tmdb_en or title_ko
-            _, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
-            if not title_en:
-                title_en = tmdb_title_en or title_ko
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(캐시재사용)")
-
-        # ── 2순위: title_map DB에서 영어↔한글 매핑 조회 ──
-        elif (mapped := conn.execute("""
-            SELECT title_ko, tmdb_id FROM title_map
-            WHERE title_en = ? OR title_ko = ? OR title_en = ? OR title_ko = ?
-            ORDER BY tmdb_id IS NOT NULL DESC
-            LIMIT 1
-        """, (title_ko, title_ko, title_en or title_ko, title_en or title_ko)).fetchone()) and mapped[1]:
-            tmdb_id        = mapped[1]
-            title_ko_final = mapped[0] if _is_korean(mapped[0] or '') else title_ko
-            _, poster_path, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
-            if not title_en:
-                title_en = tmdb_title_en or title_ko
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} ✓(title_map)")
-
-        else:
-            # ── 3순위: TMDB 검색 + Claude 검증 ──
-            tmdb_id, poster_path, ko_title = search_tmdb(title_ko, title_en, media_type=category)
-            if ko_title and _is_korean(ko_title):
-                title_ko_final = ko_title
-            else:
-                if tmdb_id:
-                    ko, _, _, _, _, _, tmdb_en = _fetch_detail(tmdb_id, media_type)
-                    title_ko_final = ko if _is_korean(ko or '') else (title_ko or title_en or '')
-                    if not title_en:
-                        title_en = tmdb_en or title_ko
-                else:
-                    title_ko_final = title_ko
-            if tmdb_id:
-                _, _, genre, overview, release_year, tmdb_rating, tmdb_title_en = _fetch_detail(tmdb_id, media_type)
-                if not title_en:
-                    title_en = tmdb_title_en or title_ko
-                # 매칭 성공 시 title_map에 자동 저장
-                if title_en and title_en.strip() and title_en.strip() != title_ko_final:
-                    try:
-                        conn.execute("""
-                            INSERT OR IGNORE INTO title_map (title_en, title_ko, tmdb_id, category)
-                            VALUES (?, ?, ?, ?)
-                        """, (title_en.strip(), title_ko_final, tmdb_id, media_type))
-                        conn.commit()
-                    except Exception:
-                        pass
-            status = "✓" if poster_path else "✗ 미매칭(안전)"
-            print(f"  [{platform}][{category}] {rank:2d}. {title_ko_final} → tmdb_id={tmdb_id} {status}")
-
-    conn.execute("""
-        INSERT OR REPLACE INTO rankings
-            (date, platform, category, rank, title_ko, title_en, score,
-             tmdb_id, poster_path, genre, overview, release_year, tmdb_rating)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (today, platform, category, rank, title_ko_final, title_en, score,
-          tmdb_id, poster_path, genre or None, overview or None, release_year, tmdb_rating))
-    conn.commit()
-
-    # works 테이블에도 저장
-    if tmdb_id:
-        _upsert_work(conn, tmdb_id, media_type, title_ko_final, title_en,
-                     poster_path, genre, overview, release_year, tmdb_rating)
-
-
-# ══════════════════════════════════════════════════════
-# works 테이블 upsert
-# ══════════════════════════════════════════════════════
-def _upsert_work(conn, tmdb_id, category, title_ko, title_en,
-                 poster_path, genre, overview, release_year, tmdb_rating):
+def _fetch_english_title(tmdb_id: int, media_type: str) -> str:
+    """TMDB en-US로 영어 제목 조회"""
     try:
-        ko_is_korean = _is_korean(title_ko or '')
+        resp = requests.get(
+            f"{TMDB_PROXY}/{media_type}/{tmdb_id}",
+            params={"language": "en-US"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("title") or data.get("name") or ""
+    except Exception:
+        pass
+    return ""
+
+
+def _fetch_detail(tmdb_id: int, media_type: str) -> dict:
+    """TMDB ko-KR 상세 정보 조회"""
+    try:
+        resp = requests.get(
+            f"{TMDB_PROXY}/{media_type}/{tmdb_id}",
+            params={"language": "ko-KR"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data     = resp.json()
+            genres   = data.get("genres", [])
+            genre_str = ",".join(g.get("name", "") for g in genres if g.get("name"))
+            return {
+                "title_ko":    data.get("name") or data.get("title") or "",
+                "poster_path": data.get("poster_path") or "",
+                "genre":       genre_str,
+                "overview":    data.get("overview") or "",
+                "tmdb_rating": data.get("vote_average") or None,
+            }
+    except Exception:
+        pass
+    return {}
+
+
+# ══════════════════════════════════════════════════════════════
+# review_queue 저장 (TMDB 매칭 실패)
+# ══════════════════════════════════════════════════════════════
+
+def save_review_queue(conn: sqlite3.Connection, item: dict, title_ko_guess: str = "", fail_reason: str = "tmdb_not_found"):
+    """
+    TMDB 자동 매칭 실패한 항목을 review_queue에 저장
+    Admin 검토 큐로 이동
+    """
+    today = get_today()
+    try:
+        conn.execute("""
+            INSERT OR IGNORE INTO review_queue
+                (platform, category_slot, rank, title_en, title_ko_guess,
+                 tmdb_search_tried, fail_reason, crawled_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            item["platform"],
+            item["category_slot"],
+            item["rank"],
+            item["title_en"],
+            title_ko_guess,
+            title_ko_guess,   # 검색 시도한 키워드
+            fail_reason,
+            today,
+        ))
+        conn.commit()
+        print(f"  ⚠️ [{item['platform']}][{item['category_slot']}] "
+              f"{item['rank']:2d}. '{item['title_en']}' → 검토 큐 저장 ({fail_reason})")
+    except Exception as e:
+        print(f"  review_queue 저장 오류: {e}")
+
+
+# ══════════════════════════════════════════════════════════════
+# works 테이블 INSERT (크롤러용 — INSERT만, UPDATE 금지)
+# ══════════════════════════════════════════════════════════════
+
+def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "auto_claude"):
+    """
+    works 테이블에 신규 작품 INSERT
+    ⚠️ 크롤러는 INSERT만 — ON CONFLICT DO NOTHING (기존 데이터 절대 덮어쓰기 금지)
+    Admin이 수동으로 저장한 데이터(confidence_score=100)는 절대 변경 안 됨
+    """
+    confidence = 100 if match_source == "admin" else 95
+    try:
         conn.execute("""
             INSERT INTO works
-                (tmdb_id, category, title_ko, title_en, poster_path,
-                 genre, overview, release_year, tmdb_rating, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
-            ON CONFLICT(tmdb_id) DO UPDATE SET
-                title_ko     = CASE WHEN ? = 1 THEN excluded.title_ko ELSE title_ko END,
-                title_en     = COALESCE(NULLIF(excluded.title_en,''), title_en),
-                poster_path  = COALESCE(excluded.poster_path, poster_path),
-                genre        = COALESCE(excluded.genre, genre),
-                overview     = COALESCE(excluded.overview, overview),
-                release_year = COALESCE(excluded.release_year, release_year),
-                tmdb_rating  = COALESCE(excluded.tmdb_rating, tmdb_rating),
-                updated_at   = datetime('now','localtime')
-        """, (tmdb_id, category, title_ko, title_en or '',
-              poster_path or None, genre or None, overview or None,
-              release_year, tmdb_rating,
-              1 if ko_is_korean else 0))
+                (tmdb_id, title_ko, title_en, poster_path, genre, overview,
+                 release_year, tmdb_rating, match_source, confidence_score, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+            ON CONFLICT(tmdb_id) DO NOTHING
+        """, (
+            tmdb_data["tmdb_id"],
+            tmdb_data.get("title_ko", ""),
+            tmdb_data.get("title_en", ""),
+            tmdb_data.get("poster_path", ""),
+            tmdb_data.get("genre", ""),
+            tmdb_data.get("overview", ""),
+            tmdb_data.get("release_year"),
+            tmdb_data.get("tmdb_rating"),
+            match_source,
+            confidence,
+        ))
         conn.commit()
     except Exception as e:
-        print(f"  works upsert 오류: {e}")
+        print(f"  works INSERT 오류: {e}")
 
 
-def _get_poster_by_id(tmdb_id: int, media_type: str):
-    _, poster, _, _, _, _, _ = _fetch_detail(tmdb_id, media_type)
-    return poster or None
+# ══════════════════════════════════════════════════════════════
+# rankings 저장
+# ══════════════════════════════════════════════════════════════
+
+def _save_to_rankings(conn: sqlite3.Connection, item: dict, tmdb_data: dict | None):
+    """rankings 테이블에 저장"""
+    today = get_today()
+
+    if tmdb_data:
+        conn.execute("""
+            INSERT OR REPLACE INTO rankings
+                (date, platform, category_slot, source_name, rank,
+                 title_ko, title_en, tmdb_id, poster_path,
+                 genre, overview, release_year, tmdb_rating)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            today,
+            item["platform"],
+            item["category_slot"],
+            item["source_name"],
+            item["rank"],
+            tmdb_data.get("title_ko") or item["title_en"],
+            tmdb_data.get("title_en") or item["title_en"],
+            tmdb_data.get("tmdb_id"),
+            tmdb_data.get("poster_path"),
+            tmdb_data.get("genre"),
+            tmdb_data.get("overview"),
+            tmdb_data.get("release_year"),
+            tmdb_data.get("tmdb_rating"),
+        ))
+    else:
+        # TMDB 매칭 실패 — 영어 제목만 저장 (tmdb_id=NULL)
+        conn.execute("""
+            INSERT OR REPLACE INTO rankings
+                (date, platform, category_slot, source_name, rank, title_ko, title_en)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            today,
+            item["platform"],
+            item["category_slot"],
+            item["source_name"],
+            item["rank"],
+            item["title_en"],   # 한글 없으면 영어 그대로
+            item["title_en"],
+        ))
+
+    conn.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# 메인 저장 함수 (크롤러에서 호출)
+# ══════════════════════════════════════════════════════════════
+
+async def save_ranking(conn: sqlite3.Connection, item: dict):
+    """
+    크롤링 결과 1개를 받아서 파이프라인 실행 후 저장
+
+    item = {
+        platform, category_slot, source_name, rank, title_en
+    }
+    """
+    title_en = item["title_en"].strip()
+    platform = item["platform"]
+    slot     = item["category_slot"]
+    rank     = item["rank"]
+
+    # ── ② works 테이블 우선 조회 ──────────────────────────────
+    works_data = lookup_works(conn, title_en)
+    if works_data:
+        print(f"  ✅ [{platform}][{slot}] {rank:2d}. '{title_en}' → works DB 매칭 (tmdb_id={works_data['tmdb_id']})")
+        _save_to_rankings(conn, item, works_data)
+        return
+
+    # ── ③ Claude API 번역 (단일 항목) ────────────────────────
+    # 배치 처리는 save_rankings_batch() 사용 권장
+    # 단일 호출 시 여기서 처리
+    title_ko_guess = ""
+    translations = translate_titles_to_korean([title_en])
+    title_ko_guess = translations.get(title_en, title_en)
+
+    if title_ko_guess and title_ko_guess != title_en:
+        print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → '{title_ko_guess}' (Claude 번역)")
+    else:
+        print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → 번역 실패, 영어 그대로 검색")
+        title_ko_guess = title_en
+
+    # ── ④ TMDB 한글 검색 ─────────────────────────────────────
+    tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
+
+    if tmdb_data:
+        tmdb_data["title_en"] = tmdb_data.get("title_en") or title_en
+        print(f"  ✅ [{platform}][{slot}] {rank:2d}. '{title_en}' → "
+              f"'{tmdb_data['title_ko']}' (tmdb_id={tmdb_data['tmdb_id']})")
+
+        # works 테이블에 신규 INSERT (기존 데이터 덮어쓰기 금지)
+        insert_work(conn, tmdb_data, match_source="auto_claude")
+
+        # rankings 저장
+        _save_to_rankings(conn, item, tmdb_data)
+
+    else:
+        # ── 매칭 실패 → review_queue ────────────────────────
+        save_review_queue(conn, item, title_ko_guess, fail_reason="tmdb_not_found")
+        _save_to_rankings(conn, item, None)
+
+
+async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
+    """
+    크롤링 결과 전체를 배치로 처리 (Claude API 1회 호출로 전체 번역)
+
+    권장 사용법:
+    1. works에 없는 신규 항목만 추출
+    2. Claude API 1번 호출로 전체 번역
+    3. TMDB 검색 + 저장
+    """
+    if not items:
+        return
+
+    today = get_today()
+
+    # ── ② works 우선 조회 — 매칭/미매칭 분리 ────────────────
+    matched_items   = []  # works에 있는 항목
+    unmatched_items = []  # works에 없는 신규 항목
+
+    for item in items:
+        works_data = lookup_works(conn, item["title_en"])
+        if works_data:
+            matched_items.append((item, works_data))
+        else:
+            unmatched_items.append(item)
+
+    print(f"\n  [배치] works 매칭: {len(matched_items)}개 / 신규: {len(unmatched_items)}개")
+
+    # ── works 매칭 항목 바로 저장 ────────────────────────────
+    for item, works_data in matched_items:
+        print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
+              f"{item['rank']:2d}. '{item['title_en']}' → works DB (tmdb_id={works_data['tmdb_id']})")
+        _save_to_rankings(conn, item, works_data)
+
+    if not unmatched_items:
+        return
+
+    # ── ③ Claude API 배치 번역 (신규 항목만) ────────────────
+    new_titles = [item["title_en"] for item in unmatched_items]
+    translations = translate_titles_to_korean(new_titles)
+
+    # ── ④ TMDB 한글 검색 + 저장 ─────────────────────────────
+    for item in unmatched_items:
+        title_en     = item["title_en"]
+        title_ko_guess = translations.get(title_en, title_en)
+
+        if title_ko_guess and title_ko_guess != title_en:
+            print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. '{title_en}' → '{title_ko_guess}'")
+        else:
+            title_ko_guess = title_en
+
+        tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
+        time.sleep(0.2)  # TMDB API rate limit 방지
+
+        if tmdb_data:
+            tmdb_data["title_en"] = tmdb_data.get("title_en") or title_en
+            print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. '{title_en}' → '{tmdb_data['title_ko']}' "
+                  f"(tmdb_id={tmdb_data['tmdb_id']})")
+
+            # works INSERT (기존 덮어쓰기 금지)
+            insert_work(conn, tmdb_data, match_source="auto_claude")
+            _save_to_rankings(conn, item, tmdb_data)
+
+        else:
+            # 매칭 실패 → review_queue
+            save_review_queue(conn, item, title_ko_guess, fail_reason="tmdb_not_found")
+            _save_to_rankings(conn, item, None)
