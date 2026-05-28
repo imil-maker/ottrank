@@ -288,7 +288,7 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
                 "content-type":      "application/json",
             },
             json={
-                "model":      "claude-sonnet-4-20250514",
+                "model":      "claude-sonnet-4-6",
                 "max_tokens": 2000,
                 "messages":   [{"role": "user", "content": prompt}],
             },
@@ -625,8 +625,11 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
     if title_ko_guess and title_ko_guess != title_en:
         print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → '{title_ko_guess}' (Claude 번역)")
     else:
-        print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → 번역 실패, 영어 그대로 검색")
-        title_ko_guess = title_en
+        # Claude 번역 실패 → 오매칭 방지를 위해 바로 review_queue로 처리
+        print(f"  ⚠️ [{platform}][{slot}] {rank:2d}. '{title_en}' → Claude 번역 실패, 검토 큐 저장")
+        save_review_queue(conn, item, title_en, fail_reason="claude_fail")
+        _save_to_rankings(conn, item, None)
+        return
 
     # ── ④ TMDB 한글 검색 ─────────────────────────────────────
     tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
@@ -707,7 +710,12 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
             print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
                   f"{item['rank']:2d}. '{title_en}' → '{title_ko_guess}'")
         else:
-            title_ko_guess = title_en
+            # Claude 번역 실패 → 오매칭 방지를 위해 바로 review_queue로 처리
+            print(f"  ⚠️ [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. '{title_en}' → Claude 번역 실패, 검토 큐 저장")
+            save_review_queue(conn, item, title_en, fail_reason="claude_fail")
+            _save_to_rankings(conn, item, None)
+            continue
 
         # title_en을 같이 넘겨서 한글 검색 실패 시 영어 폴백 가능하도록
         tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
