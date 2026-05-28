@@ -514,19 +514,25 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
 # ══════════════════════════════════════════════════════════════
 
 def _save_to_rankings(conn: sqlite3.Connection, item: dict, tmdb_data: dict | None):
-    """rankings 테이블에 저장"""
+    """rankings 테이블에 저장
+    ⚠️ 기존 rankings 테이블의 category 컬럼(NOT NULL) 호환을 위해
+    category_slot 값을 category에도 함께 저장
+    """
     today = get_today()
+    # 기존 category 컬럼(NOT NULL) 호환 — category_slot 값으로 채움
+    category_compat = item["category_slot"]
 
     if tmdb_data:
         conn.execute("""
             INSERT OR REPLACE INTO rankings
-                (date, platform, category_slot, source_name, rank,
+                (date, platform, category, category_slot, source_name, rank,
                  title_ko, title_en, tmdb_id, poster_path,
                  genre, overview, release_year, tmdb_rating)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             today,
             item["platform"],
+            category_compat,
             item["category_slot"],
             item["source_name"],
             item["rank"],
@@ -543,15 +549,16 @@ def _save_to_rankings(conn: sqlite3.Connection, item: dict, tmdb_data: dict | No
         # TMDB 매칭 실패 — 영어 제목만 저장 (tmdb_id=NULL)
         conn.execute("""
             INSERT OR REPLACE INTO rankings
-                (date, platform, category_slot, source_name, rank, title_ko, title_en)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (date, platform, category, category_slot, source_name, rank, title_ko, title_en)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             today,
             item["platform"],
+            category_compat,
             item["category_slot"],
             item["source_name"],
             item["rank"],
-            item["title_en"],   # 한글 없으면 영어 그대로
+            item["title_en"],
             item["title_en"],
         ))
 
