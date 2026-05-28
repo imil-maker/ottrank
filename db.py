@@ -171,9 +171,27 @@ def init_db() -> sqlite3.Connection:
         )
     """)
 
-    # 인덱스
+    # ── 기존 rankings.db 마이그레이션 (구버전 호환) ──────────
+    # rankings.db가 구버전으로 레포에 존재할 경우 컬럼 추가
+    migrations = [
+        "ALTER TABLE rankings ADD COLUMN category_slot TEXT",
+        "ALTER TABLE rankings ADD COLUMN source_name TEXT",
+        "ALTER TABLE works ADD COLUMN match_source TEXT DEFAULT 'admin'",
+        "ALTER TABLE works ADD COLUMN confidence_score INTEGER DEFAULT 100",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+            conn.commit()
+        except Exception:
+            pass  # 이미 컬럼 존재하면 무시
+
+    # 인덱스 (category_slot 컬럼 추가 후 생성)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_works_title_en ON works(title_en)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_rankings_slot ON rankings(date, platform, category_slot)")
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_rankings_slot ON rankings(date, platform, category_slot)")
+    except Exception:
+        pass
     conn.commit()
 
     return conn
