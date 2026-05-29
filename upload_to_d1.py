@@ -90,14 +90,19 @@ def esc(v) -> str:
 
 
 def upload_rankings(conn: sqlite3.Connection) -> int:
-    """rankings 오늘 날짜 데이터 D1 업로드"""
+    """rankings 오늘 날짜 데이터 D1 업로드
+    ⚠️ is_active=0 인 카테고리는 업로드 제외
+    """
     rows = conn.execute("""
-        SELECT date, platform, category, category_slot, source_name, rank,
-               title_ko, title_en, score, tmdb_id, poster_path,
-               genre, overview, release_year, tmdb_rating, is_manual
-        FROM rankings
-        WHERE date = ?
-        ORDER BY platform, category_slot, rank
+        SELECT r.date, r.platform, r.category, r.category_slot, r.source_name, r.rank,
+               r.title_ko, r.title_en, r.score, r.tmdb_id, r.poster_path,
+               r.genre, r.overview, r.release_year, r.tmdb_rating, r.is_manual
+        FROM rankings r
+        LEFT JOIN ott_categories oc
+            ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+        WHERE r.date = ?
+        AND (oc.is_active IS NULL OR oc.is_active = 1)
+        ORDER BY r.platform, r.category_slot, r.rank
     """, (TODAY,)).fetchall()
 
     sql_list = []
