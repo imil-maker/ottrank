@@ -1206,7 +1206,23 @@ async function saveManualOrder() {
   btn.disabled = true;
 
   try {
-    // ① 신규 항목 먼저 추가 (POST)
+    // ① 기존 항목 순위 재정렬 먼저 (신규 POST 전에 해야 rank 충돌 없음)
+    const existingItems = manualItems.filter(item => !item._isNew && item.id);
+    if (existingItems.length) {
+      const res  = await fetch(`${API}/admin/manual-rankings/reorder`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          category_slot: slot,
+          items: existingItems.map(item => ({ id: item.id, rank: item.rank, memo: item.memo ?? null })),
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+    }
+
+    // ② 신규 항목 추가 (POST) — memo 포함
     const newItems = manualItems.filter(item => item._isNew);
     for (const item of newItems) {
       const res  = await fetch(`${API}/admin/manual-rankings`, {
@@ -1224,22 +1240,7 @@ async function saveManualOrder() {
           release_year:  item.release_year,
           genre:         item.genre,
           tmdb_rating:   item.tmdb_rating,
-        }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.message);
-    }
-
-    // ② 기존 항목 순위 재정렬 (PATCH reorder) — memo 포함
-    const existingItems = manualItems.filter(item => !item._isNew && item.id);
-    if (existingItems.length) {
-      const res  = await fetch(`${API}/admin/manual-rankings/reorder`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform,
-          category_slot: slot,
-          items: existingItems.map(item => ({ id: item.id, rank: item.rank, memo: item.memo ?? null })),
+          memo:          item.memo ?? null,
         }),
       });
       const json = await res.json();
