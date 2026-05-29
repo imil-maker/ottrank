@@ -409,10 +409,11 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
         )
 
         if resp.status_code != 200:
-            print(f"  [Claude] API 오류: {resp.status_code}")
+            print(f"  [Claude] API 오류: {resp.status_code} / {resp.text[:200]}")
             return {}
 
         raw  = resp.json().get("content", [{}])[0].get("text", "").strip()
+        print(f"  [Claude] 응답 raw: {repr(raw[:200])}")
         raw  = raw.replace("```json", "").replace("```", "").strip()
         data = json.loads(raw)
         translations = data.get("translations", {})
@@ -420,7 +421,7 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
         return translations
 
     except Exception as e:
-        print(f"  [Claude] 번역 오류: {e}")
+        print(f"  [Claude] 번역 오류: {type(e).__name__}: {e}")
         return {}
 def search_tmdb_korean(title_ko: str, title_en: str = "") -> dict | None:
     """
