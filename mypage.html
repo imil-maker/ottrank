@@ -16,7 +16,7 @@
   --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
   --warn-bg:rgba(240,180,41,.12);--warn-border:rgba(240,180,41,.35);
   --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
-  --r:10px;--r-lg:14px;--content-w:860px;
+  --r:10px;--r-lg:14px;--content-w:900px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
@@ -345,18 +345,13 @@ function renderNextGrade(user,stats){
 
 /* ══ URL 생성 ══ */
 // _title_detail.html의 parseSlug 형식에 맞춰야 함
-// 형식: /title/{작품명}-{시즌}{연도}{tmdb_id}
-// 예: /title/원더풀스-120261375646 (시즌1 + 2026 + 1375646)
+// 새 URL 형식: /title/{시즌}-{연도}{tmdb_id} (한글 없음, 파싱 안정적)
+// 예: /title/1-2026278113
 function makeTitleUrl(title_ko, category, release_year, tmdb_id){
   if(!tmdb_id) return '#';
-  const slug = (title_ko||'작품')
-    .trim()
-    .replace(/\s+/g,'-')
-    .replace(/[^\uAC00-\uD7A3a-zA-Z0-9\-]/g,'');
   const season = 1; // 기본 시즌 1
   const year   = release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
-  // 시즌+연도+tmdb_id 붙여쓰기 (하이픈 없이!)
-  return `/title/${slug}-${season}${year}${tmdb_id}`;
+  return `/title/${season}-${year}${tmdb_id}`;
 }
 
 /* ══ 찜한 작품 ══ */
