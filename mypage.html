@@ -345,21 +345,22 @@ function renderNextGrade(user,stats){
 
 /* ══ URL 생성 ══ */
 // _title_detail.html의 parseSlug 형식에 맞춰야 함
-// 새 URL 형식: /title/{시즌}-{연도}{tmdb_id} (한글 없음, 파싱 안정적)
-// <a href> 대신 onclick으로 sessionStorage에 데이터 저장 후 이동
-function goTitle(tmdb_id, title_ko, title_en, category, release_year){
+// 새 URL 형식: /title/{시즌}-{연도}{tmdb_id} — data-* 속성으로 안전하게 전달
+function goTitle(el){
+  const tmdb_id=parseInt(el.dataset.tmdbId);
+  const title_ko=el.dataset.titleKo||'';
+  const category=el.dataset.category||'tv';
+  const release_year=el.dataset.releaseYear||null;
   if(!tmdb_id) return;
-  const s = 1;
-  const y = release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
-  const url = `/title/${s}-${y}${tmdb_id}`;
+  const s=1;
+  const y=release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
+  const url='/title/'+s+'-'+y+tmdb_id;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id, type: category || 'tv',
-    platform: '', rank: '—',
-    title: title_ko || title_en || '',
-    season: s, year: parseInt(y)
+    tmdb_id, type:category, platform:'', rank:'—',
+    title:title_ko, season:s, year:parseInt(y)
   }));
   sessionStorage.setItem('ottrang_slug', url);
-  location.href = url;
+  location.href=url;
 }
 
 /* ══ 찜한 작품 ══ */
@@ -372,10 +373,14 @@ function renderWishlist(page,isOwn,isHidden){
   const total=ALL_WISH.length,pages=Math.ceil(total/WISH_PER);
   const slice=ALL_WISH.slice((page-1)*WISH_PER,page*WISH_PER);
   el.innerHTML=`<div class="wish-grid">${slice.map(w=>{
-    const onclick=`onclick="goTitle(${w.tmdb_id},'${(w.title_ko||'').replace(/'/g,'\\'')}','${(w.title_en||'').replace(/'/g,'\\'')}','${w.category||'tv'}',${w.release_year||'null'})"`;
     return `<div class="wish-card">
-      <div class="wish-card-link" ${onclick} style="cursor:pointer">
-        <div class="wish-poster">${w.poster_path?`<img src="${IMG}${w.poster_path}" alt="${w.title_ko}" loading="lazy">`:`<div class="wish-poster-ph">🎬</div>`}</div>
+      <div class="wish-card-link"
+        data-tmdb-id="${w.tmdb_id}"
+        data-title-ko="${(w.title_ko||'').replace(/"/g,'&quot;')}"
+        data-category="${w.category||'tv'}"
+        data-release-year="${w.release_year||''}"
+        onclick="goTitle(this)" style="cursor:pointer">
+        <div class="wish-poster">${w.poster_path?`<img src="${IMG}${w.poster_path}" alt="${(w.title_ko||'').replace(/"/g,'')}" loading="lazy">`:`<div class="wish-poster-ph">🎬</div>`}</div>
         <div class="wish-title">${w.title_ko}</div>
       </div>
       ${isOwn?`<button class="wish-del-btn" onclick="delWish(${w.tmdb_id},this)">찜해제</button>`:''}
@@ -410,16 +415,16 @@ function renderReviews(page){
   el.innerHTML=`<div class="review-list">${slice.map(r=>{
     const score=parseFloat(r.score)||0;
     const emotions=_json(r.emotions,[]);
-    const onclick=`onclick="goTitle(${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,'\\'')}','${(r.title_en||'').replace(/'/g,'\\'')}','${r.category||'tv'}',${r.release_year||'null'})"`;
     // 10점 만점 별점 (별 1개 = 2점, 0.5개 = 1점)
     const stars=renderStars(score);
+    const _goAttr=`data-tmdb-id="${r.tmdb_id}" data-title-ko="${(r.title_ko||'').replace(/"/g,'&quot;')}" data-category="${r.category||'tv'}" data-release-year="${r.release_year||''}" onclick="goTitle(this)" style="cursor:pointer"`;
     return `<div class="review-item">
-      <div class="review-poster-link" ${onclick} style="cursor:pointer">
+      <div class="review-poster-link" ${_goAttr}>
         <div class="review-poster">${r.poster_path?`<img src="${IMG}${r.poster_path}" alt="" loading="lazy">`:`<div class="review-poster-ph">🎬</div>`}</div>
       </div>
       <div class="review-body">
         <div class="review-title-row">
-          <span class="review-work-link" ${onclick} style="cursor:pointer"><span class="review-work-title">${r.title_ko||'작품 #'+r.tmdb_id}</span></span>
+          <span class="review-work-link" ${_goAttr}><span class="review-work-title">${r.title_ko||'작품 #'+r.tmdb_id}</span></span>
           <div class="stars-wrap">${stars}<span class="score-num">${score}</span></div>
         </div>
         ${r.text?`<div class="review-text">${r.text}</div>`:''}
