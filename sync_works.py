@@ -101,7 +101,10 @@ def sync_works(conn: sqlite3.Connection):
         """)
 
         count = 0
+        d1_tmdb_ids = []  # D1에 있는 tmdb_id 목록
+
         for row in rows:
+            d1_tmdb_ids.append(row["tmdb_id"])
             conn.execute("""
                 INSERT INTO works
                     (tmdb_id, title_ko, title_en, poster_path,
@@ -132,6 +135,17 @@ def sync_works(conn: sqlite3.Connection):
                 row.get("confidence_score", 100),
             ))
             count += 1
+
+        # ⚠️ 핵심: D1에서 삭제된 항목은 로컬에서도 삭제
+        # Admin이 D1에서 잘못된 works를 삭제하면 로컬에서도 반드시 삭제
+        if d1_tmdb_ids:
+            placeholders = ','.join('?' * len(d1_tmdb_ids))
+            deleted = conn.execute(f"""
+                DELETE FROM works
+                WHERE tmdb_id NOT IN ({placeholders})
+            """, d1_tmdb_ids).rowcount
+            if deleted > 0:
+                print(f"  🗑️ 로컬 works 정리: D1에 없는 {deleted}개 삭제")
 
         conn.commit()
         print(f"  ✅ works 동기화 완료: {count}개")
