@@ -278,8 +278,7 @@ def google_search_korean_title(title_en: str, platform: str = "") -> str:
         snippets = []
         for item in items[:3]:
             snippets.append(f"- {item.get('title', '')} | {item.get('snippet', '')}")
-        snippets_text = "
-".join(snippets)
+        snippets_text = "\n".join(snippets)
 
         # Claude API로 검색 결과에서 한글 제목 추출
         if ANTHROPIC_API_KEY:
