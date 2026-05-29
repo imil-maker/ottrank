@@ -193,7 +193,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div id="pageTabs" style="display:none">
   <div class="page-tabs">
     <button class="page-tab on"  onclick="switchPage('ranking',this)">📊 랭킹 관리</button>
-    <button class="page-tab"     onclick="switchPage('queue',this)">⚠️ 검토 큐</button>
+    <button class="page-tab"     onclick="switchPage('pagecat',this)">📋 페이지 카테고리 설정</button>
     <button class="page-tab"     onclick="switchPage('categories',this)">⚙️ 카테고리 관리</button>
     <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
     <button class="page-tab"     onclick="switchPage('reaction',this)">🌍 해외반응 관리</button>
@@ -290,32 +290,51 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </div>
 
 
-<!-- ══ 검토 큐 ══ -->
-<div id="queueSection" class="main" style="display:none">
+<!-- ══ 페이지 카테고리 설정 ══ -->
+<div id="pagecatSection" class="main" style="display:none">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-    <div style="font-size:15px;font-weight:600">⚠️ TMDB 매칭 실패 검토 큐</div>
-    <span id="queueStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
-    <button class="btn-load" onclick="loadQueue()" style="margin-left:auto">새로고침</button>
+    <div style="font-size:15px;font-weight:600">📋 페이지 카테고리 설정</div>
+    <button class="btn-load" onclick="loadPageCat()" style="margin-left:auto">새로고침</button>
   </div>
   <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
-    💡 TMDB ID 입력 후 저장하면 works 테이블에 영구 저장됩니다. 다음 크롤링부터 자동 매칭됩니다.
+    💡 각 카테고리를 메인페이지/OTT페이지 어느 위치에 노출할지 설정합니다. 순서 숫자가 낮을수록 먼저 표시됩니다.
   </div>
-  <div class="filter-tabs" id="queueFilterTabs">
-    <button class="ftab on" onclick="setQueueFilter('all',this)">전체</button>
-    <button class="ftab" onclick="setQueueFilter('netflix',this)">넷플릭스</button>
-    <button class="ftab" onclick="setQueueFilter('disney',this)">디즈니+</button>
-    <button class="ftab" onclick="setQueueFilter('wavve',this)">웨이브</button>
-    <button class="ftab" onclick="setQueueFilter('coupang',this)">쿠팡플레이</button>
+
+  <!-- 메인페이지 설정 -->
+  <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--gold)">🖥️ 메인페이지 설정</div>
+  <div class="table-wrap" style="margin-bottom:24px">
+    <table>
+      <thead>
+        <tr>
+          <th>플랫폼</th><th>슬롯</th><th>크롤링 원본명</th><th>프론트 표시명</th>
+          <th>메인 섹션</th><th>순서</th><th>노출 개수</th><th>저장</th>
+        </tr>
+      </thead>
+      <tbody id="pagecatMainBody">
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- OTT 페이지 설정 -->
+  <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--info)">📺 OTT 페이지 설정</div>
+  <div class="filter-tabs" id="pagecatPlatformTabs">
+    <button class="ftab on" onclick="setPagecatPlatform('netflix',this)">넷플릭스</button>
+    <button class="ftab" onclick="setPagecatPlatform('tving',this)">티빙</button>
+    <button class="ftab" onclick="setPagecatPlatform('disney',this)">디즈니+</button>
+    <button class="ftab" onclick="setPagecatPlatform('coupang',this)">쿠팡플레이</button>
+    <button class="ftab" onclick="setPagecatPlatform('wavve',this)">웨이브</button>
+    <button class="ftab" onclick="setPagecatPlatform('boxoffice',this)">박스오피스</button>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>날짜</th><th>플랫폼</th><th>카테고리</th><th>순위</th>
-          <th>영어 원제</th><th>Claude 번역</th><th>TMDB ID 입력</th><th>중복삭제</th><th>저장</th>
+          <th>플랫폼</th><th>슬롯</th><th>크롤링 원본명</th><th>프론트 표시명</th>
+          <th>OTT페이지 노출</th><th>순서</th><th>노출 개수</th><th>저장</th>
         </tr>
       </thead>
-      <tbody id="queueTableBody">
+      <tbody id="pagecatPlatformBody">
         <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
       </tbody>
     </table>
@@ -553,14 +572,14 @@ function switchPage(page, btn) {
   document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   document.getElementById('mainSection').style.display       = page === 'ranking'    ? 'block' : 'none';
-  document.getElementById('queueSection').style.display      = page === 'queue'      ? 'block' : 'none';
+  document.getElementById('pagecatSection').style.display    = page === 'pagecat'    ? 'block' : 'none';
   document.getElementById('categoriesSection').style.display = page === 'categories' ? 'block' : 'none';
   document.getElementById('worksSection').style.display      = page === 'works'      ? 'block' : 'none';
   document.getElementById('reactionSection').style.display   = page === 'reaction'   ? 'block' : 'none';
   document.getElementById('gradeSection').style.display      = page === 'grade'      ? 'block' : 'none';
   document.getElementById('usersSection').style.display      = page === 'users'      ? 'block' : 'none';
   if (page === 'users')      loadUsers();
-  if (page === 'queue')      loadQueue();
+  if (page === 'pagecat')    loadPageCat();
   if (page === 'categories') loadCategories();
   if (page === 'works')      loadWorks();
 }
@@ -1555,6 +1574,153 @@ async function loadNewMatchCount(date) {
       newMatchIds = new Set();
     }
   } catch(e) {}
+}
+
+
+
+// ════════════════════════════════════════════════════
+// 페이지 카테고리 설정
+// ════════════════════════════════════════════════════
+let allPageCatData   = [];
+let curPagecatPlatform = 'netflix';
+
+const PLATFORM_KO = {
+  netflix:'넷플릭스', tving:'티빙', disney:'디즈니+',
+  coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스'
+};
+const PC2 = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
+
+async function loadPageCat() {
+  try {
+    const res = await fetch(`${API}/admin/categories`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    allPageCatData = json.data || [];
+    renderPageCatMain();
+    renderPageCatPlatform();
+  } catch(e) {
+    showToast('카테고리 로드 실패: ' + e.message, 'err');
+  }
+}
+
+function setPagecatPlatform(platform, btn) {
+  curPagecatPlatform = platform;
+  document.querySelectorAll('#pagecatPlatformTabs .ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderPageCatPlatform();
+}
+
+function renderPageCatMain() {
+  const rows = allPageCatData;
+  if (!rows.length) {
+    document.getElementById('pagecatMainBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  document.getElementById('pagecatMainBody').innerHTML = rows.map(r => `
+    <tr>
+      <td><span style="color:${PC2[r.platform]||'#fff'};font-weight:600;font-size:12px">${PLATFORM_KO[r.platform]||r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td style="max-width:150px"><span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span></td>
+      <td><span style="font-size:12px">${_esc(r.display_name||'')}</span></td>
+      <td>
+        <select class="inp" id="pmc-section-${r.id}" style="font-size:12px;padding:4px 8px;width:110px">
+          <option value="" ${!r.main_section?'selected':''}>미노출</option>
+          <option value="tv" ${r.main_section==='tv'?'selected':''}>📺 TV 시리즈줄</option>
+          <option value="movie" ${r.main_section==='movie'?'selected':''}>🎬 영화줄</option>
+        </select>
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="pmc-order-${r.id}"
+          value="${r.main_order||0}" style="width:50px;font-size:12px" min="0" max="99">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="pmc-limit-${r.id}"
+          value="${r.main_limit||10}" style="width:50px;font-size:12px" min="1" max="50">
+      </td>
+      <td>
+        <button class="btn-sm btn-save" onclick="savePageCatMain(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderPageCatPlatform() {
+  const rows = allPageCatData.filter(r => r.platform === curPagecatPlatform);
+  if (!rows.length) {
+    document.getElementById('pagecatPlatformBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  document.getElementById('pagecatPlatformBody').innerHTML = rows.map(r => `
+    <tr>
+      <td><span style="color:${PC2[r.platform]||'#fff'};font-weight:600;font-size:12px">${PLATFORM_KO[r.platform]||r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td style="max-width:150px"><span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span></td>
+      <td><span style="font-size:12px">${_esc(r.display_name||'')}</span></td>
+      <td>
+        <select class="inp" id="ppp-section-${r.id}" style="font-size:12px;padding:4px 8px;width:100px">
+          <option value="" ${!r.platform_section?'selected':''}>미노출</option>
+          <option value="main" ${r.platform_section==='main'?'selected':''}>✅ 노출</option>
+        </select>
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="ppp-order-${r.id}"
+          value="${r.platform_order||0}" style="width:50px;font-size:12px" min="0" max="99">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="ppp-limit-${r.id}"
+          value="${r.platform_limit||20}" style="width:50px;font-size:12px" min="1" max="50">
+      </td>
+      <td>
+        <button class="btn-sm btn-save" onclick="savePageCatPlatform(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function savePageCatMain(id) {
+  const main_section = document.getElementById(`pmc-section-${id}`)?.value || null;
+  const main_order   = parseInt(document.getElementById(`pmc-order-${id}`)?.value) || 0;
+  const main_limit   = parseInt(document.getElementById(`pmc-limit-${id}`)?.value) || 10;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        main_section: main_section || null,
+        main_order,
+        main_limit
+      })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    // 로컬 데이터 업데이트
+    const item = allPageCatData.find(r => r.id === id);
+    if (item) { item.main_section = main_section || null; item.main_order = main_order; item.main_limit = main_limit; }
+    showToast('✅ 메인페이지 설정 저장 완료', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function savePageCatPlatform(id) {
+  const platform_section = document.getElementById(`ppp-section-${id}`)?.value || null;
+  const platform_order   = parseInt(document.getElementById(`ppp-order-${id}`)?.value) || 0;
+  const platform_limit   = parseInt(document.getElementById(`ppp-limit-${id}`)?.value) || 20;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform_section: platform_section || null,
+        platform_order,
+        platform_limit
+      })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    const item = allPageCatData.find(r => r.id === id);
+    if (item) { item.platform_section = platform_section || null; item.platform_order = platform_order; item.platform_limit = platform_limit; }
+    showToast('✅ OTT 페이지 설정 저장 완료', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
 }
 
 </script>
