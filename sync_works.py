@@ -155,6 +155,11 @@ def sync_ott_categories(conn: sqlite3.Connection):
             ORDER BY platform, category_slot
         """)
 
+        # ⚠️ 전체 삭제 후 재삽입
+        # rankings.db에 캐시된 구버전 설정(is_active 등)을 완전히 교체
+        conn.execute("DELETE FROM ott_categories")
+        conn.commit()
+
         count = 0
         for row in rows:
             conn.execute("""
@@ -162,14 +167,6 @@ def sync_ott_categories(conn: sqlite3.Connection):
                     (platform, category_slot, table_index, source_name,
                      display_name, crawl_limit, main_limit, platform_limit, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(platform, category_slot) DO UPDATE SET
-                    table_index    = excluded.table_index,
-                    source_name    = excluded.source_name,
-                    display_name   = excluded.display_name,
-                    crawl_limit    = excluded.crawl_limit,
-                    main_limit     = excluded.main_limit,
-                    platform_limit = excluded.platform_limit,
-                    is_active      = excluded.is_active
             """, (
                 row["platform"],
                 row["category_slot"],
@@ -184,7 +181,7 @@ def sync_ott_categories(conn: sqlite3.Connection):
             count += 1
 
         conn.commit()
-        print(f"  ✅ ott_categories 동기화 완료: {count}개")
+        print(f"  ✅ ott_categories 동기화 완료: {count}개 (전체 교체)")
 
     except Exception as e:
         print(f"  ⚠️  ott_categories 동기화 실패: {e}")
