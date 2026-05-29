@@ -504,6 +504,13 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", stri
 
         # strict 모드 → 결과 여러개이면 None 반환 (오매칭 방지)
         if strict:
+            # 결과 1개라도 제목 유사도가 너무 낮으면 None 반환
+            # 예: "Ladies First" 검색 → "First Lady" 는 유사도 낮음
+            best = valid[0]
+            best_score = max(title_match_score(r, query) for r in valid)
+            if best_score < 50:
+                print(f"    [strict] '{query}' → 유사도 낮아 저장 안함 (best_score={best_score})")
+                return None
             return None
 
         def get_year(r):
@@ -844,21 +851,22 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
 
 async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
     """
-    크롤링 결과 전체를 배치로 처리 (Claude API 1회 호출로 전체 번역)
+    크롤링 결과 전체 배치 처리 - 새 파이프라인 v3
 
-    권장 사용법:
-    1. works에 없는 신규 항목만 추출
-    2. Claude API 1번 호출로 전체 번역
-    3. TMDB 검색 + 저장
+    매칭 순서:
+    ① works DB 우선 조회 → 있으면 바로 저장
+    ② TMDB 영어 원제 검색 (결과 1개면 바로 저장) → 넷플릭스 영어 작품 커버
+    ③ Claude 번역 → TMDB 한글 검색 (한국/일본 작품 커버)
+    ④ 전부 실패 → 검토 큐
     """
     if not items:
         return
 
-    today = get_today()
+    from collections import defaultdict
 
-    # ── ② works 우선 조회 — 매칭/미매칭 분리 ────────────────
-    matched_items   = []  # works에 있는 항목
-    unmatched_items = []  # works에 없는 신규 항목
+    # ── ① works 우선 조회 ────────────────────────────────────
+    matched_items   = []
+    unmatched_items = []
 
     for item in items:
         works_data = lookup_works(conn, item["title_en"])
@@ -869,7 +877,6 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
 
     print(f"\n  [배치] works 매칭: {len(matched_items)}개 / 신규: {len(unmatched_items)}개")
 
-    # ── works 매칭 항목 바로 저장 ────────────────────────────
     for item, works_data in matched_items:
         print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
               f"{item['rank']:2d}. '{item['title_en']}' → works DB (tmdb_id={works_data['tmdb_id']})")
@@ -878,14 +885,44 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
     if not unmatched_items:
         return
 
-    # ── ③ Claude API 배치 번역 (신규 항목만, 플랫폼별 분리) ──
-    # 이미 한글인 항목은 번역 스킵, 영어 제목만 번역 요청
-    from collections import defaultdict
-    platform_groups = defaultdict(list)
+    # ── ② TMDB 영어 원제 검색 (strict=True, 결과 1개만 저장) ─
+    # 넷플릭스/디즈니 영어 작품들 커버
+    still_unmatched = []
     for item in unmatched_items:
+        title_en = item["title_en"]
+
+        # 한글 제목은 영어 검색 스킵
+        if _is_korean(title_en):
+            still_unmatched.append(item)
+            continue
+
+        tmdb_data = None
+        for media_type in ["tv", "movie"]:
+            result = _search_tmdb_by_title(title_en, media_type, lang="en-US", strict=True)
+            if result:
+                tmdb_data = result
+                break
+
+        if tmdb_data:
+            tmdb_data["title_en"] = tmdb_data.get("title_en") or title_en
+            print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. '{title_en}' → '{tmdb_data['title_ko']}' "
+                  f"(tmdb_id={tmdb_data['tmdb_id']}) [영어검색]")
+            insert_work(conn, tmdb_data, match_source="auto_claude")
+            _save_to_rankings(conn, item, tmdb_data)
+        else:
+            still_unmatched.append(item)
+
+        time.sleep(0.1)
+
+    if not still_unmatched:
+        return
+
+    # ── ③ Claude 번역 → TMDB 한글 검색 (신규 항목만) ─────────
+    platform_groups = defaultdict(list)
+    for item in still_unmatched:
         if _is_korean(item["title_en"]):
-            # 이미 한글 제목 → 번역 불필요, 그대로 사용
-            pass
+            pass  # 한글은 번역 스킵
         else:
             platform_groups[item["platform"]].append(item)
 
@@ -895,52 +932,41 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
         plt_translations = translate_titles_to_korean(plt_titles, platform=plt)
         translations.update(plt_translations)
 
-    # 한글 제목은 번역 결과에 그대로 추가
-    for item in unmatched_items:
+    # 한글 제목은 그대로 추가
+    for item in still_unmatched:
         if _is_korean(item["title_en"]):
             translations[item["title_en"]] = item["title_en"]
 
-    # ── ④ TMDB 한글 검색 + 저장 ─────────────────────────────
-    for item in unmatched_items:
-        title_en     = item["title_en"]
-        title_ko_guess = translations.get(title_en, title_en)
+    # TMDB 한글 검색
+    for item in still_unmatched:
+        title_en       = item["title_en"]
+        title_ko_guess = translations.get(title_en, "")
 
         if title_ko_guess and title_ko_guess != title_en:
             print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
-                  f"{item['rank']:2d}. '{title_en}' → '{title_ko_guess}'")
+                  f"{item['rank']:2d}. '{title_en}' → '{title_ko_guess}' (Claude)")
         elif _is_korean(title_en):
-            # 이미 한글 제목 → 번역 없이 바로 TMDB 검색
             title_ko_guess = title_en
             print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
-                  f"{item['rank']:2d}. '{title_en}' → 한글 제목 그대로 검색")
+                  f"{item['rank']:2d}. '{title_en}' → 한글 그대로 검색")
         else:
-            # Claude 번역 실패 → Google Search로 한글 제목 검색
-            google_title = google_search_korean_title(title_en, item["platform"])
-            if google_title:
-                title_ko_guess = google_title
-                print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
-                      f"{item['rank']:2d}. '{title_en}' → '{title_ko_guess}' (Google 검색)")
-            else:
-                # Google도 실패 → 영어 원제로 TMDB 직접 검색
-                print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
-                      f"{item['rank']:2d}. '{title_en}' → 번역 실패, 영어 원제로 TMDB 검색")
-                title_ko_guess = title_en
+            # 번역 실패 → 검토 큐
+            print(f"  ⚠️ [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. '{title_en}' → 번역 실패, 검토 큐 저장")
+            save_review_queue(conn, item, title_en, fail_reason="claude_fail")
+            _save_to_rankings(conn, item, None)
+            continue
 
-        # title_en을 같이 넘겨서 한글 검색 실패 시 영어 폴백 가능하도록
         tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
-        time.sleep(0.2)  # TMDB API rate limit 방지
+        time.sleep(0.2)
 
         if tmdb_data:
             tmdb_data["title_en"] = tmdb_data.get("title_en") or title_en
             print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
                   f"{item['rank']:2d}. '{title_en}' → '{tmdb_data['title_ko']}' "
                   f"(tmdb_id={tmdb_data['tmdb_id']})")
-
-            # works INSERT (기존 덮어쓰기 금지)
             insert_work(conn, tmdb_data, match_source="auto_claude")
             _save_to_rankings(conn, item, tmdb_data)
-
         else:
-            # 매칭 실패 → review_queue
             save_review_queue(conn, item, title_ko_guess, fail_reason="tmdb_not_found")
             _save_to_rankings(conn, item, None)
