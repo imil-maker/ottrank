@@ -387,26 +387,70 @@ const PC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',w
 
 const API = 'https://ottrank-api.tdidream.workers.dev';
 
-// API에서 받은 데이터를 RANKINGS 구조로 변환
+// API에서 받은 데이터를 RANKINGS 구조로 변환 (새 category_slot 방식)
+function buildRankingsFromMain(mainData) {
+  const result = { tv: {}, movie: {} };
+  PLATFORMS.forEach(p => { result.tv[p.id] = []; result.movie[p.id] = []; });
+  result.movie['boxoffice'] = [];
+
+  // TV 섹션
+  (mainData.tv || []).forEach(group => {
+    const pid = group.platform;
+    result.tv[pid] = (group.items || []).map(row => ({
+      t:       row.title_ko,
+      q:       row.title_en || row.title_ko,
+      type:    'tv',
+      ch:      '=',
+      r:       row.tmdb_rating || 0,
+      _poster: row.poster_path ? IMG + row.poster_path : null,
+      tmdb_id: row.tmdb_id || null,
+      _season: 1,
+      _year:   String(row.release_year || ''),
+    }));
+  });
+
+  // 영화 섹션
+  (mainData.movie || []).forEach(group => {
+    const pid = group.platform;
+    if (!result.movie[pid]) result.movie[pid] = [];
+    result.movie[pid] = (group.items || []).map(row => ({
+      t:       row.title_ko,
+      q:       row.title_en || row.title_ko,
+      type:    'movie',
+      ch:      '=',
+      r:       row.tmdb_rating || 0,
+      _poster: row.poster_path ? IMG + row.poster_path : null,
+      tmdb_id: row.tmdb_id || null,
+      _season: 1,
+      _year:   String(row.release_year || ''),
+    }));
+  });
+
+  return result;
+}
+
+// 기존 호환용 (weekly/monthly는 기존 방식 유지)
 function buildRankings(rows) {
   const result = { tv: {}, movie: {} };
   PLATFORMS.forEach(p => { result.tv[p.id] = []; result.movie[p.id] = []; });
-  result.movie['boxoffice'] = [];  // 박스오피스 슬롯 추가
+  result.movie['boxoffice'] = [];
   rows.forEach(row => {
-    const cat = row.category;
+    const cat = row.category_slot ? (row.category_slot) : row.category;
     const pid = row.platform;
-    if (!result[cat]) return;
-    if (!result[cat][pid]) result[cat][pid] = [];
-    result[cat][pid].push({
-      t: row.title_ko,
-      q: row.title_en || row.title_ko,
-      type: cat,
-      ch: '=',
-      r: row.score || 0,
+    // category_slot 방식: category 컬럼 대신 source_name 기반 판단
+    const section = row.category === 'movie' ? 'movie' : 'tv';
+    if (!result[section]) return;
+    if (!result[section][pid]) result[section][pid] = [];
+    result[section][pid].push({
+      t:       row.title_ko,
+      q:       row.title_en || row.title_ko,
+      type:    section,
+      ch:      '=',
+      r:       row.score || row.tmdb_rating || 0,
       _poster: row.poster_path ? IMG + row.poster_path : null,
       tmdb_id: row.tmdb_id || null,
-      _season: row.season || 1,               // API가 season 내려줄 때 활용
-      _year:   String(row.release_year || ''), // API가 release_year 내려줄 때 활용
+      _season: 1,
+      _year:   String(row.release_year || ''),
     });
   });
   return result;
@@ -636,21 +680,36 @@ async function setPeriod(p,btn){
 }
 
 async function loadRankings(period='daily'){
-  const endpoint = period==='weekly' ? `${API}/rankings/weekly`
-                 : period==='monthly'? `${API}/rankings/monthly`
-                 : `${API}/rankings`;
   try{
-    const res=await fetch(endpoint);
-    const json=await res.json();
-    if(json.ok && json.data.length>0){
-      const apiRankings=buildRankings(json.data);
-      PLATFORMS.forEach(p=>{
-        if(apiRankings.tv[p.id]?.length)   RANKINGS.tv[p.id]   =apiRankings.tv[p.id];
-        if(apiRankings.movie[p.id]?.length) RANKINGS.movie[p.id]=apiRankings.movie[p.id];
-      });
-      if(apiRankings.movie['boxoffice']?.length)
-        RANKINGS.movie['boxoffice']=apiRankings.movie['boxoffice'];
-      renderGrids();
+    if(period==='daily'){
+      // 새 API: /rankings/main (Admin 설정 기반)
+      const res=await fetch(`${API}/rankings/main`);
+      const json=await res.json();
+      if(json.ok){
+        const apiRankings=buildRankingsFromMain(json);
+        PLATFORMS.forEach(p=>{
+          if(apiRankings.tv[p.id]?.length)    RANKINGS.tv[p.id]    = apiRankings.tv[p.id];
+          if(apiRankings.movie[p.id]?.length)  RANKINGS.movie[p.id] = apiRankings.movie[p.id];
+        });
+        if(apiRankings.movie['boxoffice']?.length)
+          RANKINGS.movie['boxoffice']=apiRankings.movie['boxoffice'];
+        renderGrids();
+      }
+    } else {
+      // weekly/monthly는 기존 방식 유지
+      const endpoint = period==='weekly' ? `${API}/rankings/weekly` : `${API}/rankings/monthly`;
+      const res=await fetch(endpoint);
+      const json=await res.json();
+      if(json.ok && json.data?.length>0){
+        const apiRankings=buildRankings(json.data);
+        PLATFORMS.forEach(p=>{
+          if(apiRankings.tv[p.id]?.length)   RANKINGS.tv[p.id]   =apiRankings.tv[p.id];
+          if(apiRankings.movie[p.id]?.length) RANKINGS.movie[p.id]=apiRankings.movie[p.id];
+        });
+        if(apiRankings.movie['boxoffice']?.length)
+          RANKINGS.movie['boxoffice']=apiRankings.movie['boxoffice'];
+        renderGrids();
+      }
     }
   }catch(e){console.warn(period+' 랭킹 로드 실패:',e);}
 }
