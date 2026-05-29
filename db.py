@@ -462,34 +462,42 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", stri
             return None
 
         def get_year(r):
+            """출시 연도 추출 — 최신 연도 우선 정렬용"""
             date_str = r.get("release_date") or r.get("first_air_date") or "0000"
             try:
                 return int(date_str[:4])
             except Exception:
                 return 0
 
-        # 1순위: 검색어와 정확히 일치하는 한국 작품
+        # ──────────────────────────────────────────────────────
+        # 우선순위 기준: 최신 연도 우선 (popularity 사용 안 함)
+        # 이유: TMDB popularity는 all-time 누적값이라
+        #       오래된 명작이 신작보다 높게 나와 오매칭 발생
+        # 같은 제목이면 현재 OTT에서 서비스 중인 신작이 정답일 확률이 높음
+        # ──────────────────────────────────────────────────────
+
+        # 1순위: 검색어와 정확히 일치하는 한국 작품 중 최신 연도
         exact_korean = [r for r in valid if _tmdb_is_korean(r) and _tmdb_title_score(r, query) == 100]
         if exact_korean:
-            return _build_result(max(exact_korean, key=_tmdb_get_popularity), media_type)
+            return _build_result(max(exact_korean, key=get_year), media_type)
 
-        # 2순위: 단어 경계 일치하는 한국 작품 (80점)
+        # 2순위: 단어 경계 일치하는 한국 작품 중 최신 연도 (80점)
         boundary_korean = [r for r in valid if _tmdb_is_korean(r) and _tmdb_title_score(r, query) >= 80]
         if boundary_korean:
-            return _build_result(max(boundary_korean, key=_tmdb_get_popularity), media_type)
+            return _build_result(max(boundary_korean, key=get_year), media_type)
 
-        # 3순위: 한국 작품 중 popularity 높은 것
+        # 3순위: 한국 작품 중 최신 연도
         korean = [r for r in valid if _tmdb_is_korean(r)]
         if korean:
-            return _build_result(max(korean, key=_tmdb_get_popularity), media_type)
+            return _build_result(max(korean, key=get_year), media_type)
 
-        # 4순위: 검색어 정확 일치하는 전체 작품
+        # 4순위: 검색어 정확 일치하는 전체 작품 중 최신 연도
         exact_all = [r for r in valid if _tmdb_title_score(r, query) == 100]
         if exact_all:
-            return _build_result(max(exact_all, key=_tmdb_get_popularity), media_type)
+            return _build_result(max(exact_all, key=get_year), media_type)
 
-        # 5순위: 전체 결과 중 popularity 높은 것
-        return _build_result(max(valid, key=_tmdb_get_popularity), media_type)
+        # 5순위: 전체 결과 중 최신 연도
+        return _build_result(max(valid, key=get_year), media_type)
 
     except Exception as e:
         print(f"    TMDB 검색 오류 ({query}, {media_type}): {e}")
