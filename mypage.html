@@ -16,7 +16,7 @@
   --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
   --warn-bg:rgba(240,180,41,.12);--warn-border:rgba(240,180,41,.35);
   --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
-  --r:10px;--r-lg:14px;--content-w:900px;
+  --r:10px;--r-lg:14px;--content-w:860px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
@@ -346,12 +346,20 @@ function renderNextGrade(user,stats){
 /* ══ URL 생성 ══ */
 // _title_detail.html의 parseSlug 형식에 맞춰야 함
 // 새 URL 형식: /title/{시즌}-{연도}{tmdb_id} (한글 없음, 파싱 안정적)
-// 예: /title/1-2026278113
-function makeTitleUrl(title_ko, category, release_year, tmdb_id){
-  if(!tmdb_id) return '#';
-  const season = 1; // 기본 시즌 1
-  const year   = release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
-  return `/title/${season}-${year}${tmdb_id}`;
+// <a href> 대신 onclick으로 sessionStorage에 데이터 저장 후 이동
+function goTitle(tmdb_id, title_ko, title_en, category, release_year){
+  if(!tmdb_id) return;
+  const s = 1;
+  const y = release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
+  const url = `/title/${s}-${y}${tmdb_id}`;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id, type: category || 'tv',
+    platform: '', rank: '—',
+    title: title_ko || title_en || '',
+    season: s, year: parseInt(y)
+  }));
+  sessionStorage.setItem('ottrang_slug', url);
+  location.href = url;
 }
 
 /* ══ 찜한 작품 ══ */
@@ -364,12 +372,12 @@ function renderWishlist(page,isOwn,isHidden){
   const total=ALL_WISH.length,pages=Math.ceil(total/WISH_PER);
   const slice=ALL_WISH.slice((page-1)*WISH_PER,page*WISH_PER);
   el.innerHTML=`<div class="wish-grid">${slice.map(w=>{
-    const href=makeTitleUrl(w.title_ko,w.category,w.release_year,w.tmdb_id);
+    const onclick=`onclick="goTitle(${w.tmdb_id},'${(w.title_ko||'').replace(/'/g,'\\'')}','${(w.title_en||'').replace(/'/g,'\\'')}','${w.category||'tv'}',${w.release_year||'null'})"`;
     return `<div class="wish-card">
-      <a class="wish-card-link" href="${href}">
+      <div class="wish-card-link" ${onclick} style="cursor:pointer">
         <div class="wish-poster">${w.poster_path?`<img src="${IMG}${w.poster_path}" alt="${w.title_ko}" loading="lazy">`:`<div class="wish-poster-ph">🎬</div>`}</div>
         <div class="wish-title">${w.title_ko}</div>
-      </a>
+      </div>
       ${isOwn?`<button class="wish-del-btn" onclick="delWish(${w.tmdb_id},this)">찜해제</button>`:''}
     </div>`;
   }).join('')}</div>`;
@@ -402,16 +410,16 @@ function renderReviews(page){
   el.innerHTML=`<div class="review-list">${slice.map(r=>{
     const score=parseFloat(r.score)||0;
     const emotions=_json(r.emotions,[]);
-    const href=makeTitleUrl(r.title_ko,r.category,r.release_year,r.tmdb_id)+'#reviews';
+    const onclick=`onclick="goTitle(${r.tmdb_id},'${(r.title_ko||'').replace(/'/g,'\\'')}','${(r.title_en||'').replace(/'/g,'\\'')}','${r.category||'tv'}',${r.release_year||'null'})"`;
     // 10점 만점 별점 (별 1개 = 2점, 0.5개 = 1점)
     const stars=renderStars(score);
     return `<div class="review-item">
-      <a class="review-poster-link" href="${href}">
+      <div class="review-poster-link" ${onclick} style="cursor:pointer">
         <div class="review-poster">${r.poster_path?`<img src="${IMG}${r.poster_path}" alt="" loading="lazy">`:`<div class="review-poster-ph">🎬</div>`}</div>
-      </a>
+      </div>
       <div class="review-body">
         <div class="review-title-row">
-          <a class="review-work-link" href="${href}"><span class="review-work-title">${r.title_ko||'작품 #'+r.tmdb_id}</span></a>
+          <span class="review-work-link" ${onclick} style="cursor:pointer"><span class="review-work-title">${r.title_ko||'작품 #'+r.tmdb_id}</span></span>
           <div class="stars-wrap">${stars}<span class="score-num">${score}</span></div>
         </div>
         ${r.text?`<div class="review-text">${r.text}</div>`:''}
