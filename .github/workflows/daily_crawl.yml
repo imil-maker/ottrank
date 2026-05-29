@@ -51,6 +51,7 @@ jobs:
 
         run: |
           echo "=== 크롤링 시작 ==="
+          python tving_debug.py
           python run_all.py
           echo "=== 크롤링 완료 ==="
 
