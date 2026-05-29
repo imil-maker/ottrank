@@ -454,12 +454,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
             <th>제목</th>
             <th style="width:80px">TMDB ID</th>
             <th style="width:80px">연도</th>
+            <th>메모 <span style="font-weight:400;color:var(--muted);font-size:10px">(선택, 예: 1000만명)</span></th>
             <th style="width:100px">순서 변경</th>
             <th style="width:60px">삭제</th>
           </tr>
         </thead>
         <tbody id="manualTableBody">
-          <tr><td colspan="7" class="loading">슬롯을 선택하세요</td></tr>
+          <tr><td colspan="8" class="loading">슬롯을 선택하세요</td></tr>
         </tbody>
       </table>
     </div>
@@ -877,6 +878,15 @@ function renderManualTable() {
       </td>
       <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">${item.release_year || '-'}</td>
       <td>
+        <input
+          type="text"
+          class="date-inp"
+          placeholder="예: 1000만명, 2관왕..."
+          value="${(item.memo || '').replace(/"/g, '&quot;')}"
+          oninput="updateManualMemo(${idx}, this.value)"
+          style="width:100%;font-size:12px;padding:5px 8px">
+      </td>
+      <td>
         <div style="display:flex;gap:4px">
           <button class="btn-sm btn-fix" onclick="moveManualItem(${idx}, -1)" ${idx === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button>
           <button class="btn-sm btn-fix" onclick="moveManualItem(${idx}, 1)" ${idx === manualItems.length-1 ? 'disabled style="opacity:.3"' : ''}>▼</button>
@@ -888,6 +898,13 @@ function renderManualTable() {
       </td>
     </tr>
   `).join('');
+}
+
+// 메모 실시간 업데이트 (입력 즉시 로컬 상태 반영)
+function updateManualMemo(idx, value) {
+  if (manualItems[idx] !== undefined) {
+    manualItems[idx].memo = value.trim() || null;
+  }
 }
 
 // 순위 이동 (▲▼)
@@ -1060,7 +1077,7 @@ async function saveManualOrder() {
       if (!json.ok) throw new Error(json.message);
     }
 
-    // ② 기존 항목 순위 재정렬 (PATCH reorder)
+    // ② 기존 항목 순위 재정렬 (PATCH reorder) — memo 포함
     const existingItems = manualItems.filter(item => !item._isNew && item.id);
     if (existingItems.length) {
       const res  = await fetch(`${API}/admin/manual-rankings/reorder`, {
@@ -1069,7 +1086,7 @@ async function saveManualOrder() {
         body: JSON.stringify({
           platform,
           category_slot: slot,
-          items: existingItems.map(item => ({ id: item.id, rank: item.rank })),
+          items: existingItems.map(item => ({ id: item.id, rank: item.rank, memo: item.memo ?? null })),
         }),
       });
       const json = await res.json();
