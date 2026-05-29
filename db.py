@@ -42,10 +42,6 @@ TMDB_PROXY = "https://tmdb-proxy.tdidream.workers.dev/tmdb"
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_URL     = "https://api.anthropic.com/v1/messages"
 
-# Google Custom Search API 설정 (Claude 번역 실패 시 폴백)
-GOOGLE_SEARCH_API_KEY = os.environ.get("GOOGLE_SEARCH_API_KEY", "")
-GOOGLE_SEARCH_CX      = os.environ.get("GOOGLE_SEARCH_CX", "")
-GOOGLE_SEARCH_URL     = "https://www.googleapis.com/customsearch/v1"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -237,111 +233,6 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
 # ══════════════════════════════════════════════════════════════
 
 
-def google_search_korean_title(title_en: str, platform: str = "") -> str:
-    """
-    Google Custom Search API로 한글 제목 검색
-    Claude 번역 실패 시 폴백으로 사용
-    반환: 한글 제목 문자열 또는 빈 문자열
-    """
-    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_SEARCH_CX:
-        return ""
-
-    platform_names = {
-        "netflix": "넷플릭스", "disney": "디즈니플러스",
-        "wavve": "웨이브", "coupang": "쿠팡플레이", "tving": "티빙",
-    }
-    platform_ko = platform_names.get(platform, "OTT")
-    query = f"{platform_ko} {title_en} 한국 제목"
-
-    try:
-        resp = requests.get(
-            GOOGLE_SEARCH_URL,
-            params={
-                "key": GOOGLE_SEARCH_API_KEY,
-                "cx":  GOOGLE_SEARCH_CX,
-                "q":   query,
-                "num": 3,
-                "lr":  "lang_ko",
-            },
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            print(f"  [Google] API 오류: {resp.status_code}")
-            return ""
-
-        items = resp.json().get("items", [])
-        if not items:
-            return ""
-
-        # 검색 결과 제목/설명에서 한글 제목 추출
-        # Claude에게 검색 결과를 주고 한글 제목만 추출하도록 요청
-        snippets = []
-        for item in items[:3]:
-            snippets.append(f"- {item.get('title', '')} | {item.get('snippet', '')}")
-        snippets_text = "\n".join(snippets)
-
-        # Claude API로 검색 결과에서 한글 제목 추출
-        if ANTHROPIC_API_KEY:
-            prompt = f"""다음은 "{title_en}"의 한국 제목을 구글에서 검색한 결과입니다.
-검색 결과에서 이 작품의 정확한 한국어 공식 제목만 추출해주세요.
-
-검색 결과:
-{snippets_text}
-
-규칙:
-1. 작품의 공식 한국어 제목만 답하세요 (다른 설명 없이)
-2. 확실하지 않으면 빈 문자열로 답하세요
-3. 반드시 JSON 형식으로만: {{"title_ko": "한글제목"}}"""
-
-            resp2 = requests.post(
-                ANTHROPIC_URL,
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 100,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-                timeout=15,
-            )
-            if resp2.status_code == 200:
-                raw  = resp2.json().get("content", [{}])[0].get("text", "").strip()
-                raw  = raw.replace("```json", "").replace("```", "").strip()
-                data = json.loads(raw)
-                title_ko = data.get("title_ko", "").strip()
-                if title_ko:
-                    print(f"  [Google+Claude] '{title_en}' → '{title_ko}'")
-                    return title_ko
-
-        # Claude 없으면 첫 번째 검색 결과 제목에서 한글만 추출
-        for item in items[:3]:
-            title = item.get("title", "")
-            # 제목에서 한글 부분만 추출
-            korean_parts = []
-            current = ""
-            for ch in title:
-                if '가' <= ch <= '힣' or 'ᄀ' <= ch <= 'ᇿ' or ch in ' ':
-                    current += ch
-                else:
-                    if current.strip() and len(current.strip()) > 1:
-                        korean_parts.append(current.strip())
-                    current = ""
-            if current.strip() and len(current.strip()) > 1:
-                korean_parts.append(current.strip())
-            if korean_parts:
-                result = max(korean_parts, key=len)
-                if len(result) > 2:
-                    print(f"  [Google] '{title_en}' → '{result}'")
-                    return result
-
-    except Exception as e:
-        print(f"  [Google] 검색 오류: {e}")
-
-    return ""
-
 def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[str, str]:
     """
     Claude API로 영어 제목 목록을 한글 제목으로 배치 번역
@@ -413,7 +304,6 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
             return {}
 
         raw  = resp.json().get("content", [{}])[0].get("text", "").strip()
-        print(f"  [Claude] 응답 raw: {repr(raw[:200])}")
         raw  = raw.replace("```json", "").replace("```", "").strip()
         data = json.loads(raw)
         translations = data.get("translations", {})
@@ -815,15 +705,11 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
         title_ko_guess = title_en
         print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → 한글 제목 그대로 검색")
     else:
-        # Claude 번역 실패 → Google Search로 한글 제목 검색
-        google_title = google_search_korean_title(title_en, platform)
-        if google_title:
-            title_ko_guess = google_title
-            print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → '{title_ko_guess}' (Google 검색)")
-        else:
-            # Google도 실패 → 영어 원제로 TMDB 직접 검색
-            print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → 번역 실패, 영어 원제로 TMDB 검색")
-            title_ko_guess = title_en
+        # Claude 번역 실패 → 검토 큐로 처리 (오매칭 방지)
+        print(f"  ⚠️ [{platform}][{slot}] {rank:2d}. '{title_en}' → 번역 실패, 검토 큐 저장")
+        save_review_queue(conn, item, title_en, fail_reason="claude_fail")
+        _save_to_rankings(conn, item, None)
+        return
 
     # ── ④ TMDB 검색 (한글 우선, 영어 폴백) ──────────────────
     tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
