@@ -456,6 +456,20 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <span style="font-size:12px;color:var(--muted)">TMDB ID 입력 시 포스터 미리보기</span>
       </div>
     </div>
+    <div class="form-row" style="margin-top:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="editDeleteDuplicates" style="cursor:pointer;width:16px;height:16px">
+        <span style="font-size:13px">같은 영어 제목의 기존 잘못된 works 데이터 삭제</span>
+        <span style="font-size:11px;color:var(--red)">(오매칭 데이터 제거)</span>
+      </label>
+    </div>
+    <div class="form-row" style="margin-top:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="editDeleteDuplicates" style="cursor:pointer;width:16px;height:16px">
+        <span style="font-size:13px">같은 영어 제목의 기존 잘못된 works 데이터 삭제</span>
+        <span style="font-size:11px;color:var(--red)">(오매칭 제거 시 사용)</span>
+      </label>
+    </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">취소</button>
       <button class="btn-save" onclick="saveEdit()">저장 (수동고정)</button>
@@ -646,7 +660,11 @@ function openModal(r) {
   updatePosterPreview(r.poster_path);
   document.getElementById('editOverlay').classList.add('show');
 }
-function closeModal() { document.getElementById('editOverlay').classList.remove('show'); }
+function closeModal() {
+  document.getElementById('editOverlay').classList.remove('show');
+  const cb = document.getElementById('editDeleteDuplicates');
+  if (cb) cb.checked = false;
+}
 
 let previewTimer = null;
 function previewPoster() {
@@ -671,11 +689,12 @@ async function saveEdit() {
   const title_ko = document.getElementById('editTitleKo').value.trim();
   const title_en = document.getElementById('editTitleEn').value.trim();
   const tmdb_id  = parseInt(document.getElementById('editTmdbId').value) || null;
+  const deleteDuplicates = document.getElementById('editDeleteDuplicates')?.checked || false;
   try {
     const res = await fetch(`${API}/admin/fix`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ id: parseInt(id), title_ko, title_en, tmdb_id })
+      body: JSON.stringify({ id: parseInt(id), title_ko, title_en, tmdb_id, delete_duplicates: deleteDuplicates })
     });
     const json = await res.json();
     if (json.ok) {
