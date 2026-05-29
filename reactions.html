@@ -848,8 +848,8 @@ async function goToWork(tmdbId, titleKo){
       }
     }catch(e){}
 
-    const slug = (titleKo||'work').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
-    const url  = `/title/${slug}-${season}${year}${tmdbId}`;
+    // 새 URL 형식: /title/{시즌}-{연도}{tmdbId}
+    const url = `/title/${season}-${year}${tmdbId}`;
     sessionStorage.setItem('ottrang_work', JSON.stringify({tmdb_id:tmdbId,type,platform:'',rank:'—',title:titleKo,season,year}));
     sessionStorage.setItem('ottrang_slug', url);
     window.open(url,'_blank');
