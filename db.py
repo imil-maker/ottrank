@@ -206,21 +206,41 @@ def init_db() -> sqlite3.Connection:
 
 def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
     """
-    works 테이블에서 영어 제목으로 조회
+    works 테이블에서 제목으로 조회
     반환: { tmdb_id, title_ko, title_en, poster_path } 또는 None
 
     ⚠️ 핵심 원칙: 이 함수만 works를 읽음
     크롤러는 works를 절대 UPDATE/DELETE 하지 않음
+
+    조회 순서:
+    1. title_en 완전 일치 (영어 제목 크롤러용)
+    2. title_ko 완전 일치 (한글 제목 크롤러용 — 웨이브/티빙 등)
+       → 한글 제목이 title_en 자리에 들어올 때 Admin 데이터 보호
     """
     if not title_en or not title_en.strip():
         return None
 
+    title = title_en.strip()
+
+    # 1순위: title_en으로 조회 (영어 제목 크롤러)
     row = conn.execute("""
         SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
         FROM works
         WHERE title_en = ?
         LIMIT 1
-    """, (title_en.strip(),)).fetchone()
+    """, (title,)).fetchone()
+
+    if row and row["tmdb_id"]:
+        return dict(row)
+
+    # 2순위: title_ko로 조회 (한글 제목이 title_en 자리에 들어온 경우)
+    # 웨이브/티빙 등 한글 제목 크롤러에서 Admin 저장 데이터를 찾지 못하는 문제 방지
+    row = conn.execute("""
+        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+        FROM works
+        WHERE title_ko = ?
+        LIMIT 1
+    """, (title,)).fetchone()
 
     if row and row["tmdb_id"]:
         return dict(row)
