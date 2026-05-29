@@ -886,9 +886,26 @@ async function loadTmdb(){
   }
   try{
     let det=null;
-    /* /works/ API 미구현 → TMDB 직접 조회 (tv/movie 둘 다 시도) */
+
+    /* ── STEP 1: works API 조회 → media_type 확인 ──────────────
+     * Admin이 명시적으로 지정한 media_type(tv/movie)이 있으면 해당 타입만 조회
+     * 없으면(null) tv → movie 순서로 시도 (기존 동작 유지)
+     * 기존 category(category01/02...)와 완전 별도 필드 */
     try{
-      const types = WORK.type==='movie' ? ['movie','tv'] : ['tv','movie'];
+      const worksRes  = await fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}`);
+      const worksData = await worksRes.json();
+      if(worksData.ok && worksData.data?.media_type){
+        WORK.type = worksData.data.media_type; // 'tv' 또는 'movie'
+        console.log('[OTTRANG] works media_type 적용:', WORK.type);
+      }
+    }catch(e){ console.log('[OTTRANG] works API 조회 실패 (무시):', e.message); }
+
+    /* ── STEP 2: TMDB 조회 ──────────────────────────────────────
+     * media_type 지정됐으면 해당 타입만, 아니면 tv→movie 순서로 시도 */
+    try{
+      const types = WORK.type==='movie' ? ['movie'] :
+                    WORK.type==='tv'    ? ['tv']    :
+                    ['tv','movie']; // null이면 tv 먼저 시도
       for(const type of types){
         try{
           const r = await fetch(`${TMDB_PROXY}/${type}/${WORK.tmdb_id}?language=ko-KR`);
