@@ -472,6 +472,46 @@ def search_tmdb_korean(title_ko: str, title_en: str = "") -> dict | None:
                     return result
 
     return None
+
+def _tmdb_is_korean(r: dict) -> bool:
+    """TMDB 결과에서 한국 작품 여부 확인"""
+    countries = r.get("origin_country") or []
+    if isinstance(countries, list) and "KR" in countries:
+        return True
+    if r.get("original_language") == "ko":
+        return True
+    return False
+
+def _tmdb_get_popularity(r: dict) -> float:
+    """TMDB 결과에서 popularity 추출"""
+    try:
+        return float(r.get("popularity") or 0)
+    except Exception:
+        return 0
+
+def _tmdb_get_title(r: dict) -> str:
+    """TMDB 결과에서 제목 추출"""
+    return (r.get("name") or r.get("title") or "").strip()
+
+def _tmdb_title_score(r: dict, query: str) -> int:
+    """
+    검색어와 TMDB 결과 제목 유사도 점수
+    완전 일치: 100 / 단어 경계 일치: 80 / 단순 포함: 30 / 불일치: 0
+    예: "링" vs "링크" → 30점 (단순 포함, 낮은 점수)
+    예: "링" vs "링" → 100점 (완전 일치)
+    """
+    import re as _re
+    t = _tmdb_get_title(r).lower().strip()
+    q = query.lower().strip()
+    if t == q:
+        return 100
+    pattern = r'(?<![\w가-힣])' + _re.escape(q) + r'(?![\w가-힣])'
+    if _re.search(pattern, t):
+        return 80
+    if q in t or t in q:
+        return 30
+    return 0
+
 def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", strict: bool = False) -> dict | None:
     """
     TMDB 검색 실행
@@ -505,11 +545,9 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", stri
         # strict 모드 → 결과 여러개이면 None 반환 (오매칭 방지)
         if strict:
             # 결과 1개라도 제목 유사도가 너무 낮으면 None 반환
-            # 예: "Ladies First" 검색 → "First Lady" 는 유사도 낮음
-            best = valid[0]
-            best_score = max(title_match_score(r, query) for r in valid)
+            best_score = max(_tmdb_title_score(r, query) for r in valid)
             if best_score < 50:
-                print(f"    [strict] '{query}' → 유사도 낮아 저장 안함 (best_score={best_score})")
+                print(f"    [strict] '{query}' → 유사도 낮아 저장 안함 (score={best_score})")
                 return None
             return None
 
@@ -520,70 +558,28 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", stri
             except Exception:
                 return 0
 
-        def is_korean(r):
-            """한국 작품 여부 확인 (origin_country 또는 original_language)"""
-            countries = r.get("origin_country") or []
-            if isinstance(countries, list) and "KR" in countries:
-                return True
-            if r.get("original_language") == "ko":
-                return True
-            return False
-
-        def get_popularity(r):
-            try:
-                return float(r.get("popularity") or 0)
-            except Exception:
-                return 0
-
-        def get_title(r):
-            """TMDB 결과에서 제목 추출"""
-            return (r.get("name") or r.get("title") or "").strip()
-
-        def title_match_score(r, q):
-            """
-            검색어와 제목 유사도 점수
-            완전 일치: 100
-            검색어가 제목의 첫 단어로 시작: 80 (예: "링" → "링 2" 가능)
-            포함이지만 다른 단어의 일부: 30 (예: "링" → "링크" 는 낮게)
-            불일치: 0
-            """
-            t = get_title(r).lower().strip()
-            q_lower = q.lower().strip()
-            if t == q_lower:
-                return 100  # 완전 일치
-            # 검색어가 제목 전체 단어와 일치 (예: "링" → "링" 단독 단어)
-            import re
-            pattern = r'(?<![\w가-힣])' + re.escape(q_lower) + r'(?![\w가-힣])'
-            if re.search(pattern, t):
-                return 80  # 단어 경계 일치
-            # 단순 포함 (예: "링" → "링크")
-            if q_lower in t or t in q_lower:
-                return 30
-            return 0
-
-        # 1순위: 검색어와 제목이 정확히 일치하는 한국 작품
-        #        → "무빙" 검색 시 제목이 "무빙"인 작품 바로 선택
-        exact_korean = [r for r in valid if is_korean(r) and title_match_score(r, query) == 100]
+        # 1순위: 검색어와 정확히 일치하는 한국 작품
+        exact_korean = [r for r in valid if _tmdb_is_korean(r) and _tmdb_title_score(r, query) == 100]
         if exact_korean:
-            return _build_result(max(exact_korean, key=get_popularity), media_type)
+            return _build_result(max(exact_korean, key=_tmdb_get_popularity), media_type)
 
-        # 2순위: 제목 포함 일치하는 한국 작품
-        partial_korean = [r for r in valid if is_korean(r) and title_match_score(r, query) == 50]
-        if partial_korean:
-            return _build_result(max(partial_korean, key=get_popularity), media_type)
+        # 2순위: 단어 경계 일치하는 한국 작품 (80점)
+        boundary_korean = [r for r in valid if _tmdb_is_korean(r) and _tmdb_title_score(r, query) >= 80]
+        if boundary_korean:
+            return _build_result(max(boundary_korean, key=_tmdb_get_popularity), media_type)
 
         # 3순위: 한국 작품 중 popularity 높은 것
-        korean = [r for r in valid if is_korean(r)]
+        korean = [r for r in valid if _tmdb_is_korean(r)]
         if korean:
-            return _build_result(max(korean, key=get_popularity), media_type)
+            return _build_result(max(korean, key=_tmdb_get_popularity), media_type)
 
         # 4순위: 검색어 정확 일치하는 전체 작품
-        exact_all = [r for r in valid if title_match_score(r, query) == 100]
+        exact_all = [r for r in valid if _tmdb_title_score(r, query) == 100]
         if exact_all:
-            return _build_result(max(exact_all, key=get_popularity), media_type)
+            return _build_result(max(exact_all, key=_tmdb_get_popularity), media_type)
 
         # 5순위: 전체 결과 중 popularity 높은 것
-        return _build_result(max(valid, key=get_popularity), media_type)
+        return _build_result(max(valid, key=_tmdb_get_popularity), media_type)
 
     except Exception as e:
         print(f"    TMDB 검색 오류 ({query}, {media_type}): {e}")
