@@ -409,6 +409,18 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <option value="">플랫폼 먼저 선택...</option>
         </select>
       </div>
+      <!-- 메모 컬럼 이름 입력 -->
+      <div id="memoLabelWrap" style="display:none;flex:1;min-width:160px">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+          메모 컬럼 이름 <span style="color:var(--muted);font-size:10px">(예: 역대 관객수, 수상내역)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="inp" type="text" id="memoLabelInp"
+            placeholder="예: 역대 관객수"
+            style="margin-bottom:0;flex:1">
+          <button class="btn-sm btn-save" onclick="saveMemoLabel()" style="padding:8px 14px;font-size:12px;white-space:nowrap">저장</button>
+        </div>
+      </div>
       <div id="manualSlotInfo" style="font-size:12px;color:var(--muted);font-family:var(--mono);padding-bottom:4px"></div>
     </div>
   </div>
@@ -454,7 +466,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
             <th>제목</th>
             <th style="width:80px">TMDB ID</th>
             <th style="width:80px">연도</th>
-            <th>메모 <span style="font-weight:400;color:var(--muted);font-size:10px">(선택, 예: 1000만명)</span></th>
+            <th id="memoColHeader">메모 <span style="font-weight:400;color:var(--muted);font-size:10px">(선택)</span></th>
             <th style="width:100px">순서 변경</th>
             <th style="width:60px">삭제</th>
           </tr>
@@ -463,6 +475,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <tr><td colspan="8" class="loading">슬롯을 선택하세요</td></tr>
         </tbody>
       </table>
+    </div>
+    <!-- 하단 저장 버튼 (목록이 길 때 편의용) -->
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn-save" onclick="saveManualOrder()" style="padding:10px 28px;font-size:14px">💾 순위 저장</button>
     </div>
   </div>
 </div>
@@ -807,9 +823,11 @@ async function onManualPlatformChange() {
       const opt = document.createElement('option');
       opt.value = c.category_slot;
       opt.textContent = `${c.category_slot} — ${c.display_name || c.source_name}`;
-      opt.dataset.sourceName = c.source_name;
+      opt.dataset.sourceName  = c.source_name;
       opt.dataset.displayName = c.display_name || c.source_name;
-      opt.dataset.limit = c.platform_limit || 20;
+      opt.dataset.limit       = c.platform_limit || 20;
+      opt.dataset.memoLabel   = c.memo_label || '';
+      opt.dataset.catId       = c.id;
       slotSel.appendChild(opt);
     });
   } catch(e) {
@@ -827,13 +845,23 @@ async function loadManualRankings() {
   if (!platform || !slot) return;
 
   // 슬롯 정보 표시
-  const limit = selOpt?.dataset?.limit || 20;
+  const limit     = selOpt?.dataset?.limit     || 20;
+  const memoLabel = selOpt?.dataset?.memoLabel || '';
   document.getElementById('manualSlotInfo').textContent = `최대 ${limit}개`;
+
+  // 메모 컬럼 이름 입력창 표시 + 기존 값 세팅
+  document.getElementById('memoLabelWrap').style.display = 'block';
+  document.getElementById('memoLabelInp').value          = memoLabel;
+
+  // 테이블 헤더 메모 컬럼 이름 동적 업데이트
+  const memoHeaderLabel = memoLabel || '메모';
+  document.getElementById('memoColHeader').innerHTML =
+    `${memoHeaderLabel} <span style="font-weight:400;color:var(--muted);font-size:10px">(선택)</span>`;
 
   document.getElementById('manualAddArea').style.display  = 'block';
   document.getElementById('manualListArea').style.display = 'block';
   document.getElementById('manualTableBody').innerHTML    =
-    '<tr><td colspan="7" class="loading">불러오는 중...</td></tr>';
+    '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
 
   try {
     const res  = await fetch(
@@ -845,7 +873,7 @@ async function loadManualRankings() {
     renderManualTable();
   } catch(e) {
     document.getElementById('manualTableBody').innerHTML =
-      `<tr><td colspan="7" class="loading" style="color:var(--red)">불러오기 실패: ${e.message}</td></tr>`;
+      `<tr><td colspan="8" class="loading" style="color:var(--red)">불러오기 실패: ${e.message}</td></tr>`;
   }
 }
 
@@ -898,6 +926,40 @@ function renderManualTable() {
       </td>
     </tr>
   `).join('');
+}
+
+// 메모 컬럼 이름 저장 (ott_categories.memo_label 업데이트)
+async function saveMemoLabel() {
+  const platform  = document.getElementById('manualPlatformSel').value;
+  const slot      = document.getElementById('manualSlotSel').value;
+  const slotSel   = document.getElementById('manualSlotSel');
+  const selOpt    = slotSel.options[slotSel.selectedIndex];
+  const catId     = selOpt?.dataset?.catId;
+  const memoLabel = document.getElementById('memoLabelInp').value.trim();
+
+  if (!catId) { showToast('슬롯을 먼저 선택하세요.', 'err'); return; }
+
+  try {
+    const res  = await fetch(`${API}/admin/categories/${catId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memo_label: memoLabel || null }),
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(`저장 실패: ${json.message}`, 'err'); return; }
+
+    // dataset 갱신 (재선택 시 반영)
+    if (selOpt) selOpt.dataset.memoLabel = memoLabel;
+
+    // 테이블 헤더 즉시 반영
+    const headerLabel = memoLabel || '메모';
+    document.getElementById('memoColHeader').innerHTML =
+      `${headerLabel} <span style="font-weight:400;color:var(--muted);font-size:10px">(선택)</span>`;
+
+    showToast(`✅ 메모 컬럼 이름 저장: "${memoLabel || '(없음)'}"`, 'ok');
+  } catch(e) {
+    showToast(`저장 오류: ${e.message}`, 'err');
+  }
 }
 
 // 메모 실시간 업데이트 (입력 즉시 로컬 상태 반영)
