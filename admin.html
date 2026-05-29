@@ -977,19 +977,88 @@ function clearManualSelected() {
 }
 
 // 목록에 추가 (로컬 상태에만 추가, 저장은 💾 버튼으로)
-function addManualRanking() {
+async function addManualRanking() {
+  // manualSelectedTmdb가 없으면 → 입력창이 숫자(TMDB ID)인지 확인 후 자동 조회
   if (!manualSelectedTmdb) {
-    showToast('작품을 먼저 선택하세요.', 'err'); return;
+    const inputVal = document.getElementById('manualWorkSearch').value.trim();
+    const tmdbId   = parseInt(inputVal);
+
+    if (!inputVal || isNaN(tmdbId) || tmdbId <= 0) {
+      showToast('작품을 검색하거나 TMDB ID를 입력하세요.', 'err');
+      return;
+    }
+
+    // TMDB ID 직접 입력 → works DB 조회 시도
+    showToast('TMDB ID로 작품 조회 중...', 'ok');
+    try {
+      // ① works 테이블에서 먼저 조회
+      const res  = await fetch(`${API}/works/${tmdbId}`);
+      const json = await res.json();
+
+      if (json.ok && json.data) {
+        // works에 있는 경우 → 바로 선택
+        const w = json.data;
+        selectManualWork(
+          w.tmdb_id, w.title_ko || '', w.title_en || '',
+          w.poster_path || '', w.release_year || null,
+          w.genre || '', w.tmdb_rating || null
+        );
+      } else {
+        // works에 없는 경우 → TMDB 프록시로 직접 조회 (tv/movie 둘 다 시도)
+        let found = false;
+        for (const mtype of ['tv', 'movie']) {
+          const tr = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
+          if (!tr.ok) continue;
+          const td = await tr.json();
+          if (!td.name && !td.title) continue;
+
+          // 영어 제목 추가 조회
+          let title_en = '';
+          try {
+            const er = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=en-US`);
+            if (er.ok) {
+              const ed = await er.json();
+              const orig = ed.original_title || ed.original_name || '';
+              const isKo = /[\uAC00-\uD7A3]/.test(orig);
+              title_en = isKo ? (ed.title || ed.name || '') : (orig || ed.title || ed.name || '');
+            }
+          } catch(e) {}
+
+          selectManualWork(
+            tmdbId,
+            td.name || td.title || '',
+            title_en,
+            td.poster_path || '',
+            parseInt((td.release_date || td.first_air_date || '').slice(0,4)) || null,
+            (td.genres || []).map(g => g.name).join(','),
+            td.vote_average || null
+          );
+          found = true;
+          break;
+        }
+        if (!found) {
+          showToast(`TMDB ID ${tmdbId}를 찾을 수 없습니다.`, 'err');
+          return;
+        }
+      }
+    } catch(e) {
+      showToast(`조회 실패: ${e.message}`, 'err');
+      return;
+    }
   }
+
   // 중복 체크
   if (manualItems.some(item => item.tmdb_id === manualSelectedTmdb.tmdb_id)) {
-    showToast('이미 목록에 있는 작품입니다.', 'err'); return;
+    showToast('이미 목록에 있는 작품입니다.', 'err');
+    clearManualSelected();
+    return;
   }
 
   // 목록 맨 끝에 추가
-  const newRank = manualItems.length + 1;
+  const newRank  = manualItems.length + 1;
+  const addedTitle = manualSelectedTmdb.title_ko || manualSelectedTmdb.title_en || '';
   manualItems.push({
-    id:           null, // 신규 항목은 id 없음
+    id:           null,   // 신규 항목은 id 없음
     rank:         newRank,
     tmdb_id:      manualSelectedTmdb.tmdb_id,
     title_ko:     manualSelectedTmdb.title_ko,
@@ -998,12 +1067,13 @@ function addManualRanking() {
     release_year: manualSelectedTmdb.release_year,
     genre:        manualSelectedTmdb.genre,
     tmdb_rating:  manualSelectedTmdb.tmdb_rating,
-    _isNew:       true, // 신규 항목 표시
+    memo:         null,
+    _isNew:       true,   // 신규 항목 표시
   });
 
   clearManualSelected();
   renderManualTable();
-  showToast(`✅ '${manualSelectedTmdb?.title_ko || ''}' 추가됨. 💾 저장 버튼으로 반영하세요.`, 'ok');
+  showToast(`✅ '${addedTitle}' 추가됨. 💾 저장 버튼으로 반영하세요.`, 'ok');
 }
 
 // 항목 삭제
