@@ -52,7 +52,7 @@
   --accent:#e63946; --gold:#f0b429; --green:#34d399; --red:#f87171;
   --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
   --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
-  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1440px;
+  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -599,15 +599,14 @@ function makeSlug(title){
 }
 function goDetail(tmdbId, type, platform, rank, title, season, year){
   if(!tmdbId) return;
-  const s = season || 1;                        // 시즌 없으면 1
-  const y = year   || new Date().getFullYear(); // 연도 없으면 현재연도
-  const slug = makeSlug(title||'work');
-  /* 슬러그 URL로 이동 — 내부 데이터는 sessionStorage에 보관 */
-  const slugUrl = `/title/${slug}-${s}${y}${tmdbId}`;
+  const s = season || 1;
+  const y = year   || new Date().getFullYear();
+  // 새 URL 형식: /title/{시즌}-{연도}{tmdbId} (한글/영어 없음, 파싱 안정적)
+  const slugUrl = `/title/${s}-${y}${tmdbId}`;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
     tmdb_id: tmdbId, type, platform, rank, title, season: s, year: y
   }));
-  sessionStorage.setItem('ottrang_slug', slugUrl); // rewrite 후 pathname 복구용
+  sessionStorage.setItem('ottrang_slug', slugUrl);
   location.href = slugUrl;
 }
 function renderCard(p,items){
