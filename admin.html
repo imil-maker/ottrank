@@ -216,6 +216,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <label>날짜</label>
     <input type="date" class="date-inp" id="dateInp">
     <button class="btn-load" onclick="loadData()">불러오기</button>
+    <!-- 수동 데이터 전용 불러오기 버튼 — date=manual 데이터만 표시 -->
+    <button class="btn-load" id="btnLoadManualData"
+      onclick="loadManualData()"
+      style="border-color:rgba(240,180,41,.4);color:var(--gold)">
+      🔒 수동 데이터 불러오기
+    </button>
     <span class="stat" id="statTxt"></span>
   </div>
   <div class="filter-tabs" id="filterTabs">
@@ -640,7 +646,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <span style="color:var(--muted);font-weight:400"> — movie/tv가 같은 ID를 공유할 때만 지정</span>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-family:var(--mono)">
-        예) movie/321564=Reborn, tv/321564=스타워즈 특별편 → tv 지정
+        예) movie/321564=Reborn, tv/321564=스타워즈 특별편 → 📺 TV 선택
       </div>
       <div style="display:flex;gap:8px">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px" id="mtLabel_null">
@@ -1349,22 +1355,53 @@ async function createNewSlot() {
 // ════════════════════════════════════════════════════
 // 랭킹 관리
 // ════════════════════════════════════════════════════
+
+// 현재 랭킹 모드: 'date' = 날짜별 크롤링 데이터, 'manual' = 수동 데이터
+let rankingMode = 'date';
+
+// 날짜별 크롤링 데이터 불러오기 (manual 완전 제외)
 async function loadData() {
+  rankingMode = 'date';
+  document.getElementById('btnLoadManualData').style.background = '';
+  document.getElementById('btnLoadManualData').style.fontWeight = '';
   const date = document.getElementById('dateInp').value;
   document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  document.getElementById('btnNoTmdb').style.display   = '';
+  document.getElementById('btnNewMatch').style.display = '';
   try {
     const url = date ? `${API}/admin/rankings?date=${date}` : `${API}/admin/rankings`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (res.status === 401) { showToast('인증 실패. 토큰을 확인하세요.', 'err'); return; }
     const json = await res.json();
     allData = json.data || [];
-    document.getElementById('statTxt').textContent = `총 ${allData.length}개`;
-    // TMDB없음 건수 업데이트
+    document.getElementById('statTxt').textContent = `총 ${allData.length}개 (${date || '최신'})`;
     const noTmdbCnt = allData.filter(r => !r.tmdb_id).length;
     document.getElementById('noTmdbCount').textContent = noTmdbCnt > 0 ? `(${noTmdbCnt})` : '';
-    // 신규매칭 건수 로드
     loadNewMatchCount(date);
-    renderTable();
+    setFilter('all', document.querySelector('.ftab'));
+  } catch(e) {
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+// 수동 데이터만 불러오기 (date='manual' 전용)
+async function loadManualData() {
+  rankingMode = 'manual';
+  document.getElementById('btnLoadManualData').style.background = 'rgba(240,180,41,.15)';
+  document.getElementById('btnLoadManualData').style.fontWeight = '700';
+  document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="loading">수동 데이터 불러오는 중...</td></tr>';
+  document.getElementById('btnNoTmdb').style.display   = 'none';
+  document.getElementById('btnNewMatch').style.display = 'none';
+  try {
+    const url = `${API}/admin/rankings?manual=true`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) { showToast('인증 실패. 토큰을 확인하세요.', 'err'); return; }
+    const json = await res.json();
+    allData = json.data || [];
+    document.getElementById('statTxt').textContent = `수동 데이터 총 ${allData.length}개`;
+    document.getElementById('noTmdbCount').textContent = '';
+    document.getElementById('newMatchCount').textContent = '';
+    setFilter('all', document.querySelector('.ftab'));
   } catch(e) {
     document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
   }
@@ -1379,9 +1416,15 @@ function setFilter(f, btn) {
 
 function renderTable() {
   let rows = allData;
-  if (curFilter === 'no_tmdb')    rows = rows.filter(r => !r.tmdb_id);
-  else if (curFilter === 'new_match') rows = rows.filter(r => newMatchIds.has(r.tmdb_id));
-  else if (curFilter !== 'all')   rows = rows.filter(r => r.platform === curFilter);
+  if (rankingMode === 'date') {
+    if (curFilter === 'no_tmdb')        rows = rows.filter(r => !r.tmdb_id);
+    else if (curFilter === 'new_match') rows = rows.filter(r => newMatchIds.has(r.tmdb_id));
+    else if (curFilter !== 'all')       rows = rows.filter(r => r.platform === curFilter);
+  } else {
+    if (curFilter !== 'all' && curFilter !== 'no_tmdb' && curFilter !== 'new_match') {
+      rows = rows.filter(r => r.platform === curFilter);
+    }
+  }
   if (!rows.length) {
     document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
     return;
@@ -1397,7 +1440,10 @@ function renderTable() {
         <div class="title-en" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en||'')}</div>
       </td>
       <td><span class="platform-badge" style="background:${PC[r.platform]||'#888'}">${r.platform}</span></td>
-      <td><span class="cat-badge">${r.category}</span></td>
+      <td>
+        <span class="cat-badge">${r.category_slot || r.category}</span>
+        ${rankingMode === 'manual' ? `<div style="font-size:10px;color:var(--gold);font-family:var(--mono);margin-top:2px">🔒 수동</div>` : ''}
+      </td>
       <td>${r.tmdb_id
         ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
         : `<span class="no-tmdb">미등록</span>`}</td>
@@ -1432,15 +1478,12 @@ function openModal(r) {
   document.getElementById('editTmdbId').value = r.tmdb_id || '';
   document.getElementById('modalSub').textContent = `${r.platform} · ${r.category} · ${r.rank}위`;
   updatePosterPreview(r.poster_path);
-
-  // media_type 라디오 버튼 초기값 세팅 (works 테이블에서 가져온 값 반영)
+  // media_type 라디오 버튼 초기값 세팅
   const mt = r.media_type || '';
   document.querySelectorAll('input[name="editMediaType"]').forEach(radio => {
     radio.checked = (radio.value === mt);
   });
-  // 선택된 라벨 강조
   updateMediaTypeStyle(mt);
-
   document.getElementById('editOverlay').classList.add('show');
 }
 
@@ -1463,7 +1506,6 @@ function closeModal() {
   document.getElementById('editOverlay').classList.remove('show');
   const cb = document.getElementById('editDeleteDuplicates');
   if (cb) cb.checked = false;
-  // media_type 라디오 초기화 (자동으로 리셋)
   const nullRadio = document.getElementById('editMt_null');
   if (nullRadio) { nullRadio.checked = true; updateMediaTypeStyle(''); }
 }
@@ -1508,9 +1550,8 @@ async function saveEdit() {
   const title_en = document.getElementById('editTitleEn').value.trim();
   const tmdb_id  = parseInt(document.getElementById('editTmdbId').value) || null;
   const deleteDuplicates = document.getElementById('editDeleteDuplicates')?.checked || false;
-  // media_type: 선택된 라디오 값 ('' = 자동, 'tv', 'movie')
   const mediaTypeEl = document.querySelector('input[name="editMediaType"]:checked');
-  const media_type  = mediaTypeEl?.value || null; // '' → null로 변환
+  const media_type  = mediaTypeEl?.value || null;
   try {
     const res = await fetch(`${API}/admin/fix`, {
       method: 'POST',
