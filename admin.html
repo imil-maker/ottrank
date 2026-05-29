@@ -739,41 +739,53 @@ function switchPage(page, btn) {
 // 페이지 카테고리 전체 저장
 // ════════════════════════════════════════════════════
 async function saveAllPageCat() {
-  // 현재 화면에 렌더링된 모든 카테고리 행의 변경값을 모아서 일괄 저장
-  const rows = document.querySelectorAll('[data-catid]');
-  if (!rows.length) { showToast('저장할 항목이 없습니다.', 'err'); return; }
-
+  // 메인페이지 테이블과 OTT 페이지 테이블을 분리해서 저장
+  // 같은 catid가 두 테이블에 있으므로 섞이면 서로 덮어씀
   const btn = document.querySelector('[onclick="saveAllPageCat()"]');
   const orig = btn.textContent;
   btn.textContent = '저장 중...';
   btn.disabled = true;
 
   let ok = 0, fail = 0;
-  for (const row of rows) {
-    const id = row.dataset.catid;
-    // 각 행의 입력값 수집 (data-catid 속성으로 구분)
-    const mainSectionEl   = row.querySelector('[data-field="main_section"]');
-    const mainOrderEl     = row.querySelector('[data-field="main_order"]');
-    const mainLimitEl     = row.querySelector('[data-field="main_limit"]');
-    const platSectionEl   = row.querySelector('[data-field="platform_section"]');
-    const platOrderEl     = row.querySelector('[data-field="platform_order"]');
-    const platLimitEl     = row.querySelector('[data-field="platform_limit"]');
-    const displayNameEl   = row.querySelector('[data-field="display_name"]');
 
-    const body = {};
-    if (mainSectionEl)  body.main_section     = mainSectionEl.value   || null;
-    if (mainOrderEl)    body.main_order        = parseInt(mainOrderEl.value)   || null;
-    if (mainLimitEl)    body.main_limit        = parseInt(mainLimitEl.value)   || null;
-    if (platSectionEl)  body.platform_section  = platSectionEl.value  || null;
-    if (platOrderEl)    body.platform_order    = parseInt(platOrderEl.value)   || null;
-    if (platLimitEl)    body.platform_limit    = parseInt(platLimitEl.value)   || null;
-    if (displayNameEl)  body.display_name      = displayNameEl.value  || null;
-
+  // ① 메인페이지 테이블 저장 (main_section, main_order, main_limit만)
+  const mainRows = document.querySelectorAll('#pagecatMainBody [data-catid]');
+  for (const row of mainRows) {
+    const id           = row.dataset.catid;
+    const mainSection  = row.querySelector('[data-field="main_section"]')?.value || null;
+    const mainOrder    = parseInt(row.querySelector('[data-field="main_order"]')?.value) || 0;
+    const mainLimit    = parseInt(row.querySelector('[data-field="main_limit"]')?.value) || 10;
     try {
       const res = await fetch(`${API}/admin/categories/${id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          main_section: mainSection || null,
+          main_order:   mainOrder,
+          main_limit:   mainLimit,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+
+  // ② OTT 페이지 테이블 저장 (platform_section, platform_order, platform_limit만)
+  const platRows = document.querySelectorAll('#pagecatPlatformBody [data-catid]');
+  for (const row of platRows) {
+    const id            = row.dataset.catid;
+    const platSection   = row.querySelector('[data-field="platform_section"]')?.value || null;
+    const platOrder     = parseInt(row.querySelector('[data-field="platform_order"]')?.value) || 0;
+    const platLimit     = parseInt(row.querySelector('[data-field="platform_limit"]')?.value) || 20;
+    try {
+      const res = await fetch(`${API}/admin/categories/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform_section: platSection || null,
+          platform_order:   platOrder,
+          platform_limit:   platLimit,
+        }),
       });
       const json = await res.json();
       if (json.ok) ok++; else fail++;
