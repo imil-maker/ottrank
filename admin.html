@@ -195,6 +195,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="page-tab on"  onclick="switchPage('ranking',this)">📊 랭킹 관리</button>
     <button class="page-tab"     onclick="switchPage('pagecat',this)">📋 페이지 카테고리 설정</button>
     <button class="page-tab"     onclick="switchPage('categories',this)">⚙️ 카테고리 관리</button>
+    <button class="page-tab"     onclick="switchPage('manual',this)">✏️ 수동 랭킹 관리</button>
     <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
     <button class="page-tab"     onclick="switchPage('reaction',this)">🌍 해외반응 관리</button>
     <button class="page-tab"     onclick="switchPage('grade',this)">🏅 회원등급 설정</button>
@@ -295,6 +296,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <div style="font-size:15px;font-weight:600">📋 페이지 카테고리 설정</div>
     <button class="btn-load" onclick="loadPageCat()" style="margin-left:auto">새로고침</button>
+    <button class="btn-save" onclick="saveAllPageCat()" style="padding:8px 20px;font-size:13px">💾 전체 저장</button>
   </div>
   <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
     💡 각 카테고리를 메인페이지/OTT페이지 어느 위치에 노출할지 설정합니다. 순서 숫자가 낮을수록 먼저 표시됩니다.
@@ -372,6 +374,137 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <tr><td colspan="9" class="loading">불러오는 중...</td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- ══ 수동 랭킹 관리 ══ -->
+<div id="manualSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">✏️ 수동 랭킹 관리</div>
+    <button class="btn-save" id="btnAddManualSlot" onclick="openNewSlotModal()" style="padding:8px 18px;font-size:13px;margin-left:auto">+ 새 카테고리 슬롯 추가</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    💡 크롤링 없이 관리자가 직접 입력하는 랭킹입니다. (예: 역대 한국영화 관객수 TOP20)<br>
+    순위는 ▲▼ 버튼으로 조정하고 저장 버튼을 누르면 반영됩니다. date='manual'로 고정되어 크롤링에 영향받지 않습니다.
+  </div>
+
+  <!-- 플랫폼 + 슬롯 선택 -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">플랫폼</div>
+        <select class="inp" id="manualPlatformSel" onchange="onManualPlatformChange()" style="width:160px;cursor:pointer">
+          <option value="">선택...</option>
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="wavve">웨이브</option>
+          <option value="boxoffice">박스오피스</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">카테고리 슬롯</div>
+        <select class="inp" id="manualSlotSel" onchange="loadManualRankings()" style="width:200px;cursor:pointer">
+          <option value="">플랫폼 먼저 선택...</option>
+        </select>
+      </div>
+      <div id="manualSlotInfo" style="font-size:12px;color:var(--muted);font-family:var(--mono);padding-bottom:4px"></div>
+    </div>
+  </div>
+
+  <!-- 작품 추가 영역 -->
+  <div id="manualAddArea" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:14px;color:var(--gold)">➕ 작품 추가</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px;position:relative">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">작품 검색 (제목 또는 TMDB ID)</div>
+        <input class="inp" type="text" id="manualWorkSearch"
+          placeholder="작품명 검색 또는 TMDB ID 직접 입력..."
+          oninput="searchManualWork(this.value)"
+          autocomplete="off"
+          style="margin-bottom:0">
+        <div id="manualSearchResults" style="display:none;position:absolute;top:68px;left:0;right:0;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;z-index:50;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
+      </div>
+      <div id="manualSelectedWork" style="display:none;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;min-width:200px">
+        <img id="manualSelPoster" src="" style="width:32px;height:48px;object-fit:cover;border-radius:4px;background:var(--bg2)">
+        <div>
+          <div id="manualSelTitle" style="font-size:13px;font-weight:500"></div>
+          <div id="manualSelTmdbId" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+        </div>
+        <button onclick="clearManualSelected()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;margin-left:auto">✕</button>
+      </div>
+      <button class="btn-save" onclick="addManualRanking()" style="padding:10px 20px;font-size:13px;white-space:nowrap">+ 목록에 추가</button>
+    </div>
+  </div>
+
+  <!-- 수동 랭킹 목록 -->
+  <div id="manualListArea" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:600">📋 현재 랭킹 목록</div>
+      <span id="manualListStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+      <button class="btn-save" onclick="saveManualOrder()" style="margin-left:auto;padding:8px 20px;font-size:13px">💾 순위 저장</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:50px">순위</th>
+            <th style="width:40px">포스터</th>
+            <th>제목</th>
+            <th style="width:80px">TMDB ID</th>
+            <th style="width:80px">연도</th>
+            <th style="width:100px">순서 변경</th>
+            <th style="width:60px">삭제</th>
+          </tr>
+        </thead>
+        <tbody id="manualTableBody">
+          <tr><td colspan="7" class="loading">슬롯을 선택하세요</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 신규 슬롯 추가 모달 -->
+<div class="overlay" id="newSlotOverlay" onclick="if(event.target===this)closeNewSlotModal()">
+  <div class="modal" style="width:440px">
+    <h3>➕ 새 카테고리 슬롯 추가</h3>
+    <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:6px;padding:10px 14px">
+      수동 랭킹을 위한 새 카테고리 슬롯을 생성합니다.<br>
+      슬롯 번호는 기존 슬롯과 겹치지 않게 입력하세요. (예: category02, category03...)
+    </div>
+    <div class="form-row">
+      <label>플랫폼</label>
+      <select class="inp" id="newSlotPlatform" style="cursor:pointer">
+        <option value="netflix">넷플릭스</option>
+        <option value="tving">티빙</option>
+        <option value="disney">디즈니+</option>
+        <option value="coupang">쿠팡플레이</option>
+        <option value="wavve">웨이브</option>
+        <option value="boxoffice" selected>박스오피스</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>슬롯 번호 <span style="color:var(--muted);font-size:10px">(예: category02)</span></label>
+      <input class="inp" type="text" id="newSlotKey" placeholder="category02">
+    </div>
+    <div class="form-row">
+      <label>크롤링 원본명 <span style="color:var(--muted);font-size:10px">(source_name)</span></label>
+      <input class="inp" type="text" id="newSlotSourceName" placeholder="예: 역대 한국영화 관객수 TOP20">
+    </div>
+    <div class="form-row">
+      <label>프론트 표시명 <span style="color:var(--muted);font-size:10px">(display_name)</span></label>
+      <input class="inp" type="text" id="newSlotDisplayName" placeholder="예: 역대 흥행 TOP 20">
+    </div>
+    <div class="form-row">
+      <label>노출 개수</label>
+      <input class="inp" type="number" id="newSlotLimit" value="20" min="1" max="100">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeNewSlotModal()">취소</button>
+      <button class="btn-save" onclick="createNewSlot()">슬롯 생성</button>
+    </div>
   </div>
 </div>
 
@@ -574,6 +707,7 @@ function switchPage(page, btn) {
   document.getElementById('mainSection').style.display       = page === 'ranking'    ? 'block' : 'none';
   document.getElementById('pagecatSection').style.display    = page === 'pagecat'    ? 'block' : 'none';
   document.getElementById('categoriesSection').style.display = page === 'categories' ? 'block' : 'none';
+  document.getElementById('manualSection').style.display     = page === 'manual'     ? 'block' : 'none';
   document.getElementById('worksSection').style.display      = page === 'works'      ? 'block' : 'none';
   document.getElementById('reactionSection').style.display   = page === 'reaction'   ? 'block' : 'none';
   document.getElementById('gradeSection').style.display      = page === 'grade'      ? 'block' : 'none';
@@ -582,6 +716,425 @@ function switchPage(page, btn) {
   if (page === 'pagecat')    loadPageCat();
   if (page === 'categories') loadCategories();
   if (page === 'works')      loadWorks();
+}
+
+// ════════════════════════════════════════════════════
+// 페이지 카테고리 전체 저장
+// ════════════════════════════════════════════════════
+async function saveAllPageCat() {
+  // 현재 화면에 렌더링된 모든 카테고리 행의 변경값을 모아서 일괄 저장
+  const rows = document.querySelectorAll('[data-catid]');
+  if (!rows.length) { showToast('저장할 항목이 없습니다.', 'err'); return; }
+
+  const btn = document.querySelector('[onclick="saveAllPageCat()"]');
+  const orig = btn.textContent;
+  btn.textContent = '저장 중...';
+  btn.disabled = true;
+
+  let ok = 0, fail = 0;
+  for (const row of rows) {
+    const id = row.dataset.catid;
+    // 각 행의 입력값 수집 (data-catid 속성으로 구분)
+    const mainSectionEl   = row.querySelector('[data-field="main_section"]');
+    const mainOrderEl     = row.querySelector('[data-field="main_order"]');
+    const mainLimitEl     = row.querySelector('[data-field="main_limit"]');
+    const platSectionEl   = row.querySelector('[data-field="platform_section"]');
+    const platOrderEl     = row.querySelector('[data-field="platform_order"]');
+    const platLimitEl     = row.querySelector('[data-field="platform_limit"]');
+    const displayNameEl   = row.querySelector('[data-field="display_name"]');
+
+    const body = {};
+    if (mainSectionEl)  body.main_section     = mainSectionEl.value   || null;
+    if (mainOrderEl)    body.main_order        = parseInt(mainOrderEl.value)   || null;
+    if (mainLimitEl)    body.main_limit        = parseInt(mainLimitEl.value)   || null;
+    if (platSectionEl)  body.platform_section  = platSectionEl.value  || null;
+    if (platOrderEl)    body.platform_order    = parseInt(platOrderEl.value)   || null;
+    if (platLimitEl)    body.platform_limit    = parseInt(platLimitEl.value)   || null;
+    if (displayNameEl)  body.display_name      = displayNameEl.value  || null;
+
+    try {
+      const res = await fetch(`${API}/admin/categories/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (json.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+
+  btn.textContent = orig;
+  btn.disabled = false;
+
+  if (fail === 0) {
+    showToast(`✅ 전체 ${ok}개 저장 완료!`, 'ok');
+  } else {
+    showToast(`⚠️ ${ok}개 성공 / ${fail}개 실패`, 'err');
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 수동 랭킹 관리
+// ════════════════════════════════════════════════════
+let manualItems = [];          // 현재 편집 중인 목록 (로컬 상태)
+let manualSelectedTmdb = null; // 선택된 작품 tmdb 정보
+let manualSearchTimer  = null;
+
+// 플랫폼 변경 시 해당 플랫폼의 카테고리 슬롯 목록 로드
+async function onManualPlatformChange() {
+  const platform = document.getElementById('manualPlatformSel').value;
+  const slotSel  = document.getElementById('manualSlotSel');
+  slotSel.innerHTML = '<option value="">불러오는 중...</option>';
+  document.getElementById('manualAddArea').style.display   = 'none';
+  document.getElementById('manualListArea').style.display  = 'none';
+  document.getElementById('manualSlotInfo').textContent    = '';
+
+  if (!platform) {
+    slotSel.innerHTML = '<option value="">플랫폼 먼저 선택...</option>';
+    return;
+  }
+
+  try {
+    const res  = await fetch(`${API}/admin/categories?platform=${platform}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    const cats = (json.data || []);
+
+    slotSel.innerHTML = '<option value="">슬롯 선택...</option>';
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.category_slot;
+      opt.textContent = `${c.category_slot} — ${c.display_name || c.source_name}`;
+      opt.dataset.sourceName = c.source_name;
+      opt.dataset.displayName = c.display_name || c.source_name;
+      opt.dataset.limit = c.platform_limit || 20;
+      slotSel.appendChild(opt);
+    });
+  } catch(e) {
+    slotSel.innerHTML = '<option value="">불러오기 실패</option>';
+  }
+}
+
+// 슬롯 선택 시 수동 랭킹 로드
+async function loadManualRankings() {
+  const platform = document.getElementById('manualPlatformSel').value;
+  const slot     = document.getElementById('manualSlotSel').value;
+  const slotSel  = document.getElementById('manualSlotSel');
+  const selOpt   = slotSel.options[slotSel.selectedIndex];
+
+  if (!platform || !slot) return;
+
+  // 슬롯 정보 표시
+  const limit = selOpt?.dataset?.limit || 20;
+  document.getElementById('manualSlotInfo').textContent = `최대 ${limit}개`;
+
+  document.getElementById('manualAddArea').style.display  = 'block';
+  document.getElementById('manualListArea').style.display = 'block';
+  document.getElementById('manualTableBody').innerHTML    =
+    '<tr><td colspan="7" class="loading">불러오는 중...</td></tr>';
+
+  try {
+    const res  = await fetch(
+      `${API}/admin/manual-rankings?platform=${platform}&category_slot=${slot}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const json = await res.json();
+    manualItems = json.data || [];
+    renderManualTable();
+  } catch(e) {
+    document.getElementById('manualTableBody').innerHTML =
+      `<tr><td colspan="7" class="loading" style="color:var(--red)">불러오기 실패: ${e.message}</td></tr>`;
+  }
+}
+
+// 수동 랭킹 테이블 렌더링
+function renderManualTable() {
+  const tbody = document.getElementById('manualTableBody');
+  document.getElementById('manualListStat').textContent = `총 ${manualItems.length}개`;
+
+  if (!manualItems.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">등록된 항목이 없습니다. 위에서 작품을 추가하세요.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = manualItems.map((item, idx) => `
+    <tr data-id="${item.id}">
+      <td><span class="rank-num">${item.rank}</span></td>
+      <td>
+        ${item.poster_path
+          ? `<img src="https://image.tmdb.org/t/p/w92${item.poster_path}" class="poster-thumb" onerror="this.style.display='none'">`
+          : `<div class="poster-ph">🎬</div>`}
+      </td>
+      <td>
+        <div class="title-ko">${item.title_ko || ''}</div>
+        <div class="title-en">${item.title_en || ''}</div>
+      </td>
+      <td>
+        <span class="tmdb-id">
+          <a href="https://www.themoviedb.org/movie/${item.tmdb_id}" target="_blank">${item.tmdb_id}</a>
+        </span>
+      </td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">${item.release_year || '-'}</td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="btn-sm btn-fix" onclick="moveManualItem(${idx}, -1)" ${idx === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button>
+          <button class="btn-sm btn-fix" onclick="moveManualItem(${idx}, 1)" ${idx === manualItems.length-1 ? 'disabled style="opacity:.3"' : ''}>▼</button>
+        </div>
+      </td>
+      <td>
+        <button class="btn-sm btn-unfix" onclick="deleteManualItem(${item.id})"
+          style="color:var(--red);border-color:rgba(248,113,113,.3)">삭제</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// 순위 이동 (▲▼)
+function moveManualItem(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= manualItems.length) return;
+  // 배열에서 위치 교환
+  [manualItems[idx], manualItems[newIdx]] = [manualItems[newIdx], manualItems[idx]];
+  // rank 번호 재부여
+  manualItems.forEach((item, i) => item.rank = i + 1);
+  renderManualTable();
+}
+
+// 작품 검색 (works 테이블 기반)
+function searchManualWork(q) {
+  clearTimeout(manualSearchTimer);
+  const resultBox = document.getElementById('manualSearchResults');
+  if (!q || q.length < 1) { resultBox.style.display = 'none'; return; }
+
+  manualSearchTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(`${API}/admin/works?q=${encodeURIComponent(q)}&page=1`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+      const list = (json.data || []).slice(0, 8);
+
+      if (!list.length) {
+        resultBox.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과 없음</div>';
+        resultBox.style.display = 'block';
+        return;
+      }
+
+      resultBox.innerHTML = list.map(w => `
+        <div class="work-result-item" onclick="selectManualWork(${w.tmdb_id}, '${(w.title_ko||'').replace(/'/g,"\\'")}', '${(w.title_en||'').replace(/'/g,"\\'")}', '${w.poster_path||''}', ${w.release_year||null}, '${w.genre||''}', ${w.tmdb_rating||null})">
+          ${w.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" class="work-result-poster">`
+            : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center">🎬</div>`}
+          <div>
+            <div style="font-size:13px;font-weight:500">${w.title_ko||''}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${w.title_en||''} · ${w.release_year||''}</div>
+          </div>
+        </div>
+      `).join('');
+      resultBox.style.display = 'block';
+    } catch(e) {}
+  }, 300);
+}
+
+// 작품 선택
+function selectManualWork(tmdb_id, title_ko, title_en, poster_path, release_year, genre, tmdb_rating) {
+  manualSelectedTmdb = { tmdb_id, title_ko, title_en, poster_path, release_year, genre, tmdb_rating };
+
+  const selBox = document.getElementById('manualSelectedWork');
+  document.getElementById('manualSelPoster').src =
+    poster_path ? `https://image.tmdb.org/t/p/w92${poster_path}` : '';
+  document.getElementById('manualSelTitle').textContent   = title_ko || title_en;
+  document.getElementById('manualSelTmdbId').textContent  = `TMDB: ${tmdb_id}`;
+  selBox.style.display = 'flex';
+
+  document.getElementById('manualWorkSearch').value       = '';
+  document.getElementById('manualSearchResults').style.display = 'none';
+}
+
+// 선택 초기화
+function clearManualSelected() {
+  manualSelectedTmdb = null;
+  document.getElementById('manualSelectedWork').style.display = 'none';
+  document.getElementById('manualWorkSearch').value = '';
+}
+
+// 목록에 추가 (로컬 상태에만 추가, 저장은 💾 버튼으로)
+function addManualRanking() {
+  if (!manualSelectedTmdb) {
+    showToast('작품을 먼저 선택하세요.', 'err'); return;
+  }
+  // 중복 체크
+  if (manualItems.some(item => item.tmdb_id === manualSelectedTmdb.tmdb_id)) {
+    showToast('이미 목록에 있는 작품입니다.', 'err'); return;
+  }
+
+  // 목록 맨 끝에 추가
+  const newRank = manualItems.length + 1;
+  manualItems.push({
+    id:           null, // 신규 항목은 id 없음
+    rank:         newRank,
+    tmdb_id:      manualSelectedTmdb.tmdb_id,
+    title_ko:     manualSelectedTmdb.title_ko,
+    title_en:     manualSelectedTmdb.title_en,
+    poster_path:  manualSelectedTmdb.poster_path,
+    release_year: manualSelectedTmdb.release_year,
+    genre:        manualSelectedTmdb.genre,
+    tmdb_rating:  manualSelectedTmdb.tmdb_rating,
+    _isNew:       true, // 신규 항목 표시
+  });
+
+  clearManualSelected();
+  renderManualTable();
+  showToast(`✅ '${manualSelectedTmdb?.title_ko || ''}' 추가됨. 💾 저장 버튼으로 반영하세요.`, 'ok');
+}
+
+// 항목 삭제
+async function deleteManualItem(id) {
+  if (!id) {
+    // id 없는 신규 항목(아직 저장 안 된 것)
+    manualItems = manualItems.filter(item => item.id !== id);
+    manualItems.forEach((item, i) => item.rank = i + 1);
+    renderManualTable();
+    return;
+  }
+  if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+
+  try {
+    const res  = await fetch(`${API}/admin/manual-rankings/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    if (json.ok) {
+      manualItems = manualItems.filter(item => item.id !== id);
+      manualItems.forEach((item, i) => item.rank = i + 1);
+      renderManualTable();
+      showToast('삭제 완료', 'ok');
+    } else {
+      showToast(`삭제 실패: ${json.message}`, 'err');
+    }
+  } catch(e) {
+    showToast(`삭제 오류: ${e.message}`, 'err');
+  }
+}
+
+// 💾 순위 저장 (신규 추가 + 기존 순서 변경 일괄 처리)
+async function saveManualOrder() {
+  const platform = document.getElementById('manualPlatformSel').value;
+  const slot     = document.getElementById('manualSlotSel').value;
+  const slotSel  = document.getElementById('manualSlotSel');
+  const selOpt   = slotSel.options[slotSel.selectedIndex];
+  const sourceName = selOpt?.dataset?.sourceName || slot;
+
+  if (!platform || !slot) { showToast('플랫폼과 슬롯을 선택하세요.', 'err'); return; }
+  if (!manualItems.length) { showToast('저장할 항목이 없습니다.', 'err'); return; }
+
+  const btn  = document.querySelector('[onclick="saveManualOrder()"]');
+  const orig = btn.textContent;
+  btn.textContent = '저장 중...';
+  btn.disabled = true;
+
+  try {
+    // ① 신규 항목 먼저 추가 (POST)
+    const newItems = manualItems.filter(item => item._isNew);
+    for (const item of newItems) {
+      const res  = await fetch(`${API}/admin/manual-rankings`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          category_slot: slot,
+          source_name:   sourceName,
+          tmdb_id:       item.tmdb_id,
+          rank:          item.rank,
+          title_ko:      item.title_ko,
+          title_en:      item.title_en,
+          poster_path:   item.poster_path,
+          release_year:  item.release_year,
+          genre:         item.genre,
+          tmdb_rating:   item.tmdb_rating,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+    }
+
+    // ② 기존 항목 순위 재정렬 (PATCH reorder)
+    const existingItems = manualItems.filter(item => !item._isNew && item.id);
+    if (existingItems.length) {
+      const res  = await fetch(`${API}/admin/manual-rankings/reorder`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          category_slot: slot,
+          items: existingItems.map(item => ({ id: item.id, rank: item.rank })),
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+    }
+
+    showToast('✅ 저장 완료!', 'ok');
+    // 저장 후 다시 로드 (id 갱신 등)
+    await loadManualRankings();
+  } catch(e) {
+    showToast(`저장 실패: ${e.message}`, 'err');
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
+// ── 신규 슬롯 모달 ──────────────────────────────────
+function openNewSlotModal() {
+  document.getElementById('newSlotOverlay').classList.add('show');
+}
+function closeNewSlotModal() {
+  document.getElementById('newSlotOverlay').classList.remove('show');
+}
+async function createNewSlot() {
+  const platform     = document.getElementById('newSlotPlatform').value;
+  const category_slot = document.getElementById('newSlotKey').value.trim();
+  const source_name  = document.getElementById('newSlotSourceName').value.trim();
+  const display_name = document.getElementById('newSlotDisplayName').value.trim();
+  const limit        = parseInt(document.getElementById('newSlotLimit').value) || 20;
+
+  if (!platform || !category_slot || !source_name) {
+    showToast('플랫폼, 슬롯 번호, 원본명은 필수입니다.', 'err'); return;
+  }
+  if (!/^category\d+$/.test(category_slot)) {
+    showToast('슬롯 번호 형식: category01, category02 ...', 'err'); return;
+  }
+
+  try {
+    const res  = await fetch(`${API}/admin/categories`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform, category_slot, source_name,
+        display_name: display_name || source_name,
+        crawl_limit: limit, main_limit: limit, platform_limit: limit,
+        is_active: 1,
+      }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(`✅ '${category_slot}' 슬롯 생성 완료!`, 'ok');
+      closeNewSlotModal();
+      // 방금 만든 플랫폼으로 자동 이동
+      document.getElementById('manualPlatformSel').value = platform;
+      await onManualPlatformChange();
+      // 생성한 슬롯 자동 선택
+      document.getElementById('manualSlotSel').value = category_slot;
+      await loadManualRankings();
+    } else {
+      showToast(`생성 실패: ${json.message}`, 'err');
+    }
+  } catch(e) {
+    showToast(`오류: ${e.message}`, 'err');
+  }
 }
 
 // ════════════════════════════════════════════════════
@@ -1618,24 +2171,24 @@ function renderPageCatMain() {
     return;
   }
   document.getElementById('pagecatMainBody').innerHTML = rows.map(r => `
-    <tr>
+    <tr data-catid="${r.id}">
       <td><span style="color:${PC2[r.platform]||'#fff'};font-weight:600;font-size:12px">${PLATFORM_KO[r.platform]||r.platform}</span></td>
       <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
       <td style="max-width:150px"><span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span></td>
       <td><span style="font-size:12px">${_esc(r.display_name||'')}</span></td>
       <td>
-        <select class="inp" id="pmc-section-${r.id}" style="font-size:12px;padding:4px 8px;width:110px">
+        <select class="inp" id="pmc-section-${r.id}" data-field="main_section" style="font-size:12px;padding:4px 8px;width:110px">
           <option value="" ${!r.main_section?'selected':''}>미노출</option>
           <option value="tv" ${r.main_section==='tv'?'selected':''}>📺 TV 시리즈줄</option>
           <option value="movie" ${r.main_section==='movie'?'selected':''}>🎬 영화줄</option>
         </select>
       </td>
       <td>
-        <input class="date-inp" type="number" id="pmc-order-${r.id}"
+        <input class="date-inp" type="number" id="pmc-order-${r.id}" data-field="main_order"
           value="${r.main_order||0}" style="width:50px;font-size:12px" min="0" max="99">
       </td>
       <td>
-        <input class="date-inp" type="number" id="pmc-limit-${r.id}"
+        <input class="date-inp" type="number" id="pmc-limit-${r.id}" data-field="main_limit"
           value="${r.main_limit||10}" style="width:50px;font-size:12px" min="1" max="50">
       </td>
       <td>
@@ -1652,23 +2205,23 @@ function renderPageCatPlatform() {
     return;
   }
   document.getElementById('pagecatPlatformBody').innerHTML = rows.map(r => `
-    <tr>
+    <tr data-catid="${r.id}">
       <td><span style="color:${PC2[r.platform]||'#fff'};font-weight:600;font-size:12px">${PLATFORM_KO[r.platform]||r.platform}</span></td>
       <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
       <td style="max-width:150px"><span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span></td>
       <td><span style="font-size:12px">${_esc(r.display_name||'')}</span></td>
       <td>
-        <select class="inp" id="ppp-section-${r.id}" style="font-size:12px;padding:4px 8px;width:100px">
+        <select class="inp" id="ppp-section-${r.id}" data-field="platform_section" style="font-size:12px;padding:4px 8px;width:100px">
           <option value="" ${!r.platform_section?'selected':''}>미노출</option>
           <option value="main" ${r.platform_section==='main'?'selected':''}>✅ 노출</option>
         </select>
       </td>
       <td>
-        <input class="date-inp" type="number" id="ppp-order-${r.id}"
+        <input class="date-inp" type="number" id="ppp-order-${r.id}" data-field="platform_order"
           value="${r.platform_order||0}" style="width:50px;font-size:12px" min="0" max="99">
       </td>
       <td>
-        <input class="date-inp" type="number" id="ppp-limit-${r.id}"
+        <input class="date-inp" type="number" id="ppp-limit-${r.id}" data-field="platform_limit"
           value="${r.platform_limit||20}" style="width:50px;font-size:12px" min="1" max="50">
       </td>
       <td>
