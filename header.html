@@ -287,11 +287,12 @@ function initHeader(){
         el.innerHTML=`<div class="ottrang-sr-empty">검색 결과 없음</div>`;
       } else {
         el.innerHTML=rows.map(r=>{
-          /* 슬러그 생성: sessionStorage에 데이터 저장 후 슬러그 URL로 이동 */
-          const slugTitle=(r.title_ko||'').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
-          const s=1, y=new Date().getFullYear(), tid=r.tmdb_id||'';
-          const slugUrl=tid ? `/title/${slugTitle}-${s}${y}${tid}` : '#';
-          const onclick=`onclick="(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${r.tmdb_id||'null'},type:'${r.category||'tv'}',platform:'${r.platform||''}',rank:${r.rank||1},title:'${(r.title_ko||'').replace(/'/g,'')}',season:1,year:${y}}));sessionStorage.setItem('ottrang_slug','${slugUrl}');location.href='${slugUrl}';})()"`;
+          /* 새 URL 형식: /title/{시즌}-{연도}{tmdbId} (한글 없음) */
+          const s=1;
+          const y=new Date().getFullYear();
+          const tid=r.tmdb_id||'';
+          const slugUrl=tid ? `/title/${s}-${y}${tid}` : '#';
+          const onclick=`onclick="(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${r.tmdb_id||'null'},type:'${r.category||'tv'}',platform:'${r.platform||''}',rank:${r.rank||1},title:'${(r.title_ko||'').replace(/'/g,'')}',season:${s},year:${y}}));sessionStorage.setItem('ottrang_slug','${slugUrl}');location.href='${slugUrl}';})()"`;
           return `<div class="ottrang-sr-item" ${onclick} style="cursor:pointer">
             <span class="ottrang-sr-pf" style="background:${C[r.platform]||'#666'}">${PC[r.platform]||r.platform}</span>
             <span class="ottrang-sr-title">${r.title_ko}</span>
