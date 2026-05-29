@@ -454,11 +454,11 @@ def search_tmdb_korean(title_ko: str, title_en: str = "") -> dict | None:
             if result:
                 return result
 
-    # 3단계: 영어 원제로 폴백 검색 (한글 번역이 TMDB와 달라도 커버)
+    # 3단계: 영어 원제로 폴백 검색 (strict=True → 결과 여러개면 None 반환, 오매칭 방지)
     if title_en and title_en.strip() and title_en.strip() != title_ko:
         print(f"    [영어 폴백] '{title_ko}' → 영어 '{title_en}' 으로 재검색")
         for media_type in ["tv", "movie"]:
-            result = _search_tmdb_by_title(title_en.strip(), media_type, lang="en-US")
+            result = _search_tmdb_by_title(title_en.strip(), media_type, lang="en-US", strict=True)
             if result:
                 return result
 
@@ -467,17 +467,18 @@ def search_tmdb_korean(title_ko: str, title_en: str = "") -> dict | None:
         if stripped_en != title_en.strip():
             print(f"    [영어 시즌제거] '{title_en}' → '{stripped_en}'")
             for media_type in ["tv", "movie"]:
-                result = _search_tmdb_by_title(stripped_en, media_type, lang="en-US")
+                result = _search_tmdb_by_title(stripped_en, media_type, lang="en-US", strict=True)
                 if result:
                     return result
 
     return None
-def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> dict | None:
+def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", strict: bool = False) -> dict | None:
     """
     TMDB 검색 실행
     결과 1개 → 바로 반환
-    결과 여러개 → 한국 작품 우선 → 그 중 최신 → 없으면 전체 최신
+    결과 여러개 → 한국 작품 우선 → 그 중 popularity 높은 것
     lang: "ko-KR" (한글 검색) 또는 "en-US" (영어 폴백)
+    strict: True이면 결과 여러개일 때 None 반환 (영어 폴백 시 오매칭 방지)
     """
     try:
         resp = requests.get(
@@ -500,6 +501,10 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> d
         # 결과 1개 → 바로 확정
         if len(valid) == 1:
             return _build_result(valid[0], media_type)
+
+        # strict 모드 → 결과 여러개이면 None 반환 (오매칭 방지)
+        if strict:
+            return None
 
         def get_year(r):
             date_str = r.get("release_date") or r.get("first_air_date") or "0000"
