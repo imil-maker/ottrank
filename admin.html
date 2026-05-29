@@ -662,9 +662,25 @@ function closeModal() {
 let previewTimer = null;
 function previewPoster() {
   clearTimeout(previewTimer);
-  previewTimer = setTimeout(() => {
+  previewTimer = setTimeout(async () => {
     const tmdbId = document.getElementById('editTmdbId').value;
     if (!tmdbId) { updatePosterPreview(null); return; }
+    const el = document.getElementById('posterPreview');
+    el.innerHTML = '<span style="font-size:12px;color:var(--muted)">조회 중...</span>';
+    // tv/movie 둘 다 시도
+    for (const mtype of ['tv', 'movie']) {
+      try {
+        const resp = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
+        const data = await resp.json();
+        if (data.poster_path) {
+          const title = data.name || data.title || '';
+          el.innerHTML = `<img src="${IMG}${data.poster_path}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
+            <span style="font-size:12px;color:var(--green)">${_esc ? _esc(title) : title}</span>`;
+          return;
+        }
+      } catch(e) {}
+    }
+    el.innerHTML = '<span style="font-size:12px;color:var(--red)">포스터 없음</span>';
   }, 800);
 }
 function updatePosterPreview(posterPath) {
