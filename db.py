@@ -290,7 +290,7 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
                 "content-type":      "application/json",
             },
             json={
-                "model":      "claude-sonnet-4-6",
+                "model":      "claude-haiku-4-5-20251001",
                 "max_tokens": 2000,
                 "messages":   [{"role": "user", "content": prompt}],
             },
@@ -418,14 +418,23 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> d
         def title_match_score(r, q):
             """
             검색어와 제목 유사도 점수
-            완전 일치: 100 / 포함: 50 / 불일치: 0
+            완전 일치: 100
+            검색어가 제목의 첫 단어로 시작: 80 (예: "링" → "링 2" 가능)
+            포함이지만 다른 단어의 일부: 30 (예: "링" → "링크" 는 낮게)
+            불일치: 0
             """
-            t = get_title(r).lower()
-            q = q.lower().strip()
-            if t == q:
-                return 100
-            if q in t or t in q:
-                return 50
+            t = get_title(r).lower().strip()
+            q_lower = q.lower().strip()
+            if t == q_lower:
+                return 100  # 완전 일치
+            # 검색어가 제목 전체 단어와 일치 (예: "링" → "링" 단독 단어)
+            import re
+            pattern = r'(?<![\w가-힣])' + re.escape(q_lower) + r'(?![\w가-힣])'
+            if re.search(pattern, t):
+                return 80  # 단어 경계 일치
+            # 단순 포함 (예: "링" → "링크")
+            if q_lower in t or t in q_lower:
+                return 30
             return 0
 
         # 1순위: 검색어와 제목이 정확히 일치하는 한국 작품
@@ -681,14 +690,16 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
 
     if title_ko_guess and title_ko_guess != title_en:
         print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → '{title_ko_guess}' (Claude 번역)")
+    elif _is_korean(title_en):
+        # 이미 한글 제목 → 번역 없이 바로 TMDB 검색
+        title_ko_guess = title_en
+        print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → 한글 제목 그대로 검색")
     else:
-        # Claude 번역 실패 → 오매칭 방지를 위해 바로 review_queue로 처리
-        print(f"  ⚠️ [{platform}][{slot}] {rank:2d}. '{title_en}' → Claude 번역 실패, 검토 큐 저장")
-        save_review_queue(conn, item, title_en, fail_reason="claude_fail")
-        _save_to_rankings(conn, item, None)
-        return
+        # Claude 번역 실패 → 영어 원제로 TMDB 직접 검색 시도
+        print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → 번역 실패, 영어 원제로 TMDB 검색")
+        title_ko_guess = title_en  # 영어 원제로 폴백
 
-    # ── ④ TMDB 한글 검색 ─────────────────────────────────────
+    # ── ④ TMDB 검색 (한글 우선, 영어 폴백) ──────────────────
     tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
 
     if tmdb_data:
@@ -774,13 +785,16 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
         if title_ko_guess and title_ko_guess != title_en:
             print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
                   f"{item['rank']:2d}. '{title_en}' → '{title_ko_guess}'")
+        elif _is_korean(title_en):
+            # 이미 한글 제목 → 번역 없이 바로 TMDB 검색
+            title_ko_guess = title_en
+            print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. '{title_en}' → 한글 제목 그대로 검색")
         else:
-            # Claude 번역 실패 → 오매칭 방지를 위해 바로 review_queue로 처리
-            print(f"  ⚠️ [{item['platform']}][{item['category_slot']}] "
-                  f"{item['rank']:2d}. '{title_en}' → Claude 번역 실패, 검토 큐 저장")
-            save_review_queue(conn, item, title_en, fail_reason="claude_fail")
-            _save_to_rankings(conn, item, None)
-            continue
+            # Claude 번역 실패 → 영어 원제로 TMDB 직접 검색 시도
+            print(f"  🔤 [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. '{title_en}' → 번역 실패, 영어 원제로 TMDB 검색")
+            title_ko_guess = title_en  # 영어 원제로 폴백
 
         # title_en을 같이 넘겨서 한글 검색 실패 시 영어 폴백 가능하도록
         tmdb_data = search_tmdb_korean(title_ko_guess, title_en)
