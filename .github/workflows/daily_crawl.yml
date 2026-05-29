@@ -25,7 +25,7 @@ jobs:
       # ── 3. 의존성 설치 ───────────────────────────────────────
       - name: Install dependencies
         run: |
-          pip install playwright requests anthropic
+          pip install playwright requests anthropic beautifulsoup4
           playwright install chromium
           playwright install-deps chromium
 
