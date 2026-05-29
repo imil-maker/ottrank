@@ -420,7 +420,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div style="flex:1;min-width:200px;position:relative">
         <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">작품 검색 (제목 또는 TMDB ID)</div>
         <input class="inp" type="text" id="manualWorkSearch"
-          placeholder="작품명 검색 또는 TMDB ID 직접 입력..."
+          placeholder="작품명 검색 또는 TMDB URL 붙여넣기 (예: themoviedb.org/movie/1255)"
           oninput="searchManualWork(this.value)"
           autocomplete="off"
           style="margin-bottom:0">
@@ -893,7 +893,7 @@ function renderManualTable() {
         </div>
       </td>
       <td>
-        <button class="btn-sm btn-unfix" onclick="deleteManualItem(${item.id})"
+        <button class="btn-sm btn-unfix" onclick="deleteManualItem(${idx}, ${item.id !== null ? item.id : 'null'})"
           style="color:var(--red);border-color:rgba(248,113,113,.3)">삭제</button>
       </td>
     </tr>
@@ -978,20 +978,40 @@ function clearManualSelected() {
 
 // 목록에 추가 (로컬 상태에만 추가, 저장은 💾 버튼으로)
 async function addManualRanking() {
-  // manualSelectedTmdb가 없으면 → 입력창이 숫자(TMDB ID)인지 확인 후 자동 조회
+  // manualSelectedTmdb가 없으면 → 입력창 값에서 TMDB ID + 미디어 타입 파싱
   if (!manualSelectedTmdb) {
     const inputVal = document.getElementById('manualWorkSearch').value.trim();
-    const tmdbId   = parseInt(inputVal);
-
-    if (!inputVal || isNaN(tmdbId) || tmdbId <= 0) {
-      showToast('작품을 검색하거나 TMDB ID를 입력하세요.', 'err');
+    if (!inputVal) {
+      showToast('작품을 검색하거나 TMDB URL/ID를 입력하세요.', 'err');
       return;
     }
 
-    // TMDB ID 직접 입력 → works DB 조회 시도
-    showToast('TMDB ID로 작품 조회 중...', 'ok');
+    // ── TMDB URL 또는 숫자 파싱 ──────────────────────────
+    // 지원 형식:
+    //   https://www.themoviedb.org/movie/1255
+    //   https://www.themoviedb.org/tv/1255-october-road
+    //   https://www.themoviedb.org/movie/1255?language=ko
+    //   1255  (숫자만 → mtype 불명확, movie/tv 순으로 시도)
+    let tmdbId   = null;
+    let mtypes   = ['movie', 'tv']; // 기본: movie 먼저 (숫자만 입력 시)
+
+    const urlMatch = inputVal.match(/themoviedb\.org\/(movie|tv)\/(\d+)/);
+    if (urlMatch) {
+      // URL에서 타입+ID 추출 → 정확하게 1번만 조회
+      mtypes = [urlMatch[1]];
+      tmdbId = parseInt(urlMatch[2]);
+    } else {
+      // 숫자만 입력
+      tmdbId = parseInt(inputVal);
+      if (isNaN(tmdbId) || tmdbId <= 0) {
+        showToast('TMDB URL 또는 숫자 ID를 입력하세요.\n예) https://www.themoviedb.org/movie/1255', 'err');
+        return;
+      }
+    }
+
+    showToast('작품 조회 중...', 'ok');
     try {
-      // ① works 테이블에서 먼저 조회
+      // ① works 테이블에서 먼저 조회 (tmdb_id 기준)
       const res  = await fetch(`${API}/works/${tmdbId}`);
       const json = await res.json();
 
@@ -1004,9 +1024,9 @@ async function addManualRanking() {
           w.genre || '', w.tmdb_rating || null
         );
       } else {
-        // works에 없는 경우 → TMDB 프록시로 직접 조회 (tv/movie 둘 다 시도)
+        // ② works에 없으면 → TMDB 프록시 직접 조회 (파싱된 타입 순서로)
         let found = false;
-        for (const mtype of ['tv', 'movie']) {
+        for (const mtype of mtypes) {
           const tr = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
           if (!tr.ok) continue;
           const td = await tr.json();
@@ -1017,7 +1037,7 @@ async function addManualRanking() {
           try {
             const er = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=en-US`);
             if (er.ok) {
-              const ed = await er.json();
+              const ed  = await er.json();
               const orig = ed.original_title || ed.original_name || '';
               const isKo = /[\uAC00-\uD7A3]/.test(orig);
               title_en = isKo ? (ed.title || ed.name || '') : (orig || ed.title || ed.name || '');
@@ -1037,7 +1057,7 @@ async function addManualRanking() {
           break;
         }
         if (!found) {
-          showToast(`TMDB ID ${tmdbId}를 찾을 수 없습니다.`, 'err');
+          showToast(`TMDB에서 해당 작품을 찾을 수 없습니다. (ID: ${tmdbId})`, 'err');
           return;
         }
       }
@@ -1076,11 +1096,11 @@ async function addManualRanking() {
   showToast(`✅ '${addedTitle}' 추가됨. 💾 저장 버튼으로 반영하세요.`, 'ok');
 }
 
-// 항목 삭제
-async function deleteManualItem(id) {
-  if (!id) {
-    // id 없는 신규 항목(아직 저장 안 된 것)
-    manualItems = manualItems.filter(item => item.id !== id);
+// 항목 삭제 (idx: 배열 인덱스, id: DB id, null이면 신규 미저장 항목)
+async function deleteManualItem(idx, id) {
+  if (id === null || id === undefined) {
+    // 신규 항목 (아직 DB에 없음) → 배열에서 인덱스로 제거
+    manualItems.splice(idx, 1);
     manualItems.forEach((item, i) => item.rank = i + 1);
     renderManualTable();
     return;
@@ -1094,7 +1114,8 @@ async function deleteManualItem(id) {
     });
     const json = await res.json();
     if (json.ok) {
-      manualItems = manualItems.filter(item => item.id !== id);
+      // DB 삭제 성공 → 배열에서도 인덱스로 제거
+      manualItems.splice(idx, 1);
       manualItems.forEach((item, i) => item.rank = i + 1);
       renderManualTable();
       showToast('삭제 완료', 'ok');
