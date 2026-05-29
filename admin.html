@@ -312,7 +312,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <thead>
         <tr>
           <th>날짜</th><th>플랫폼</th><th>카테고리</th><th>순위</th>
-          <th>영어 원제</th><th>Claude 번역</th><th>TMDB ID 입력</th><th>저장</th>
+          <th>영어 원제</th><th>Claude 번역</th><th>TMDB ID 입력</th><th>중복삭제</th><th>저장</th>
         </tr>
       </thead>
       <tbody id="queueTableBody">
@@ -1236,6 +1236,12 @@ function renderQueue() {
         <div id="qposter-${r.id}" style="margin-top:4px"></div>
       </td>
       <td>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="qdel-${r.id}" style="cursor:pointer">
+          <span style="color:var(--red)">기존 삭제</span>
+        </label>
+      </td>
+      <td>
         <button class="btn-sm btn-fix" onclick="resolveQueue(${r.id})">저장</button>
         <button class="btn-sm btn-unfix" onclick="ignoreQueue(${r.id})" style="margin-top:4px">무시</button>
       </td>
@@ -1262,11 +1268,12 @@ async function previewQueuePoster(qid, tmdbId) {
 async function resolveQueue(qid) {
   const tmdbId = document.getElementById(`qtmdb-${qid}`).value;
   if (!tmdbId) { showToast('TMDB ID를 입력하세요', 'err'); return; }
+  const deleteDuplicates = document.getElementById(`qdel-${qid}`)?.checked || false;
   try {
     const res = await fetch(`${API}/admin/review-queue/${qid}/resolve`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tmdb_id: parseInt(tmdbId) })
+      body: JSON.stringify({ tmdb_id: parseInt(tmdbId), delete_duplicates: deleteDuplicates })
     });
     const json = await res.json();
     if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
@@ -1444,8 +1451,12 @@ function renderWorks(rows) {
       </td>
       <td><span style="font-size:11px;color:${srcColor[r.match_source]||'var(--muted)'}">${r.match_source||'admin'}</span></td>
       <td><span style="font-family:var(--mono);font-size:12px">${r.confidence_score||100}</span></td>
-      <td>
+      <td style="min-width:120px">
         <button class="btn-sm btn-fix" onclick="saveWork(${r.tmdb_id})">저장</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;margin-top:4px;cursor:pointer">
+          <input type="checkbox" id="wdel-${r.tmdb_id}">
+          <span style="color:var(--red)">중복삭제</span>
+        </label>
       </td>
       <td>
         <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)"
@@ -1458,11 +1469,12 @@ function renderWorks(rows) {
 async function saveWork(tmdbId) {
   const title_ko = document.getElementById(`wtko-${tmdbId}`)?.value;
   const title_en = document.getElementById(`wten-${tmdbId}`)?.value;
+  const deleteDuplicates = document.getElementById(`wdel-${tmdbId}`)?.checked || false;
   try {
     const res = await fetch(`${API}/admin/works/${tmdbId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title_ko, title_en })
+      body: JSON.stringify({ title_ko, title_en, delete_duplicates: deleteDuplicates })
     });
     const json = await res.json();
     if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
