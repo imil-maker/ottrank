@@ -680,38 +680,42 @@ const CC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',w
    3. 구 쿼리스트링 (?tmdb_id=…) — 하위호환
    ══════════════════════════════════════════════ */
 function parseSlug(pathname){
-  // /title/원더풀스-12026259837 → slug = "원더풀스-12026259837"
   const slug = pathname.replace(/^\/title\/?/, '').replace(/\.html$/, '');
   if(!slug) return null;
 
-  // 맨 끝 연속 숫자 추출 (시즌+연도+tmdbId 결합 덩어리)
+  let season=1, year=new Date().getFullYear(), tmdb_id=null;
+
+  // ── 신규 형식: /title/{시즌}-{연도}{tmdbId} ──────────────────
+  // 예) /title/1-2026278113
+  // 하이픈 하나로 시즌과 나머지 숫자를 구분
+  const newFmt = slug.match(/^(\d+)-(\d{4})(\d+)$/);
+  if(newFmt){
+    season   = parseInt(newFmt[1]);
+    year     = parseInt(newFmt[2]);
+    tmdb_id  = parseInt(newFmt[3]);
+    return { tmdb_id, season, year, titleSlug: '' };
+  }
+
+  // ── 구 형식: /title/한글제목-{시즌연도tmdbId} (하위호환) ──────
+  // 예) /title/원더풀스-12026259837
   const m = slug.match(/-(\d+)$/);
   if(!m) return null;
 
-  const numStr = m[1]; // e.g. "12026259837"
-  // tmdb_id: TMDB ID는 보통 5~7자리. 연도는 항상 4자리, 시즌은 1~2자리
-  // → 뒤에서 연도(4)+시즌(나머지)로 분리, tmdb_id는 남은 뒷부분
-  // 전략: 전체 숫자에서 앞 자리가 시즌, 그다음 4자리가 연도, 나머지가 tmdb_id
-  //   numStr = S + YYYY + tmdb_id
-  //   연도는 1900~2100 범위
-  let season=1, year=new Date().getFullYear(), tmdb_id=null;
-  if(numStr.length >= 6){ // 최소 시즌1자리+연도4자리+tmdb_id1자리
-    // 연도 위치: 오른쪽에서 tmdb_id 제거 후 4자리
-    // tmdb_id 길이를 역산: numStr 전체에서 앞에 시즌이 1~2자리, 다음 4자리가 연도
-    // 앞에서부터: 시즌 자리수를 1~2자리로 시도
+  const numStr = m[1];
+  if(numStr.length >= 6){
     for(let sLen=1; sLen<=2; sLen++){
       const s   = parseInt(numStr.slice(0, sLen));
       const y   = parseInt(numStr.slice(sLen, sLen+4));
       const tid = numStr.slice(sLen+4);
       if(tid.length >= 1 && y >= 1900 && y <= 2100 && s >= 1){
-        season   = s;
-        year     = y;
-        tmdb_id  = parseInt(tid);
+        season  = s;
+        year    = y;
+        tmdb_id = parseInt(tid);
         break;
       }
     }
   }
-  const titlePart = slug.slice(0, m.index); // "원더풀스"
+  const titlePart = slug.slice(0, m.index);
   return { tmdb_id, season, year, titleSlug: titlePart };
 }
 
