@@ -405,13 +405,52 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR") -> d
                 return True
             return False
 
-        # 1순위: 한국 작품 (origin_country=KR 또는 original_language=ko) 중 최신
+        def get_popularity(r):
+            try:
+                return float(r.get("popularity") or 0)
+            except Exception:
+                return 0
+
+        def get_title(r):
+            """TMDB 결과에서 제목 추출"""
+            return (r.get("name") or r.get("title") or "").strip()
+
+        def title_match_score(r, q):
+            """
+            검색어와 제목 유사도 점수
+            완전 일치: 100 / 포함: 50 / 불일치: 0
+            """
+            t = get_title(r).lower()
+            q = q.lower().strip()
+            if t == q:
+                return 100
+            if q in t or t in q:
+                return 50
+            return 0
+
+        # 1순위: 검색어와 제목이 정확히 일치하는 한국 작품
+        #        → "무빙" 검색 시 제목이 "무빙"인 작품 바로 선택
+        exact_korean = [r for r in valid if is_korean(r) and title_match_score(r, query) == 100]
+        if exact_korean:
+            return _build_result(max(exact_korean, key=get_popularity), media_type)
+
+        # 2순위: 제목 포함 일치하는 한국 작품
+        partial_korean = [r for r in valid if is_korean(r) and title_match_score(r, query) == 50]
+        if partial_korean:
+            return _build_result(max(partial_korean, key=get_popularity), media_type)
+
+        # 3순위: 한국 작품 중 popularity 높은 것
         korean = [r for r in valid if is_korean(r)]
         if korean:
-            return _build_result(max(korean, key=get_year), media_type)
+            return _build_result(max(korean, key=get_popularity), media_type)
 
-        # 2순위: 한국 작품 없으면 전체 결과 중 최신
-        return _build_result(max(valid, key=get_year), media_type)
+        # 4순위: 검색어 정확 일치하는 전체 작품
+        exact_all = [r for r in valid if title_match_score(r, query) == 100]
+        if exact_all:
+            return _build_result(max(exact_all, key=get_popularity), media_type)
+
+        # 5순위: 전체 결과 중 popularity 높은 것
+        return _build_result(max(valid, key=get_popularity), media_type)
 
     except Exception as e:
         print(f"    TMDB 검색 오류 ({query}, {media_type}): {e}")
@@ -632,11 +671,13 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
         return
 
     # ── ③ Claude API 번역 (단일 항목) ────────────────────────
-    # 배치 처리는 save_rankings_batch() 사용 권장
-    # 단일 호출 시 여기서 처리 (플랫폼 정보 포함)
+    # 이미 한글 제목이면 번역 스킵
     title_ko_guess = ""
-    translations = translate_titles_to_korean([title_en], platform=platform)
-    title_ko_guess = translations.get(title_en, title_en)
+    if _is_korean(title_en):
+        title_ko_guess = title_en  # 이미 한글 → 그대로 사용
+    else:
+        translations = translate_titles_to_korean([title_en], platform=platform)
+        title_ko_guess = translations.get(title_en, "")
 
     if title_ko_guess and title_ko_guess != title_en:
         print(f"  🔤 [{platform}][{slot}] {rank:2d}. '{title_en}' → '{title_ko_guess}' (Claude 번역)")
@@ -704,18 +745,26 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
         return
 
     # ── ③ Claude API 배치 번역 (신규 항목만, 플랫폼별 분리) ──
-    # 플랫폼 정보를 같이 넘겨야 직역 방지 가능
-    # 플랫폼별로 그룹핑해서 번역
+    # 이미 한글인 항목은 번역 스킵, 영어 제목만 번역 요청
     from collections import defaultdict
     platform_groups = defaultdict(list)
     for item in unmatched_items:
-        platform_groups[item["platform"]].append(item)
+        if _is_korean(item["title_en"]):
+            # 이미 한글 제목 → 번역 불필요, 그대로 사용
+            pass
+        else:
+            platform_groups[item["platform"]].append(item)
 
     translations = {}
     for plt, plt_items in platform_groups.items():
         plt_titles = [item["title_en"] for item in plt_items]
         plt_translations = translate_titles_to_korean(plt_titles, platform=plt)
         translations.update(plt_translations)
+
+    # 한글 제목은 번역 결과에 그대로 추가
+    for item in unmatched_items:
+        if _is_korean(item["title_en"]):
+            translations[item["title_en"]] = item["title_en"]
 
     # ── ④ TMDB 한글 검색 + 저장 ─────────────────────────────
     for item in unmatched_items:
