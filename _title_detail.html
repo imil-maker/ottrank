@@ -33,11 +33,11 @@
 
 <!-- 폰트·아이콘 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 
 <style>
-/* ══ 기본 변수 (index.html과 통일) ══ */
+/* ══ 기본 변수 ══ */
 :root{
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
   --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
@@ -50,121 +50,262 @@
   --font-mono:'DM Mono',monospace;
   --font-disp:'Bebas Neue',sans-serif;
   --r:10px; --r-lg:14px;
-  /* ── 데스크탑 본문 폭 확장 (기존 680px → 900px) ── */
   --content-w:900px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:16px;line-height:1.6;min-height:100vh;overflow-x:hidden}
 
-/* ── 페이지 래퍼 ── */
+/* ══════════════════════════════════════════
+   히어로 — backdrop 전체 너비
+══════════════════════════════════════════ */
+.hero-backdrop{
+  position:relative;
+  width:100%;
+  min-height:420px;
+  background:var(--bg2);
+  overflow:hidden;
+  margin-bottom:0;
+}
+/* backdrop 이미지 */
+.hero-backdrop-img{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  object-fit:cover;object-position:center top;
+  display:block;
+  transition:opacity .5s ease;
+}
+/* 그라디언트 오버레이 — 하단을 bg로 자연스럽게 페이드 */
+.hero-backdrop-overlay{
+  position:absolute;inset:0;
+  background:
+    linear-gradient(to bottom,
+      rgba(12,12,16,0.3) 0%,
+      rgba(12,12,16,0.5) 40%,
+      rgba(12,12,16,0.85) 75%,
+      rgba(12,12,16,1) 100%),
+    linear-gradient(to right,
+      rgba(12,12,16,0.7) 0%,
+      transparent 60%);
+}
+/* 컨텐츠 영역 */
+.hero-content{
+  position:relative;
+  z-index:2;
+  max-width:var(--content-w);
+  margin:0 auto;
+  padding:28px 20px 36px;
+  display:flex;
+  gap:32px;
+  align-items:flex-end;
+}
+
+/* 포스터 */
+.hero-poster{
+  flex-shrink:0;
+  width:180px;
+  aspect-ratio:2/3;
+  border-radius:var(--r-lg);
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow:0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
+  position:relative;
+  background:var(--bg3);
+  transition:transform .2s ease, box-shadow .2s ease;
+}
+.hero-poster:hover{transform:translateY(-4px);box-shadow:0 32px 80px rgba(0,0,0,0.8)}
+.hero-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px}
+.platform-pill{
+  position:absolute;top:10px;left:10px;
+  color:#fff;font-size:10px;font-weight:700;
+  padding:3px 10px;border-radius:4px;
+  font-family:var(--font-mono);letter-spacing:.5px;
+  backdrop-filter:blur(4px);
+}
+.rank-badge{
+  position:absolute;bottom:10px;left:10px;
+  background:rgba(0,0,0,.85);color:var(--gold);
+  font-size:12px;font-family:var(--font-mono);
+  padding:4px 10px;border-radius:5px;font-weight:600;
+  backdrop-filter:blur(4px);
+}
+
+/* 히어로 정보 */
+.hero-info{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;
+  gap:10px;
+  padding-bottom:4px;
+}
+.hero-main-title{
+  font-size:36px;font-weight:900;line-height:1.1;
+  letter-spacing:-.5px;
+  text-shadow:0 2px 20px rgba(0,0,0,.6);
+}
+.hero-orig-title{font-size:14px;color:rgba(255,255,255,.55);margin-top:0}
+.hero-tags{display:flex;flex-wrap:wrap;gap:6px}
+.hero-tag{
+  font-size:11px;padding:3px 11px;border-radius:20px;
+  border:.5px solid rgba(255,255,255,.2);
+  color:rgba(255,255,255,.7);
+  font-family:var(--font-mono);
+  backdrop-filter:blur(4px);
+  background:rgba(255,255,255,.05);
+}
+.hero-meta{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.hero-meta-item{font-size:13px;color:rgba(255,255,255,.65)}
+.hero-meta-item b{color:#fff;font-weight:600}
+.hero-meta-sep{color:rgba(255,255,255,.2);font-size:12px}
+.hero-overview{
+  font-size:14px;color:rgba(255,255,255,.65);
+  line-height:1.75;
+  max-width:520px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+/* 히어로 액션 */
+.hero-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.hero-wish-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:10px 20px;border-radius:var(--r);
+  background:rgba(255,255,255,.1);
+  border:.5px solid rgba(255,255,255,.2);
+  color:#fff;font-size:14px;font-weight:600;
+  cursor:pointer;font-family:var(--font-sans);
+  transition:all .15s;backdrop-filter:blur(8px);
+}
+.hero-wish-btn:hover{background:rgba(255,255,255,.18)}
+.hero-wish-btn.wished{background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.5);color:var(--gold)}
+.hero-share-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:10px 20px;border-radius:var(--r);
+  background:transparent;
+  border:.5px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.7);font-size:14px;font-weight:600;
+  cursor:pointer;font-family:var(--font-sans);
+  transition:all .15s;
+}
+.hero-share-btn:hover{background:rgba(255,255,255,.08);color:#fff}
+.hero-review-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:10px 22px;border-radius:var(--r);
+  background:var(--accent);
+  border:none;
+  color:#fff;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:var(--font-sans);
+  transition:all .15s;
+  box-shadow:0 4px 20px rgba(230,57,70,.3);
+}
+.hero-review-btn:hover{background:#ff4d58;transform:translateY(-1px);box-shadow:0 6px 24px rgba(230,57,70,.4)}
+
+/* ── 뒤로가기 (backdrop 위에 float) ── */
+.back-floating{
+  position:absolute;top:16px;left:20px;z-index:10;
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:13px;color:rgba(255,255,255,.7);
+  cursor:pointer;padding:7px 14px;border-radius:var(--r);
+  border:.5px solid rgba(255,255,255,.15);
+  background:rgba(0,0,0,.35);
+  transition:all .15s;text-decoration:none;
+  backdrop-filter:blur(8px);
+}
+.back-floating:hover{background:rgba(0,0,0,.55);color:#fff}
+
+/* ══ 본문 영역 ══ */
 .page-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
 
-/* ── 뒤로가기 ── */
-.back{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted2);cursor:pointer;margin-bottom:20px;padding:7px 14px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;transition:background .15s;text-decoration:none}
-.back:hover{background:var(--bg3)}
-
-/* ═══════════════════════════════
-   히어로 영역 (포스터 + 정보)
-═══════════════════════════════ */
-.hero-row{display:grid;grid-template-columns:200px 1fr;gap:28px;margin-bottom:28px}
-.poster-wrap{position:relative;border-radius:var(--r-lg);overflow:hidden;border:.5px solid var(--border);aspect-ratio:2/3;background:var(--bg3)}
-.poster-wrap img{width:100%;height:100%;object-fit:cover;display:block}
-.poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px}
-.platform-pill{position:absolute;top:10px;left:10px;color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:4px;font-family:var(--font-mono);letter-spacing:.5px}
-.rank-badge{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,.8);color:var(--gold);font-size:13px;font-family:var(--font-mono);padding:4px 10px;border-radius:5px;font-weight:500}
-
-/* ── 포스터 하단 CTA (평점 남기기) ── */
-.poster-cta{
-  position:absolute;bottom:0;left:0;right:0;
-  background:linear-gradient(to top,rgba(0,0,0,.92) 60%,transparent);
-  padding:40px 14px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;
+/* ══════════════════════════════════
+   출연진 카드 (프로필 사진)
+══════════════════════════════════ */
+.cast-section{margin-bottom:28px}
+.cast-scroll{
+  display:flex;gap:12px;
+  overflow-x:auto;padding-bottom:8px;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
 }
-.poster-cta-btn{
-  width:100%;padding:10px 0;border-radius:var(--r);border:none;cursor:pointer;
-  background:var(--accent);color:#fff;font-size:14px;font-weight:700;
-  font-family:var(--font-sans);letter-spacing:.3px;
-  transition:background .15s,transform .1s;
+.cast-scroll::-webkit-scrollbar{display:none}
+.cast-card{
+  flex-shrink:0;
+  width:88px;
+  cursor:pointer;
+  text-decoration:none;
+  transition:transform .2s ease;
 }
-.poster-cta-btn:hover{background:#ff4d58;transform:scale(1.02)}
-.poster-cta-sub{font-size:11px;color:rgba(255,255,255,.6);font-family:var(--font-mono)}
-.action-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.wish-btn{
-  padding:10px 0;border-radius:var(--r);cursor:pointer;
-  background:transparent;color:var(--text);font-size:14px;font-weight:600;
-  font-family:var(--font-sans);border:.5px solid var(--border2);
-  transition:all .15s;width:100%;
+.cast-card:hover{transform:translateY(-3px)}
+.cast-photo{
+  width:88px;height:88px;
+  border-radius:50%;
+  overflow:hidden;
+  background:var(--bg3);
+  border:2px solid var(--border);
+  margin-bottom:7px;
+  position:relative;
 }
-.wish-btn:hover{background:var(--bg3);}
-.wish-btn.wished{background:rgba(240,180,41,.1);border-color:var(--gold);color:var(--gold);}
-.share-btn-lg-sm{
-  padding:10px 0;border-radius:var(--r);cursor:pointer;
-  background:transparent;color:var(--text);font-size:14px;font-weight:600;
-  font-family:var(--font-sans);border:.5px solid var(--border2);
-  transition:all .15s;width:100%;
-  display:flex;align-items:center;justify-content:center;gap:6px;
+.cast-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.cast-photo-ph{
+  width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;font-weight:700;
+  color:var(--info);background:var(--info-bg);
+  font-family:var(--font-mono);
 }
-.share-btn-lg-sm:hover{background:var(--bg3);}
-
-.info-col{display:flex;flex-direction:column;gap:12px}
-.main-title{font-size:28px;font-weight:700;line-height:1.2}
-.orig-title{font-size:14px;color:var(--muted);margin-top:2px}
-.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
-.tag{font-size:12px;padding:4px 12px;border-radius:20px;border:.5px solid var(--border2);color:var(--muted2);font-family:var(--font-mono)}
-.meta-row{display:flex;gap:18px;flex-wrap:wrap}
-.meta-item{font-size:14px;color:var(--muted2)}
-.meta-item b{color:var(--text);font-weight:600}
-.overview{font-size:15px;color:var(--muted2);line-height:1.75;border-left:2px solid var(--border2);padding-left:14px}
-
-/* ── 배우/감독 ── */
-.people-row{display:flex;flex-direction:column;gap:8px}
-.people-label{font-size:11px;color:var(--muted);font-family:var(--font-mono);letter-spacing:.5px;text-transform:uppercase}
-.people-list{display:flex;flex-wrap:wrap;gap:6px}
-.people-chip{font-size:13px;padding:4px 12px;border-radius:20px;border:.5px solid var(--border2);color:var(--info);cursor:pointer;text-decoration:none;background:transparent;transition:background .15s}
-.people-chip:hover{background:var(--info-bg)}
-
-/* ── 공유 바 ── */
-.share-bar{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap}
-.share-label{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
-.share-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s;font-family:var(--font-sans)}
-.share-btn:hover{border-color:var(--border2);color:var(--text);background:var(--bg3)}
-.share-btn.kakao{border-color:rgba(240,180,41,.5);color:#b8860b}
-.share-btn.kakao:hover{background:var(--warn-bg)}
-/* 큰 공유 버튼 */
-.share-btn-lg{
-  display:flex;align-items:center;justify-content:center;gap:8px;
-  width:100%;padding:11px 0;border-radius:var(--r);
-  border:.5px solid var(--info-border);background:var(--info-bg);
-  color:var(--info);font-size:14px;font-weight:600;cursor:pointer;
-  font-family:var(--font-sans);transition:all .15s;
+.cast-name{font-size:12px;font-weight:600;text-align:center;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cast-role{font-size:11px;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--font-mono)}
+.director-row{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.director-chip{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px 6px 8px;
+  border-radius:30px;
+  border:.5px solid var(--border2);
+  background:var(--bg2);
+  cursor:pointer;text-decoration:none;
+  transition:all .15s;
 }
-.share-btn-lg:hover{background:rgba(55,138,221,.2);border-color:var(--info)}
+.director-chip:hover{border-color:var(--info-border);background:var(--info-bg)}
+.director-photo{width:28px;height:28px;border-radius:50%;overflow:hidden;background:var(--bg3);flex-shrink:0}
+.director-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.director-photo-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--info)}
+.director-name{font-size:13px;font-weight:600;color:var(--text)}
+.director-label{font-size:10px;color:var(--muted);font-family:var(--font-mono)}
 
-/* ── 토스트 ── */
-.share-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
-.share-toast.show{opacity:1}
-
-/* ═══════════════════════════════
-   평점 3종
-═══════════════════════════════ */
+/* ══════════════════════════════════
+   평점 4블록
+══════════════════════════════════ */
 .ratings-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
-.r-card{background:var(--bg2);border-radius:var(--r);padding:16px 12px;text-align:center;border:.5px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
-.r-label{font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap}
+.r-card{background:var(--bg2);border-radius:var(--r);padding:16px 12px;text-align:center;border:.5px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;transition:border-color .15s}
+.r-card:hover{border-color:var(--border2)}
 .r-logo{font-size:16px;font-weight:800;letter-spacing:1px;margin-bottom:8px}
 .r-score{font-size:30px;font-weight:700;line-height:1}
 .r-score-wrap{display:flex;align-items:baseline;gap:3px}
 .r-out-of{font-size:13px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
 .r-sub{font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
-.empty-rating{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;cursor:pointer;border-radius:var(--r);border:1px dashed var(--border);transition:all .15s}
-.empty-rating:hover{border-color:var(--border2);background:var(--bg)}
-.empty-rating-cta{font-size:11px;color:var(--info);font-family:var(--font-mono)}
 
-/* ═══════════════════════════════
-   평점 남기기 CTA 배너 (섹션)
-═══════════════════════════════ */
+/* ══════════════════════════════════
+   감정 반응 통계 바
+══════════════════════════════════ */
+.emotion-stats{
+  background:var(--bg2);
+  border:.5px solid var(--border);
+  border-radius:var(--r-lg);
+  padding:20px;
+  margin-bottom:24px;
+}
+.emotion-stats-title{font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.emotion-stats-grid{display:flex;flex-direction:column;gap:10px}
+.emotion-stat-row{display:flex;align-items:center;gap:10px}
+.emotion-stat-emoji{font-size:20px;width:28px;text-align:center;flex-shrink:0}
+.emotion-stat-label{font-size:13px;color:var(--muted2);width:80px;flex-shrink:0}
+.emotion-stat-bar-bg{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.emotion-stat-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--info),var(--accent));transition:width .8s cubic-bezier(.4,0,.2,1)}
+.emotion-stat-pct{font-size:12px;color:var(--muted);font-family:var(--font-mono);width:36px;text-align:right;flex-shrink:0}
+
+/* ══════════════════════════════════
+   평점 CTA 배너
+══════════════════════════════════ */
 .rating-cta-banner{
-  background:linear-gradient(135deg,rgba(230,57,70,.15),rgba(240,180,41,.1));
-  border:1px solid rgba(230,57,70,.3);
+  background:linear-gradient(135deg,rgba(230,57,70,.12),rgba(240,180,41,.08));
+  border:1px solid rgba(230,57,70,.25);
   border-radius:var(--r-lg);padding:20px 24px;
   display:flex;align-items:center;justify-content:space-between;gap:16px;
   margin-bottom:24px;
@@ -172,19 +313,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .rating-cta-copy h3{font-size:17px;font-weight:700;margin-bottom:4px}
 .rating-cta-copy p{font-size:13px;color:var(--muted2)}
 .rating-cta-stars{display:flex;gap:4px;font-size:22px;color:var(--border2);cursor:pointer}
-.rating-cta-stars span:hover,
-.rating-cta-stars span.lit{color:var(--gold)}
+.rating-cta-stars span:hover,.rating-cta-stars span.lit{color:var(--gold)}
 
-/* ═══════════════════════════════
+/* ══════════════════════════════════
    섹션 공통
-═══════════════════════════════ */
+══════════════════════════════════ */
 .sec-title{font-size:17px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .sec-title small{font-size:12px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
-.card-box{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);margin-bottom:24px}
 
-/* ═══════════════════════════════
+/* ══════════════════════════════════
    순위 히스토리
-═══════════════════════════════ */
+══════════════════════════════════ */
 .rank-hist-card{padding:18px;margin-bottom:24px;background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg)}
 .ptabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
 .ptab{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
@@ -192,10 +331,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .rank-highlight{background:var(--warn-bg);border:.5px solid var(--warn-border);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12px;color:#c89a10;display:flex;align-items:center;gap:8px}
 #rankChart{width:100%!important;height:220px!important}
 
-/* ═══════════════════════════════
-   별점 입력 구역
-═══════════════════════════════ */
-.user-rating-box{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:24px}
+/* ══════════════════════════════════
+   별점 + 감정태그 입력
+══════════════════════════════════ */
+.user-rating-box{
+  background:var(--bg);
+  border:.5px solid var(--border);
+  border-radius:var(--r-lg);
+  padding:24px;
+  margin-bottom:24px;
+}
 .star-input{display:flex;gap:2px;margin:12px 0;align-items:center}
 .star-wrap{position:relative;width:38px;height:38px;cursor:pointer;flex-shrink:0}
 .star-wrap .s-full,.star-wrap .s-half{position:absolute;top:0;left:0;font-size:34px;line-height:1;color:var(--border);transition:color .1s;user-select:none}
@@ -206,66 +351,130 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .star-wrap.full .s-full{color:var(--gold)}
 .star-wrap.full .s-half{color:var(--gold)}
 #starLabel{font-size:14px;color:var(--muted);margin-left:12px}
-.etag-list{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
-.etag{padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s}
-.etag.on{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
-.etag.disabled{opacity:.35;cursor:default}
-.etag-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:6px}
-.custom-tag-row{display:flex;gap:8px;align-items:center;margin-top:6px}
-.custom-tag-input{flex:1;padding:7px 14px;border-radius:20px;border:.5px dashed var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-family:var(--font-sans);outline:none;max-width:220px}
-.custom-tag-add{padding:7px 16px;border-radius:20px;border:.5px solid var(--border2);background:transparent;font-size:12px;color:var(--muted);cursor:pointer}
-.custom-tag-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);font-size:12px}
-.custom-tag-chip button{background:none;border:none;cursor:pointer;font-size:12px;color:#c89a10;padding:0;line-height:1}
-.comment-input-row{display:flex;gap:8px;margin-top:14px}
-.comment-input-row textarea{flex:1;resize:none;font-size:14px;padding:10px 14px;border-radius:var(--r);border:.5px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--font-sans);height:68px;outline:none;transition:border-color .15s}
+
+/* 감정 태그 — 이모티콘 + 텍스트 */
+.etag-section-label{
+  font-size:12px;color:var(--muted);
+  font-family:var(--font-mono);
+  letter-spacing:.3px;margin-bottom:8px;
+}
+.etag-grid{
+  display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;
+}
+.etag{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 16px;
+  border-radius:30px;
+  border:.5px solid var(--border);
+  font-size:13px;color:var(--muted2);
+  cursor:pointer;background:var(--bg2);
+  transition:all .2s ease;
+  font-family:var(--font-sans);
+  user-select:none;
+}
+.etag:hover{border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
+.etag.on{
+  background:linear-gradient(135deg,var(--info-bg),rgba(55,138,221,.06));
+  color:var(--info);border-color:var(--info-border);
+  box-shadow:0 2px 12px rgba(55,138,221,.15);
+  transform:translateY(-1px);
+}
+.etag.disabled{opacity:.3;cursor:default;transform:none}
+.etag-emoji{font-size:16px;line-height:1}
+.etag-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px}
+
+.custom-tag-row{display:flex;gap:8px;align-items:center;margin-top:4px}
+.custom-tag-input{
+  flex:1;min-width:0;
+  background:var(--bg2);border:.5px solid var(--border);
+  border-radius:var(--r);padding:8px 12px;
+  color:var(--text);font-size:13px;font-family:var(--font-sans);
+  outline:none;transition:border-color .15s;
+}
+.custom-tag-input:focus{border-color:var(--border2)}
+.custom-tag-add{
+  padding:8px 14px;border-radius:var(--r);border:.5px solid var(--border);
+  background:transparent;color:var(--muted2);font-size:12px;
+  cursor:pointer;font-family:var(--font-sans);transition:all .15s;white-space:nowrap;
+}
+.custom-tag-add:hover:not(:disabled){border-color:var(--info-border);color:var(--info)}
+.custom-tag-add:disabled{opacity:.35;cursor:default}
+.custom-tag-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:20px;
+  border:.5px solid var(--warn-border);
+  background:var(--warn-bg);color:#c89a10;
+  font-size:12px;font-family:var(--font-mono);
+}
+.custom-tag-chip button{
+  background:none;border:none;color:#c89a10;cursor:pointer;
+  font-size:11px;padding:0;line-height:1;
+}
+
+.comment-input-row{
+  display:flex;gap:10px;align-items:flex-end;margin-top:14px;
+}
+.comment-input-row textarea{
+  flex:1;min-height:80px;resize:none;
+  background:var(--bg2);border:.5px solid var(--border);
+  border-radius:var(--r);padding:12px;
+  color:var(--text);font-size:14px;font-family:var(--font-sans);
+  outline:none;line-height:1.6;transition:border-color .15s;
+}
 .comment-input-row textarea:focus{border-color:var(--border2)}
-.char-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);text-align:right;margin-top:4px}
-.char-count.warn{color:#c89a10}
-.submit-btn{align-self:flex-end;padding:10px 20px;border-radius:var(--r);background:var(--accent);border:none;font-size:14px;color:#fff;cursor:pointer;font-weight:700;transition:background .15s}
+.submit-btn{
+  padding:12px 22px;border-radius:var(--r);border:none;
+  background:var(--accent);color:#fff;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:var(--font-sans);
+  transition:background .15s;white-space:nowrap;
+  align-self:flex-end;
+}
 .submit-btn:hover{background:#ff4d58}
+.char-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);text-align:right;margin-top:4px}
+.char-count.warn{color:var(--accent)}
+.comment-share-row{margin-top:16px;padding-top:12px;border-top:.5px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.comment-share-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s;font-family:var(--font-sans)}
+.comment-share-btn:hover{border-color:var(--border2);color:var(--text)}
 
-/* 댓글 공유 강조 */
-.comment-share-row{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:.5px solid var(--border)}
-.comment-share-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s}
-.comment-share-btn:hover{color:var(--info);border-color:var(--info-border);background:var(--info-bg)}
-
-/* ═══════════════════════════════
-   댓글 정렬 탭
-═══════════════════════════════ */
-.comment-sort-row{display:flex;align-items:center;gap:6px;margin-bottom:12px}
-.sort-btn{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;background:transparent;font-family:var(--font-mono)}
+/* ══════════════════════════════════
+   댓글
+══════════════════════════════════ */
+.comment-sort-row{display:flex;gap:6px;margin-bottom:14px}
+.sort-btn{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
 .sort-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
-
-/* 댓글 목록 */
-.comments-section{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:14px}
-.empty-comments{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:10px;text-align:center;border:.5px solid var(--border);border-radius:var(--r-lg);margin-bottom:14px}
-.empty-comments-btn{margin-top:6px;padding:10px 24px;border-radius:var(--r);background:var(--info-bg);color:var(--info);border:.5px solid var(--info-border);font-size:14px;font-weight:600;cursor:pointer}
-.comment-item{padding:16px 18px;border-bottom:.5px solid var(--border)}
+.comments-section{display:flex;flex-direction:column;gap:1px}
+.comment-item{padding:16px 0;border-bottom:.5px solid var(--border)}
 .comment-item:last-child{border-bottom:none}
 .comment-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.avatar{width:36px;height:36px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--info);flex-shrink:0;cursor:pointer}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--info);cursor:pointer;flex-shrink:0;border:.5px solid var(--info-border)}
 .avatar:hover{opacity:.75}
 .c-name-wrap{display:flex;align-items:center;gap:6px;cursor:pointer}
 .c-name{font-size:14px;font-weight:600;color:var(--text)}
 .c-name:hover{color:var(--info);text-decoration:underline}
-.user-avg-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-family:var(--font-mono);font-weight:600;padding:2px 8px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);white-space:nowrap}
 .c-stars{display:flex;gap:1px}
 .c-star{font-size:12px;color:var(--gold)}
 .c-star.off{color:var(--border2)}
 .c-time{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-left:auto}
 .c-text{font-size:15px;color:var(--muted2);line-height:1.65;margin-bottom:8px}
 .c-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.c-share{font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;background:none;border:none;padding:0;transition:color .15s}
-.c-share:hover{color:var(--info)}
-.c-delete-btn{background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer;font-family:var(--font-mono);padding:0;margin-left:4px;}
-.c-delete-btn:hover{text-decoration:underline;}
 .c-like{font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:10px;border:.5px solid var(--border);transition:all .15s}
 .c-like:hover{color:var(--accent);border-color:rgba(230,57,70,.4);background:var(--danger-bg)}
-.c-ebadge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
+.c-share{font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;background:none;border:none;padding:0;transition:color .15s}
+.c-share:hover{color:var(--info)}
+.c-delete-btn{background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer;font-family:var(--font-mono);padding:0}
+.c-delete-btn:hover{text-decoration:underline}
+/* 감정태그 배지 (댓글에 표시) */
+.c-ebadge{
+  font-size:11px;padding:2px 10px;border-radius:10px;
+  background:var(--info-bg);color:var(--info);
+  font-family:var(--font-mono);
+}
 .c-cbadge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--warn-bg);color:#c89a10;font-family:var(--font-mono)}
 .sp-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--danger-bg);color:var(--accent);font-family:var(--font-mono)}
+.empty-comments{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 20px;text-align:center}
+.empty-comments-btn{margin-top:4px;padding:10px 24px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font-sans)}
 
-/* 페이지네이션 */
+/* ══ 페이지네이션 ══ */
 .pagination{display:flex;align-items:center;justify-content:center;gap:4px;padding:10px 0 24px}
 .pg-btn{min-width:34px;height:34px;padding:0 8px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;font-size:13px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;transition:all .15s}
 .pg-btn:hover{background:var(--bg3);color:var(--text)}
@@ -273,9 +482,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .pg-btn:disabled{opacity:.3;cursor:default}
 .pg-dots{font-size:12px;color:var(--muted);padding:0 4px}
 
-/* ═══════════════════════════════
-   유튜브 섹션
-═══════════════════════════════ */
+/* ══ 유튜브 ══ */
+.yt-section{margin-bottom:24px}
 .yt-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .yt-card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:border-color .15s}
 .yt-card:hover{border-color:var(--border2)}
@@ -297,9 +505,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .yt-player-wrap{position:relative;width:100%;aspect-ratio:16/9}
 .yt-player-wrap iframe{width:100%;height:100%;border:none;display:block}
 
-/* ═══════════════════════════════
-   사용자 프로필 페이지
-═══════════════════════════════ */
+/* ══ 토스트 ══ */
+.share-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
+.share-toast.show{opacity:1}
+
+/* ══ 로딩 ══ */
+.loading-row{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px;color:var(--muted);font-family:var(--font-mono)}
+.spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--info);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ══ 프로필 페이지 ══ */
+.page-wrap-inner{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted2);cursor:pointer;margin-bottom:20px;padding:7px 14px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;transition:background .15s;text-decoration:none}
+.back:hover{background:var(--bg3)}
 .profile-hero{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);padding:22px;margin-bottom:18px;display:flex;align-items:flex-start;gap:20px}
 .profile-avatar{width:68px;height:68px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600;color:var(--info);flex-shrink:0}
 .profile-info{flex:1;min-width:0}
@@ -324,7 +542,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .review-body{flex:1;min-width:0}
 .review-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
 .review-title{font-size:14px;font-weight:600}
-.review-platform{font-size:10px;padding:2px 7px;border-radius:3px;color:#fff;font-weight:600}
 .review-stars{display:flex;align-items:center;gap:2px;font-size:12px;margin-left:auto}
 .review-star{color:var(--gold)}
 .review-star.off{color:var(--border2)}
@@ -333,30 +550,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
 
-/* ── 로딩 스피너 ── */
-.loading-row{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px;color:var(--muted);font-family:var(--font-mono)}
-.spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--info);border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* ═══ 모바일 반응형 ═══ */
+/* ══ 모바일 반응형 ══ */
 @media(max-width:640px){
-  .hero-row{grid-template-columns:140px 1fr;gap:16px}
-  .main-title{font-size:20px}
+  .hero-content{flex-direction:column;align-items:flex-start;gap:16px;padding-bottom:24px}
+  .hero-poster{width:130px}
+  .hero-main-title{font-size:26px}
+  .hero-overview{-webkit-line-clamp:2}
+  .hero-backdrop{min-height:320px}
   .ratings-row{grid-template-columns:1fr 1fr}
   .r-score{font-size:24px}
-  .r-label{font-size:10px}
   .yt-grid{grid-template-columns:1fr}
   .rating-cta-banner{flex-direction:column;align-items:flex-start}
-  .page-wrap{padding:16px 14px 60px}
+  .cast-card{width:72px}
+  .cast-photo{width:72px;height:72px}
+  .hero-actions{flex-wrap:wrap}
 }
 </style>
 <style>
-/* ── 공용 헤더 컨테이너 sticky (fetch 삽입 후에도 동작) ── */
-#ottrang-header {
-  position: sticky;
-  top: 0;
-  z-index: 200;
-}
+/* ── 공용 헤더 컨테이너 sticky ── */
+#ottrang-header{position:sticky;top:0;z-index:200}
 </style>
 </head>
 <body>
@@ -366,72 +578,76 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <!-- ══ 작품 상세 페이지 ══ -->
 <div id="detailPage">
+
+<!-- ══════════════════════════════════
+     히어로 섹션 (backdrop + 포스터 + 정보)
+══════════════════════════════════ -->
+<div class="hero-backdrop" id="heroBackdrop">
+
+  <!-- 로딩 상태 -->
+  <div id="heroLoading" class="loading-row" style="min-height:380px">
+    <div class="spinner"></div><span>작품 정보 불러오는 중…</span>
+  </div>
+
+  <!-- backdrop 이미지 (JS에서 src 설정) -->
+  <img id="backdropImg" class="hero-backdrop-img" src="" alt="" style="display:none">
+  <div class="hero-backdrop-overlay"></div>
+
+  <!-- 뒤로가기 -->
+  <a class="back-floating" href="/" id="heroBackBtn">
+    <i class="ti ti-arrow-left" style="font-size:14px"></i>
+    메인으로
+  </a>
+
+  <!-- 히어로 컨텐츠 -->
+  <div class="hero-content" id="heroContent" style="display:none">
+
+    <!-- 포스터 -->
+    <div class="hero-poster" id="heroPoster">
+      <div class="hero-poster-ph" id="posterPh">🎬</div>
+      <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="eager">
+      <span class="platform-pill" id="platformPill">플랫폼</span>
+      <span class="rank-badge" id="rankBadge">순위</span>
+    </div>
+
+    <!-- 정보 -->
+    <div class="hero-info">
+      <div>
+        <h1 class="hero-main-title" id="mainTitle">작품명</h1>
+        <div class="hero-orig-title" id="origTitle"></div>
+      </div>
+      <div class="hero-tags" id="genreTags"></div>
+      <div class="hero-meta" id="metaRow"></div>
+      <p class="hero-overview" id="overview">줄거리 정보 불러오는 중…</p>
+      <div class="hero-actions">
+        <button class="hero-review-btn" onclick="scrollToRating()">✍ 평점 &amp; 후기 남기기</button>
+        <button class="hero-wish-btn" id="wishBtn" onclick="toggleWish()">♡ 찜하기</button>
+        <button class="hero-share-btn" onclick="shareNative()">
+          <i class="ti ti-share" style="font-size:14px"></i> 공유
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /hero-content -->
+</div><!-- /hero-backdrop -->
+
+<!-- ══ 본문 ══ -->
 <div class="page-wrap">
 
-<a class="back" href="/" aria-label="메인 페이지로">
-  <i class="ti ti-arrow-left" style="font-size:15px" aria-hidden="true"></i>
-  메인으로
-</a>
-
-<!-- 히어로 로딩 -->
-<div id="heroLoading" class="loading-row">
-  <div class="spinner"></div><span>작품 정보 불러오는 중…</span>
-</div>
-
-<!-- 히어로 -->
-<div id="heroRow" class="hero-row" style="display:none">
-  <div class="poster-wrap">
-    <div class="poster-ph" id="posterPh">🎬</div>
-    <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0" loading="eager">
-    <span class="platform-pill" id="platformPill">플랫폼</span>
-    <span class="rank-badge" id="rankBadge">순위</span>
-    <!-- ★ 포스터 하단 평점 CTA ★ -->
-    <div class="poster-cta">
-      <button class="poster-cta-btn" onclick="scrollToRating()" aria-label="평점 후기 남기기">
-        ✍ 평점 &amp; 후기 남기기
-      </button>
-      <span class="poster-cta-sub">별점 + 감상평 작성</span>
-    </div>
+<!-- 감독 + 출연진 -->
+<div class="cast-section" id="castSection" style="display:none">
+  <div class="sec-title">
+    <i class="ti ti-users" style="font-size:16px"></i>
+    출연진 &amp; 제작진
   </div>
-
-  <div class="info-col">
-    <div>
-      <h1 class="main-title" id="mainTitle">작품명</h1>
-      <div class="orig-title" id="origTitle"></div>
-    </div>
-    <div class="tags" id="genreTags"></div>
-    <div class="meta-row" id="metaRow"></div>
-    <p class="overview" id="overview">줄거리 정보 불러오는 중…</p>
-    <div class="people-row" id="peopleRow" style="display:none">
-      <div>
-        <div class="people-label">감독</div>
-        <div class="people-list" id="directorList"></div>
-      </div>
-      <div>
-        <div class="people-label">출연</div>
-        <div class="people-list" id="castList"></div>
-      </div>
-    </div>
-    <!-- 작품 공유 -->
-    <div class="share-bar">
-      <span class="share-label">공유 →</span>
-      <button class="share-btn" onclick="shareX()" aria-label="X(트위터)에 공유">𝕏 X</button>
-      <button class="share-btn kakao" onclick="copyLink()" aria-label="링크 복사">🔗 링크 복사</button>
-    </div>
-    <!-- 찜하기 + 공유 버튼 -->
-    <div class="action-row">
-      <button class="wish-btn" id="wishBtn" onclick="toggleWish()">♡ 찜하기</button>
-      <button class="share-btn-lg-sm" onclick="shareNative()" aria-label="이 작품 공유하기">
-        <i class="ti ti-share" style="font-size:15px" aria-hidden="true"></i>
-        공유하기
-      </button>
-    </div>
-  </div>
+  <!-- 감독 -->
+  <div class="director-row" id="directorRow"></div>
+  <!-- 배우 가로 스크롤 -->
+  <div class="cast-scroll" id="castScroll"></div>
 </div>
 
 <!-- 평점 4블록 -->
 <div class="ratings-row">
-
   <!-- IMDB -->
   <div class="r-card">
     <div class="r-logo" style="color:#F5C518">IMDb</div>
@@ -441,7 +657,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
     <div class="r-sub" id="imdbVotes" style="font-size:11px;margin-top:4px">—</div>
   </div>
-
   <!-- TMDB -->
   <div class="r-card">
     <div class="r-logo" style="color:#01b4e4">TMDB</div>
@@ -451,7 +666,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
     <div class="r-sub" id="tmdbVotes" style="font-size:11px;margin-top:4px">—</div>
   </div>
-
   <!-- 오뜨랑 유저 평점 -->
   <div class="r-card" style="position:relative">
     <div class="r-logo" style="background:linear-gradient(90deg,#FF5177,#FF9A3C);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">오뜨랑</div>
@@ -468,7 +682,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="r-sub" id="userVotes" style="font-size:11px;margin-top:6px">—</div>
     </div>
   </div>
-
   <!-- 내 평점 -->
   <div class="r-card">
     <div class="r-logo" style="color:var(--muted2)">내 평점</div>
@@ -477,16 +690,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <span style="font-size:11px;color:var(--info);font-family:var(--font-mono)">평점 남기기</span>
     </div>
   </div>
-
 </div>
 
-<!-- ★ 평점 CTA 배너 ★ -->
+<!-- 감정 반응 통계 (리뷰 1개 이상일 때 표시) -->
+<div class="emotion-stats" id="emotionStatsSection" style="display:none">
+  <div class="emotion-stats-title">
+    <span>💬</span> 이 작품에 대한 반응
+  </div>
+  <div class="emotion-stats-grid" id="emotionStatsGrid"></div>
+</div>
+
+<!-- 평점 CTA 배너 -->
 <div class="rating-cta-banner">
   <div class="rating-cta-copy">
     <h3>이 작품, 어떠셨나요?</h3>
     <p>별점과 한줄 감상으로 다른 시청자를 도와주세요 👇</p>
   </div>
-  <div class="rating-cta-stars" onclick="scrollToRating()" aria-label="별점 남기기">
+  <div class="rating-cta-stars" onclick="scrollToRating()">
     <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
   </div>
 </div>
@@ -494,7 +714,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 순위 히스토리 -->
 <div id="rankHistSection" class="rank-hist-card">
   <div class="sec-title">
-    <i class="ti ti-chart-line" style="font-size:16px" aria-hidden="true"></i>
+    <i class="ti ti-chart-line" style="font-size:16px"></i>
     30일 순위 히스토리
   </div>
   <div class="ptabs">
@@ -514,7 +734,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 별점 입력 -->
 <div class="user-rating-box" id="ratingInputArea">
   <div class="sec-title">
-    <i class="ti ti-star" style="font-size:16px" aria-hidden="true"></i>
+    <i class="ti ti-star" style="font-size:16px"></i>
     평점 &amp; 후기 남기기
   </div>
   <p style="font-size:13px;color:var(--muted);margin-bottom:4px">별점을 선택하세요 (0.5점 단위)</p>
@@ -536,67 +756,73 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
     <span id="starLabel" style="font-size:14px;color:var(--muted);margin-left:12px">별점을 선택하세요</span>
   </div>
+
+  <!-- 감정 태그 — 이모티콘 + 텍스트 -->
   <div class="etag-count" id="etagCount">0 / 3 태그 선택</div>
-  <div class="etag-list">
-    <button class="etag" onclick="toggleEtag(this)">긴장감 넘침</button>
-    <button class="etag" onclick="toggleEtag(this)">몰입감 최고</button>
-    <button class="etag" onclick="toggleEtag(this)">감동적</button>
-    <button class="etag" onclick="toggleEtag(this)">슬프다</button>
-    <button class="etag" onclick="toggleEtag(this)">재미있음</button>
-    <button class="etag" onclick="toggleEtag(this)">결말이 아쉬움</button>
-    <button class="etag" onclick="toggleEtag(this)">독특한 설정</button>
-    <button class="etag" onclick="toggleEtag(this)">정주행 필수</button>
-    <button class="etag" onclick="toggleEtag(this)">연기력 최고</button>
+  <div class="etag-section-label">이 작품을 한마디로 표현한다면?</div>
+  <div class="etag-grid">
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😰</span>긴장감 넘침</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🔥</span>몰입감 최고</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🥹</span>감동적</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😭</span>슬프다</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🤣</span>재미있음</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😤</span>결말이 아쉬움</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🤯</span>독특한 설정</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">📺</span>정주행 필수</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">👏</span>연기력 최고</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😱</span>소름 돋음</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">💤</span>지루했어요</button>
+    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">💕</span>설레는 로맨스</button>
   </div>
+
   <div class="custom-tag-row">
-    <input class="custom-tag-input" id="customTagInput" type="text" placeholder="직접 입력 (최대 12자)" maxlength="12"
+    <input class="custom-tag-input" id="customTagInput" type="text" placeholder="나만의 태그 직접 입력 (최대 12자)" maxlength="12"
       onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomTag()}"
       oninput="document.getElementById('customTagAddBtn').disabled=!this.value.trim()||getEtagCount()>=3">
-    <button class="custom-tag-add" id="customTagAddBtn" onclick="addCustomTag()" disabled>+ 나만의 감정 태그 추가</button>
+    <button class="custom-tag-add" id="customTagAddBtn" onclick="addCustomTag()" disabled>+ 추가</button>
   </div>
   <div id="customTagList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+
   <div class="comment-input-row">
-    <textarea id="commentInput" placeholder="한줄 감상을 남겨보세요 (140자 이내)" oninput="updateCharCount(this)" onfocus="checkLoginThenRate(null,this)"></textarea>
+    <textarea id="commentInput" placeholder="한줄 감상을 남겨보세요 (140자 이내)" oninput="updateCharCount(this)" onfocus="checkLoginThenRate(null,this)" maxlength="140"></textarea>
     <button class="submit-btn" onclick="submitComment()">등록</button>
   </div>
   <div class="char-count" id="charCount">0 / 140</div>
   <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--muted);cursor:pointer">
     <input type="checkbox" id="spoilerCheck" style="width:13px;height:13px"> 스포일러 포함
   </label>
-
-  <!-- 후기 공유 유도 -->
-  <div class="comment-share-row" style="margin-top:16px;padding-top:12px;border-top:.5px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+  <div class="comment-share-row">
     <span style="font-size:13px;color:var(--muted)">후기를 등록하면 자동으로 공유할 수 있어요 →</span>
-    <button class="comment-share-btn" onclick="shareNative()" aria-label="이 작품 공유">
-      <i class="ti ti-share" style="font-size:13px" aria-hidden="true"></i> 공유하기
+    <button class="comment-share-btn" onclick="shareNative()">
+      <i class="ti ti-share" style="font-size:13px"></i> 공유하기
     </button>
   </div>
 </div>
 
 <!-- 사용자 댓글 -->
 <div id="commentSection">
-<div class="sec-title">
-  <i class="ti ti-message-circle" style="font-size:16px" aria-hidden="true"></i>
-  사용자 댓글 <small id="commentCount">0개</small>
-</div>
-<div class="comment-sort-row">
-  <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
-  <button class="sort-btn" id="sortLikes" onclick="setSort('likes')">좋아요순</button>
-</div>
-<div id="commentsArea"></div>
-<div id="pagination" class="pagination"></div>
+  <div class="sec-title">
+    <i class="ti ti-message-circle" style="font-size:16px"></i>
+    사용자 댓글 <small id="commentCount">0개</small>
+  </div>
+  <div class="comment-sort-row">
+    <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
+    <button class="sort-btn" id="sortLikes" onclick="setSort('likes')">좋아요순</button>
+  </div>
+  <div id="commentsArea"></div>
+  <div id="pagination" class="pagination"></div>
 </div>
 
 <!-- 유튜브 -->
 <div class="yt-section">
   <div class="sec-title">
-    <i class="ti ti-brand-youtube" style="font-size:16px" aria-hidden="true"></i>
+    <i class="ti ti-brand-youtube" style="font-size:16px"></i>
     유튜브 관련 영상 <small id="ytSubtitle"></small>
   </div>
   <div id="ytModal" class="modal-wrap">
     <div class="modal-head">
       <span class="modal-ttl" id="ytModalTitle"></span>
-      <button class="modal-close" onclick="closePlayer()" aria-label="닫기">✕</button>
+      <button class="modal-close" onclick="closePlayer()">✕</button>
     </div>
     <div class="yt-player-wrap">
       <iframe id="ytFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="유튜브 영상"></iframe>
@@ -609,9 +835,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 </div><!-- /#detailPage -->
 
 <!-- ══ 사용자 프로필 페이지 ══ -->
-<div id="profilePage" class="page-wrap" style="display:none">
+<div id="profilePage" style="display:none">
+<div class="page-wrap-inner">
 <button class="back" onclick="showDetail()">
-  <i class="ti ti-arrow-left" style="font-size:15px" aria-hidden="true"></i>
+  <i class="ti ti-arrow-left" style="font-size:15px"></i>
   <span id="profileBackLabel">작품으로 돌아가기</span>
 </button>
 <div class="profile-hero">
@@ -627,14 +854,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 <div class="dist-card">
-  <div class="sec-title"><i class="ti ti-chart-bar" style="font-size:16px" aria-hidden="true"></i>평점 분포</div>
+  <div class="sec-title"><i class="ti ti-chart-bar" style="font-size:16px"></i>평점 분포</div>
   <div id="distBars"></div>
 </div>
 <div class="sec-title">
-  <i class="ti ti-history" style="font-size:16px" aria-hidden="true"></i>
+  <i class="ti ti-history" style="font-size:16px"></i>
   평점 남긴 작품 <small id="profileReviewCount">0개</small>
 </div>
 <div class="user-reviews" id="userReviews"></div>
+</div>
 </div>
 
 <!-- 공유 토스트 -->
@@ -657,451 +885,303 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       });
       if(typeof initHeader==='function')initHeader();
     })
-    .catch(()=>{ /* 개발 환경에서 헤더 fetch 실패 시 무시 */ });
+    .catch(()=>{});
 })();
 
 /* ══ 상수 ══ */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
 const IMG='https://image.tmdb.org/t/p/w500';
+const IMG_BACKDROP='https://image.tmdb.org/t/p/w1280';
+const IMG_PROFILE='https://image.tmdb.org/t/p/w185';
 const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브'};
 const CC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3'};
 
-/* ══════════════════════════════════════════════
-   URL 파싱: 슬러그 방식 + 하위호환
-   ──────────────────────────────────────────────
-   우선순위:
-   1. sessionStorage (index.html에서 클릭해 온 경우)
-   2. 슬러그 파싱  /title/원더풀스-12026259837
-      └ 맨 끝 숫자 덩어리에서 역순으로:
-        tmdb_id = 마지막 N자리  (가변, TMDB ID는 최대 7자리)
-        year    = 그 앞 4자리
-        season  = 그 앞 나머지 숫자
-   3. 구 쿼리스트링 (?tmdb_id=…) — 하위호환
-   ══════════════════════════════════════════════ */
+/* 감정 태그 이모티콘 매핑 */
+const ETAG_EMOJI={
+  '긴장감 넘침':'😰','몰입감 최고':'🔥','감동적':'🥹','슬프다':'😭',
+  '재미있음':'🤣','결말이 아쉬움':'😤','독특한 설정':'🤯','정주행 필수':'📺',
+  '연기력 최고':'👏','소름 돋음':'😱','지루했어요':'💤','설레는 로맨스':'💕',
+};
+
+/* ══════════════════════════════════
+   URL 파싱 (기존 유지)
+══════════════════════════════════ */
 function parseSlug(pathname){
-  // /title/원더풀스-12026259837 → slug = "원더풀스-12026259837"
-  const slug = pathname.replace(/^\/title\/?/, '').replace(/\.html$/, '');
+  const slug=pathname.replace(/^\/title\/?/,'').replace(/\.html$/,'');
   if(!slug) return null;
-
-  // 맨 끝 연속 숫자 추출 (시즌+연도+tmdbId 결합 덩어리)
-  const m = slug.match(/-(\d+)$/);
+  const m=slug.match(/-(\d+)$/);
   if(!m) return null;
-
-  const numStr = m[1]; // e.g. "12026259837"
-  // tmdb_id: TMDB ID는 보통 5~7자리. 연도는 항상 4자리, 시즌은 1~2자리
-  // → 뒤에서 연도(4)+시즌(나머지)로 분리, tmdb_id는 남은 뒷부분
-  // 전략: 전체 숫자에서 앞 자리가 시즌, 그다음 4자리가 연도, 나머지가 tmdb_id
-  //   numStr = S + YYYY + tmdb_id
-  //   연도는 1900~2100 범위
-  let season=1, year=new Date().getFullYear(), tmdb_id=null;
-  if(numStr.length >= 6){ // 최소 시즌1자리+연도4자리+tmdb_id1자리
-    // 연도 위치: 오른쪽에서 tmdb_id 제거 후 4자리
-    // tmdb_id 길이를 역산: numStr 전체에서 앞에 시즌이 1~2자리, 다음 4자리가 연도
-    // 앞에서부터: 시즌 자리수를 1~2자리로 시도
-    for(let sLen=1; sLen<=2; sLen++){
-      const s   = parseInt(numStr.slice(0, sLen));
-      const y   = parseInt(numStr.slice(sLen, sLen+4));
-      const tid = numStr.slice(sLen+4);
-      if(tid.length >= 1 && y >= 1900 && y <= 2100 && s >= 1){
-        season   = s;
-        year     = y;
-        tmdb_id  = parseInt(tid);
-        break;
+  const numStr=m[1];
+  let season=1,year=new Date().getFullYear(),tmdb_id=null;
+  if(numStr.length>=6){
+    for(let sLen=1;sLen<=2;sLen++){
+      const s=parseInt(numStr.slice(0,sLen));
+      const y=parseInt(numStr.slice(sLen,sLen+4));
+      const tid=numStr.slice(sLen+4);
+      if(tid.length>=1&&y>=1900&&y<=2100&&s>=1){
+        season=s;year=y;tmdb_id=parseInt(tid);break;
       }
     }
   }
-  const titlePart = slug.slice(0, m.index); // "원더풀스"
-  return { tmdb_id, season, year, titleSlug: titlePart };
+  const titlePart=slug.slice(0,m.index);
+  return{tmdb_id,season,year,titleSlug:titlePart};
 }
 
-/* ── WORK 객체 초기화 ── */
-let WORK = { tmdb_id:null, type:'tv', platform:'netflix', rank:'—', title:'작품명', season:1, year:null };
+let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'—',title:'작품명',season:1,year:null};
 
 (function initWork(){
-  /* ── 디버그: 실제 pathname 확인 ── */
-  console.log('[OTTRANG] location.pathname:', location.pathname);
-  console.log('[OTTRANG] location.search:', location.search);
-  console.log('[OTTRANG] location.href:', location.href);
-
-  /* 1순위: sessionStorage */
+  console.log('[OTTRANG] location.pathname:',location.pathname);
   try{
-    const stored = sessionStorage.getItem('ottrang_work');
-    if(stored){
-      const d = JSON.parse(stored);
-      if(d && d.tmdb_id){
-        Object.assign(WORK, d);
-        sessionStorage.removeItem('ottrang_work'); // 1회 사용 후 제거
-        return;
-      }
-    }
+    const stored=sessionStorage.getItem('ottrang_work');
+    if(stored){const d=JSON.parse(stored);if(d&&d.tmdb_id){Object.assign(WORK,d);sessionStorage.removeItem('ottrang_work');return;}}
   }catch(e){}
-
-  /* 2순위: 슬러그 파싱
-   * Cloudflare Pages rewrite 후에는 location.pathname이 rewrite된 파일 경로가 아닌
-   * 원래 요청 경로(/title/군체-...)를 유지함. 단 파일명과 충돌 시 다를 수 있으므로
-   * document.referrer, sessionStorage slug, 여러 경로를 시도 */
-  const storedSlug = sessionStorage.getItem('ottrang_slug')||'';
-  console.log('[OTTRANG] ottrang_slug from sessionStorage:', storedSlug);
-  const candidatePaths = [
-    location.pathname,
-    storedSlug,
-  ];
+  const storedSlug=sessionStorage.getItem('ottrang_slug')||'';
+  const candidatePaths=[location.pathname,storedSlug];
   for(const p of candidatePaths){
-    if(!p || !p.includes('/title/')) continue;
-    const parsed = parseSlug(p);
-    if(parsed && parsed.tmdb_id){
-      WORK.tmdb_id = parsed.tmdb_id;
-      WORK.season  = parsed.season;
-      WORK.year    = parsed.year;
-      WORK.title   = decodeURIComponent(parsed.titleSlug.replace(/-/g,' ')) || '작품명';
-      sessionStorage.removeItem('ottrang_slug');
-      return;
+    if(!p||!p.includes('/title/')) continue;
+    const parsed=parseSlug(p);
+    if(parsed&&parsed.tmdb_id){
+      WORK.tmdb_id=parsed.tmdb_id;WORK.season=parsed.season;WORK.year=parsed.year;
+      WORK.title=decodeURIComponent(parsed.titleSlug.replace(/-/g,' '))||'작품명';
+      sessionStorage.removeItem('ottrang_slug');return;
     }
   }
-
-  /* 3순위: 구 쿼리스트링 하위호환 */
-  const params = new URLSearchParams(location.search);
-  WORK.tmdb_id  = params.get('tmdb_id') ? parseInt(params.get('tmdb_id')) : null;
-  WORK.type     = params.get('type')     || 'tv';
-  WORK.platform = params.get('platform') || 'netflix';
-  WORK.rank     = params.get('rank')     || '—';
-  WORK.title    = params.get('title')    || '작품명';
-
-  /* 4순위: referrer URL에서 슬러그 파싱 (debug.html 등 외부에서 직접 이동 시) */
-  if(!WORK.tmdb_id && document.referrer){
-    try {
-      const refUrl = new URL(document.referrer);
+  const params=new URLSearchParams(location.search);
+  WORK.tmdb_id=params.get('tmdb_id')?parseInt(params.get('tmdb_id')):null;
+  WORK.type=params.get('type')||'tv';
+  WORK.platform=params.get('platform')||'netflix';
+  WORK.rank=params.get('rank')||'—';
+  WORK.title=params.get('title')||'작품명';
+  if(!WORK.tmdb_id&&document.referrer){
+    try{
+      const refUrl=new URL(document.referrer);
       if(refUrl.pathname.startsWith('/title/')){
-        const parsed = parseSlug(refUrl.pathname);
-        if(parsed && parsed.tmdb_id){
-          Object.assign(WORK, { tmdb_id:parsed.tmdb_id, season:parsed.season, year:parsed.year });
-          WORK.title = decodeURIComponent(parsed.titleSlug.replace(/-/g,' ')) || '작품명';
-        }
+        const parsed=parseSlug(refUrl.pathname);
+        if(parsed&&parsed.tmdb_id){Object.assign(WORK,{tmdb_id:parsed.tmdb_id,season:parsed.season,year:parsed.year});WORK.title=decodeURIComponent(parsed.titleSlug.replace(/-/g,' '))||'작품명';}
       }
-    } catch(e){}
+    }catch(e){}
   }
 })();
 
-/* 상태 */
-let myStars=0, hoverVal=0, myChart=null, curSort='latest', curPage=1;
+let myStars=0,hoverVal=0,myChart=null,curSort='latest',curPage=1;
 const PER_PAGE=5;
 let customTags=[];
+const REVIEW_API='https://ottrank-api.tdidream.workers.dev';
+let ALL_COMMENTS=[];
+let MY_REVIEW=null;
 
-/* ══ DB 연동 ══ */
-const REVIEW_API = 'https://ottrank-api.tdidream.workers.dev';
-let ALL_COMMENTS = [];
-let MY_REVIEW = null;
-
-/* ══ SEO 동적 업데이트 ══ */
+/* ══ SEO ══ */
 function updateSEO(title,overview,posterUrl,platform,rank){
   const t=title||WORK.title;
   const pName=PC[platform]||platform||'OTT';
   const seoT=`${t} 평점·후기·해외반응 | ${pName} ${rank}위 | 오뜨랑`;
-  const seoD=`${t} ${pName} ${rank}위. 사용자 평점, 한줄 후기, 해외반응, 30일 순위 히스토리를 오뜨랑에서 확인하세요. OTT 드라마·영화 랭킹 서비스.`;
-  const seoKw=`${t} 평점, ${t} 후기, ${t} 해외반응, ${t} ${pName}, ${pName} 순위, OTT 랭킹, 드라마 평점, 영화 평점`;
-
-  /* ── 슬러그 생성: {작품명}-{시즌}{연도}{tmdb_id} ── */
-  const s    = WORK.season || 1;
-  const y    = WORK.year   || (new Date().getFullYear());
-  const tid  = WORK.tmdb_id || '';
-  // 새 URL 형식: /title/{시즌}-{연도}{tmdbId} (한글 없음)
-  const slug = `${s}-${y}${tid}`;
-  const canonical = `https://ottrank.kr/title/${slug}`;
-
+  const seoD=`${t} ${pName} ${rank}위. 사용자 평점, 한줄 후기, 해외반응, 30일 순위 히스토리를 오뜨랑에서 확인하세요.`;
+  const seoKw=`${t} 평점, ${t} 후기, ${t} 해외반응, ${t} ${pName}, ${pName} 순위, OTT 랭킹`;
+  const s=WORK.season||1,y=WORK.year||(new Date().getFullYear()),tid=WORK.tmdb_id||'';
+  const slug=`${s}-${y}${tid}`;
+  const canonical=`https://ottrank.kr/title/${slug}`;
   document.title=seoT;
-  setMeta('seoTitle','textContent',seoT);
-  setMeta('seoDesc','content',seoD);
-  setMeta('seoKw','content',seoKw);
-  setMeta('seoOgTitle','content',seoT);
-  setMeta('seoOgDesc','content',seoD);
-  setMeta('seoOgUrl','content',canonical);
-  setMeta('seoTwTitle','content',seoT);
-  setMeta('seoTwDesc','content',seoD);
-  const canon=document.getElementById('seoCanonical');
-  if(canon) canon.href=canonical;
-
-  /* ── 브라우저 주소창을 슬러그 URL로 업데이트 ──
-   * replaceState: 뒤로가기 히스토리를 오염시키지 않고 URL만 교체
-   * 조건: 이미 올바른 슬러그 URL이면 불필요한 호출 방지 */
-  if(tid && slug){
-    const targetUrl = `/title/${slug}`;
-    /* 주소창 업데이트 */
-    if(location.pathname !== targetUrl){
-      history.replaceState(null, '', targetUrl);
-    }
-    /* 새로고침 대비: sessionStorage에 slug 유지 */
-    sessionStorage.setItem('ottrang_slug', targetUrl);
-    /* WORK 데이터도 갱신 */
-    sessionStorage.setItem('ottrang_work', JSON.stringify({
-      tmdb_id: WORK.tmdb_id,
-      type: WORK.type,
-      platform: WORK.platform,
-      rank: WORK.rank,
-      title: WORK.title,
-      season: WORK.season,
-      year: WORK.year,
-    }));
+  setMeta('seoTitle','textContent',seoT);setMeta('seoDesc','content',seoD);setMeta('seoKw','content',seoKw);
+  setMeta('seoOgTitle','content',seoT);setMeta('seoOgDesc','content',seoD);setMeta('seoOgUrl','content',canonical);
+  setMeta('seoTwTitle','content',seoT);setMeta('seoTwDesc','content',seoD);
+  const canon=document.getElementById('seoCanonical');if(canon)canon.href=canonical;
+  if(tid&&slug){
+    const targetUrl=`/title/${slug}`;
+    if(location.pathname!==targetUrl)history.replaceState(null,'',targetUrl);
+    sessionStorage.setItem('ottrang_slug',targetUrl);
+    sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year}));
   }
-
-  if(posterUrl){
-    const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;
-    setMeta('seoOgImg','content',ogImg);
-    setMeta('seoTwImg','content',ogImg);
-  }
-
-  /* 구조화 데이터 */
-  const ld={
-    '@context':'https://schema.org',
-    '@type':'TVSeries',
-    'name':t,
-    'description':overview||seoD,
-    'url':canonical,
-    'aggregateRating':{
-      '@type':'AggregateRating',
-      'ratingCount':ALL_COMMENTS.length,
-      'ratingValue':ALL_COMMENTS.length?(ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length).toFixed(1):'0',
-      'bestRating':'5','worstRating':'0.5'
-    }
-  };
-  if(posterUrl) ld.image=`https://image.tmdb.org/t/p/w780${posterUrl}`;
-  const ldEl=document.getElementById('ldJson');
-  if(ldEl) ldEl.textContent=JSON.stringify(ld);
+  if(posterUrl){const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;setMeta('seoOgImg','content',ogImg);setMeta('seoTwImg','content',ogImg);}
+  const ld={'@context':'https://schema.org','@type':'TVSeries','name':t,'description':overview||seoD,'url':canonical,'aggregateRating':{'@type':'AggregateRating','ratingCount':ALL_COMMENTS.length,'ratingValue':ALL_COMMENTS.length?(ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length).toFixed(1):'0','bestRating':'5','worstRating':'0.5'}};
+  if(posterUrl)ld.image=`https://image.tmdb.org/t/p/w780${posterUrl}`;
+  const ldEl=document.getElementById('ldJson');if(ldEl)ldEl.textContent=JSON.stringify(ld);
 }
-function setMeta(id,attr,val){
-  const el=document.getElementById(id);
-  if(!el) return;
-  if(attr==='textContent') el.textContent=val;
-  else el.setAttribute(attr,val);
-}
+function setMeta(id,attr,val){const el=document.getElementById(id);if(!el)return;if(attr==='textContent')el.textContent=val;else el.setAttribute(attr,val);}
 
 /* ══ TMDB 데이터 로드 ══ */
 async function loadTmdb(){
   if(!WORK.tmdb_id){
     document.getElementById('heroLoading').style.display='none';
-    document.getElementById('heroRow').style.display='grid';
+    document.getElementById('heroContent').style.display='flex';
     updateSEO(WORK.title,'',null,WORK.platform,WORK.rank);
-    initWish(WORK.tmdb_id);
-    return;
+    initWish(WORK.tmdb_id);return;
   }
   try{
     let det=null;
-
-    /* ── STEP 1: works API 조회 → media_type 확인 ──────────────
-     * Admin이 명시적으로 지정한 media_type(tv/movie)이 있으면 해당 타입만 조회
-     * 없으면(null) tv → movie 순서로 시도 (기존 동작 유지)
-     * 기존 category(category01/02...)와 완전 별도 필드 */
     try{
-      const worksRes  = await fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}`);
-      const worksData = await worksRes.json();
-      if(worksData.ok && worksData.data?.media_type){
-        WORK.type = worksData.data.media_type; // 'tv' 또는 'movie'
-        console.log('[OTTRANG] works media_type 적용:', WORK.type);
-      }
-    }catch(e){ console.log('[OTTRANG] works API 조회 실패 (무시):', e.message); }
-
-    /* ── STEP 2: TMDB 조회 ──────────────────────────────────────
-     * media_type 지정됐으면 해당 타입만, 아니면 tv→movie 순서로 시도 */
+      const worksRes=await fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}`);
+      const worksData=await worksRes.json();
+      if(worksData.ok&&worksData.data?.media_type){WORK.type=worksData.data.media_type;}
+    }catch(e){}
     try{
-      const types = WORK.type==='movie' ? ['movie'] :
-                    WORK.type==='tv'    ? ['tv']    :
-                    ['tv','movie']; // null이면 tv 먼저 시도
+      const types=WORK.type==='movie'?['movie']:WORK.type==='tv'?['tv']:['tv','movie'];
       for(const type of types){
         try{
-          const r = await fetch(`${TMDB_PROXY}/${type}/${WORK.tmdb_id}?language=ko-KR`);
-          const d = await r.json();
-          /* 유효한 응답인지 확인 (id가 있으면 성공) */
-          if(d && d.id){
-            det = d;
-            WORK.type = type; // 실제 타입으로 업데이트
-            break;
-          }
+          const r=await fetch(`${TMDB_PROXY}/${type}/${WORK.tmdb_id}?language=ko-KR`);
+          const d=await r.json();
+          if(d&&d.id){det=d;WORK.type=type;break;}
         }catch(e){}
       }
-    }catch(e){ console.error('TMDB fetch 오류:', e); }
+    }catch(e){}
+
     if(det){
       const poster=det.poster_path;
+      const backdrop=det.backdrop_path;
+
+      /* ── backdrop 배경 이미지 설정 ── */
+      if(backdrop){
+        const bdImg=document.getElementById('backdropImg');
+        bdImg.src=IMG_BACKDROP+backdrop;
+        bdImg.style.display='block';
+        bdImg.onload=()=>{ bdImg.style.opacity='1'; };
+      } else if(poster){
+        /* backdrop 없으면 포스터 블러 처리 */
+        const bdImg=document.getElementById('backdropImg');
+        bdImg.src=IMG+poster;
+        bdImg.style.display='block';
+        bdImg.style.filter='blur(20px) scale(1.1)';
+        bdImg.style.opacity='.5';
+      }
+
+      /* ── 포스터 ── */
       if(poster){
         const img=document.getElementById('posterImg');
-        img.src=IMG+poster; img.alt=det.title_ko||det.name||det.title||WORK.title;
+        img.src=IMG+poster;img.alt=det.name||det.title||WORK.title;
         img.style.display='block';
         document.getElementById('posterPh').style.display='none';
       }
-      document.querySelector('.platform-pill').textContent=PC[WORK.platform]||WORK.platform;
-      document.querySelector('.platform-pill').style.background=CC[WORK.platform]||'#888';
+      document.getElementById('platformPill').textContent=PC[WORK.platform]||WORK.platform;
+      document.getElementById('platformPill').style.background=CC[WORK.platform]||'#888';
       document.getElementById('rankBadge').textContent=`오늘 ${WORK.rank}위`;
 
       const title=det.title_ko||det.name||det.title||WORK.title;
       const origTitle=det.title_en||det.original_name||det.original_title||'';
       const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
       const season=det.number_of_seasons||1;
-
-      /* WORK에 시즌·연도 확정값 저장 → SEO canonical에 반영 */
-      WORK.title  = title;
-      WORK.season = season;
-      WORK.year   = year || WORK.year || new Date().getFullYear();
-      WORK.type   = WORK.type || (det.number_of_seasons ? 'tv' : 'movie');
+      WORK.title=title;WORK.season=season;
+      WORK.year=year||WORK.year||new Date().getFullYear();
+      WORK.type=WORK.type||(det.number_of_seasons?'tv':'movie');
 
       document.getElementById('mainTitle').textContent=title;
-      /* 제작 국가 */
-      const countries = det.production_countries||det.origin_country||[];
-      const countryMap = {
-        'KR':'한국','US':'미국','JP':'일본','GB':'영국','FR':'프랑스',
-        'DE':'독일','CN':'중국','TH':'태국','IN':'인도','IT':'이탈리아',
-        'ES':'스페인','AU':'호주','CA':'캐나다','MX':'멕시코','TW':'대만',
-      };
-      let countryStr = '';
-      if(Array.isArray(countries) && countries.length){
-        countryStr = countries.slice(0,2).map(c=>{
-          const code = typeof c==='string' ? c : (c.iso_3166_1||'');
-          return countryMap[code] || code;
-        }).filter(Boolean).join(' · ');
+
+      const countries=det.production_countries||det.origin_country||[];
+      const countryMap={'KR':'한국','US':'미국','JP':'일본','GB':'영국','FR':'프랑스','DE':'독일','CN':'중국','TH':'태국','IN':'인도','IT':'이탈리아','ES':'스페인','AU':'호주','CA':'캐나다','MX':'멕시코','TW':'대만'};
+      let countryStr='';
+      if(Array.isArray(countries)&&countries.length){
+        countryStr=countries.slice(0,2).map(c=>{const code=typeof c==='string'?c:(c.iso_3166_1||'');return countryMap[code]||code;}).filter(Boolean).join(' · ');
       }
-      document.getElementById('origTitle').textContent =
-        [countryStr, year].filter(Boolean).join(' · ') || origTitle || '';
+      document.getElementById('origTitle').textContent=[countryStr,year].filter(Boolean).join(' · ')||origTitle||'';
 
-      /* TMDB 평점 (10점 만점) */
-      const tmdbRating = det.tmdb_rating||det.vote_average||0;
-      const tmdbVotes  = det.vote_count||0;
-      document.getElementById('tmdbScore').textContent = tmdbRating ? parseFloat(tmdbRating).toFixed(1) : '—';
-      document.getElementById('tmdbVotes').textContent = tmdbVotes ? `${tmdbVotes.toLocaleString()}명` : '—';
+      /* TMDB 평점 */
+      const tmdbRating=det.tmdb_rating||det.vote_average||0;
+      const tmdbVotes=det.vote_count||0;
+      document.getElementById('tmdbScore').textContent=tmdbRating?parseFloat(tmdbRating).toFixed(1):'—';
+      document.getElementById('tmdbVotes').textContent=tmdbVotes?`${tmdbVotes.toLocaleString()}명`:'—';
 
-      /* IMDB 평점: TMDB external_ids → imdb_id → Workers(/imdb) → 표시 */
+      /* IMDb */
       try{
-        /* tv/movie 둘 다 시도해서 imdb_id 획득 */
-        let imdbId = null;
-        for(const tryType of [WORK.type, WORK.type==='tv'?'movie':'tv']){
-          try{
-            const extRes  = await fetch(`${TMDB_PROXY}/${tryType}/${WORK.tmdb_id}/external_ids`);
-            const extData = await extRes.json();
-            if(extData.imdb_id){ imdbId = extData.imdb_id; break; }
-          }catch(e){}
+        let imdbId=null;
+        for(const tryType of [WORK.type,WORK.type==='tv'?'movie':'tv']){
+          try{const extRes=await fetch(`${TMDB_PROXY}/${tryType}/${WORK.tmdb_id}/external_ids`);const extData=await extRes.json();if(extData.imdb_id){imdbId=extData.imdb_id;break;}}catch(e){}
         }
-
         if(imdbId){
-          /* IMDb 카드 클릭 → IMDb 페이지로 이동 */
-          const imdbCard = document.getElementById('imdbScore').closest('.r-card');
-          imdbCard.style.cursor = 'pointer';
-          imdbCard.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`,'_blank');
-
-          /* ① tmdb_id ↔ imdb_id 매핑 DB 저장 (백그라운드) */
-          fetch(`${OTTRANK_API}/imdb/save`, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ tmdb_id: WORK.tmdb_id, imdb_id: imdbId })
-          }).catch(()=>{});
-
-          /* ② Workers API로 평점 조회 (D1 캐시 → OMDB) */
-          const omdbRes  = await fetch(`${OTTRANK_API}/imdb/${imdbId}`);
-          const omdbData = await omdbRes.json();
-
-          if(omdbData.ok && omdbData.rating){
-            document.getElementById('imdbScore').textContent = omdbData.rating;
-            document.getElementById('imdbVotes').textContent =
-              omdbData.votes ? omdbData.votes.replace(/,/g,'') + '명' : '';
-          } else {
-            /* 평점 없는 작품 → 링크만 */
-            document.getElementById('imdbScore').innerHTML = `<span style="font-size:20px">↗</span>`;
-            document.getElementById('imdbVotes').innerHTML = `<span style="font-size:10px;color:#F5C518">IMDb 보기</span>`;
+          const imdbCard=document.getElementById('imdbScore').closest('.r-card');
+          imdbCard.style.cursor='pointer';
+          imdbCard.onclick=()=>window.open(`https://www.imdb.com/title/${imdbId}/`,'_blank');
+          fetch(`${OTTRANK_API}/imdb/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tmdb_id:WORK.tmdb_id,imdb_id:imdbId})}).catch(()=>{});
+          const omdbRes=await fetch(`${OTTRANK_API}/imdb/${imdbId}`);
+          const omdbData=await omdbRes.json();
+          if(omdbData.ok&&omdbData.rating){
+            document.getElementById('imdbScore').textContent=omdbData.rating;
+            document.getElementById('imdbVotes').textContent=omdbData.votes?omdbData.votes.replace(/,/g,'')+' 명':'';
+          }else{
+            document.getElementById('imdbScore').innerHTML='<span style="font-size:20px">↗</span>';
+            document.getElementById('imdbVotes').innerHTML='<span style="font-size:10px;color:#F5C518">IMDb 보기</span>';
           }
         }
-      }catch(e){
-        console.error('[IMDB]', e);
-        /* 오류 시 조용히 실패 (평점 칸은 — 유지) */
-      }
+      }catch(e){}
 
-      const ov=det.overview||'줄거리 정보가 없습니다.';
-      document.getElementById('overview').textContent=ov;
+      document.getElementById('overview').textContent=det.overview||'줄거리 정보가 없습니다.';
 
       const genreStr=det.genre||'';
       const genres=det.genres||(genreStr?genreStr.split(',').map(g=>({name:g.trim()})):[]);
-      document.getElementById('genreTags').innerHTML=genres.map(g=>`<span class="tag">${g.name||g}</span>`).join('');
+      document.getElementById('genreTags').innerHTML=genres.map(g=>`<span class="hero-tag">${g.name||g}</span>`).join('');
 
-      /* ── 시즌 ── */
-      const seasHtml = det.number_of_seasons
-        ? `<div class="meta-item">시즌 <b>${det.number_of_seasons}</b></div>` : '';
-
-      /* ── 총 부작 (TV: number_of_episodes, 영화: runtime분) ── */
-      let episodeHtml = '';
-      if(det.number_of_episodes){
-        episodeHtml = `<div class="meta-item">총 <b>${det.number_of_episodes}부작</b></div>`;
-      } else if(det.runtime){
-        episodeHtml = `<div class="meta-item"><b>${det.runtime}분</b></div>`;
-      } else if(det.episode_run_time && det.episode_run_time.length){
-        episodeHtml = `<div class="meta-item">회당 <b>${det.episode_run_time[0]}분</b></div>`;
-      }
-
-      /* ── 개봉일 (년-월-일 요일) ── */
-      const dateRaw = det.first_air_date || det.release_date || '';
-      let dateHtml = '';
+      /* 메타 정보 */
+      const seasHtml=det.number_of_seasons?`<span class="hero-meta-item">시즌 <b>${det.number_of_seasons}</b></span><span class="hero-meta-sep">·</span>`:'' ;
+      let episodeHtml='';
+      if(det.number_of_episodes) episodeHtml=`<span class="hero-meta-item">총 <b>${det.number_of_episodes}부작</b></span><span class="hero-meta-sep">·</span>`;
+      else if(det.runtime) episodeHtml=`<span class="hero-meta-item"><b>${det.runtime}분</b></span><span class="hero-meta-sep">·</span>`;
+      const dateRaw=det.first_air_date||det.release_date||'';
+      let dateHtml='';
       if(dateRaw){
-        const d = new Date(dateRaw);
-        const days = ['일','월','화','수','목','금','토'];
-        const dayKo = days[d.getDay()];
-        const dateFormatted = `${dateRaw.replace(/-/g,'.')} (${dayKo})`;
-        dateHtml = `<div class="meta-item">개봉 <b>${dateFormatted}</b></div>`;
+        const d=new Date(dateRaw);const days=['일','월','화','수','목','금','토'];
+        dateHtml=`<span class="hero-meta-item">개봉 <b>${dateRaw.replace(/-/g,'.')} (${days[d.getDay()]})</b></span>`;
       }
+      /* 등급 */
+      let ratingHtml='';
+      try{
+        const rType=det.number_of_seasons?'content_ratings':'release_dates';
+        const rRes=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${rType}?language=ko-KR`);
+        const rData=await rRes.json();
+        let cert='';
+        if(det.number_of_seasons){const results=rData.results||[];const kr=results.find(r=>r.iso_3166_1==='KR');const us=results.find(r=>r.iso_3166_1==='US');cert=kr?.rating||us?.rating||'';}
+        else{const results=rData.results||[];const kr=results.find(r=>r.iso_3166_1==='KR');const us=results.find(r=>r.iso_3166_1==='US');const krCert=kr?.release_dates?.find(d=>d.certification)?.certification;const usCert=us?.release_dates?.find(d=>d.certification)?.certification;cert=krCert||usCert||'';}
+        const certMap={'ALL':'전체관람가','12':'12세이상','15':'15세이상','18':'청소년관람불가','G':'전체관람가','PG':'PG','PG-13':'13세이상','R':'17세이상','TV-Y':'전체','TV-G':'전체','TV-PG':'보호자지도','TV-14':'14세이상','TV-MA':'성인','NR':'등급없음'};
+        if(cert){ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${certMap[cert]||cert}</b></span>`;}
+      }catch(e){}
+      document.getElementById('metaRow').innerHTML=`${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
 
-      /* ── 관람등급 (TMDB content_ratings / release_dates) ── */
-      let ratingHtml = '';
-      try {
-        /* TV: content_ratings, 영화: release_dates */
-        const rType = det.number_of_seasons ? 'content_ratings' : 'release_dates';
-        const rRes  = await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${rType}?language=ko-KR`);
-        const rData = await rRes.json();
-        let cert = '';
-        if(det.number_of_seasons){
-          /* TV: KR 등급 우선, 없으면 US */
-          const results = rData.results||[];
-          const kr = results.find(r=>r.iso_3166_1==='KR');
-          const us = results.find(r=>r.iso_3166_1==='US');
-          cert = kr?.rating || us?.rating || '';
-        } else {
-          /* 영화: KR 릴리즈 등급 우선 */
-          const results = rData.results||[];
-          const kr = results.find(r=>r.iso_3166_1==='KR');
-          const us = results.find(r=>r.iso_3166_1==='US');
-          const krCert = kr?.release_dates?.find(d=>d.certification)?.certification;
-          const usCert = us?.release_dates?.find(d=>d.certification)?.certification;
-          cert = krCert || usCert || '';
-        }
-        /* 등급 표시 변환 */
-        const certMap = {
-          'ALL':'전체관람가','12':'12세이상','15':'15세이상','18':'청소년관람불가',
-          'G':'전체관람가','PG':'PG등급','PG-13':'13세이상(미국)','R':'17세이상(미국)',
-          'TV-Y':'전체','TV-G':'전체','TV-PG':'보호자지도','TV-14':'14세이상','TV-MA':'성인',
-          'NR':'등급없음',
-        };
-        if(cert) ratingHtml = `<div class="meta-item">🔞 <b>${certMap[cert]||cert}</b></div>`;
-      } catch(e){}
-
-      document.getElementById('metaRow').innerHTML =
-        `${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
-
-      /* SEO */
-      updateSEO(title,ov,poster,WORK.platform,WORK.rank);
+      updateSEO(title,det.overview||'',poster,WORK.platform,WORK.rank);
       initWish(WORK.tmdb_id);
 
-      /* 크레딧 */
+      /* ── 크레딧 (배우 프로필 사진 포함) ── */
       try{
         const cr=await(await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/credits?language=ko-KR`)).json();
-        const tmdbUrl='https://www.themoviedb.org/person/';
+        const tmdbPersonUrl='https://www.themoviedb.org/person/';
         const directors=(cr.crew||[]).filter(p=>p.job==='Director'||p.department==='Directing').slice(0,3);
-        const cast=(cr.cast||[]).slice(0,6);
+        const cast=(cr.cast||[]).slice(0,12);
+
         if(directors.length||cast.length){
-          document.getElementById('peopleRow').style.display='flex';
-          document.getElementById('directorList').innerHTML=directors.length
-            ?directors.map(p=>`<a class="people-chip" href="${tmdbUrl}${p.id}" target="_blank" rel="noopener">${p.name}</a>`).join('')
-            :'<span style="font-size:13px;color:var(--muted)">정보 없음</span>';
-          document.getElementById('castList').innerHTML=cast.length
-            ?cast.map(p=>`<a class="people-chip" href="${tmdbUrl}${p.id}" target="_blank" rel="noopener">${p.name}</a>`).join('')
-            :'<span style="font-size:13px;color:var(--muted)">정보 없음</span>';
+          document.getElementById('castSection').style.display='block';
+
+          /* 감독 */
+          document.getElementById('directorRow').innerHTML=directors.length
+            ?directors.map(p=>`
+              <a class="director-chip" href="${tmdbPersonUrl}${p.id}" target="_blank" rel="noopener">
+                <div class="director-photo">
+                  ${p.profile_path
+                    ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy">`
+                    :`<div class="director-photo-ph">${(p.name||'?')[0]}</div>`}
+                </div>
+                <div>
+                  <div class="director-name">${p.name}</div>
+                  <div class="director-label">감독</div>
+                </div>
+              </a>`).join('')
+            :'';
+
+          /* 배우 가로 스크롤 카드 */
+          document.getElementById('castScroll').innerHTML=cast.length
+            ?cast.map(p=>`
+              <a class="cast-card" href="${tmdbPersonUrl}${p.id}" target="_blank" rel="noopener">
+                <div class="cast-photo">
+                  ${p.profile_path
+                    ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                    :''}
+                  <div class="cast-photo-ph" style="${p.profile_path?'display:none':'display:flex'}">${(p.name||'?')[0]}</div>
+                </div>
+                <div class="cast-name">${p.name}</div>
+                <div class="cast-role">${p.character||''}</div>
+              </a>`).join('')
+            :'';
         }
       }catch(e){}
     }
   }catch(e){console.error('loadTmdb error:',e)}
   document.getElementById('heroLoading').style.display='none';
-  document.getElementById('heroRow').style.display='grid';
+  document.getElementById('heroContent').style.display='flex';
   checkRankHighlight(WORK.platform);
 }
 
@@ -1117,24 +1197,38 @@ const LABELS=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDa
 const RANK_HL={netflix:'2025년 넷플릭스 글로벌 5주간 TOP 10 · 190개국 1위',tving:'2021년 시즌1 론칭 첫 주 티빙 1위',wavve:null,coupang:null,disney:null};
 
 function renderChart(p){
-  const raw=RANK_DATA[p]||[], data=raw.map(v=>v==='new'?11:v);
+  const raw=RANK_DATA[p]||[],data=raw.map(v=>v==='new'?11:v);
   const ctx=document.getElementById('rankChart').getContext('2d');
-  if(myChart) myChart.destroy();
+  if(myChart)myChart.destroy();
   myChart=new Chart(ctx,{type:'line',data:{labels:LABELS,datasets:[{label:'순위',data,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.08)',borderWidth:2,pointRadius:data.map(v=>v===null?0:4),pointBackgroundColor:data.map(v=>v===11?'#f0b429':'#378ADD'),fill:true,tension:0.3,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>c.raw===null?'순위 없음':c.raw===11?'신규 진입':`${c.raw}위`}}},scales:{y:{reverse:true,min:1,max:12,ticks:{stepSize:1,callback:v=>v===11?'NEW':v===12?'':v+'위'},grid:{color:'rgba(128,128,128,0.08)'}},x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:10,font:{size:10}},grid:{display:false}}}}});
 }
-function switchP(p,btn){
-  document.querySelectorAll('.ptab').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on'); renderChart(p); checkRankHighlight(p);
-}
-function checkRankHighlight(p){
-  const raw=RANK_DATA[p]; const hasRecent=raw&&raw.some(v=>v!==null);
-  const hl=RANK_HL[p]; const el=document.getElementById('rankHighlight');
-  if(!hasRecent&&hl){document.getElementById('rankHighlightText').textContent=hl;el.style.display='flex';}
-  else el.style.display='none';
+function switchP(p,btn){document.querySelectorAll('.ptab').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderChart(p);checkRankHighlight(p);}
+function checkRankHighlight(p){const raw=RANK_DATA[p];const hasRecent=raw&&raw.some(v=>v!==null);const hl=RANK_HL[p];const el=document.getElementById('rankHighlight');if(!hasRecent&&hl){document.getElementById('rankHighlightText').textContent=hl;el.style.display='flex';}else el.style.display='none';}
+
+/* ══ 감정 반응 통계 렌더링 ══ */
+function renderEmotionStats(){
+  if(!ALL_COMMENTS.length) return;
+  const counter={};
+  ALL_COMMENTS.forEach(c=>{
+    c.emotions.forEach(e=>{counter[e]=(counter[e]||0)+1;});
+  });
+  const total=ALL_COMMENTS.length;
+  const sorted=Object.entries(counter).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  if(!sorted.length) return;
+  document.getElementById('emotionStatsSection').style.display='block';
+  document.getElementById('emotionStatsGrid').innerHTML=sorted.map(([label,cnt])=>`
+    <div class="emotion-stat-row">
+      <span class="emotion-stat-emoji">${ETAG_EMOJI[label]||'💬'}</span>
+      <span class="emotion-stat-label">${label}</span>
+      <div class="emotion-stat-bar-bg">
+        <div class="emotion-stat-bar-fill" style="width:${Math.round(cnt/total*100)}%"></div>
+      </div>
+      <span class="emotion-stat-pct">${Math.round(cnt/total*100)}%</span>
+    </div>`).join('');
 }
 
 /* ══ 댓글 ══ */
-function getUserAvgBadge(u){ return ''; }
+function getUserAvgBadge(u){return '';}
 function setSort(t){curSort=t;document.getElementById('sortLatest').classList.toggle('on',t==='latest');document.getElementById('sortLikes').classList.toggle('on',t==='likes');curPage=1;renderComments();}
 function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)=>b.likes-a.likes);else a.sort((a,b)=>b.id-a.id);return a;}
 function renderHalfStars(score){let h='';for(let i=1;i<=5;i++){if(score>=i)h+=`<span class="c-star">★</span>`;else if(score>=i-0.5)h+=`<span class="c-star" style="position:relative;display:inline-block;overflow:hidden;width:.7em">★</span>`;else h+=`<span class="c-star off">★</span>`;}return h;}
@@ -1145,17 +1239,15 @@ function renderComments(){
   document.getElementById('commentCount').textContent=`${sorted.length}개`;
   if(!sorted.length){
     el.innerHTML=`<div class="empty-comments"><div style="font-size:30px;opacity:.4">💬</div><div style="font-size:15px;font-weight:600">아직 댓글이 없어요</div><div style="font-size:13px;color:var(--muted)">이 작품의 첫 평점과 댓글을 남겨보세요!</div><button class="empty-comments-btn" onclick="scrollToRating()">✏ 첫 평점을 달아주세요</button></div>`;
-    document.getElementById('pagination').innerHTML=''; return;
+    document.getElementById('pagination').innerHTML='';return;
   }
-  const start=(curPage-1)*PER_PAGE, slice=sorted.slice(start,start+PER_PAGE);
+  const start=(curPage-1)*PER_PAGE,slice=sorted.slice(start,start+PER_PAGE);
   el.innerHTML=`<div class="comments-section">${slice.map(c=>`
     <div class="comment-item" id="cmt_${c.id}">
       <div class="comment-header">
-        <div class="avatar" onclick="showProfile('${c.user}')" title="${c.user} 프로필">${c.init}</div>
+        <div class="avatar" onclick="showProfile('${c.user}')">${c.init}</div>
         <div style="flex:1;min-width:0">
-          <div class="c-name-wrap" onclick="showProfile('${c.user}')">
-            <span class="c-name">${c.user}</span>${getUserAvgBadge(c.user)}
-          </div>
+          <div class="c-name-wrap" onclick="showProfile('${c.user}')"><span class="c-name">${c.user}</span></div>
           <div class="c-stars">${renderHalfStars(c.score)}</div>
         </div>
         <span class="c-time">${c.time}</span>
@@ -1163,31 +1255,26 @@ function renderComments(){
       ${c.spoiler?'<span class="sp-badge" style="display:inline-block;margin-bottom:8px">⚠ 스포일러</span>':''}
       <div class="c-text">${c.text}</div>
       <div class="c-footer">
-        <span class="c-like" onclick="likeComment('${c.id}')"><i class="ti ti-heart" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> <span id="like_cmt_${c.id}">${c.likes}</span></span>
+        <span class="c-like" onclick="likeComment('${c.id}')"><i class="ti ti-heart" style="font-size:11px;vertical-align:-1px"></i> <span id="like_cmt_${c.id}">${c.likes}</span></span>
         <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">🔗 이 후기 공유</button>
-        ${c.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}
+        ${c.emotions.map(e=>`<span class="c-ebadge">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}
         ${c.customTags.map(t=>`<span class="c-cbadge">${t}</span>`).join('')}
         ${c.isMe?`<button class="c-delete-btn" onclick="deleteMyReview(${c.id})">삭제</button>`:''}
       </div>
     </div>`).join('')}</div>`;
   renderPagination();
 }
+
 async function likeComment(id){
-  const c=ALL_COMMENTS.find(x=>x.id===id);
-  if(!c) return;
+  const c=ALL_COMMENTS.find(x=>x.id===id);if(!c)return;
   const tmdbId=WORK?.tmdb_id;
-  try{
-    await fetch(`${REVIEW_API}/reviews/${tmdbId}/like/${id}`,{method:'POST'});
-    c.likes++;
-    const el=document.getElementById('like_cmt_'+id);
-    if(el) el.textContent=c.likes;
-  }catch(e){}
+  try{await fetch(`${REVIEW_API}/reviews/${tmdbId}/like/${id}`,{method:'POST'});c.likes++;const el=document.getElementById('like_cmt_'+id);if(el)el.textContent=c.likes;}catch(e){}
 }
 function shareComment(id,user){
   const url=`${window.location.href.split('#')[0]}#cmt_${id}`;
   const text=`오뜨랑에서 "${WORK.title}" ${user}님의 후기를 확인해보세요!`;
-  if(navigator.share){navigator.share({title:`${WORK.title} 후기 | 오뜨랑`,text,url}).catch(()=>{});}
-  else{navigator.clipboard.writeText(url).then(()=>showToast('후기 링크가 복사됐어요!'));}
+  if(navigator.share)navigator.share({title:`${WORK.title} 후기 | 오뜨랑`,text,url}).catch(()=>{});
+  else navigator.clipboard.writeText(url).then(()=>showToast('후기 링크가 복사됐어요!'));
 }
 function renderPagination(){
   const total=Math.ceil(ALL_COMMENTS.length/PER_PAGE);
@@ -1201,18 +1288,13 @@ function renderPagination(){
 function goPage(p){const t=Math.ceil(ALL_COMMENTS.length/PER_PAGE);if(p<1||p>t)return;curPage=p;renderComments();document.getElementById('commentsArea').scrollIntoView({behavior:'smooth',block:'start'});}
 
 /* ══ 공유 ══ */
-function getShareUrl(){
-  // 새 URL 형식: /title/{시즌}-{연도}{tmdbId} (한글 없음)
-  const s=WORK.season||1, y=WORK.year||new Date().getFullYear(), tid=WORK.tmdb_id||'';
-  return `https://ottrank.kr/title/${s}-${y}${tid}`;
-}
+function getShareUrl(){const s=WORK.season||1,y=WORK.year||new Date().getFullYear(),tid=WORK.tmdb_id||'';return`https://ottrank.kr/title/${s}-${y}${tid}`;}
 function shareX(){window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`"${WORK.title}" OTT 랭킹 평점·후기 확인하기 👉`)}&url=${encodeURIComponent(getShareUrl())}`,'_blank');}
 function copyLink(){navigator.clipboard.writeText(getShareUrl()).then(()=>showToast('링크가 복사됐어요!'));}
 function shareNative(){
-  const url=getShareUrl();
-  const title=document.getElementById('mainTitle').textContent||WORK.title;
-  if(navigator.share){navigator.share({title:`${title} | 오뜨랑`,text:`"${title}" OTT 평점·후기를 오뜨랑에서 확인해보세요!`,url}).catch(()=>{});}
-  else{navigator.clipboard.writeText(url).then(()=>showToast('링크가 복사됐어요!'));}
+  const url=getShareUrl();const title=document.getElementById('mainTitle').textContent||WORK.title;
+  if(navigator.share)navigator.share({title:`${title} | 오뜨랑`,text:`"${title}" OTT 평점·후기를 오뜨랑에서 확인해보세요!`,url}).catch(()=>{});
+  else navigator.clipboard.writeText(url).then(()=>showToast('링크가 복사됐어요!'));
 }
 function showToast(msg){const t=document.getElementById('shareToast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 
@@ -1228,32 +1310,26 @@ async function submitComment(){
   if(!myStars){showToast('별점을 먼저 선택해주세요');return;}
   if(!txt){showToast('한줄 감상을 입력해주세요');return;}
   const sid=localStorage.getItem('ottrang_sid');
-  if(!sid){
-    const redirect=encodeURIComponent(location.pathname+location.search);
-    location.href='/login.html?redirect='+redirect;
-    return;
-  }
+  if(!sid){const redirect=encodeURIComponent(location.pathname+location.search);location.href='/login.html?redirect='+redirect;return;}
   const spoiler=document.getElementById('spoilerCheck').checked;
-  const preset=[...document.querySelectorAll('.etag.on')].map(e=>e.textContent);
+  const preset=[...document.querySelectorAll('.etag.on')].map(e=>e.textContent.replace(/[\u{1F000}-\u{1FFFF}]|[\u2600-\u27FF]/gu,'').trim());
   const tmdbId=WORK?.tmdb_id;
-  if(!tmdbId){showToast('작품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');return;}
+  if(!tmdbId){showToast('작품 정보를 불러오는 중입니다.');return;}
   try{
     const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid},
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid},
       body:JSON.stringify({score:myStars,emotions:preset,custom_tags:customTags,text:txt,spoiler}),
     });
     const data=await res.json();
     if(!data.ok){showToast(data.message||'오류가 발생했어요');return;}
-    // 등록 성공 후 목록 새로고침
     await loadReviews(tmdbId);
     document.getElementById('commentInput').value='';
     document.getElementById('charCount').textContent='0 / 140';
     document.getElementById('spoilerCheck').checked=false;
-    renderStarInput(0); myStars=0;
+    renderStarInput(0);myStars=0;
     document.getElementById('starLabel').textContent='별점을 선택하세요';
     document.querySelectorAll('.etag').forEach(b=>{b.classList.remove('on','disabled');});
-    customTags=[]; renderCustomTags(); updateEtagCount();
+    customTags=[];renderCustomTags();updateEtagCount();
     showToast('후기가 등록됐어요! 공유해보세요 🎉');
   }catch(e){showToast('네트워크 오류가 발생했어요');}
 }
@@ -1262,102 +1338,67 @@ async function loadReviews(tmdbId){
   if(!tmdbId) return;
   try{
     const sid=localStorage.getItem('ottrang_sid');
-    // 전체 후기
     const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`);
     const data=await res.json();
     if(data.ok){
       ALL_COMMENTS=(data.data||[]).map(r=>({
-        id:r.id,
-        user:r.nickname||'익명',
-        init:(r.nickname||'익')[0],
-        score:r.score,
-        emotions:_safeParseArr(r.emotions),
-        customTags:_safeParseArr(r.custom_tags),
-        text:r.text||'',
-        time:formatTime(r.created_at),
-        likes:r.likes||0,
-        spoiler:!!r.spoiler,
-        user_id:r.user_id,
-        isMe:false,
+        id:r.id,user:r.nickname||'익명',init:(r.nickname||'익')[0],
+        score:r.score,emotions:_safeParseArr(r.emotions),customTags:_safeParseArr(r.custom_tags),
+        text:r.text||'',time:formatTime(r.created_at),likes:r.likes||0,spoiler:!!r.spoiler,
+        user_id:r.user_id,isMe:false,
       }));
     }
-    // 내 후기
     if(sid){
-      const meRes=await fetch(`${REVIEW_API}/reviews/${tmdbId}/me`,{
-        headers:{Authorization:'Bearer '+sid}
-      });
+      const meRes=await fetch(`${REVIEW_API}/reviews/${tmdbId}/me`,{headers:{Authorization:'Bearer '+sid}});
       const meData=await meRes.json();
       MY_REVIEW=meData.data||null;
       if(MY_REVIEW){
-        myStars=MY_REVIEW.score;
-        renderStarInput(myStars);
+        myStars=MY_REVIEW.score;renderStarInput(myStars);
         document.getElementById('starLabel').textContent=myStars+'점';
         document.getElementById('commentInput').value=MY_REVIEW.text||'';
         updateCharCount(document.getElementById('commentInput'));
-        // 내 글 표시
-        ALL_COMMENTS=ALL_COMMENTS.map(c=>({...c, isMe: c.id===MY_REVIEW.id}));
+        ALL_COMMENTS=ALL_COMMENTS.map(c=>({...c,isMe:c.id===MY_REVIEW.id}));
       }
     }
-    curPage=1; renderComments(); updateUserRatingCard();
+    curPage=1;renderComments();updateUserRatingCard();renderEmotionStats();
   }catch(e){}
 }
 
 async function deleteMyReview(reviewId){
   if(!confirm('이 후기를 삭제할까요?')) return;
-  const sid=localStorage.getItem('ottrang_sid');
-  if(!sid) return;
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
   const tmdbId=WORK?.tmdb_id;
   try{
-    const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`,{
-      method:'DELETE',
-      headers:{Authorization:'Bearer '+sid},
-    });
+    const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
     const data=await res.json();
-    if(data.ok){
-      MY_REVIEW=null;
-      myStars=0;
-      renderStarInput(0);
-      document.getElementById('starLabel').textContent='별점을 선택하세요';
-      document.getElementById('commentInput').value='';
-      document.getElementById('charCount').textContent='0 / 140';
-      await loadReviews(tmdbId);
-      showToast('후기가 삭제됐어요');
-    } else {
-      showToast(data.message||'삭제 실패');
-    }
-  }catch(e){ showToast('네트워크 오류'); }
+    if(data.ok){MY_REVIEW=null;myStars=0;renderStarInput(0);document.getElementById('starLabel').textContent='별점을 선택하세요';document.getElementById('commentInput').value='';document.getElementById('charCount').textContent='0 / 140';await loadReviews(tmdbId);showToast('후기가 삭제됐어요');}
+    else showToast(data.message||'삭제 실패');
+  }catch(e){showToast('네트워크 오류');}
 }
 
-function _safeParseArr(v){
-  if(!v) return [];
-  try{ const r=JSON.parse(v); return Array.isArray(r)?r:[]; }catch(e){ return []; }
-}
+function _safeParseArr(v){if(!v)return[];try{const r=JSON.parse(v);return Array.isArray(r)?r:[];}catch(e){return[];}}
 function formatTime(isoStr){
-  if(!isoStr) return '';
-  // D1 저장 시간은 UTC, isoStr에 Z 없으면 붙여서 UTC로 파싱
-  const str=isoStr.endsWith('Z')||isoStr.includes('+') ? isoStr : isoStr+' UTC';
-  const d=new Date(str), now=new Date();
+  if(!isoStr)return'';
+  const str=isoStr.endsWith('Z')||isoStr.includes('+')?isoStr:isoStr+' UTC';
+  const d=new Date(str),now=new Date();
   const diff=Math.floor((now-d)/1000);
-  if(diff<60) return '방금';
-  if(diff<3600) return Math.floor(diff/60)+'분 전';
-  if(diff<86400) return Math.floor(diff/3600)+'시간 전';
-  return Math.floor(diff/86400)+'일 전';
+  if(diff<60)return'방금';if(diff<3600)return Math.floor(diff/60)+'분 전';
+  if(diff<86400)return Math.floor(diff/3600)+'시간 전';return Math.floor(diff/86400)+'일 전';
 }
+
 function updateUserRatingCard(){
   if(!ALL_COMMENTS.length){document.getElementById('userRatingEmpty').style.display='flex';document.getElementById('userRatingFilled').style.display='none';return;}
-  /* 별점(5점) → 10점 만점 환산 */
-  const avg5  = ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
-  const avg10 = (avg5 * 2).toFixed(1); // 5점 만점 × 2 = 10점 만점
-  const stars = Math.round(avg5);
-  document.getElementById('userScore').textContent = avg10;
-  document.getElementById('userVotes').textContent = `${ALL_COMMENTS.length}명 평가`;
-  document.getElementById('userStarDisplay').textContent = '★'.repeat(stars)+'☆'.repeat(5-stars);
+  const avg5=ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
+  const avg10=(avg5*2).toFixed(1);
+  const stars=Math.round(avg5);
+  document.getElementById('userScore').textContent=avg10;
+  document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명 평가`;
+  document.getElementById('userStarDisplay').textContent='★'.repeat(stars)+'☆'.repeat(5-stars);
   document.getElementById('userRatingEmpty').style.display='none';
   document.getElementById('userRatingFilled').style.display='flex';
-
-  /* 유저 평점 1개 이상이면 댓글섹션을 순위히스토리 앞으로 이동 */
   reorderSections();
 }
+
 function getEtagCount(){return document.querySelectorAll('.etag.on').length+customTags.length;}
 function updateEtagCount(){
   const cnt=getEtagCount();
@@ -1367,8 +1408,7 @@ function updateEtagCount(){
 }
 function toggleEtag(b){if(b.classList.contains('disabled'))return;b.classList.toggle('on');updateEtagCount();}
 function addCustomTag(){
-  const inp=document.getElementById('customTagInput');
-  const val=inp.value.trim();if(!val)return;
+  const inp=document.getElementById('customTagInput');const val=inp.value.trim();if(!val)return;
   if(getEtagCount()>=3){showToast('태그는 최대 3개');return;}
   customTags.push(val);inp.value='';renderCustomTags();updateEtagCount();
 }
@@ -1378,85 +1418,43 @@ function updateCharCount(el){const len=el.value.length;const el2=document.getEle
 function scrollToRating(){document.getElementById('ratingInputArea').scrollIntoView({behavior:'smooth',block:'center'});}
 
 /* ── 로그인 체크 ── */
-function checkLoginThenRate(cb, inputEl) {
-  const sid = localStorage.getItem('ottrang_sid');
-  if (!sid) {
-    const redirect = encodeURIComponent(location.pathname + location.search);
-    location.href = '/login.html?redirect=' + redirect;
-    return;
-  }
-  if (cb) cb();
-  if (inputEl) inputEl.focus();
+function checkLoginThenRate(cb,inputEl){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){const redirect=encodeURIComponent(location.pathname+location.search);location.href='/login.html?redirect='+redirect;return;}
+  if(cb)cb();if(inputEl)inputEl.focus();
 }
 
 /* ── 찜하기 ── */
-const WISH_API = 'https://ottrank-api.tdidream.workers.dev';
-let _wishlisted = false;
-
-async function initWish(tmdbId) {
-  if (!tmdbId) return;
-  const sid = localStorage.getItem('ottrang_sid');
-  if (!sid) return;
-  try {
-    const res = await fetch(`${WISH_API}/wishlist/check/${tmdbId}`, {
-      headers: { Authorization: 'Bearer ' + sid }
-    });
-    const data = await res.json();
-    _wishlisted = data.wishlisted;
-    updateWishBtn();
-  } catch(e) {}
+const WISH_API='https://ottrank-api.tdidream.workers.dev';
+let _wishlisted=false;
+async function initWish(tmdbId){
+  if(!tmdbId)return;const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{const res=await fetch(`${WISH_API}/wishlist/check/${tmdbId}`,{headers:{Authorization:'Bearer '+sid}});const data=await res.json();_wishlisted=data.wishlisted;updateWishBtn();}catch(e){}
+}
+function updateWishBtn(){
+  const btn=document.getElementById('wishBtn');if(!btn)return;
+  if(_wishlisted){btn.textContent='♥ 찜한 작품';btn.classList.add('wished');}
+  else{btn.textContent='♡ 찜하기';btn.classList.remove('wished');}
+}
+async function toggleWish(){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){const redirect=encodeURIComponent(location.pathname+location.search);location.href='/login.html?redirect='+redirect;return;}
+  const tmdbId=WORK?.tmdb_id;if(!tmdbId)return;
+  try{
+    const res=await fetch(`${WISH_API}/wishlist`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({tmdb_id:tmdbId,title_ko:WORK.title,poster_path:WORK.poster_path||''})});
+    const data=await res.json();if(data.ok){_wishlisted=data.wishlisted;updateWishBtn();}
+  }catch(e){}
 }
 
-function updateWishBtn() {
-  const btn = document.getElementById('wishBtn');
-  if (!btn) return;
-  if (_wishlisted) {
-    btn.textContent = '♥ 찜한 작품';
-    btn.classList.add('wished');
-  } else {
-    btn.textContent = '♡ 찜하기';
-    btn.classList.remove('wished');
-  }
-}
-
-async function toggleWish() {
-  const sid = localStorage.getItem('ottrang_sid');
-  if (!sid) {
-    const redirect = encodeURIComponent(location.pathname + location.search);
-    location.href = '/login.html?redirect=' + redirect;
-    return;
-  }
-  const tmdbId = WORK?.tmdb_id;
-  if (!tmdbId) return;
-  try {
-    const res = await fetch(`${WISH_API}/wishlist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
-      body: JSON.stringify({ tmdb_id: tmdbId, title_ko: WORK.title, poster_path: WORK.poster_path || '' }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      _wishlisted = data.wishlisted;
-      updateWishBtn();
-    }
-  } catch(e) {}
-}
-
-/* 유저 평점 1개 이상이면: 댓글섹션 → 평점입력 → 순위히스토리 순으로 재배치 */
 function reorderSections(){
-  if(ALL_COMMENTS.length < 1) return;
-  const rankEl    = document.getElementById('rankHistSection');
-  const commentEl = document.getElementById('commentSection');
-  const ratingEl  = document.getElementById('ratingInputArea');
-  if(!rankEl || !commentEl || !ratingEl) return;
-  /* 이미 재배치됐으면 중복 실행 방지 */
-  if(commentEl._reordered) return;
-  commentEl._reordered = true;
-  /* 댓글섹션을 평점 CTA 배너 바로 뒤에 삽입 (순위히스토리 앞) */
-  const ctaBanner = document.querySelector('.rating-cta-banner');
-  if(ctaBanner && ctaBanner.nextSibling){
-    ctaBanner.parentNode.insertBefore(commentEl, rankEl);
-  }
+  if(ALL_COMMENTS.length<1)return;
+  const rankEl=document.getElementById('rankHistSection');
+  const commentEl=document.getElementById('commentSection');
+  const ratingEl=document.getElementById('ratingInputArea');
+  if(!rankEl||!commentEl||!ratingEl)return;
+  if(commentEl._reordered)return;commentEl._reordered=true;
+  const ctaBanner=document.querySelector('.rating-cta-banner');
+  if(ctaBanner&&ctaBanner.nextSibling){ctaBanner.parentNode.insertBefore(commentEl,rankEl);}
 }
 
 /* ══ 유튜브 ══ */
@@ -1465,29 +1463,22 @@ const YT_MOCK=[
   {id:'dQw4w9WgXcQ',title:'오징어 게임 시즌3 리뷰 — 황동혁 감독 메시지',channel:'씨네큐',views:'156만 조회',dur:'24:11'},
   {id:'oHg5SJYRHA0',title:'오징어게임 정주행 반응 풀버전',channel:'리액션왕',views:'98만 조회',dur:'41:05'},
   {id:'fJ9rUzIMcZQ',title:'오징어 게임 모든 복선과 숨겨진 의미 총정리',channel:'드라마해부',views:'203만 조회',dur:'31:47'},
-  {id:'JGwWNGJdvx8',title:'이정재 인터뷰 — 시즌3 비하인드',channel:'Netflix Korea',views:'445만 조회',dur:'12:20'},
-  {id:'9bZkp7q19f0',title:'왜 오징어게임은 세계를 사로잡았나',channel:'한류리포트',views:'321만 조회',dur:'16:58'},
 ];
 function renderYt(){
-  const list=YT_MOCK.slice(0,6);
+  const list=YT_MOCK.slice(0,4);
   document.getElementById('ytSubtitle').textContent=`${list.length}개 영상`;
   document.getElementById('ytArea').innerHTML=`<div class="yt-grid">${list.map(v=>`
     <div class="yt-card" onclick="openPlayer('${v.id}','${v.title.replace(/'/g,"\\'")}')">
       <div class="yt-thumb">
         <img src="https://img.youtube.com/vi/${v.id}/mqdefault.jpg" alt="${v.title}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-        <div class="yt-thumb-ph" style="display:none"><i class="ti ti-brand-youtube" style="font-size:26px" aria-hidden="true"></i></div>
-        <div class="yt-play"><div class="yt-play-icon"><i class="ti ti-player-play" style="font-size:13px" aria-hidden="true"></i></div></div>
+        <div class="yt-thumb-ph" style="display:none"><i class="ti ti-brand-youtube" style="font-size:26px"></i></div>
+        <div class="yt-play"><div class="yt-play-icon"><i class="ti ti-player-play" style="font-size:13px"></i></div></div>
         <div class="yt-dur">${v.dur}</div>
       </div>
       <div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta"><span>${v.channel}</span><span>·</span><span>${v.views}</span></div></div>
     </div>`).join('')}</div>`;
 }
-function openPlayer(id,title){
-  document.getElementById('ytModalTitle').textContent=title;
-  document.getElementById('ytFrame').src=`https://www.youtube.com/embed/${id}?autoplay=1`;
-  document.getElementById('ytModal').classList.add('show');
-  document.getElementById('ytModal').scrollIntoView({behavior:'smooth',block:'start'});
-}
+function openPlayer(id,title){document.getElementById('ytModalTitle').textContent=title;document.getElementById('ytFrame').src=`https://www.youtube.com/embed/${id}?autoplay=1`;document.getElementById('ytModal').classList.add('show');document.getElementById('ytModal').scrollIntoView({behavior:'smooth',block:'start'});}
 function closePlayer(){document.getElementById('ytFrame').src='';document.getElementById('ytModal').classList.remove('show');}
 
 /* ══ 프로필 ══ */
@@ -1509,23 +1500,20 @@ function showProfile(username){
   document.getElementById('distBars').innerHTML=[5,4,3,2,1].map(s=>`<div class="dist-row"><span class="dist-label">${s}★</span><div class="dist-bar-bg"><div class="dist-bar-fill" style="width:${Math.round((dist[s]/maxCnt)*100)}%"></div></div><span class="dist-count">${dist[s]}</span></div>`).join('');
   document.getElementById('profileReviewCount').textContent=`${reviews.length}개`;
   document.getElementById('userReviews').innerHTML=reviews.length
-    ?reviews.map(r=>`<div class="review-card" onclick="showDetail()"><div class="review-poster"><div class="review-poster-ph">🎬</div></div><div class="review-body"><div class="review-title-row"><span class="review-title">${WORK.title||''}</span><div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${i<=r.score?'':' off'}">★</span>`).join('')}<span class="review-score-num">${r.score}</span></div></div><div class="review-text">${r.text}</div><div class="review-footer"><span class="review-time">${r.time}</span>${r.emotions.map(e=>`<span class="c-ebadge">${e}</span>`).join('')}</div></div></div>`).join('')
+    ?reviews.map(r=>`<div class="review-card" onclick="showDetail()"><div class="review-poster"><div class="review-poster-ph">🎬</div></div><div class="review-body"><div class="review-title-row"><span class="review-title">${WORK.title||''}</span><div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${i<=r.score?'':' off'}">★</span>`).join('')}<span class="review-score-num">${r.score}</span></div></div><div class="review-text">${r.text}</div><div class="review-footer"><span class="review-time">${r.time}</span>${r.emotions.map(e=>`<span class="c-ebadge">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}</div></div></div>`).join('')
     :`<div style="padding:32px;text-align:center;font-size:14px;color:var(--muted)">아직 남긴 평점이 없어요</div>`;
   document.getElementById('detailPage').style.display='none';
   document.getElementById('profilePage').style.display='block';
 }
-function showDetail(){
-  document.getElementById('profilePage').style.display='none';
-  document.getElementById('detailPage').style.display='block';
-}
+function showDetail(){document.getElementById('profilePage').style.display='none';document.getElementById('detailPage').style.display='block';}
 
 /* ══ 초기화 ══ */
 async function init(){
-  reorderSections(); renderChart(WORK.platform); renderYt();
+  reorderSections();renderChart(WORK.platform);renderYt();
   await loadTmdb();
-  if(WORK.tmdb_id) await loadReviews(WORK.tmdb_id);
-  else { renderComments(); updateUserRatingCard(); }
-  if(location.hash) setTimeout(()=>{const el=document.querySelector(location.hash);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},700);
+  if(WORK.tmdb_id)await loadReviews(WORK.tmdb_id);
+  else{renderComments();updateUserRatingCard();}
+  if(location.hash)setTimeout(()=>{const el=document.querySelector(location.hash);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},700);
 }
 init();
 </script>
