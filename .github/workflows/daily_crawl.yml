@@ -2,7 +2,7 @@ name: OTT Ranking Crawler v2
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # 매일 09:00 KST (UTC 00:00)
+    - cron: '17 0 * * *'  # 매일 09:17 KST (UTC 00:17) - 정각 혼잡 회피
     - cron: '0 */2 * * *' # 2시간마다 (스케줄 확인용 임시)
   workflow_dispatch:        # 수동 실행 (Actions 탭에서 버튼으로 실행 가능)
 
