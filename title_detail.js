@@ -1,4 +1,4 @@
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  11  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  12  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -70,6 +70,15 @@ let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',s
       WORK.tmdb_id=parsed.tmdb_id;WORK.season=parsed.season;WORK.year=parsed.year;
       WORK.title=decodeURIComponent(parsed.titleSlug.replace(/-/g,' '))||'작품명';
       sessionStorage.removeItem('ottrang_slug');return;
+    }
+  }
+  // Cloudflare Pages Function에서 HTML에 주입한 slug 읽기
+  if(window.__TITLE_SLUG__){
+    const parsed=parseSlug('/title/'+window.__TITLE_SLUG__);
+    if(parsed&&parsed.tmdb_id){
+      WORK.tmdb_id=parsed.tmdb_id;WORK.season=parsed.season;WORK.year=parsed.year;
+      WORK.title=decodeURIComponent(parsed.titleSlug.replace(/-/g,' '))||'작품명';
+      return;
     }
   }
   // Cloudflare _redirects에서 ?slug=2-2023126485 형태로 전달된 경우 처리
