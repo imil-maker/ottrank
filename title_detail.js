@@ -536,19 +536,24 @@ function closePlayer2(){document.getElementById('ytFrame2').src='';document.getE
 /* == Feeling Buttons == */
 /* == 별점 호버 효과 == */
 /* == 반개 별점 호버 효과 (1점~10점) == */
+// score: 1~10 (홀수=반개/lit-half, 짝수=전체/lit-full)
+// 별 5개(mhsw1~mhsw5), 홀수점=반개, 짝수점=전체
 function hoverHalfStar(score){
-  // score: 1~10 (홀수=반개, 짝수=한개)
-  // 각 별의 mhs-left(홀수점), mhs-right(짝수점) 기준으로 lit 클래스 처리
-  document.querySelectorAll('#myHalfStarRow .mhs-left, #myHalfStarRow .mhs-right').forEach(el=>{
-    const elScore=parseInt(el.getAttribute('onmouseover').match(/\d+/)[0]);
-    // 현재 별이 score 이하면 lit, 초과면 해제
-    // mhs-right는 짝수점: score가 짝수면 해당 별 전체 lit, 홀수면 해당 별의 right는 해제
-    if(elScore<=score)el.classList.add('lit');
-    else el.classList.remove('lit');
-  });
+  for(let i=1;i<=5;i++){
+    const wrap=document.getElementById('mhsw'+i);
+    if(!wrap)continue;
+    wrap.classList.remove('lit-half','lit-full');
+    const maxScore=i*2; // 이 별의 최대점수(짝수)
+    const halfScore=i*2-1; // 이 별의 반개점수(홀수)
+    if(score>=maxScore)wrap.classList.add('lit-full');      // 전체 채움
+    else if(score>=halfScore)wrap.classList.add('lit-half'); // 반개 채움
+  }
 }
 function resetHalfStar(){
-  document.querySelectorAll('#myHalfStarRow .mhs-left, #myHalfStarRow .mhs-right').forEach(el=>el.classList.remove('lit'));
+  for(let i=1;i<=5;i++){
+    const wrap=document.getElementById('mhsw'+i);
+    if(wrap)wrap.classList.remove('lit-half','lit-full');
+  }
 }
 
 /* == 출연진 화살표 스크롤 == */
