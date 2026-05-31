@@ -76,7 +76,7 @@
       <div class="hero-action-row">
         <button class="hero-wish-btn" id="wishBtn" onclick="toggleWish()">♡ 찜하기</button>
         <button class="hero-share-btn" onclick="shareNative()">
-          <i class="ti ti-share" style="font-size:14px"></i> 공유
+          <i class="ti ti-share" style="font-size:22px"></i> 공유
         </button>
         <div id="heroRankRow" style="display:contents"></div>
       </div>
@@ -89,7 +89,7 @@
 
 <!-- 출연진 -->
 <div class="cast-section" id="castSection" style="display:none">
-  <div class="sec-title"><i class="ti ti-users" style="font-size:16px"></i>출연진 &amp; 제작진</div>
+  <div class="sec-title"><i class="ti ti-users" style="font-size:20px"></i>출연진 &amp; 제작진</div>
   <div class="director-row" id="directorRow"></div>
   <div class="cast-scroll" id="castScroll"></div>
 </div>
@@ -99,30 +99,30 @@
   <div class="r-card">
     <div class="r-logo" style="color:#F5C518">IMDb</div>
     <div class="r-score-wrap"><div class="r-score" id="imdbScore" style="color:#F5C518">—</div><span class="r-out-of">/10</span></div>
-    <div class="r-sub" id="imdbVotes" style="font-size:11px;margin-top:4px">—</div>
+    <div class="r-sub" id="imdbVotes" style="font-size:19px;margin-top:4px">—</div>
   </div>
   <div class="r-card">
     <div class="r-logo" style="color:#01b4e4">TMDB</div>
     <div class="r-score-wrap"><div class="r-score" id="tmdbScore" style="color:#01b4e4">—</div><span class="r-out-of">/10</span></div>
-    <div class="r-sub" id="tmdbVotes" style="font-size:11px;margin-top:4px">—</div>
+    <div class="r-sub" id="tmdbVotes" style="font-size:19px;margin-top:4px">—</div>
   </div>
   <div class="r-card" style="position:relative">
     <div class="r-logo" style="background:linear-gradient(90deg,#FF5177,#FF9A3C);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">오뜨랑</div>
     <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
-      <span style="font-size:28px">🎬</span>
-      <span style="font-size:10px;color:var(--muted2);font-family:var(--font-mono);text-align:center;line-height:1.4">이 작품의 첫번째<br>평점을 남겨보세요</span>
+      <span style="font-size:34px">🎬</span>
+      <span style="font-size:22px;color:var(--muted2);font-family:var(--font-mono);text-align:center;line-height:1.4">이 작품의 첫번째<br>평점을 남겨보세요</span>
     </div>
     <div id="userRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
       <div class="r-score-wrap"><div class="r-score" id="userScore" style="color:var(--accent)">—</div><span class="r-out-of">/10</span></div>
-      <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="userStarDisplay"></div>
-      <div class="r-sub" id="userVotes" style="font-size:11px;margin-top:6px">—</div>
+      <div style="font-size:19px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="userStarDisplay"></div>
+      <div class="r-sub" id="userVotes" style="font-size:19px;margin-top:6px">—</div>
     </div>
   </div>
   <div class="r-card">
     <div class="r-logo" style="color:var(--muted2)">내 평점</div>
     <div id="myRatingDisplay" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
-      <span style="font-size:28px">✍️</span>
-      <span style="font-size:11px;color:var(--info);font-family:var(--font-mono)">평점 남기기</span>
+      <span style="font-size:34px">✍️</span>
+      <span style="font-size:19px;color:var(--info);font-family:var(--font-mono)">평점 남기기</span>
     </div>
   </div>
 </div>
@@ -131,13 +131,13 @@
 <div class="wg-outer" id="wgOuter" style="display:none;gap:16px;margin-bottom:24px">
   <!-- 시청가이드 -->
   <div class="watch-guide" id="watchGuideSection" style="flex:1;margin-bottom:0">
-    <div class="sec-title"><i class="ti ti-shield-check" style="font-size:16px"></i>시청가이드 <small id="watchGradeLabel"></small></div>
+    <div class="sec-title"><i class="ti ti-shield-check" style="font-size:20px"></i>시청가이드 <small id="watchGradeLabel"></small></div>
     <div class="wg-grid" id="watchGuideGrid"></div>
-    <div style="font-size:11px;color:var(--muted);margin-top:10px;font-family:var(--font-mono)">출처: 영상물등급위원회</div>
+    <div style="font-size:19px;color:var(--muted);margin-top:10px;font-family:var(--font-mono)">출처: 영상물등급위원회</div>
   </div>
   <!-- 지금 보러가기 -->
   <div class="watch-now-box" id="watchNowBox" style="display:none">
-    <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
+    <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:20px"></i>지금 보러가기</div>
     <div class="watch-now-btns" id="watchNowBtns"></div>
   </div>
 </div>
@@ -146,7 +146,7 @@
 <div class="my-review-box" id="myReviewBox">
   <!-- 내 후기 없을 때 -->
   <div id="myReviewEmpty">
-    <p style="font-size:14px;color:var(--muted2);margin-bottom:14px">이 작품 어떠셨나요?</p>
+    <p style="font-size:22px;color:var(--muted2);margin-bottom:14px">이 작품 어떠셨나요?</p>
     <div class="my-star-row" id="myStarRow">
       <span class="my-star" data-v="1" onclick="goReview(1)">★</span>
       <span class="my-star" data-v="2" onclick="goReview(2)">★</span>
@@ -155,27 +155,27 @@
       <span class="my-star" data-v="5" onclick="goReview(5)">★</span>
     </div>
     <button class="go-review-btn" onclick="goReview(0)">
-      <i class="ti ti-pencil" style="font-size:14px"></i> 후기 작성하기
+      <i class="ti ti-pencil" style="font-size:22px"></i> 후기 작성하기
     </button>
   </div>
   <!-- 내 후기 있을 때 -->
   <div id="myReviewFilled" style="display:none">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <span style="font-size:13px;color:var(--muted)">내 평점</span>
-      <span id="myReviewStars" style="color:var(--gold);font-size:18px;letter-spacing:2px"></span>
-      <span id="myReviewScore" style="font-size:14px;font-weight:700;color:var(--gold);font-family:var(--font-mono)"></span>
-      <button class="go-review-btn" style="margin-left:auto;padding:6px 14px;font-size:12px" onclick="goReview(0)">
-        <i class="ti ti-pencil" style="font-size:12px"></i> 수정
+      <span style="font-size:17px;color:var(--muted)">내 평점</span>
+      <span id="myReviewStars" style="color:var(--gold);font-size:22px;letter-spacing:2px"></span>
+      <span id="myReviewScore" style="font-size:22px;font-weight:700;color:var(--gold);font-family:var(--font-mono)"></span>
+      <button class="go-review-btn" style="margin-left:auto;padding:6px 14px;font-size:20px" onclick="goReview(0)">
+        <i class="ti ti-pencil" style="font-size:20px"></i> 수정
       </button>
     </div>
     <div id="myReviewEval" style="margin-bottom:6px"></div>
-    <div id="myReviewText" style="font-size:14px;color:var(--muted2);line-height:1.6"></div>
+    <div id="myReviewText" style="font-size:22px;color:var(--muted2);line-height:1.6"></div>
   </div>
 </div>
 
 <!-- 사용자 댓글 -->
 <div id="commentSection">
-  <div class="sec-title"><i class="ti ti-message-circle" style="font-size:16px"></i>사용자 댓글 <small id="commentCount">0개</small></div>
+  <div class="sec-title"><i class="ti ti-message-circle" style="font-size:20px"></i>사용자 댓글 <small id="commentCount">0개</small></div>
   <div class="comment-sort-row">
     <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
     <button class="sort-btn" id="sortLikes" onclick="setSort('likes')">좋아요순</button>
@@ -186,7 +186,7 @@
 
 <!-- 유튜브 -->
 <div class="yt-section">
-  <div class="sec-title"><i class="ti ti-brand-youtube" style="font-size:16px"></i>관련 영상 <small id="ytSubtitle"></small></div>
+  <div class="sec-title"><i class="ti ti-brand-youtube" style="font-size:20px"></i>관련 영상 <small id="ytSubtitle"></small></div>
   <div id="ytModal" class="modal-wrap">
     <div class="modal-head">
       <span class="modal-ttl" id="ytModalTitle"></span>
@@ -202,7 +202,7 @@
 
 <!-- TMDB 이미지 갤러리 -->
 <div class="gallery-section" id="gallerySection" style="display:none">
-  <div class="sec-title"><i class="ti ti-photo" style="font-size:16px"></i>이미지</div>
+  <div class="sec-title"><i class="ti ti-photo" style="font-size:20px"></i>이미지</div>
   <div class="gallery-grid" id="galleryGrid"></div>
 </div>
 
@@ -212,7 +212,7 @@
 <!-- 프로필 페이지 -->
 <div id="profilePage" style="display:none">
 <div class="page-wrap-inner">
-<button class="back" onclick="showDetail()"><i class="ti ti-arrow-left" style="font-size:15px"></i><span id="profileBackLabel">작품으로 돌아가기</span></button>
+<button class="back" onclick="showDetail()"><i class="ti ti-arrow-left" style="font-size:19px"></i><span id="profileBackLabel">작품으로 돌아가기</span></button>
 <div class="profile-hero">
   <div class="profile-avatar" id="profileAvatar">?</div>
   <div class="profile-info">
@@ -226,10 +226,10 @@
   </div>
 </div>
 <div class="dist-card">
-  <div class="sec-title"><i class="ti ti-chart-bar" style="font-size:16px"></i>평점 분포</div>
+  <div class="sec-title"><i class="ti ti-chart-bar" style="font-size:20px"></i>평점 분포</div>
   <div id="distBars"></div>
 </div>
-<div class="sec-title"><i class="ti ti-history" style="font-size:16px"></i>평점 남긴 작품 <small id="profileReviewCount">0개</small></div>
+<div class="sec-title"><i class="ti ti-history" style="font-size:20px"></i>평점 남긴 작품 <small id="profileReviewCount">0개</small></div>
 <div class="user-reviews" id="userReviews"></div>
 </div>
 </div>
