@@ -83,10 +83,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-poster:hover{transform:translateY(-4px)}
 .hero-poster img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px}
-.platform-pill{position:absolute;bottom:42px;left:10px;color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:4px;font-family:var(--font-mono);letter-spacing:.5px;backdrop-filter:blur(4px)}
-/* 순위 배지 — 순위 있을 때만 표시 */
-.rank-badge{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,.85);color:var(--gold);font-size:12px;font-family:var(--font-mono);padding:4px 10px;border-radius:5px;font-weight:600;backdrop-filter:blur(4px);display:none}
-.rank-badge.visible{display:block}
+.platform-pill{position:absolute;top:10px;left:10px;color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:4px;font-family:var(--font-mono);letter-spacing:.5px;backdrop-filter:blur(4px)}
 
 /* 히어로 정보 */
 .hero-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;padding-bottom:4px}
@@ -183,16 +180,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .gallery-item img{width:100%;height:100%;object-fit:cover;display:block}
 
 /* ══ 평점 CTA 배너 ══ */
-.rating-cta-banner{
-  background:linear-gradient(135deg,rgba(230,57,70,.12),rgba(240,180,41,.08));
-  border:1px solid rgba(230,57,70,.25);border-radius:var(--r-lg);
-  padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;
-}
-.rating-cta-copy h3{font-size:17px;font-weight:700;margin-bottom:4px}
-.rating-cta-copy p{font-size:13px;color:var(--muted2)}
-.rating-cta-stars{display:flex;gap:4px;font-size:22px;color:var(--border2);cursor:pointer}
-.rating-cta-stars span:hover,.rating-cta-stars span.lit{color:var(--gold)}
-
 /* ══ 별점 입력 ══ */
 .user-rating-box{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);padding:24px;margin-bottom:24px}
 .star-input{display:flex;gap:2px;margin:12px 0;align-items:center}
@@ -367,6 +354,46 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .wg-level.high{background:rgba(230,57,70,.2);color:#ff6b6b;border:.5px solid rgba(230,57,70,.4)}
 @media(max-width:640px){.wg-grid{grid-template-columns:repeat(2,1fr)}}
 
+
+/* ══ 랭킹 정보 행 ══ */
+.hero-rank-row{display:flex;flex-wrap:wrap;gap:6px}
+.rank-info-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 12px;border-radius:var(--r);
+  font-size:12px;font-weight:700;font-family:var(--font-mono);
+  backdrop-filter:blur(8px);
+}
+.rank-info-chip.chip-rank{background:rgba(230,57,70,.15);border:.5px solid rgba(230,57,70,.4);color:var(--accent)}
+.rank-info-chip.chip-top10{background:rgba(240,180,41,.12);border:.5px solid rgba(240,180,41,.4);color:var(--gold)}
+.rank-info-chip.chip-manual{background:rgba(240,180,41,.15);border:.5px solid rgba(240,180,41,.5);color:#f0b429}
+
+/* ══ 시청가이드 + 보러가기 래퍼 ══ */
+.wg-outer{display:flex;align-items:flex-start}
+.watch-guide{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:0}
+.watch-now-box{
+  width:200px;flex-shrink:0;
+  background:var(--bg2);border:.5px solid var(--border);
+  border-radius:var(--r-lg);padding:20px;
+}
+.watch-now-btns{display:flex;flex-direction:column;gap:8px}
+.watch-now-btn{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px;border-radius:var(--r);
+  border:.5px solid var(--border2);
+  background:var(--bg3);color:var(--text);
+  font-size:13px;font-weight:600;
+  cursor:pointer;text-decoration:none;
+  transition:all .15s;
+}
+.watch-now-btn:hover{border-color:var(--info-border);background:var(--info-bg);color:var(--info)}
+.watch-now-btn .wn-icon{font-size:16px}
+@media(max-width:640px){
+  .wg-outer{flex-direction:column}
+  .watch-now-box{width:100%}
+  .watch-now-btns{flex-direction:row;flex-wrap:wrap}
+}
+
+/* ══ rating-cta-banner 삭제됐으므로 관련 CSS도 제거 ══ */
 /* ══ 모바일 ══ */
 @media(max-width:640px){
   .hero-content{flex-direction:column;align-items:flex-start;gap:16px;padding-bottom:24px}
@@ -377,7 +404,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .ratings-row{grid-template-columns:1fr 1fr}
   .r-score{font-size:24px}
   .yt-grid{grid-template-columns:1fr}
-  .rating-cta-banner{flex-direction:column;align-items:flex-start}
   .cast-card{width:72px}.cast-photo{width:72px;height:72px}
   .feeling-btns{gap:6px}
   .feeling-btn{min-width:60px;padding:8px 10px;font-size:11px}
@@ -411,12 +437,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <div class="hero-content" id="heroContent">
     <!-- 포스터 -->
     <div class="hero-poster" id="heroPoster">
-      <!-- 수동 랭킹 배지 -->
-      <div class="manual-badges" id="manualBadges" style="display:none"></div>
+
       <div class="hero-poster-ph" id="posterPh">🎬</div>
       <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="eager">
       <span class="platform-pill" id="platformPill" style="display:none"></span>
-      <span class="rank-badge" id="rankBadge"></span>
+
     </div>
 
     <!-- 정보 -->
@@ -437,12 +462,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <button class="feeling-btn f-bad" onclick="feelingClick('별로예요')"><span class="f-emoji">👎</span>별로예요</button>
       </div>
 
-      <!-- TOP10 일수 + 찜 + 공유 -->
+      <!-- 랭킹 정보 행 -->
+      <div class="hero-rank-row" id="heroRankRow" style="display:none;flex-wrap:wrap;gap:6px;margin-top:2px"></div>
+
+      <!-- 찜 + 공유 -->
       <div class="hero-action-row">
-        <div class="top10-badge" id="top10Badge" style="display:none">
-          <i class="ti ti-chart-bar" style="font-size:13px"></i>
-          <span id="top10Days">0</span>일간 TOP 10
-        </div>
         <button class="hero-wish-btn" id="wishBtn" onclick="toggleWish()">♡ 찜하기</button>
         <button class="hero-share-btn" onclick="shareNative()">
           <i class="ti ti-share" style="font-size:14px"></i> 공유
@@ -495,27 +519,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
-<!-- TMDB 이미지 갤러리 -->
-<div class="gallery-section" id="gallerySection" style="display:none">
-  <div class="sec-title"><i class="ti ti-photo" style="font-size:16px"></i>이미지</div>
-  <div class="gallery-grid" id="galleryGrid"></div>
-</div>
-
-<!-- 시청가이드 -->
-<div class="watch-guide" id="watchGuideSection" style="display:none">
-  <div class="sec-title"><i class="ti ti-shield-check" style="font-size:16px"></i>시청가이드 <small id="watchGradeLabel"></small></div>
-  <div class="wg-grid" id="watchGuideGrid"></div>
-  <div style="font-size:11px;color:var(--muted);margin-top:10px;font-family:var(--font-mono)">출처: 영상물등급위원회 (kmrb.or.kr)</div>
-</div>
-
-<!-- 평점 CTA 배너 -->
-<div class="rating-cta-banner">
-  <div class="rating-cta-copy">
-    <h3>이 작품, 어떠셨나요?</h3>
-    <p>별점과 한줄 감상으로 다른 시청자를 도와주세요 👇</p>
+<!-- 시청가이드 + 지금 보러가기 -->
+<div class="wg-outer" id="wgOuter" style="display:none;gap:16px;margin-bottom:24px">
+  <!-- 시청가이드 -->
+  <div class="watch-guide" id="watchGuideSection" style="flex:1;margin-bottom:0">
+    <div class="sec-title"><i class="ti ti-shield-check" style="font-size:16px"></i>시청가이드 <small id="watchGradeLabel"></small></div>
+    <div class="wg-grid" id="watchGuideGrid"></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;font-family:var(--font-mono)">출처: 영상물등급위원회</div>
   </div>
-  <div class="rating-cta-stars" onclick="scrollToRating()">
-    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+  <!-- 지금 보러가기 -->
+  <div class="watch-now-box" id="watchNowBox" style="display:none">
+    <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
+    <div class="watch-now-btns" id="watchNowBtns"></div>
   </div>
 </div>
 
@@ -598,6 +613,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
   <div id="ytArea"></div>
   <div class="yt-pagination" id="ytPagination" style="display:none"></div>
+</div>
+
+<!-- TMDB 이미지 갤러리 -->
+<div class="gallery-section" id="gallerySection" style="display:none">
+  <div class="sec-title"><i class="ti ti-photo" style="font-size:16px"></i>이미지</div>
+  <div class="gallery-grid" id="galleryGrid"></div>
 </div>
 
 </div><!-- /.page-wrap -->
@@ -720,6 +741,20 @@ function updateSEO(title,overview,posterUrl,platform,rank){
 }
 function setMeta(id,attr,val){const el=document.getElementById(id);if(!el)return;if(attr==='textContent')el.textContent=val;else el.setAttribute(attr,val);}
 
+/* ══ 랭킹 정보 행 렌더링 ══ */
+function renderRankRow(){
+  const row=document.getElementById('heroRankRow');
+  if(!row)return;
+  const chips=[];
+  // 현재 순위
+  const rankVal=WORK.rank&&WORK.rank!=='—'&&WORK.rank!=='0'?WORK.rank:null;
+  if(rankVal&&PC[WORK.platform]){
+    chips.push(`<span class="rank-info-chip chip-rank"><i class="ti ti-flame" style="font-size:11px"></i>${PC[WORK.platform]} 현재 ${rankVal}위</span>`);
+  }
+  row.innerHTML=chips.join('');
+  if(chips.length>0)row.style.display='flex';
+}
+
 /* ══ TOP10 일수 계산 ══ */
 async function loadTop10Days(){
   if(!WORK.tmdb_id)return;
@@ -727,32 +762,41 @@ async function loadTop10Days(){
     const res=await fetch(`${OTTRANK_API}/rankings/history?tmdb_id=${WORK.tmdb_id}`);
     const data=await res.json();
     if(data.ok&&data.data&&data.data.length){
-      // 날짜 기준 unique 카운트
       const uniqueDates=new Set(data.data.map(r=>r.date));
       const days=uniqueDates.size;
       if(days>0){
-        document.getElementById('top10Days').textContent=days;
-        document.getElementById('top10Badge').style.display='inline-flex';
+        const row=document.getElementById('heroRankRow');
+        if(row){
+          const chip=document.createElement('span');
+          chip.className='rank-info-chip chip-top10';
+          chip.innerHTML=`<i class="ti ti-chart-bar" style="font-size:11px"></i>${days}일간 TOP 10`;
+          row.appendChild(chip);
+          row.style.display='flex';
+        }
       }
     }
   }catch(e){}
 }
 
-/* ══ 수동 랭킹 배지 ══ */
+/* ══ 수동 랭킹 배지 → 랭킹 행에 추가 ══ */
 async function loadManualBadges(){
   if(!WORK.tmdb_id)return;
   try{
     const res=await fetch(`${OTTRANK_API}/rankings/manual/${WORK.tmdb_id}`);
     const data=await res.json();
     if(data.ok&&data.data&&data.data.length){
-      const badgesEl=document.getElementById('manualBadges');
-      badgesEl.style.display='flex';
-      badgesEl.innerHTML=data.data.map(d=>{
+      const row=document.getElementById('heroRankRow');
+      if(!row)return;
+      data.data.forEach(d=>{
         const label=d.display_name||d.category_slot;
         const rankText=d.rank?`${d.rank}위`:'';
-        const memoText=d.memo_label&&d.memo?` · ${d.memo}`:d.memo?` · ${d.memo}`:'';
-        return `<div class="manual-badge">${label} ${rankText}${memoText}</div>`;
-      }).join('');
+        const memoText=d.memo?` · ${d.memo}`:'';
+        const chip=document.createElement('span');
+        chip.className='rank-info-chip chip-manual';
+        chip.innerHTML=`🏆 ${label} ${rankText}${memoText}`;
+        row.appendChild(chip);
+        row.style.display='flex';
+      });
     }
   }catch(e){}
 }
@@ -798,12 +842,10 @@ async function loadTmdb(){
       /* 포스터 */
       if(det.poster_path){const img=document.getElementById('posterImg');img.src=IMG+det.poster_path;img.alt=det.name||det.title||WORK.title;img.style.display='block';document.getElementById('posterPh').style.display='none';}
 
-      /* 플랫폼 pill — 순위 있을 때만 표시 */
-      const rankVal=WORK.rank&&WORK.rank!=='—'&&WORK.rank!=='0'?WORK.rank:null;
-      if(rankVal&&PC[WORK.platform]){
+      /* 플랫폼 pill — OTT 이름만 표시 */
+      if(PC[WORK.platform]){
         const pill=document.getElementById('platformPill');
         pill.textContent=PC[WORK.platform];pill.style.background=CC[WORK.platform]||'#888';pill.style.display='block';
-        const badge=document.getElementById('rankBadge');badge.textContent=`오늘 ${rankVal}위`;badge.classList.add('visible');
       }
 
       const title=det.title_ko||det.name||det.title||WORK.title;
@@ -867,6 +909,7 @@ async function loadTmdb(){
 
       updateSEO(title,det.overview||'',det.poster_path,WORK.platform,WORK.rank);
       initWish(WORK.tmdb_id);
+      renderRankRow();
 
       /* 크레딧 */
       try{
@@ -1142,14 +1185,7 @@ async function toggleWish(){
 }
 
 function reorderSections(){
-  if(ALL_COMMENTS.length<1)return;
-  const rankEl=document.getElementById('gallerySection').nextElementSibling; // CTA 배너
-  const commentEl=document.getElementById('commentSection');
-  const ratingEl=document.getElementById('ratingInputArea');
-  if(!commentEl||!ratingEl)return;
-  if(commentEl._reordered)return;commentEl._reordered=true;
-  const ctaBanner=document.querySelector('.rating-cta-banner');
-  if(ctaBanner&&ctaBanner.nextSibling){ctaBanner.parentNode.insertBefore(commentEl,ctaBanner.nextSibling);}
+  /* CTA 배너 삭제됨 — 섹션 재배치 불필요 */
 }
 
 /* ══ 프로필 ══ */
@@ -1213,6 +1249,65 @@ async function loadWatchGuide(){
       </div>`).join('');
 
     document.getElementById('watchGuideSection').style.display='block';
+    document.getElementById('wgOuter').style.display='flex';
+
+    /* 지금 보러가기 — TMDB watch/providers로 OTT 정보 가져오기 */
+    try{
+      const wpRes=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/watch/providers`);
+      const wpData=await wpRes.json();
+      const kr=wpData.results?.KR;
+      const providers=[...(kr?.flatrate||[]),(kr?.free||[])].slice(0,5);
+
+      // OTT 검색 URL 매핑
+      const OTT_SEARCH={
+        'Netflix'  :(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
+        'Tving'    :(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
+        'Disney Plus':(t)=>`https://www.disneyplus.com/ko-kr/search`,
+        'Coupang Play':(t)=>`https://www.coupangplay.com/search?q=${encodeURIComponent(t)}`,
+        'Wavve'    :(t)=>`https://www.wavve.com/search?keyword=${encodeURIComponent(t)}`,
+        'Watcha'   :(t)=>`https://watcha.com/search?query=${encodeURIComponent(t)}`,
+        'Apple TV Plus':(t)=>`https://tv.apple.com/kr/search/${encodeURIComponent(t)}`,
+        'Amazon Prime Video':(t)=>`https://www.primevideo.com/search/ref=atv_nb_sr?phrase=${encodeURIComponent(t)}`,
+      };
+
+      // 박스오피스(극장) 여부 확인
+      const isBoxoffice=WORK.platform==='boxoffice';
+      const btnBox=document.getElementById('watchNowBtns');
+      const title=WORK.title||'';
+      let btns=[];
+
+      if(isBoxoffice){
+        // 극장 연결
+        btns=[
+          `<a class="watch-now-btn" href="https://www.cgv.co.kr/search/?query=${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>CGV</a>`,
+          `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/MovieList#/Search/${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>롯데시네마</a>`,
+          `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>메가박스</a>`,
+        ];
+      } else if(providers.length){
+        btns=providers.map(p=>{
+          const fn=OTT_SEARCH[p.provider_name];
+          const url=fn?fn(title):'#';
+          return `<a class="watch-now-btn" href="${url}" target="_blank" rel="noopener"><span class="wn-icon">▶</span>${p.provider_name}</a>`;
+        });
+      } else {
+        // TMDB watch/providers 결과 없어도 현재 플랫폼으로 연결
+        const platformSearch={
+          netflix:(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
+          tving:(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
+          disney:(t)=>`https://www.disneyplus.com/ko-kr/search`,
+          coupang:(t)=>`https://www.coupangplay.com/search?q=${encodeURIComponent(t)}`,
+          wavve:(t)=>`https://www.wavve.com/search?keyword=${encodeURIComponent(t)}`,
+        };
+        const fn=platformSearch[WORK.platform];
+        if(fn)btns=[`<a class="watch-now-btn" href="${fn(title)}" target="_blank" rel="noopener"><span class="wn-icon">▶</span>${PC[WORK.platform]||WORK.platform}에서 보기</a>`];
+      }
+
+      if(btns.length){
+        btnBox.innerHTML=btns.join('');
+        document.getElementById('watchNowBox').style.display='block';
+      }
+    }catch(e){}
+
   }catch(e){}
 }
 
