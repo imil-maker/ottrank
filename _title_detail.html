@@ -129,25 +129,25 @@
     <div id="myRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
       <!-- 반개 별점: 각 별은 왼쪽 절반(홀수점)과 오른쪽 절반(짝수점)으로 나뉨 -->
       <div class="my-half-star-row" id="myHalfStarRow">
-        <span class="my-half-star-wrap">
-          <span class="mhs-left" onmouseover="hoverHalfStar(1)" onmouseout="resetHalfStar()" onclick="goReview(0,1)">★</span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(2)" onmouseout="resetHalfStar()" onclick="goReview(0,2)">★</span>
+        <span class="my-half-star-wrap" id="mhsw1">
+          <span class="mhs-left" onmouseover="hoverHalfStar(1)" onmouseout="resetHalfStar()" onclick="goReview(0,1)"></span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(2)" onmouseout="resetHalfStar()" onclick="goReview(0,2)"></span>
         </span>
-        <span class="my-half-star-wrap">
-          <span class="mhs-left" onmouseover="hoverHalfStar(3)" onmouseout="resetHalfStar()" onclick="goReview(0,3)">★</span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(4)" onmouseout="resetHalfStar()" onclick="goReview(0,4)">★</span>
+        <span class="my-half-star-wrap" id="mhsw2">
+          <span class="mhs-left" onmouseover="hoverHalfStar(3)" onmouseout="resetHalfStar()" onclick="goReview(0,3)"></span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(4)" onmouseout="resetHalfStar()" onclick="goReview(0,4)"></span>
         </span>
-        <span class="my-half-star-wrap">
-          <span class="mhs-left" onmouseover="hoverHalfStar(5)" onmouseout="resetHalfStar()" onclick="goReview(0,5)">★</span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(6)" onmouseout="resetHalfStar()" onclick="goReview(0,6)">★</span>
+        <span class="my-half-star-wrap" id="mhsw3">
+          <span class="mhs-left" onmouseover="hoverHalfStar(5)" onmouseout="resetHalfStar()" onclick="goReview(0,5)"></span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(6)" onmouseout="resetHalfStar()" onclick="goReview(0,6)"></span>
         </span>
-        <span class="my-half-star-wrap">
-          <span class="mhs-left" onmouseover="hoverHalfStar(7)" onmouseout="resetHalfStar()" onclick="goReview(0,7)">★</span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(8)" onmouseout="resetHalfStar()" onclick="goReview(0,8)">★</span>
+        <span class="my-half-star-wrap" id="mhsw4">
+          <span class="mhs-left" onmouseover="hoverHalfStar(7)" onmouseout="resetHalfStar()" onclick="goReview(0,7)"></span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(8)" onmouseout="resetHalfStar()" onclick="goReview(0,8)"></span>
         </span>
-        <span class="my-half-star-wrap">
-          <span class="mhs-left" onmouseover="hoverHalfStar(9)" onmouseout="resetHalfStar()" onclick="goReview(0,9)">★</span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(10)" onmouseout="resetHalfStar()" onclick="goReview(0,10)">★</span>
+        <span class="my-half-star-wrap" id="mhsw5">
+          <span class="mhs-left" onmouseover="hoverHalfStar(9)" onmouseout="resetHalfStar()" onclick="goReview(0,9)"></span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(10)" onmouseout="resetHalfStar()" onclick="goReview(0,10)"></span>
         </span>
       </div>
       <button class="go-review-btn" style="font-size:13px;padding:7px 14px" onclick="goReview(0)">
