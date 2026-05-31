@@ -1,0 +1,31 @@
+# ══ 오뜨랑 Cloudflare Pages 응답 헤더 설정 ══
+
+# ── JS/CSS — 장기 캐시 (파일명 변경 시 자동 갱신) ──
+/title_detail.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=3600
+
+/title_detail.css
+  Cache-Control: public, max-age=86400, stale-while-revalidate=3600
+
+# ── 폰트/이미지 — 장기 캐시 ──
+/logo.png
+  Cache-Control: public, max-age=2592000
+
+/*.woff2
+  Cache-Control: public, max-age=2592000
+
+/*.woff
+  Cache-Control: public, max-age=2592000
+
+# ── HTML — 캐시 안함 (항상 최신 버전) ──
+/*.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# ── 보안 헤더 ──
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
