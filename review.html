@@ -344,7 +344,7 @@ async function loadMyReview(){
 }
 
 /* ══ 별점 ══ */
-function hoverStar(e,v){const wrap=e.currentTarget;const isLeft=e.offsetX<wrap.offsetWidth/2;hoverVal=isLeft?v-0.5:v;renderStarInput(hoverVal);}
+function hoverStar(e,v){const wrap=e.currentTarget;const rect=wrap.getBoundingClientRect();const isLeft=(e.clientX-rect.left)<rect.width/2;hoverVal=isLeft?v-0.5:v;renderStarInput(hoverVal);}
 function leaveStar(){renderStarInput(myStars);}
 function setStar(wrap,val){
   myStars=val||hoverVal||(wrap?.dataset.v*1)||0;
@@ -356,8 +356,11 @@ function setStar(wrap,val){
 function renderStarInput(val){
   document.querySelectorAll('.star-wrap').forEach((w,i)=>{
     const v=i+1;w.classList.remove('full','half');
+    // val>=v 면 full (앞의 별 전부 노랗게)
     if(val>=v)w.classList.add('full');
+    // val>=v-0.5 면 half (반별)
     else if(val>=v-0.5)w.classList.add('half');
+    // 나머지는 빈별 (기본)
   });
 }
 
@@ -413,7 +416,10 @@ async function submitReview(){
     const data=await res.json();
     if(!data.ok){showToast(data.message||'오류가 발생했어요');btn.disabled=false;btn.textContent='후기 등록';return;}
     showToast('후기가 등록됐어요! 🎉');
-    setTimeout(()=>goBack(),1200);
+    setTimeout(()=>{
+      const backUrl=(RDATA?.back_url||'/')+'#myReviewBox';
+      location.href=backUrl;
+    },1200);
   }catch(e){showToast('네트워크 오류');btn.disabled=false;btn.textContent='후기 등록';}
 }
 
