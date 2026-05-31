@@ -264,9 +264,11 @@ async function loadTmdb(){
       fetch(`${TMDB_PROXY}/movie/${WORK.tmdb_id}?language=ko-KR`).then(r=>r.json()).catch(()=>null),
     ]);
 
-    // media_type 결정
-    if(worksRes.status==='fulfilled'&&worksRes.value?.ok&&worksRes.value?.data?.media_type){
-      WORK.type=worksRes.value.data.media_type;
+    // works 데이터에서 media_type + title_en 추출
+    let worksData=null;
+    if(worksRes.status==='fulfilled'&&worksRes.value?.ok){
+      worksData=worksRes.value.data;
+      if(worksData?.media_type)WORK.type=worksData.media_type;
     }
 
     // TV/Movie 중 유효한 것 선택
@@ -289,8 +291,9 @@ async function loadTmdb(){
     }
 
     // ② 기본 정보 즉시 렌더링
-    const title=det.title_ko||det.name||det.title||WORK.title;
-    const origTitle=det.title_en||det.original_name||det.original_title||'';
+    const title=worksData?.title_ko||det.name||det.title||WORK.title;
+    // 영어 제목 — works DB 우선, 없으면 TMDB original
+    const origTitle=worksData?.title_en||det.original_name||det.original_title||'';
     const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
     const season=det.number_of_seasons||1;
     WORK.title=title;WORK.season=season;
@@ -458,6 +461,29 @@ async function loadTmdb(){
   }
 }
 
+/* ══ DB 저장 유튜브 영상 로드 ══ */
+async function loadTitleVideos(){
+  if(!WORK.tmdb_id)return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/videos/${WORK.tmdb_id}`);
+    const data=await res.json();
+    if(data.ok&&data.data&&data.data.length){
+      // DB 영상이 있으면 TMDB 영상보다 우선 표시
+      const dbVideos=data.data.map(v=>({
+        key:v.youtube_id,
+        name:v.title||'관련 영상',
+        type:'Clip',
+        site:'YouTube',
+        is_main:v.is_main,
+      }));
+      // 메인 영상 맨 앞으로
+      dbVideos.sort((a,b)=>b.is_main-a.is_main);
+      allYtVideos=[...dbVideos,...allYtVideos.filter(v=>!dbVideos.find(d=>d.key===v.key))];
+      renderYtPage(0);
+    }
+  }catch(e){}
+}
+
 /* ══ YouTube 렌더링 ══ */
 function renderYtPage(page){
   ytPage=page;
@@ -511,8 +537,10 @@ function renderComments(){
   const el=document.getElementById('commentsArea');
   const sorted=getSorted();
   document.getElementById('commentCount').textContent=`${sorted.length}개`;
+  // 댓글 0개면 섹션 전체 숨김
+  const commentSection=document.getElementById('commentSection');
+  if(commentSection)commentSection.style.display=sorted.length?'block':'none';
   if(!sorted.length){
-    el.innerHTML=`<div class="empty-comments"><div style="font-size:30px;opacity:.4">💬</div><div style="font-size:15px;font-weight:600">아직 댓글이 없어요</div><div style="font-size:13px;color:var(--muted)">이 작품의 첫 평점과 댓글을 남겨보세요!</div><button class="empty-comments-btn" onclick="goReview(0)">✏ 첫 평점을 달아주세요</button></div>`;
     document.getElementById('pagination').innerHTML='';return;
   }
   const start=(curPage-1)*PER_PAGE,slice=sorted.slice(start,start+PER_PAGE);
@@ -727,6 +755,7 @@ async function init(){
       loadManualBadges(),
       loadReviews(WORK.tmdb_id),
       loadWatchGuide(),
+      loadTitleVideos(),
     ]);
   }else{
     renderComments();
