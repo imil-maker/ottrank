@@ -72,14 +72,13 @@
       </div>
 
       <!-- 랭킹 정보 행 -->
-      <div class="hero-rank-row" id="heroRankRow" style="display:none;flex-wrap:wrap;gap:6px;margin-top:2px"></div>
-
-      <!-- 찜 + 공유 -->
+      <!-- 찜 + 공유 + 랭킹 칩 한 행 -->
       <div class="hero-action-row">
         <button class="hero-wish-btn" id="wishBtn" onclick="toggleWish()">♡ 찜하기</button>
         <button class="hero-share-btn" onclick="shareNative()">
           <i class="ti ti-share" style="font-size:14px"></i> 공유
         </button>
+        <div id="heroRankRow" style="display:contents"></div>
       </div>
     </div>
   </div>
