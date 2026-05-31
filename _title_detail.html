@@ -25,7 +25,7 @@
 <!-- 폰트/아이콘 -->
 <!-- 스타일 -->
 <style>
-/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  17  */
+/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  18  */
 /* title_detail.css — 오뜨랑 작품 상세 페이지 스타일 */
 
 
@@ -62,13 +62,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* 뒤로가기 — 화살표만 */
 .back-floating{
   position:absolute;top:16px;left:16px;z-index:10;
-  width:36px;height:36px;border-radius:50%;
+  width:40px;height:40px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.45);border:.5px solid rgba(255,255,255,.18);
-  color:rgba(255,255,255,.85);cursor:pointer;text-decoration:none;
-  transition:all .15s;backdrop-filter:blur(8px);font-size:15px;
+  background:rgba(0,0,0,.7);border:1.5px solid rgba(255,255,255,.5);
+  color:#fff;cursor:pointer;text-decoration:none;
+  transition:all .15s;backdrop-filter:blur(8px);font-size:18px;
+  box-shadow:0 2px 8px rgba(0,0,0,.5);
 }
-.back-floating:hover{background:rgba(0,0,0,.7);color:#fff}
+.back-floating:hover{background:rgba(0,0,0,.9);border-color:#fff}
 
 /* 수동 랭킹 배지 (포스터 위) */
 .manual-badges{position:absolute;top:10px;left:10px;right:10px;z-index:5;display:flex;flex-direction:column;gap:4px}
@@ -143,6 +144,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ══ 출연진 ══ */
 .cast-section{margin-bottom:28px}
 /* 출연진 화살표 래퍼 */
+/* 출연진 타이틀 + 감독 칩 한 줄 */
+.cast-title-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cast-title-row .director-row{margin-bottom:0;flex-wrap:wrap}
 /* ══ 출연진 화살표 ══ */
 .cast-scroll-wrap{display:flex;align-items:center;gap:4px}
 .cast-arrow{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
@@ -372,7 +376,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   font-size:14px;font-weight:700;font-family:var(--font-mono);
   backdrop-filter:blur(8px);
 }
-.rank-info-chip.chip-rank{background:rgba(230,57,70,.15);border:.5px solid rgba(230,57,70,.4);color:var(--accent)}
+.rank-info-chip.chip-rank{background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.25);color:#fff}
 .rank-info-chip.chip-top10{background:rgba(240,180,41,.12);border:.5px solid rgba(240,180,41,.4);color:var(--gold)}
 .rank-info-chip.chip-manual{background:rgba(240,180,41,.15);border:.5px solid rgba(240,180,41,.5);color:#f0b429}
 
@@ -491,8 +495,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
       <div class="hero-poster-ph" id="posterPh">🎬</div>
       <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="eager">
-      <!-- OTT pill 컨테이너 — 여러 플랫폼 표시 가능 -->
-      <div id="platformPills" style="position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:4px;z-index:5"></div>
+      <!-- OTT pill 컨테이너 — 가로로 나열 -->
+      <div id="platformPills" style="position:absolute;top:8px;left:8px;right:8px;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;z-index:5"></div>
 
     </div>
 
@@ -532,8 +536,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <!-- 출연진 -->
 <div class="cast-section" id="castSection" style="display:none">
-  <div class="sec-title"><i class="ti ti-users" style="font-size:16px"></i>출연진 &amp; 제작진</div>
-  <div class="director-row" id="directorRow"></div>
+  <!-- 타이틀 + 감독 칩 한 줄 -->
+  <div class="cast-title-row">
+    <div class="sec-title" style="margin-bottom:0"><i class="ti ti-users" style="font-size:16px"></i>출연진 &amp; 제작진</div>
+    <div class="director-row" id="directorRow"></div>
+  </div>
   <!-- 출연진 스크롤 래퍼 — 좌우 화살표 버튼 포함 -->
   <div class="cast-scroll-wrap">
     <button class="cast-arrow cast-arrow-left" id="castArrowLeft" onclick="scrollCast(-1)" aria-label="이전">‹</button>
@@ -688,7 +695,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 페이지 로직 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  17  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  18  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -852,11 +859,15 @@ function renderRankRow(platforms){
   const row=document.getElementById('heroRankRow');if(!row)return;
   row.innerHTML=''; // 기존 칩 초기화
   if(platforms&&platforms.length){
-    // OTT 작품: 모든 플랫폼 칩 표시 + 클릭 시 OTT 링크
+    // OTT 작품: 모든 플랫폼 칩 표시 + 클릭 시 OTT 링크 + OTT 고유 색상
     platforms.forEach(p=>{
       const rankVal=p.rank&&p.rank!=='-'&&p.rank!=='0'?p.rank:null;
+      const color=CC[p.platform]||'#888';
       const chip=document.createElement('a');
       chip.className='rank-info-chip chip-rank';
+      chip.style.background=`${color}22`; // 고유 색상 배경 (투명도 낮게)
+      chip.style.borderColor=`${color}66`;
+      chip.style.color=color;
       chip.style.textDecoration='none';
       chip.style.cursor='pointer';
       chip.target='_blank';
@@ -870,8 +881,12 @@ function renderRankRow(platforms){
     // 박스오피스 또는 단일 플랫폼
     const rankVal=WORK.rank&&WORK.rank!=='-'&&WORK.rank!=='0'?WORK.rank:null;
     if(rankVal&&WORK.platform){
+      const color=CC[WORK.platform]||'#888';
       const chip=document.createElement('span');
       chip.className='rank-info-chip chip-rank';
+      chip.style.background=`${color}22`;
+      chip.style.borderColor=`${color}66`;
+      chip.style.color=color;
       chip.innerHTML=`<i class="ti ti-flame" style="font-size:11px"></i>${PC[WORK.platform]||WORK.platform} ${rankVal}위`;
       row.appendChild(chip);
     }
