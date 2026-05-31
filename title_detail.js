@@ -129,9 +129,12 @@ function setMeta(id,attr,val){const el=document.getElementById(id);if(!el)return
 function renderRankRow(){
   const row=document.getElementById('heroRankRow');if(!row)return;
   const rankVal=WORK.rank&&WORK.rank!=='—'&&WORK.rank!=='0'?WORK.rank:null;
-  if(rankVal&&PC[WORK.platform]){
-    row.innerHTML=`<span class="rank-info-chip chip-rank"><i class="ti ti-flame" style="font-size:11px"></i>${PC[WORK.platform]} 현재 ${rankVal}위</span>`;
-    row.style.display='flex';
+  // boxoffice는 "박스오피스 ?위" 표시
+  if(rankVal&&WORK.platform){
+    const chip=document.createElement('span');
+    chip.className='rank-info-chip chip-rank';
+    chip.innerHTML=`<i class="ti ti-flame" style="font-size:11px"></i>${PC[WORK.platform]||WORK.platform} ${rankVal}위`;
+    row.appendChild(chip);
   }
 }
 
@@ -149,7 +152,7 @@ async function loadTop10Days(){
           const chip=document.createElement('span');
           chip.className='rank-info-chip chip-top10';
           chip.innerHTML=`<i class="ti ti-chart-bar" style="font-size:11px"></i>${days}일간 TOP 10`;
-          row.appendChild(chip);row.style.display='flex';
+          row.appendChild(chip);
         }
       }
     }
@@ -169,7 +172,7 @@ async function loadManualBadges(){
         const chip=document.createElement('span');
         chip.className='rank-info-chip chip-manual';
         chip.innerHTML=`🏆 ${label} ${d.rank||''}위${d.memo?' · '+d.memo:''}`;
-        row.appendChild(chip);row.style.display='flex';
+        row.appendChild(chip);
       });
     }
   }catch(e){}
@@ -226,14 +229,18 @@ async function loadWatchGuide(){
       </div>`).join('');
     document.getElementById('watchGuideSection').style.display='block';
     document.getElementById('wgOuter').style.display='flex';
-    // 극장 연결
-    const t=WORK.title;
-    document.getElementById('watchNowBtns').innerHTML=[
-      `<a class="watch-now-btn" href="https://www.cgv.co.kr/search/?query=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 CGV</a>`,
-      `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/MovieList#/Search/${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 롯데시네마</a>`,
-      `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 메가박스</a>`,
-    ].join('');
-    document.getElementById('watchNowBox').style.display='block';
+    // 극장 연결 — 현재 상영중(크롤링 랭킹 있음)일 때만 표시
+    // WORK.rank가 유효하면 현재 상영중, 없으면 수동(과거) 작품
+    const isCurrentlyScreening=WORK.rank&&WORK.rank!=='—'&&WORK.rank!=='0';
+    if(isCurrentlyScreening){
+      const t=WORK.title;
+      document.getElementById('watchNowBtns').innerHTML=[
+        `<a class="watch-now-btn" href="https://www.cgv.co.kr/search/?query=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 CGV</a>`,
+        `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/MovieList#/Search/${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 롯데시네마</a>`,
+        `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 메가박스</a>`,
+      ].join('');
+      document.getElementById('watchNowBox').style.display='block';
+    }
   }catch(e){}
 }
 
