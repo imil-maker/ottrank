@@ -827,13 +827,18 @@ async function loadTmdb(){
       /* 포스터 */
       if(det.poster_path){const img=document.getElementById('posterImg');img.src=IMG+det.poster_path;img.alt=det.name||det.title||WORK.title;img.style.display='block';document.getElementById('posterPh').style.display='none';}
 
+      const title=det.title_ko||det.name||det.title||WORK.title;
+      const origTitle=det.title_en||det.original_name||det.original_title||'';
+      const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
+      const season=det.number_of_seasons||1;
+      WORK.title=title;WORK.season=season;WORK.year=year||WORK.year||new Date().getFullYear();WORK.type=WORK.type||(det.number_of_seasons?'tv':'movie');
+
       /* 플랫폼 pill — OTT 이름 + 검색 링크 */
       if(PC[WORK.platform]){
         const pill=document.getElementById('platformPill');
         pill.textContent=PC[WORK.platform];
         pill.style.background=CC[WORK.platform]||'#888';
         pill.style.display='block';
-        // OTT 검색 URL 연결
         const OTT_SEARCH_URL={
           netflix :(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
           tving   :(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
@@ -843,14 +848,8 @@ async function loadTmdb(){
           boxoffice:(t)=>`https://www.cgv.co.kr/search/?query=${encodeURIComponent(t)}`,
         };
         const fn=OTT_SEARCH_URL[WORK.platform];
-        if(fn){pill.href=fn(title||WORK.title);}
+        if(fn){pill.href=fn(title);}
       }
-
-      const title=det.title_ko||det.name||det.title||WORK.title;
-      const origTitle=det.title_en||det.original_name||det.original_title||'';
-      const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
-      const season=det.number_of_seasons||1;
-      WORK.title=title;WORK.season=season;WORK.year=year||WORK.year||new Date().getFullYear();WORK.type=WORK.type||(det.number_of_seasons?'tv':'movie');
 
       document.getElementById('mainTitle').textContent=title;
 
