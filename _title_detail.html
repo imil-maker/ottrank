@@ -125,9 +125,40 @@
   </div>
   <div class="r-card">
     <div class="r-logo" style="color:var(--muted2)">내 평점</div>
-    <div id="myRatingDisplay" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
-      <span style="font-size:28px">✍️</span>
-      <span style="font-size:15px;color:var(--info);font-family:var(--font-mono)">평점 남기기</span>
+    <!-- 내 후기 없을 때: 반개 별점 + 후기작성 버튼 -->
+    <div id="myRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
+      <!-- 반개 별점: 각 별은 왼쪽 절반(홀수점)과 오른쪽 절반(짝수점)으로 나뉨 -->
+      <div class="my-half-star-row" id="myHalfStarRow">
+        <span class="my-half-star-wrap">
+          <span class="mhs-left" onmouseover="hoverHalfStar(1)" onmouseout="resetHalfStar()" onclick="goReview(0,1)">★</span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(2)" onmouseout="resetHalfStar()" onclick="goReview(0,2)">★</span>
+        </span>
+        <span class="my-half-star-wrap">
+          <span class="mhs-left" onmouseover="hoverHalfStar(3)" onmouseout="resetHalfStar()" onclick="goReview(0,3)">★</span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(4)" onmouseout="resetHalfStar()" onclick="goReview(0,4)">★</span>
+        </span>
+        <span class="my-half-star-wrap">
+          <span class="mhs-left" onmouseover="hoverHalfStar(5)" onmouseout="resetHalfStar()" onclick="goReview(0,5)">★</span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(6)" onmouseout="resetHalfStar()" onclick="goReview(0,6)">★</span>
+        </span>
+        <span class="my-half-star-wrap">
+          <span class="mhs-left" onmouseover="hoverHalfStar(7)" onmouseout="resetHalfStar()" onclick="goReview(0,7)">★</span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(8)" onmouseout="resetHalfStar()" onclick="goReview(0,8)">★</span>
+        </span>
+        <span class="my-half-star-wrap">
+          <span class="mhs-left" onmouseover="hoverHalfStar(9)" onmouseout="resetHalfStar()" onclick="goReview(0,9)">★</span>
+          <span class="mhs-right" onmouseover="hoverHalfStar(10)" onmouseout="resetHalfStar()" onclick="goReview(0,10)">★</span>
+        </span>
+      </div>
+      <button class="go-review-btn" style="font-size:13px;padding:7px 14px" onclick="goReview(0)">
+        <i class="ti ti-pencil" style="font-size:14px"></i> 후기 작성하기
+      </button>
+    </div>
+    <!-- 내 후기 있을 때: 오뜨랑과 동일한 방식으로 표시 -->
+    <div id="myRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
+      <div class="r-score-wrap"><div class="r-score" id="myRatingScore" style="color:var(--gold)">—</div><span class="r-out-of">/10</span></div>
+      <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="myRatingStarDisplay"></div>
+      <div class="r-sub" style="margin-top:6px;cursor:pointer;color:var(--info)" onclick="goReview(0)">수정하기</div>
     </div>
   </div>
 </div>
@@ -147,41 +178,6 @@
   </div>
 </div>
 
-<!-- 후기작성 + 사용자댓글 2칸 레이아웃 -->
-<div class="review-comment-row">
-
-<!-- 평점/후기 요약 박스 -->
-<div class="my-review-box" id="myReviewBox">
-  <!-- 내 후기 없을 때 -->
-  <div id="myReviewEmpty">
-    <p style="font-size:18px;color:var(--muted2);margin-bottom:14px">이 작품 어떠셨나요?</p>
-    <div class="my-star-row" id="myStarRow">
-      <!-- onmouseover: 해당 별까지 노란색으로 채움 / onmouseout: 모두 초기화 / onclick: 리뷰페이지 이동 -->
-      <span class="my-star" data-v="1" onmouseover="hoverStar(1)" onmouseout="resetStar()" onclick="goReview(1)">★</span>
-      <span class="my-star" data-v="2" onmouseover="hoverStar(2)" onmouseout="resetStar()" onclick="goReview(2)">★</span>
-      <span class="my-star" data-v="3" onmouseover="hoverStar(3)" onmouseout="resetStar()" onclick="goReview(3)">★</span>
-      <span class="my-star" data-v="4" onmouseover="hoverStar(4)" onmouseout="resetStar()" onclick="goReview(4)">★</span>
-      <span class="my-star" data-v="5" onmouseover="hoverStar(5)" onmouseout="resetStar()" onclick="goReview(5)">★</span>
-    </div>
-    <button class="go-review-btn" onclick="goReview(0)">
-      <i class="ti ti-pencil" style="font-size:18px"></i> 후기 작성하기
-    </button>
-  </div>
-  <!-- 내 후기 있을 때 -->
-  <div id="myReviewFilled" style="display:none">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <span style="font-size:13px;color:var(--muted)">내 평점</span>
-      <span id="myReviewStars" style="color:var(--gold);font-size:18px;letter-spacing:2px"></span>
-      <span id="myReviewScore" style="font-size:18px;font-weight:700;color:var(--gold);font-family:var(--font-mono)"></span>
-      <button class="go-review-btn" style="margin-left:auto;padding:6px 14px;font-size:16px" onclick="goReview(0)">
-        <i class="ti ti-pencil" style="font-size:16px"></i> 수정
-      </button>
-    </div>
-    <div id="myReviewEval" style="margin-bottom:6px"></div>
-    <div id="myReviewText" style="font-size:18px;color:var(--muted2);line-height:1.6"></div>
-  </div>
-</div>
-
 <!-- 사용자 댓글 -->
 <div id="commentSection" style="display:none">
   <div class="sec-title"><i class="ti ti-message-circle" style="font-size:16px"></i>사용자 댓글 <small id="commentCount">0개</small></div>
@@ -193,7 +189,6 @@
   <div id="pagination" class="pagination"></div>
 </div>
 
-</div><!-- /.review-comment-row -->
 
 <!-- 유튜브 -->
 <div class="yt-section">
