@@ -25,7 +25,7 @@
 <!-- 폰트/아이콘 -->
 <!-- 스타일 -->
 <style>
-/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  25  */
+/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  26  */
 /* title_detail.css — 오뜨랑 작품 상세 페이지 스타일 */
 
 
@@ -696,7 +696,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 페이지 로직 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  25  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  26  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -1588,21 +1588,20 @@ async function loadPlatforms(){
     WORK.platform=platforms[0].platform;
     WORK.rank=platforms[0].rank||'-';
 
-    // 포스터 위 OTT pill — 모든 플랫폼 표시
+    // 포스터 위 OTT pill — 1순위 1개만 표시
     const pillsContainer=document.getElementById('platformPills');
     if(pillsContainer){
-      pillsContainer.innerHTML=platforms.map(p=>{
-        const fn=OTT_SEARCH_URL[p.platform];
-        const url=fn?fn(WORK.title):'#';
-        const color=CC[p.platform]||'#888';
-        return `<a class="platform-pill" href="${url}" target="_blank" rel="noopener"
-          style="display:inline-block;white-space:nowrap;background:${color};text-decoration:none;color:#fff;
-          font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;
-          font-family:var(--font-mono);letter-spacing:.5px;
-          box-shadow:0 1px 4px rgba(0,0,0,.5)">
-          ${PC[p.platform]||p.platform}
-        </a>`;
-      }).join('');
+      const p=platforms[0];
+      const fn=OTT_SEARCH_URL[p.platform];
+      const url=fn?fn(WORK.title):'#';
+      const color=CC[p.platform]||'#888';
+      pillsContainer.innerHTML=`<a class="platform-pill" href="${url}" target="_blank" rel="noopener"
+        style="display:inline-block;white-space:nowrap;background:${color};text-decoration:none;color:#fff;
+        font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;
+        font-family:var(--font-mono);letter-spacing:.5px;
+        box-shadow:0 1px 4px rgba(0,0,0,.5)">
+        ${PC[p.platform]||p.platform}
+      </a>`;
     }
 
     // 히어로 하단 랭킹 칩 — 모든 OTT 순위 표시
