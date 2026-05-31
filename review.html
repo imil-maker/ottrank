@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>후기 작성 | 오뜨랑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;
+  --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
+  --warn-bg:rgba(240,180,41,.12);--warn-border:rgba(240,180,41,.35);
+  --danger-bg:rgba(230,57,70,.12);--danger-border:rgba(230,57,70,.35);
+  --font-sans:'Noto Sans KR',sans-serif;
+  --font-mono:'DM Mono',monospace;
+  --r:10px;--r-lg:14px;
+  --content-w:600px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:16px;line-height:1.6;min-height:100vh}
+
+/* ══ 헤더 ══ */
+#ottrang-header{position:sticky;top:0;z-index:200}
+.ottrang-banner{display:none!important}
+
+/* ══ 레이아웃 ══ */
+.review-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
+
+/* ══ 뒤로가기 ══ */
+.back-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:14px;color:var(--muted2);cursor:pointer;
+  margin-bottom:20px;padding:7px 14px;border-radius:var(--r);
+  border:.5px solid var(--border);background:transparent;
+  transition:background .15s;text-decoration:none;font-family:var(--font-sans);
+}
+.back-btn:hover{background:var(--bg3);color:var(--text)}
+
+/* ══ 작품 헤더 ══ */
+.work-header{
+  display:flex;gap:16px;align-items:flex-start;
+  background:var(--bg2);border:.5px solid var(--border);
+  border-radius:var(--r-lg);padding:16px;margin-bottom:24px;
+}
+.work-poster{
+  width:64px;height:96px;border-radius:8px;
+  overflow:hidden;background:var(--bg3);flex-shrink:0;
+}
+.work-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px}
+.work-info{flex:1;min-width:0}
+.work-title{font-size:18px;font-weight:700;margin-bottom:4px}
+.work-sub{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+
+/* ══ 별점 ══ */
+.section-label{font-size:13px;color:var(--muted);margin-bottom:10px;font-family:var(--font-mono)}
+.star-row{display:flex;gap:4px;margin-bottom:6px}
+.star-wrap{position:relative;width:44px;height:44px;cursor:pointer;flex-shrink:0}
+.star-wrap .s-full,.star-wrap .s-half{position:absolute;top:0;left:0;font-size:40px;line-height:1;color:var(--border);transition:color .1s;user-select:none}
+.star-wrap .s-full{z-index:1}.star-wrap .s-half{width:50%;overflow:hidden;z-index:2}
+.star-wrap.half .s-half{color:var(--gold)}.star-wrap.half .s-full{color:var(--border)}
+.star-wrap.full .s-full{color:var(--gold)}.star-wrap.full .s-half{color:var(--gold)}
+.star-label{font-size:14px;color:var(--muted);margin-left:10px;line-height:44px}
+
+/* ══ 평가 4버튼 ══ */
+.eval-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.eval-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:10px 18px;border-radius:30px;
+  border:.5px solid var(--border);
+  background:var(--bg2);color:var(--muted2);
+  font-size:14px;font-weight:600;cursor:pointer;
+  font-family:var(--font-sans);transition:all .2s ease;
+}
+.eval-btn:hover{border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
+.eval-btn.on{box-shadow:0 2px 12px rgba(55,138,221,.15);transform:translateY(-1px)}
+.eval-btn[data-val="강추해요"].on{background:rgba(240,180,41,.12);color:var(--gold);border-color:rgba(240,180,41,.4)}
+.eval-btn[data-val="추천해요"].on{background:rgba(52,211,153,.1);color:#34d399;border-color:rgba(52,211,153,.4)}
+.eval-btn[data-val="평범해요"].on{background:rgba(160,160,188,.08);color:var(--muted2);border-color:rgba(160,160,188,.4)}
+.eval-btn[data-val="별로예요"].on{background:rgba(230,57,70,.1);color:var(--accent);border-color:rgba(230,57,70,.4)}
+
+/* ══ 감정 태그 ══ */
+.etag-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px}
+.etag-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.etag{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 16px;border-radius:30px;
+  border:.5px solid var(--border);font-size:13px;
+  color:var(--muted2);cursor:pointer;background:var(--bg2);
+  transition:all .2s ease;font-family:var(--font-sans);user-select:none;
+}
+.etag:hover{border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
+.etag.on{background:linear-gradient(135deg,var(--info-bg),rgba(55,138,221,.06));color:var(--info);border-color:var(--info-border);box-shadow:0 2px 12px rgba(55,138,221,.15);transform:translateY(-1px)}
+.etag.disabled{opacity:.3;cursor:default;transform:none}
+.etag-emoji{font-size:16px;line-height:1}
+
+/* ══ 텍스트 입력 ══ */
+.review-textarea{
+  width:100%;min-height:120px;resize:none;
+  background:var(--bg2);border:.5px solid var(--border);
+  border-radius:var(--r);padding:14px;
+  color:var(--text);font-size:15px;font-family:var(--font-sans);
+  outline:none;line-height:1.6;transition:border-color .15s;
+  margin-bottom:6px;
+}
+.review-textarea:focus{border-color:var(--border2)}
+.char-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);text-align:right;margin-bottom:14px}
+.char-count.warn{color:var(--accent)}
+.spoiler-row{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;margin-bottom:24px}
+
+/* ══ 제출 버튼 ══ */
+.submit-row{display:flex;gap:10px}
+.submit-btn{
+  flex:1;padding:14px;border-radius:var(--r);border:none;
+  background:var(--accent);color:#fff;font-size:16px;font-weight:700;
+  cursor:pointer;font-family:var(--font-sans);transition:background .15s;
+}
+.submit-btn:hover{background:#ff4d58}
+.submit-btn:disabled{opacity:.5;cursor:default}
+.cancel-btn{
+  padding:14px 24px;border-radius:var(--r);
+  border:.5px solid var(--border);background:transparent;
+  color:var(--muted2);font-size:15px;cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;
+}
+.cancel-btn:hover{background:var(--bg3);color:var(--text)}
+
+/* ══ 삭제 버튼 ══ */
+.delete-btn{
+  width:100%;margin-top:12px;padding:12px;border-radius:var(--r);
+  border:.5px solid var(--danger-border);background:var(--danger-bg);
+  color:var(--accent);font-size:14px;cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;
+}
+.delete-btn:hover{background:rgba(230,57,70,.2)}
+
+/* ══ 섹션 구분 ══ */
+.review-section{margin-bottom:24px}
+.review-section-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+/* ══ 토스트 ══ */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
+.toast.show{opacity:1}
+
+/* ══ 모바일 ══ */
+@media(max-width:640px){
+  .eval-btns{gap:6px}
+  .eval-btn{padding:8px 12px;font-size:13px}
+  .star-wrap{width:38px;height:38px}
+  .star-wrap .s-full,.star-wrap .s-half{font-size:34px}
+}
+</style>
+</head>
+<body>
+
+<div id="ottrang-header"></div>
+
+<div class="review-wrap">
+
+  <!-- 뒤로가기 -->
+  <button class="back-btn" onclick="goBack()">
+    <i class="ti ti-arrow-left" style="font-size:14px"></i> 돌아가기
+  </button>
+
+  <!-- 작품 헤더 -->
+  <div class="work-header">
+    <div class="work-poster" id="workPoster">
+      <div class="work-poster-ph">🎬</div>
+    </div>
+    <div class="work-info">
+      <div class="work-title" id="workTitle">작품명</div>
+      <div class="work-sub" id="workSub"></div>
+    </div>
+  </div>
+
+  <!-- 별점 -->
+  <div class="review-section">
+    <div class="review-section-title"><i class="ti ti-star" style="font-size:15px"></i>별점 <span style="font-size:12px;color:var(--muted);font-weight:400">(0.5점 단위 / 10점 만점)</span></div>
+    <div style="display:flex;align-items:center">
+      <div class="star-row">
+        <div class="star-wrap" data-v="1" onmousemove="hoverStar(event,1)" onmouseleave="leaveStar()" onclick="setStar(this)"><span class="s-full">★</span><span class="s-half">★</span></div>
+        <div class="star-wrap" data-v="2" onmousemove="hoverStar(event,2)" onmouseleave="leaveStar()" onclick="setStar(this)"><span class="s-full">★</span><span class="s-half">★</span></div>
+        <div class="star-wrap" data-v="3" onmousemove="hoverStar(event,3)" onmouseleave="leaveStar()" onclick="setStar(this)"><span class="s-full">★</span><span class="s-half">★</span></div>
+        <div class="star-wrap" data-v="4" onmousemove="hoverStar(event,4)" onmouseleave="leaveStar()" onclick="setStar(this)"><span class="s-full">★</span><span class="s-half">★</span></div>
+        <div class="star-wrap" data-v="5" onmousemove="hoverStar(event,5)" onmouseleave="leaveStar()" onclick="setStar(this)"><span class="s-full">★</span><span class="s-half">★</span></div>
+      </div>
+      <span class="star-label" id="starLabel">별점을 선택하세요</span>
+    </div>
+  </div>
+
+  <!-- 평가 4버튼 -->
+  <div class="review-section">
+    <div class="review-section-title"><i class="ti ti-mood-smile" style="font-size:15px"></i>이 작품을 한마디로?</div>
+    <div class="eval-btns">
+      <button class="eval-btn" data-val="강추해요" onclick="toggleEval(this)">🔥 강추해요</button>
+      <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)">👍 추천해요</button>
+      <button class="eval-btn" data-val="평범해요" onclick="toggleEval(this)">😐 평범해요</button>
+      <button class="eval-btn" data-val="별로예요" onclick="toggleEval(this)">👎 별로예요</button>
+    </div>
+  </div>
+
+  <!-- 감정 태그 -->
+  <div class="review-section">
+    <div class="review-section-title"><i class="ti ti-tags" style="font-size:15px"></i>감정 태그 <span style="font-size:12px;color:var(--muted);font-weight:400">(최대 3개)</span></div>
+    <div class="etag-count" id="etagCount">0 / 3 태그 선택</div>
+    <div class="etag-grid">
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😰</span>긴장감 넘침</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🔥</span>몰입감 최고</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🥹</span>감동적</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😭</span>슬프다</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🤣</span>재미있음</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😤</span>결말이 아쉬움</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🤯</span>독특한 설정</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">📺</span>정주행 필수</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">👏</span>연기력 최고</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😱</span>소름 돋음</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">💤</span>지루했어요</button>
+      <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">💕</span>설레는 로맨스</button>
+    </div>
+  </div>
+
+  <!-- 한줄 감상 -->
+  <div class="review-section">
+    <div class="review-section-title"><i class="ti ti-message-circle" style="font-size:15px"></i>한줄 감상</div>
+    <textarea class="review-textarea" id="reviewText" placeholder="한줄 감상을 남겨보세요 (140자 이내)" maxlength="140" oninput="updateCharCount(this)"></textarea>
+    <div class="char-count" id="charCount">0 / 140</div>
+    <label class="spoiler-row">
+      <input type="checkbox" id="spoilerCheck" style="width:14px;height:14px"> 스포일러 포함
+    </label>
+  </div>
+
+  <!-- 제출 -->
+  <div class="submit-row">
+    <button class="cancel-btn" onclick="goBack()">취소</button>
+    <button class="submit-btn" id="submitBtn" onclick="submitReview()">후기 등록</button>
+  </div>
+
+  <!-- 기존 후기 있을 때 삭제 버튼 -->
+  <button class="delete-btn" id="deleteBtn" style="display:none" onclick="deleteReview()">
+    <i class="ti ti-trash" style="font-size:14px"></i> 내 후기 삭제
+  </button>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══ 헤더 삽입 ══ */
+(function(){
+  const el=document.getElementById('ottrang-header');
+  if(!el)return;
+  fetch('/header.html').then(r=>r.ok?r.text():Promise.reject()).then(h=>{
+    el.innerHTML=h;
+    el.querySelectorAll('script').forEach(s=>{const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);});
+    if(typeof initHeader==='function')initHeader();
+  }).catch(()=>{});
+})();
+
+const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
+const REVIEW_API=OTTRANK_API;
+
+/* ══ 작품 데이터 로드 ══ */
+let RDATA=null;
+let myStars=0,hoverVal=0,selectedEval='',MY_REVIEW=null;
+
+(function init(){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
+
+  try{
+    const stored=sessionStorage.getItem('ottrang_review_data');
+    if(!stored){goBack();return;}
+    RDATA=JSON.parse(stored);
+  }catch(e){goBack();return;}
+
+  // 작품 정보 표시
+  document.getElementById('workTitle').textContent=RDATA.title||'작품명';
+  document.getElementById('workSub').textContent=[RDATA.platform?({netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'}[RDATA.platform]||RDATA.platform):'',RDATA.year].filter(Boolean).join(' · ');
+
+  // 포스터
+  if(RDATA.poster_path&&RDATA.poster_path.includes('image.tmdb.org')){
+    const ph=document.getElementById('workPoster');
+    ph.innerHTML=`<img src="${RDATA.poster_path}" alt="${RDATA.title}" onerror="this.parentNode.innerHTML='<div class=work-poster-ph>🎬</div>'">`;
+  }
+
+  // 초기 별점 설정 (작품 페이지에서 별 클릭하고 온 경우)
+  if(RDATA.star>0){setStar(null,RDATA.star);}
+
+  // 초기 평가 설정 (감정 버튼 클릭하고 온 경우)
+  if(RDATA.eval){
+    document.querySelectorAll('.eval-btn').forEach(b=>{
+      if(b.dataset.val===RDATA.eval){b.classList.add('on');selectedEval=RDATA.eval;}
+    });
+  }
+
+  // 기존 내 후기 불러오기
+  loadMyReview();
+})();
+
+/* ══ 기존 내 후기 ══ */
+async function loadMyReview(){
+  if(!RDATA?.tmdb_id)return;
+  const sid=localStorage.getItem('ottrang_sid');
+  try{
+    const res=await fetch(`${REVIEW_API}/reviews/${RDATA.tmdb_id}/me`,{headers:{Authorization:'Bearer '+sid}});
+    const data=await res.json();
+    MY_REVIEW=data.data||null;
+    if(MY_REVIEW){
+      // 기존 데이터로 폼 채우기
+      myStars=MY_REVIEW.score;
+      renderStarInput(myStars);
+      const labels={0.5:'1점',1:'2점',1.5:'3점',2:'4점',2.5:'5점',3:'6점',3.5:'7점',4:'8점',4.5:'9점',5:'10점'};
+      document.getElementById('starLabel').textContent=(labels[myStars]||'')+'  (10점 만점)';
+      // 평가 버튼
+      const emotions=_safeParseArr(MY_REVIEW.emotions);
+      const evalVal=emotions[0]||'';
+      if(evalVal){
+        document.querySelectorAll('.eval-btn').forEach(b=>{
+          if(b.dataset.val===evalVal){b.classList.add('on');selectedEval=evalVal;}
+        });
+      }
+      // 감정 태그 (첫번째 제외 — 평가버튼용)
+      const tags=emotions.slice(1);
+      document.querySelectorAll('.etag').forEach(btn=>{
+        const label=btn.textContent.replace(/[\u{1F000}-\u{1FFFF}]|[\u2600-\u27FF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/gu,'').trim();
+        if(tags.includes(label)){btn.classList.add('on');}
+      });
+      updateEtagCount();
+      // 텍스트
+      document.getElementById('reviewText').value=MY_REVIEW.text||'';
+      updateCharCount(document.getElementById('reviewText'));
+      document.getElementById('spoilerCheck').checked=!!MY_REVIEW.spoiler;
+      // 삭제 버튼 표시
+      document.getElementById('deleteBtn').style.display='block';
+      document.getElementById('submitBtn').textContent='후기 수정';
+    }
+  }catch(e){}
+}
+
+/* ══ 별점 ══ */
+function hoverStar(e,v){const wrap=e.currentTarget;const isLeft=e.offsetX<wrap.offsetWidth/2;hoverVal=isLeft?v-0.5:v;renderStarInput(hoverVal);}
+function leaveStar(){renderStarInput(myStars);}
+function setStar(wrap,val){
+  myStars=val||hoverVal||(wrap?.dataset.v*1)||0;
+  renderStarInput(myStars);
+  const score10=myStars*2;
+  const labels={0.5:'1점',1:'2점',1.5:'3점',2:'4점',2.5:'5점',3:'6점',3.5:'7점',4:'8점',4.5:'9점',5:'10점'};
+  document.getElementById('starLabel').textContent=(labels[myStars]||'별점을 선택하세요')+'  (10점 만점)';
+}
+function renderStarInput(val){
+  document.querySelectorAll('.star-wrap').forEach((w,i)=>{
+    const v=i+1;w.classList.remove('full','half');
+    if(val>=v)w.classList.add('full');
+    else if(val>=v-0.5)w.classList.add('half');
+  });
+}
+
+/* ══ 평가 버튼 ══ */
+function toggleEval(btn){
+  const val=btn.dataset.val;
+  if(btn.classList.contains('on')){btn.classList.remove('on');selectedEval='';}
+  else{document.querySelectorAll('.eval-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');selectedEval=val;}
+}
+
+/* ══ 감정 태그 ══ */
+function getEtagCount(){return document.querySelectorAll('.etag.on').length;}
+function updateEtagCount(){
+  const cnt=getEtagCount();
+  document.getElementById('etagCount').textContent=`${cnt} / 3 태그 선택`;
+  document.querySelectorAll('.etag').forEach(b=>{if(!b.classList.contains('on'))b.classList.toggle('disabled',cnt>=3);});
+}
+function toggleEtag(b){if(b.classList.contains('disabled'))return;b.classList.toggle('on');updateEtagCount();}
+
+/* ══ 글자수 ══ */
+function updateCharCount(el){
+  const len=el.value.length;
+  const el2=document.getElementById('charCount');
+  el2.textContent=`${len} / 140`;
+  el2.classList.toggle('warn',len>120);
+}
+
+/* ══ 제출 ══ */
+async function submitReview(){
+  if(!myStars){showToast('별점을 먼저 선택해주세요');return;}
+  const txt=document.getElementById('reviewText').value.trim();
+  if(!txt){showToast('한줄 감상을 입력해주세요');return;}
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){location.href='/login.html';return;}
+
+  const spoiler=document.getElementById('spoilerCheck').checked;
+  const emotions=[];
+  if(selectedEval)emotions.push(selectedEval);
+  document.querySelectorAll('.etag.on').forEach(e=>{
+    const label=e.textContent.replace(/[\u{1F000}-\u{1FFFF}]|[\u2600-\u27FF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/gu,'').trim();
+    emotions.push(label);
+  });
+
+  const btn=document.getElementById('submitBtn');
+  btn.disabled=true;btn.textContent='등록 중...';
+
+  try{
+    const res=await fetch(`${REVIEW_API}/reviews/${RDATA.tmdb_id}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid},
+      body:JSON.stringify({score:myStars,emotions,custom_tags:[],text:txt,spoiler}),
+    });
+    const data=await res.json();
+    if(!data.ok){showToast(data.message||'오류가 발생했어요');btn.disabled=false;btn.textContent='후기 등록';return;}
+    showToast('후기가 등록됐어요! 🎉');
+    setTimeout(()=>goBack(),1200);
+  }catch(e){showToast('네트워크 오류');btn.disabled=false;btn.textContent='후기 등록';}
+}
+
+/* ══ 삭제 ══ */
+async function deleteReview(){
+  if(!confirm('내 후기를 삭제할까요?'))return;
+  const sid=localStorage.getItem('ottrang_sid');
+  try{
+    const res=await fetch(`${REVIEW_API}/reviews/${RDATA.tmdb_id}`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
+    const data=await res.json();
+    if(data.ok){showToast('후기가 삭제됐어요');setTimeout(()=>goBack(),1200);}
+    else showToast(data.message||'삭제 실패');
+  }catch(e){showToast('네트워크 오류');}
+}
+
+/* ══ 유틸 ══ */
+function _safeParseArr(v){if(!v)return[];try{const r=JSON.parse(v);return Array.isArray(r)?r:[];}catch(e){return[];}}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+function goBack(){
+  const backUrl=RDATA?.back_url||'/';
+  location.href=backUrl;
+}
+</script>
+</body>
+</html>
