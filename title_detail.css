@@ -398,21 +398,41 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .ottrang-banner{display:none!important}
 /* ══ 내 평점/후기 박스 ══ */
 /* ══ 내 평점 카드 — 반개 별점 ══ */
-.my-half-star-row{display:flex;justify-content:center;gap:2px;margin:8px 0}
-.my-half-star-wrap{position:relative;width:28px;height:28px;display:inline-block;font-size:28px;color:var(--border2);line-height:1}
-/* 왼쪽 절반(홀수점) — 별의 왼쪽만 노란색 */
+.my-half-star-row{display:flex;justify-content:center;gap:4px;margin:8px 0}
+.my-half-star-wrap{
+  position:relative;width:26px;height:26px;
+  display:inline-block;cursor:pointer;
+}
+/* 기본 별 (회색) — 항상 보임 */
+.my-half-star-wrap::before{
+  content:'★';
+  position:absolute;left:0;top:0;
+  font-size:26px;line-height:1;
+  color:var(--border2);
+  pointer-events:none;
+}
+/* 왼쪽 절반 클릭 영역 (홀수점) */
 .mhs-left{
-  position:absolute;left:0;top:0;width:50%;overflow:hidden;
-  font-size:28px;color:var(--border2);cursor:pointer;
-  transition:color .1s;user-select:none;line-height:1;
+  position:absolute;left:0;top:0;width:50%;height:100%;
+  z-index:2;cursor:pointer;
 }
-/* 오른쪽 절반(짝수점) — 별 전체 */
+/* 오른쪽 절반 클릭 영역 (짝수점) */
 .mhs-right{
-  position:absolute;left:0;top:0;width:100%;
-  font-size:28px;color:var(--border2);cursor:pointer;
-  transition:color .1s;user-select:none;line-height:1;z-index:0;
+  position:absolute;right:0;top:0;width:50%;height:100%;
+  z-index:2;cursor:pointer;
 }
-.mhs-left{z-index:1}
-.mhs-left.lit,.mhs-right.lit{color:var(--gold)}
+/* lit 상태: 노란별 오버레이 */
+.my-half-star-wrap.lit-half::after{
+  content:'★';
+  position:absolute;left:0;top:0;width:50%;overflow:hidden;
+  font-size:26px;line-height:1;color:var(--gold);
+  pointer-events:none;
+}
+.my-half-star-wrap.lit-full::after{
+  content:'★';
+  position:absolute;left:0;top:0;width:100%;
+  font-size:26px;line-height:1;color:var(--gold);
+  pointer-events:none;
+}
 .go-review-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 24px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans);transition:background .15s}
 .go-review-btn:hover{background:#ff4d58}
