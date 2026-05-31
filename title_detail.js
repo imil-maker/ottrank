@@ -1,4 +1,4 @@
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  12  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  13  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -43,16 +43,27 @@ function parseSlug(pathname){
   const m=slug.match(/-(\d+)$/);
   if(!m)return null;
   const numStr=m[1];
+  const titleSlug=slug.slice(0,m.index);
   let season=1,year=new Date().getFullYear(),tmdb_id=null;
   if(numStr.length>=6){
-    for(let sLen=1;sLen<=2;sLen++){
-      const s=parseInt(numStr.slice(0,sLen));
-      const y=parseInt(numStr.slice(sLen,sLen+4));
-      const tid=numStr.slice(sLen+4);
-      if(tid.length>=1&&y>=1900&&y<=2100&&s>=1){season=s;year=y;tmdb_id=parseInt(tid);break;}
+    // titleSlug가 숫자만인 경우 — 작품명 없는 URL: ex) '2-2023126485'
+    // titleSlug='2'(시즌), numStr='2023126485'(year4+tmdb_id)
+    if(/^\d+$/.test(titleSlug)){
+      season=parseInt(titleSlug)||1;
+      const y=parseInt(numStr.slice(0,4));
+      const tid=numStr.slice(4);
+      if(tid.length>=1&&y>=1900&&y<=2100){year=y;tmdb_id=parseInt(tid);}
+    }else{
+      // 작품명 포함 URL: ex) 'moving-2-2023126485'
+      for(let sLen=1;sLen<=2;sLen++){
+        const s=parseInt(numStr.slice(0,sLen));
+        const y=parseInt(numStr.slice(sLen,sLen+4));
+        const tid=numStr.slice(sLen+4);
+        if(tid.length>=1&&y>=1900&&y<=2100&&s>=1){season=s;year=y;tmdb_id=parseInt(tid);break;}
+      }
     }
   }
-  return{tmdb_id,season,year,titleSlug:slug.slice(0,m.index)};
+  return{tmdb_id,season,year,titleSlug};
 }
 
 /* == WORK Init == */
