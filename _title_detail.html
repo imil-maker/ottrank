@@ -91,7 +91,12 @@
 <div class="cast-section" id="castSection" style="display:none">
   <div class="sec-title"><i class="ti ti-users" style="font-size:16px"></i>출연진 &amp; 제작진</div>
   <div class="director-row" id="directorRow"></div>
-  <div class="cast-scroll" id="castScroll"></div>
+  <!-- 출연진 스크롤 래퍼 — 좌우 화살표 버튼 포함 -->
+  <div class="cast-scroll-wrap">
+    <button class="cast-arrow cast-arrow-left" id="castArrowLeft" onclick="scrollCast(-1)" aria-label="이전">‹</button>
+    <div class="cast-scroll" id="castScroll"></div>
+    <button class="cast-arrow cast-arrow-right" id="castArrowRight" onclick="scrollCast(1)" aria-label="다음">›</button>
+  </div>
 </div>
 
 <!-- 평점 4블록 -->
@@ -142,17 +147,21 @@
   </div>
 </div>
 
+<!-- 후기작성 + 사용자댓글 2칸 레이아웃 -->
+<div class="review-comment-row">
+
 <!-- 평점/후기 요약 박스 -->
 <div class="my-review-box" id="myReviewBox">
   <!-- 내 후기 없을 때 -->
   <div id="myReviewEmpty">
     <p style="font-size:18px;color:var(--muted2);margin-bottom:14px">이 작품 어떠셨나요?</p>
     <div class="my-star-row" id="myStarRow">
-      <span class="my-star" data-v="1" onclick="goReview(1)">★</span>
-      <span class="my-star" data-v="2" onclick="goReview(2)">★</span>
-      <span class="my-star" data-v="3" onclick="goReview(3)">★</span>
-      <span class="my-star" data-v="4" onclick="goReview(4)">★</span>
-      <span class="my-star" data-v="5" onclick="goReview(5)">★</span>
+      <!-- onmouseover: 해당 별까지 노란색으로 채움 / onmouseout: 모두 초기화 / onclick: 리뷰페이지 이동 -->
+      <span class="my-star" data-v="1" onmouseover="hoverStar(1)" onmouseout="resetStar()" onclick="goReview(1)">★</span>
+      <span class="my-star" data-v="2" onmouseover="hoverStar(2)" onmouseout="resetStar()" onclick="goReview(2)">★</span>
+      <span class="my-star" data-v="3" onmouseover="hoverStar(3)" onmouseout="resetStar()" onclick="goReview(3)">★</span>
+      <span class="my-star" data-v="4" onmouseover="hoverStar(4)" onmouseout="resetStar()" onclick="goReview(4)">★</span>
+      <span class="my-star" data-v="5" onmouseover="hoverStar(5)" onmouseout="resetStar()" onclick="goReview(5)">★</span>
     </div>
     <button class="go-review-btn" onclick="goReview(0)">
       <i class="ti ti-pencil" style="font-size:18px"></i> 후기 작성하기
@@ -183,6 +192,8 @@
   <div id="commentsArea"></div>
   <div id="pagination" class="pagination"></div>
 </div>
+
+</div><!-- /.review-comment-row -->
 
 <!-- 유튜브 -->
 <div class="yt-section">
