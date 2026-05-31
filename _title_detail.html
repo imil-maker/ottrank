@@ -25,7 +25,7 @@
 <!-- 폰트/아이콘 -->
 <!-- 스타일 -->
 <style>
-/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  19  */
+/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  20  */
 /* title_detail.css — 오뜨랑 작품 상세 페이지 스타일 */
 
 
@@ -62,14 +62,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* 뒤로가기 — 화살표만 */
 .back-floating{
   position:absolute;top:16px;left:16px;z-index:10;
-  width:40px;height:40px;border-radius:50%;
+  width:36px;height:36px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.7);border:1.5px solid rgba(255,255,255,.3);
+  background:rgba(0,0,0,.45);border:.5px solid rgba(255,255,255,.18);
   color:#fff;cursor:pointer;text-decoration:none;
-  transition:all .15s;backdrop-filter:blur(8px);font-size:18px;
-  box-shadow:0 2px 8px rgba(0,0,0,.5);
+  transition:all .15s;backdrop-filter:blur(8px);font-size:15px;
 }
-.back-floating:hover{background:rgba(0,0,0,.9);}
+.back-floating:hover{background:rgba(0,0,0,.7);color:#fff}
 
 /* 수동 랭킹 배지 (포스터 위) */
 .manual-badges{position:absolute;top:10px;left:10px;right:10px;z-index:5;display:flex;flex-direction:column;gap:4px}
@@ -495,10 +494,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
       <div class="hero-poster-ph" id="posterPh">🎬</div>
       <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="eager">
+      <!-- OTT pill 컨테이너 — 포스터 하단에 가로로 나열 -->
+      <div id="platformPills" style="position:absolute;bottom:8px;left:6px;right:6px;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;z-index:5"></div>
 
     </div>
-    <!-- OTT pill 컨테이너 — 포스터 아래 가로 나열 -->
-    <div id="platformPills" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;margin-top:8px"></div>
 
     <!-- 정보 -->
     <div class="hero-info">
@@ -695,7 +694,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 페이지 로직 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  19  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  20  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -853,32 +852,28 @@ function updateSEO(title,overview,posterUrl,platform,rank){
 function setMeta(id,attr,val){const el=document.getElementById(id);if(!el)return;if(attr==='textContent')el.textContent=val;else el.setAttribute(attr,val);}
 
 /* == Rank Row == */
-// platforms: [{platform, rank}] 배열 (loadPlatforms에서 전달)
-// 박스오피스는 단일 WORK.platform/rank 사용
 function renderRankRow(platforms){
   const row=document.getElementById('heroRankRow');if(!row)return;
-  row.innerHTML=''; // 기존 칩 초기화
+  // OTT 순위 칩만 제거 (chip-rank만), chip-top10/chip-manual은 유지
+  row.querySelectorAll('.chip-rank').forEach(el=>el.remove());
   if(platforms&&platforms.length){
-    // OTT 작품: 모든 플랫폼 칩 표시 + 클릭 시 OTT 링크 + OTT 고유 색상
     platforms.forEach(p=>{
       const rankVal=p.rank&&p.rank!=='-'&&p.rank!=='0'?p.rank:null;
       const color=CC[p.platform]||'#888';
       const chip=document.createElement('a');
       chip.className='rank-info-chip chip-rank';
-      chip.style.background=`${color}22`; // 고유 색상 배경 (투명도 낮게)
+      chip.style.background=`${color}22`;
       chip.style.borderColor=`${color}66`;
       chip.style.color=color;
       chip.style.textDecoration='none';
       chip.style.cursor='pointer';
-      chip.target='_blank';
-      chip.rel='noopener';
+      chip.target='_blank';chip.rel='noopener';
       const fn=OTT_SEARCH_URL[p.platform];
       if(fn)chip.href=fn(WORK.title);
       chip.innerHTML=`<i class="ti ti-flame" style="font-size:11px"></i>${PC[p.platform]||p.platform}${rankVal?' '+rankVal+'위':''}`;
       row.appendChild(chip);
     });
   }else{
-    // 박스오피스 또는 단일 플랫폼
     const rankVal=WORK.rank&&WORK.rank!=='-'&&WORK.rank!=='0'?WORK.rank:null;
     if(rankVal&&WORK.platform){
       const color=CC[WORK.platform]||'#888';
