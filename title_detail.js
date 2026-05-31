@@ -346,7 +346,7 @@ async function loadTmdb(){
     // TMDB rating
     const tmdbRating=det.tmdb_rating||det.vote_average||0;
     const tmdbVotes=det.vote_count||0;
-    document.getElementById('tmdbScore').textContent=tmdbRating?parseFloat(tmdbRating).toFixed(1):'-';
+    document.getElementById('tmdbScore').textContent=tmdbRating?fmtScore(tmdbRating):'-';
     document.getElementById('tmdbVotes').textContent=tmdbVotes?`${tmdbVotes.toLocaleString()}명`:'-';
 
     // overview
@@ -535,25 +535,27 @@ function closePlayer2(){document.getElementById('ytFrame2').src='';document.getE
 
 /* == Feeling Buttons == */
 /* == 별점 호버 효과 == */
-function hoverStar(val){
-  // val번째 별까지 노란색(lit), 이후는 회색으로
-  document.querySelectorAll('#myStarRow .my-star').forEach(el=>{
-    if(parseInt(el.dataset.v)<=val)el.classList.add('lit');
+/* == 반개 별점 호버 효과 (1점~10점) == */
+function hoverHalfStar(score){
+  // score: 1~10 (홀수=반개, 짝수=한개)
+  // 각 별의 mhs-left(홀수점), mhs-right(짝수점) 기준으로 lit 클래스 처리
+  document.querySelectorAll('#myHalfStarRow .mhs-left, #myHalfStarRow .mhs-right').forEach(el=>{
+    const elScore=parseInt(el.getAttribute('onmouseover').match(/\d+/)[0]);
+    // 현재 별이 score 이하면 lit, 초과면 해제
+    // mhs-right는 짝수점: score가 짝수면 해당 별 전체 lit, 홀수면 해당 별의 right는 해제
+    if(elScore<=score)el.classList.add('lit');
     else el.classList.remove('lit');
   });
 }
-function resetStar(){
-  // 마우스 아웃 시 모든 별 초기화
-  document.querySelectorAll('#myStarRow .my-star').forEach(el=>el.classList.remove('lit'));
+function resetHalfStar(){
+  document.querySelectorAll('#myHalfStarRow .mhs-left, #myHalfStarRow .mhs-right').forEach(el=>el.classList.remove('lit'));
 }
 
 /* == 출연진 화살표 스크롤 == */
 function scrollCast(dir){
-  // dir: -1(왼쪽), 1(오른쪽) / 한번에 배우 3명 너비만큼 이동
   const el=document.getElementById('castScroll');if(!el)return;
   const scrollAmt=el.clientWidth*0.7;
   el.scrollBy({left:dir*scrollAmt,behavior:'smooth'});
-  // 스크롤 후 화살표 활성/비활성 업데이트
   setTimeout(()=>updateCastArrows(),350);
 }
 function updateCastArrows(){
@@ -635,14 +637,16 @@ function shareNative(){
 function showToast(msg){const t=document.getElementById('shareToast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 
 /* == Go Review Page == */
-function goReview(starVal,evalPreset){
+function goReview(starVal,score){
   const sid=localStorage.getItem('ottrang_sid');
   if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
+  // score: 반개 별점에서 넘어온 1~10점 (starVal은 레거시 별 개수, score 우선)
+  const finalStar=score?score/2:starVal||0;
   const reviewData={
     tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,
     title:WORK.title,season:WORK.season,year:WORK.year,rank:WORK.rank,
     poster_path:document.getElementById('posterImg')?.src||'',
-    star:starVal||0,eval:evalPreset||'',
+    star:finalStar,eval:'',
     back_url:getShareUrl().replace('https://ottrank.kr',''),
   };
   sessionStorage.setItem('ottrang_review_data',JSON.stringify(reviewData));
@@ -652,28 +656,34 @@ function goReview(starVal,evalPreset){
 }
 function scrollToRating(){goReview(0);}
 
+/* == 평점 .0 제거 유틸 == */
+function fmtScore(val){
+  // 9.0 → "9", 8.5 → "8.5"
+  const s=parseFloat(val).toFixed(1);
+  return s.endsWith('.0')?s.slice(0,-2):s;
+}
+
 /* == My Review == */
 function renderMyReview(){
+  // 내 평점 카드(4번째 블록) 업데이트
+  const emptyEl=document.getElementById('myRatingEmpty');
+  const filledEl=document.getElementById('myRatingFilled');
   if(!MY_REVIEW){
-    document.getElementById('myReviewEmpty').style.display='block';
-    document.getElementById('myReviewFilled').style.display='none';
+    if(emptyEl)emptyEl.style.display='flex';
+    if(filledEl)filledEl.style.display='none';
     return;
   }
-  document.getElementById('myReviewEmpty').style.display='none';
-  document.getElementById('myReviewFilled').style.display='block';
-  const score10=(MY_REVIEW.score*2).toFixed(1);
-  const stars='★'.repeat(Math.round(MY_REVIEW.score))+'☆'.repeat(5-Math.round(MY_REVIEW.score));
-  document.getElementById('myReviewStars').textContent=stars;
-  document.getElementById('myReviewScore').textContent=score10+'점';
-  const emotions=_safeParseArr(MY_REVIEW.emotions);
-  const evalVal=emotions[0]||'';
-  const evalColors={'강추해요':'rgba(240,180,41,.15)','추천해요':'rgba(52,211,153,.1)','평범해요':'rgba(160,160,188,.08)','별로예요':'rgba(230,57,70,.1)'};
-  document.getElementById('myReviewEval').innerHTML=evalVal?`<span style="display:inline-block;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:600;background:${evalColors[evalVal]||'var(--bg3)'};margin-bottom:6px">${evalVal}</span>`:'';
-  document.getElementById('myReviewText').textContent=MY_REVIEW.text||'';
-  document.getElementById('myRatingDisplay').innerHTML=`
-    <div style="font-size:18px;color:var(--gold);letter-spacing:2px">${stars}</div>
-    <div style="font-size:13px;font-weight:700;color:var(--gold);font-family:var(--font-mono)">${score10}점</div>
-    <div style="font-size:11px;color:var(--info);cursor:pointer;margin-top:2px" onclick="goReview(0)">수정하기</div>`;
+  if(emptyEl)emptyEl.style.display='none';
+  if(filledEl){filledEl.style.display='flex';}
+  // 점수: score는 별 개수(0.5~5), *2 하면 1~10점
+  const score10=fmtScore(MY_REVIEW.score*2);
+  const starsCount=Math.round(MY_REVIEW.score);
+  const stars='★'.repeat(starsCount)+'☆'.repeat(5-starsCount);
+  // 내 평점 카드: 점수 → 별 순서 (오뜨랑과 동일)
+  const scoreEl=document.getElementById('myRatingScore');
+  const starEl=document.getElementById('myRatingStarDisplay');
+  if(scoreEl)scoreEl.textContent=score10;
+  if(starEl)starEl.textContent=stars;
 }
 
 /* == Load Reviews == */
@@ -696,6 +706,12 @@ async function loadReviews(tmdbId){
     if(myRes.status==='fulfilled'&&myRes.value?.data){
       MY_REVIEW=myRes.value.data;
       ALL_COMMENTS=ALL_COMMENTS.map(c=>({...c,isMe:c.id===MY_REVIEW.id}));
+      // 내 댓글 맨 상단 고정
+      const myIdx=ALL_COMMENTS.findIndex(c=>c.isMe);
+      if(myIdx>0){
+        const myComment=ALL_COMMENTS.splice(myIdx,1)[0];
+        ALL_COMMENTS.unshift(myComment);
+      }
     }
     renderMyReview();
     curPage=1;renderComments();updateUserRatingCard();
@@ -729,7 +745,7 @@ function updateUserRatingCard(){
     document.getElementById('userRatingFilled').style.display='none';return;
   }
   const avg5=ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
-  const avg10=(avg5*2).toFixed(1);const stars=Math.round(avg5);
+  const avg10=fmtScore(avg5*2);const stars=Math.round(avg5);
   document.getElementById('userScore').textContent=avg10;
   document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명 평가`;
   document.getElementById('userStarDisplay').textContent='★'.repeat(stars)+'☆'.repeat(5-stars);
