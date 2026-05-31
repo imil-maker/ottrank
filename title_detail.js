@@ -138,13 +138,18 @@ function renderRankRow(){
   }
 }
 
-/* ══ TOP10 일수 ══ */
+/* ══ TOP10 일수 + category_slot 저장 ══ */
+let WORK_CATEGORY_SLOT = null; // boxoffice category01 여부 판단용
+
 async function loadTop10Days(){
   if(!WORK.tmdb_id)return;
   try{
     const res=await fetch(`${OTTRANK_API}/rankings/history?tmdb_id=${WORK.tmdb_id}`);
     const data=await res.json();
     if(data.ok&&data.data&&data.data.length){
+      // category_slot 저장 (가장 최근 데이터 기준)
+      const latest=data.data[data.data.length-1];
+      if(latest&&latest.category_slot){WORK_CATEGORY_SLOT=latest.category_slot;}
       const days=new Set(data.data.map(r=>r.date)).size;
       if(days>0){
         const row=document.getElementById('heroRankRow');
@@ -229,10 +234,9 @@ async function loadWatchGuide(){
       </div>`).join('');
     document.getElementById('watchGuideSection').style.display='block';
     document.getElementById('wgOuter').style.display='flex';
-    // 극장 연결 — 현재 상영중(크롤링 랭킹 있음)일 때만 표시
-    // WORK.rank가 유효하면 현재 상영중, 없으면 수동(과거) 작품
-    const isCurrentlyScreening=WORK.rank&&WORK.rank!=='—'&&WORK.rank!=='0';
-    if(isCurrentlyScreening){
+    // 극장 연결 — boxoffice category01 (주간 박스오피스 현재 상영중)일 때만
+    const isCategory01=WORK_CATEGORY_SLOT==='category01'||(WORK.rank&&WORK.rank!=='—'&&WORK.rank!=='0'&&WORK_CATEGORY_SLOT===null);
+    if(isCategory01){
       const t=WORK.title;
       document.getElementById('watchNowBtns').innerHTML=[
         `<a class="watch-now-btn" href="https://www.cgv.co.kr/search/?query=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 CGV</a>`,
