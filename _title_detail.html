@@ -228,6 +228,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .comment-share-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s;font-family:var(--font-sans)}
 .comment-share-btn:hover{border-color:var(--border2);color:var(--text)}
 
+
 /* ══ 댓글 ══ */
 .comment-sort-row{display:flex;gap:6px;margin-bottom:14px}
 .sort-btn{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
@@ -415,6 +416,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 #ottrang-header{position:sticky;top:0;z-index:200}
 /* 헤더 슬로건 배너 — 메인 제외 숨김 */
 .ottrang-banner{display:none!important}
+/* ══ 내 평점/후기 박스 ══ */
+.my-review-box{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:24px;margin-bottom:24px;text-align:center}
+.my-star-row{display:flex;justify-content:center;gap:6px;margin-bottom:16px}
+.my-star{font-size:36px;color:var(--border2);cursor:pointer;transition:color .1s,transform .1s;user-select:none;display:inline-block}
+.my-star:hover,.my-star.lit{color:var(--gold);transform:scale(1.1)}
+.go-review-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 24px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans);transition:background .15s}
+.go-review-btn:hover{background:#ff4d58}
 </style>
 </head>
 <body>
@@ -440,7 +448,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
       <div class="hero-poster-ph" id="posterPh">🎬</div>
       <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="eager">
-      <span class="platform-pill" id="platformPill" style="display:none"></span>
+      <a class="platform-pill" id="platformPill" style="display:none;text-decoration:none;cursor:pointer" href="#" target="_blank" rel="noopener"></a>
 
     </div>
 
@@ -500,7 +508,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
   <div class="r-card" style="position:relative">
     <div class="r-logo" style="background:linear-gradient(90deg,#FF5177,#FF9A3C);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">오뜨랑</div>
-    <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="scrollToRating()">
+    <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
       <span style="font-size:28px">🎬</span>
       <span style="font-size:10px;color:var(--muted2);font-family:var(--font-mono);text-align:center;line-height:1.4">이 작품의 첫번째<br>평점을 남겨보세요</span>
     </div>
@@ -512,7 +520,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
   <div class="r-card">
     <div class="r-logo" style="color:var(--muted2)">내 평점</div>
-    <div id="myRatingDisplay" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="scrollToRating()">
+    <div id="myRatingDisplay" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
       <span style="font-size:28px">✍️</span>
       <span style="font-size:11px;color:var(--info);font-family:var(--font-mono)">평점 남기기</span>
     </div>
@@ -534,57 +542,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
-<!-- 별점 입력 -->
-<div class="user-rating-box" id="ratingInputArea">
-  <div class="sec-title"><i class="ti ti-star" style="font-size:16px"></i>평점 &amp; 후기 남기기</div>
-  <p style="font-size:13px;color:var(--muted);margin-bottom:4px">별점을 선택하세요 (0.5점 단위 / 10점 만점)</p>
-  <div class="star-input">
-    <div class="star-wrap" data-v="1" onmousemove="hoverStar(event,1)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))"><span class="s-full">★</span><span class="s-half">★</span></div>
-    <div class="star-wrap" data-v="2" onmousemove="hoverStar(event,2)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))"><span class="s-full">★</span><span class="s-half">★</span></div>
-    <div class="star-wrap" data-v="3" onmousemove="hoverStar(event,3)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))"><span class="s-full">★</span><span class="s-half">★</span></div>
-    <div class="star-wrap" data-v="4" onmousemove="hoverStar(event,4)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))"><span class="s-full">★</span><span class="s-half">★</span></div>
-    <div class="star-wrap" data-v="5" onmousemove="hoverStar(event,5)" onmouseleave="leaveStar()" onclick="checkLoginThenRate(()=>setStar(this))"><span class="s-full">★</span><span class="s-half">★</span></div>
-    <span id="starLabel" style="font-size:14px;color:var(--muted);margin-left:12px">별점을 선택하세요</span>
+<!-- 평점/후기 요약 박스 -->
+<div class="my-review-box" id="myReviewBox">
+  <!-- 내 후기 없을 때 -->
+  <div id="myReviewEmpty">
+    <p style="font-size:14px;color:var(--muted2);margin-bottom:14px">이 작품 어떠셨나요?</p>
+    <div class="my-star-row" id="myStarRow">
+      <span class="my-star" data-v="1" onclick="goReview(1)">★</span>
+      <span class="my-star" data-v="2" onclick="goReview(2)">★</span>
+      <span class="my-star" data-v="3" onclick="goReview(3)">★</span>
+      <span class="my-star" data-v="4" onclick="goReview(4)">★</span>
+      <span class="my-star" data-v="5" onclick="goReview(5)">★</span>
+    </div>
+    <button class="go-review-btn" onclick="goReview(0)">
+      <i class="ti ti-pencil" style="font-size:14px"></i> 후기 작성하기
+    </button>
   </div>
-
-  <!-- 평가 4버튼 -->
-  <div class="etag-section-label" style="margin-top:4px">이 작품을 한마디로?</div>
-  <div class="eval-btns" id="evalBtns">
-    <button class="eval-btn" data-val="강추해요" onclick="toggleEval(this)">🔥 강추해요</button>
-    <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)">👍 추천해요</button>
-    <button class="eval-btn" data-val="평범해요" onclick="toggleEval(this)">😐 평범해요</button>
-    <button class="eval-btn" data-val="별로예요" onclick="toggleEval(this)">👎 별로예요</button>
-  </div>
-
-  <!-- 감정 태그 -->
-  <div class="etag-count" id="etagCount">0 / 3 태그 선택</div>
-  <div class="etag-section-label">감정 태그 (최대 3개)</div>
-  <div class="etag-grid">
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😰</span>긴장감 넘침</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🔥</span>몰입감 최고</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🥹</span>감동적</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😭</span>슬프다</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🤣</span>재미있음</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😤</span>결말이 아쉬움</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🤯</span>독특한 설정</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">📺</span>정주행 필수</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">👏</span>연기력 최고</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😱</span>소름 돋음</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">💤</span>지루했어요</button>
-    <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">💕</span>설레는 로맨스</button>
-  </div>
-
-  <div class="comment-input-row">
-    <textarea id="commentInput" placeholder="한줄 감상을 남겨보세요 (140자 이내)" oninput="updateCharCount(this)" onfocus="checkLoginThenRate(null,this)" maxlength="140"></textarea>
-    <button class="submit-btn" onclick="submitComment()">등록</button>
-  </div>
-  <div class="char-count" id="charCount">0 / 140</div>
-  <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--muted);cursor:pointer">
-    <input type="checkbox" id="spoilerCheck" style="width:13px;height:13px"> 스포일러 포함
-  </label>
-  <div class="comment-share-row">
-    <span style="font-size:13px;color:var(--muted)">후기를 등록하면 자동으로 공유할 수 있어요 →</span>
-    <button class="comment-share-btn" onclick="shareNative()"><i class="ti ti-share" style="font-size:13px"></i> 공유하기</button>
+  <!-- 내 후기 있을 때 -->
+  <div id="myReviewFilled" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:13px;color:var(--muted)">내 평점</span>
+      <span id="myReviewStars" style="color:var(--gold);font-size:18px;letter-spacing:2px"></span>
+      <span id="myReviewScore" style="font-size:14px;font-weight:700;color:var(--gold);font-family:var(--font-mono)"></span>
+      <button class="go-review-btn" style="margin-left:auto;padding:6px 14px;font-size:12px" onclick="goReview(0)">
+        <i class="ti ti-pencil" style="font-size:12px"></i> 수정
+      </button>
+    </div>
+    <div id="myReviewEval" style="margin-bottom:6px"></div>
+    <div id="myReviewText" style="font-size:14px;color:var(--muted2);line-height:1.6"></div>
   </div>
 </div>
 
@@ -842,10 +827,23 @@ async function loadTmdb(){
       /* 포스터 */
       if(det.poster_path){const img=document.getElementById('posterImg');img.src=IMG+det.poster_path;img.alt=det.name||det.title||WORK.title;img.style.display='block';document.getElementById('posterPh').style.display='none';}
 
-      /* 플랫폼 pill — OTT 이름만 표시 */
+      /* 플랫폼 pill — OTT 이름 + 검색 링크 */
       if(PC[WORK.platform]){
         const pill=document.getElementById('platformPill');
-        pill.textContent=PC[WORK.platform];pill.style.background=CC[WORK.platform]||'#888';pill.style.display='block';
+        pill.textContent=PC[WORK.platform];
+        pill.style.background=CC[WORK.platform]||'#888';
+        pill.style.display='block';
+        // OTT 검색 URL 연결
+        const OTT_SEARCH_URL={
+          netflix :(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
+          tving   :(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
+          disney  :(t)=>`https://www.disneyplus.com/ko-kr/search`,
+          coupang :(t)=>`https://www.coupangplay.com/search?q=${encodeURIComponent(t)}`,
+          wavve   :(t)=>`https://www.wavve.com/search?keyword=${encodeURIComponent(t)}`,
+          boxoffice:(t)=>`https://www.cgv.co.kr/search/?query=${encodeURIComponent(t)}`,
+        };
+        const fn=OTT_SEARCH_URL[WORK.platform];
+        if(fn){pill.href=fn(title||WORK.title);}
       }
 
       const title=det.title_ko||det.name||det.title||WORK.title;
@@ -1008,12 +1006,7 @@ function closePlayer(){closePlayer2();}
 function feelingClick(val){
   const sid=localStorage.getItem('ottrang_sid');
   if(!sid){const redirect=encodeURIComponent(location.pathname+location.search);location.href='/login.html?redirect='+redirect;return;}
-  // 평가 버튼 자동 선택
-  document.querySelectorAll('.eval-btn').forEach(b=>{
-    b.classList.remove('on');
-    if(b.dataset.val===val){b.classList.add('on');selectedEval=val;}
-  });
-  scrollToRating();
+  goReview(0,val);
 }
 
 /* ══ 평가 버튼 (후기 입력 내부) ══ */
@@ -1022,6 +1015,7 @@ function toggleEval(btn){
   if(btn.classList.contains('on')){btn.classList.remove('on');selectedEval='';}
   else{document.querySelectorAll('.eval-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');selectedEval=val;}
 }
+
 
 /* ══ 댓글 ══ */
 function setSort(t){curSort=t;document.getElementById('sortLatest').classList.toggle('on',t==='latest');document.getElementById('sortLikes').classList.toggle('on',t==='likes');curPage=1;renderComments();}
@@ -1125,7 +1119,8 @@ async function loadReviews(tmdbId){
     const sid=localStorage.getItem('ottrang_sid');
     const res=await fetch(`${REVIEW_API}/reviews/${tmdbId}`);const data=await res.json();
     if(data.ok){ALL_COMMENTS=(data.data||[]).map(r=>({id:r.id,user:r.nickname||'익명',init:(r.nickname||'익')[0],score:r.score,emotions:_safeParseArr(r.emotions),customTags:_safeParseArr(r.custom_tags),text:r.text||'',time:formatTime(r.created_at),likes:r.likes||0,spoiler:!!r.spoiler,user_id:r.user_id,isMe:false}));}
-    if(sid){const meRes=await fetch(`${REVIEW_API}/reviews/${tmdbId}/me`,{headers:{Authorization:'Bearer '+sid}});const meData=await meRes.json();MY_REVIEW=meData.data||null;if(MY_REVIEW){myStars=MY_REVIEW.score;renderStarInput(myStars);document.getElementById('starLabel').textContent=`${myStars*2}점 (10점 만점)`;document.getElementById('commentInput').value=MY_REVIEW.text||'';updateCharCount(document.getElementById('commentInput'));ALL_COMMENTS=ALL_COMMENTS.map(c=>({...c,isMe:c.id===MY_REVIEW.id}));}}
+    if(sid){const meRes=await fetch(`${REVIEW_API}/reviews/${tmdbId}/me`,{headers:{Authorization:'Bearer '+sid}});const meData=await meRes.json();MY_REVIEW=meData.data||null;if(MY_REVIEW){ALL_COMMENTS=ALL_COMMENTS.map(c=>({...c,isMe:c.id===MY_REVIEW.id}));}}
+    renderMyReview();
     curPage=1;renderComments();updateUserRatingCard();
   }catch(e){}
 }
@@ -1165,7 +1160,7 @@ function updateEtagCount(){
 }
 function toggleEtag(b){if(b.classList.contains('disabled'))return;b.classList.toggle('on');updateEtagCount();}
 function updateCharCount(el){const len=el.value.length;const el2=document.getElementById('charCount');el2.textContent=`${len} / 140`;el2.classList.toggle('warn',len>120);}
-function scrollToRating(){document.getElementById('ratingInputArea').scrollIntoView({behavior:'smooth',block:'center'});}
+function scrollToRating(){goReview(0);}
 
 /* ── 로그인 체크 ── */
 function checkLoginThenRate(cb,inputEl){
@@ -1205,20 +1200,93 @@ function showProfile(username){
 }
 function showDetail(){document.getElementById('profilePage').style.display='none';document.getElementById('detailPage').style.display='block';}
 
-/* ══ 시청가이드 (영상물등급위원회) ══ */
+/* ══ 별점 호버 (내 평점 박스) ══ */
+document.querySelectorAll && document.addEventListener('DOMContentLoaded',()=>{
+  const stars=document.querySelectorAll('.my-star');
+  stars.forEach(s=>{
+    s.addEventListener('mouseover',()=>{
+      const v=parseInt(s.dataset.v);
+      stars.forEach(x=>x.classList.toggle('lit',parseInt(x.dataset.v)<=v));
+    });
+    s.addEventListener('mouseleave',()=>{
+      stars.forEach(x=>x.classList.remove('lit'));
+      renderMyStarCurrent();
+    });
+  });
+});
+function renderMyStarCurrent(){
+  // 이미 평점 있으면 별 유지
+  if(MY_REVIEW&&MY_REVIEW.score){
+    const v=Math.round(MY_REVIEW.score);
+    document.querySelectorAll('.my-star').forEach(x=>x.classList.toggle('lit',parseInt(x.dataset.v)<=v));
+  }
+}
+
+/* ══ 후기 작성 페이지로 이동 ══ */
+function goReview(starVal, evalPreset){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){const redirect=encodeURIComponent(location.pathname+location.search);location.href='/login.html?redirect='+redirect;return;}
+  // sessionStorage에 작품 정보 + 초기값 전달
+  const reviewData={
+    tmdb_id:WORK.tmdb_id,
+    type:WORK.type,
+    platform:WORK.platform,
+    title:WORK.title,
+    season:WORK.season,
+    year:WORK.year,
+    rank:WORK.rank,
+    poster_path:document.getElementById('posterImg')?.src||'',
+    star:starVal||0,
+    eval:evalPreset||'',
+    back_url:location.pathname+location.search,
+  };
+  sessionStorage.setItem('ottrang_review_data',JSON.stringify(reviewData));
+  location.href='/review.html';
+}
+
+/* ══ 내 후기 표시 ══ */
+function renderMyReview(){
+  if(!MY_REVIEW){
+    document.getElementById('myReviewEmpty').style.display='block';
+    document.getElementById('myReviewFilled').style.display='none';
+    // 내 평점 카드도 초기화
+    document.getElementById('myRatingDisplay').style.display='flex';
+    return;
+  }
+  document.getElementById('myReviewEmpty').style.display='none';
+  document.getElementById('myReviewFilled').style.display='block';
+  const score10=(MY_REVIEW.score*2).toFixed(1);
+  const stars='★'.repeat(Math.round(MY_REVIEW.score))+'☆'.repeat(5-Math.round(MY_REVIEW.score));
+  document.getElementById('myReviewStars').textContent=stars;
+  document.getElementById('myReviewScore').textContent=score10+'점';
+  // 감정 평가 배지
+  const emotions=_safeParseArr(MY_REVIEW.emotions);
+  const evalVal=emotions[0]||'';
+  const evalColors={'강추해요':'rgba(240,180,41,.15)','추천해요':'rgba(52,211,153,.1)','평범해요':'rgba(160,160,188,.08)','별로예요':'rgba(230,57,70,.1)'};
+  document.getElementById('myReviewEval').innerHTML=evalVal
+    ?`<span style="display:inline-block;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:600;background:${evalColors[evalVal]||'var(--bg3)'};margin-bottom:6px">${evalVal}</span>`
+    :'';
+  document.getElementById('myReviewText').textContent=MY_REVIEW.text||'';
+  // 내 평점 카드 업데이트
+  document.getElementById('myRatingDisplay').innerHTML=`
+    <div style="font-size:18px;color:var(--gold);letter-spacing:2px">${stars}</div>
+    <div style="font-size:13px;font-weight:700;color:var(--gold);font-family:var(--font-mono)">${score10}점</div>
+    <div style="font-size:11px;color:var(--info);cursor:pointer;margin-top:2px" onclick="goReview(0)">수정하기</div>`;
+  renderMyStarCurrent();
+}
+
+/* ══ KMRB 시청가이드 — boxoffice만 ══ */
 async function loadWatchGuide(){
+  // boxoffice 플랫폼일 때만 호출
+  if(WORK.platform!=='boxoffice')return;
   if(!WORK.tmdb_id||!WORK.title)return;
   try{
     const res=await fetch(`${OTTRANK_API}/kmrb/${WORK.tmdb_id}?title_ko=${encodeURIComponent(WORK.title)}`);
     const data=await res.json();
     if(!data.ok||!data.data)return;
     const d=data.data;
-
-    /* 등급 표시 */
     const gradeEl=document.getElementById('watchGradeLabel');
     if(gradeEl&&d.watch_grade)gradeEl.textContent=d.watch_grade;
-
-    /* 내용정보 7가지 */
     const items=[
       {key:'subject',  label:'주제',     emoji:'📖'},
       {key:'sexuality',label:'선정성',   emoji:'🔞'},
@@ -1228,86 +1296,32 @@ async function loadWatchGuide(){
       {key:'drug',     label:'약물',     emoji:'💊'},
       {key:'imitation',label:'모방위험', emoji:'⚠️'},
     ];
-
-    /* 수위 → CSS 클래스 매핑 */
     const levelClass=(val)=>{
-      if(!val||val==='없음'||val==='해당없음')return'none';
-      if(val.includes('약한')||val==='낮음'||val==='저')return'low';
-      if(val.includes('중간')||val==='보통'||val==='중')return'mid';
+      if(!val||val==='없음'||val==='해당없음'||val==='전체관람가')return'none';
+      if(val.includes('12세'))return'low';
+      if(val.includes('15세'))return'mid';
       return'high';
     };
-
     const grid=document.getElementById('watchGuideGrid');
     const hasAny=items.some(i=>d[i.key]&&d[i.key]!=='');
     if(!hasAny)return;
-
     grid.innerHTML=items.map(i=>`
       <div class="wg-item">
         <div class="wg-emoji">${i.emoji}</div>
         <div class="wg-label">${i.label}</div>
         <span class="wg-level ${levelClass(d[i.key])}">${d[i.key]||'없음'}</span>
       </div>`).join('');
-
     document.getElementById('watchGuideSection').style.display='block';
     document.getElementById('wgOuter').style.display='flex';
-
-    /* 지금 보러가기 — TMDB watch/providers로 OTT 정보 가져오기 */
-    try{
-      const wpRes=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/watch/providers`);
-      const wpData=await wpRes.json();
-      const kr=wpData.results?.KR;
-      const providers=[...(kr?.flatrate||[]),(kr?.free||[])].slice(0,5);
-
-      // OTT 검색 URL 매핑
-      const OTT_SEARCH={
-        'Netflix'  :(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
-        'Tving'    :(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
-        'Disney Plus':(t)=>`https://www.disneyplus.com/ko-kr/search`,
-        'Coupang Play':(t)=>`https://www.coupangplay.com/search?q=${encodeURIComponent(t)}`,
-        'Wavve'    :(t)=>`https://www.wavve.com/search?keyword=${encodeURIComponent(t)}`,
-        'Watcha'   :(t)=>`https://watcha.com/search?query=${encodeURIComponent(t)}`,
-        'Apple TV Plus':(t)=>`https://tv.apple.com/kr/search/${encodeURIComponent(t)}`,
-        'Amazon Prime Video':(t)=>`https://www.primevideo.com/search/ref=atv_nb_sr?phrase=${encodeURIComponent(t)}`,
-      };
-
-      // 박스오피스(극장) 여부 확인
-      const isBoxoffice=WORK.platform==='boxoffice';
-      const btnBox=document.getElementById('watchNowBtns');
-      const title=WORK.title||'';
-      let btns=[];
-
-      if(isBoxoffice){
-        // 극장 연결
-        btns=[
-          `<a class="watch-now-btn" href="https://www.cgv.co.kr/search/?query=${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>CGV</a>`,
-          `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/MovieList#/Search/${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>롯데시네마</a>`,
-          `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>메가박스</a>`,
-        ];
-      } else if(providers.length){
-        btns=providers.map(p=>{
-          const fn=OTT_SEARCH[p.provider_name];
-          const url=fn?fn(title):'#';
-          return `<a class="watch-now-btn" href="${url}" target="_blank" rel="noopener"><span class="wn-icon">▶</span>${p.provider_name}</a>`;
-        });
-      } else {
-        // TMDB watch/providers 결과 없어도 현재 플랫폼으로 연결
-        const platformSearch={
-          netflix:(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
-          tving:(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
-          disney:(t)=>`https://www.disneyplus.com/ko-kr/search`,
-          coupang:(t)=>`https://www.coupangplay.com/search?q=${encodeURIComponent(t)}`,
-          wavve:(t)=>`https://www.wavve.com/search?keyword=${encodeURIComponent(t)}`,
-        };
-        const fn=platformSearch[WORK.platform];
-        if(fn)btns=[`<a class="watch-now-btn" href="${fn(title)}" target="_blank" rel="noopener"><span class="wn-icon">▶</span>${PC[WORK.platform]||WORK.platform}에서 보기</a>`];
-      }
-
-      if(btns.length){
-        btnBox.innerHTML=btns.join('');
-        document.getElementById('watchNowBox').style.display='block';
-      }
-    }catch(e){}
-
+    // 극장 연결 버튼
+    const title=WORK.title||'';
+    const btnBox=document.getElementById('watchNowBtns');
+    btnBox.innerHTML=[
+      `<a class="watch-now-btn" href="https://www.cgv.co.kr/search/?query=${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>CGV</a>`,
+      `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/MovieList#/Search/${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>롯데시네마</a>`,
+      `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(title)}" target="_blank" rel="noopener"><span class="wn-icon">🎬</span>메가박스</a>`,
+    ].join('');
+    document.getElementById('watchNowBox').style.display='block';
   }catch(e){}
 }
 
