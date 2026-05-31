@@ -25,7 +25,7 @@
 <!-- 폰트/아이콘 -->
 <!-- 스타일 -->
 <style>
-/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  26  */
+/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  27  */
 /* title_detail.css — 오뜨랑 작품 상세 페이지 스타일 */
 
 
@@ -696,7 +696,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 페이지 로직 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  26  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  27  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -1214,16 +1214,27 @@ async function loadTmdb(){
       imdbCard.style.cursor='pointer';
       imdbCard.onclick=()=>window.open(`https://www.imdb.com/title/${imdbId}/`,'_blank');
       fetch(`${OTTRANK_API}/imdb/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tmdb_id:WORK.tmdb_id,imdb_id:imdbId})}).catch(()=>{});
-      try{
-        const omdbData=await fetch(`${OTTRANK_API}/imdb/${imdbId}`).then(r=>r.json());
-        if(omdbData.ok&&omdbData.rating){
-          document.getElementById('imdbScore').textContent=omdbData.rating;
-          document.getElementById('imdbVotes').textContent=omdbData.votes?omdbData.votes.replace(/,/g,'')+' 명':'';
-        }else{
+
+      // 1순위: 우리 DB(worksData)에 imdb_rating이 있으면 바로 표시
+      if(worksData?.imdb_rating){
+        document.getElementById('imdbScore').textContent=fmtScore(worksData.imdb_rating);
+        document.getElementById('imdbVotes').textContent=worksData.imdb_votes?worksData.imdb_votes.replace(/,/g,'')+' 명':'';
+      }else{
+        // 2순위: 외부 API 호출
+        try{
+          const omdbData=await fetch(`${OTTRANK_API}/imdb/${imdbId}`).then(r=>r.json());
+          if(omdbData.ok&&omdbData.rating){
+            document.getElementById('imdbScore').textContent=omdbData.rating;
+            document.getElementById('imdbVotes').textContent=omdbData.votes?omdbData.votes.replace(/,/g,'')+' 명':'';
+          }else{
+            document.getElementById('imdbScore').innerHTML='<span style="font-size:20px">↗</span>';
+            document.getElementById('imdbVotes').innerHTML='<span style="font-size:10px;color:#F5C518">IMDb 보기</span>';
+          }
+        }catch(e){
           document.getElementById('imdbScore').innerHTML='<span style="font-size:20px">↗</span>';
           document.getElementById('imdbVotes').innerHTML='<span style="font-size:10px;color:#F5C518">IMDb 보기</span>';
         }
-      }catch(e){}
+      }
     }
 
     // Gallery (lazy)
