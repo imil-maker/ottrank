@@ -25,7 +25,7 @@
 <!-- 폰트/아이콘 -->
 <!-- 스타일 -->
 <style>
-/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  15  */
+/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  16  */
 /* title_detail.css — 오뜨랑 작품 상세 페이지 스타일 */
 
 
@@ -143,6 +143,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ══ 출연진 ══ */
 .cast-section{margin-bottom:28px}
 /* 출연진 화살표 래퍼 */
+/* ══ 댓글 + OTT 보러가기 2칸 레이아웃 ══ */
+.comment-watch-row{display:grid;grid-template-columns:1fr auto;gap:16px;margin-bottom:24px;align-items:start}
+#ottWatchNowBox{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:20px;min-width:160px}
+@media(max-width:640px){.comment-watch-row{grid-template-columns:1fr}}
+
+/* ══ 출연진 화살표 ══ */
 .cast-scroll-wrap{display:flex;align-items:center;gap:4px}
 .cast-arrow{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
 .cast-arrow:hover{background:var(--bg3);border-color:var(--info-border);color:var(--info)}
@@ -619,6 +625,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
+<!-- 댓글 + OTT 보러가기 2칸 레이아웃 래퍼 -->
+<div id="commentAndWatchRow" class="comment-watch-row">
+
 <!-- 사용자 댓글 -->
 <div id="commentSection" style="display:none">
   <div class="sec-title"><i class="ti ti-message-circle" style="font-size:16px"></i>사용자 댓글 <small id="commentCount">0개</small></div>
@@ -629,6 +638,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <div id="commentsArea"></div>
   <div id="pagination" class="pagination"></div>
 </div>
+
+<!-- OTT 지금 보러가기 (박스오피스 제외) -->
+<div id="ottWatchNowBox" style="display:none">
+  <div class="sec-title"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
+  <div class="watch-now-btns" id="ottWatchNowBtns"></div>
+</div>
+
+</div><!-- /.comment-watch-row -->
 
 
 <!-- 유튜브 -->
@@ -686,7 +703,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 페이지 로직 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  15  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  16  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -1307,6 +1324,8 @@ function renderComments(){
   // 댓글 0개면 섹션 전체 숨김
   const commentSection=document.getElementById('commentSection');
   if(commentSection)commentSection.style.display=sorted.length?'block':'none';
+  // 댓글 유무에 따라 레이아웃 업데이트
+  updateCommentWatchLayout();
   if(!sorted.length){
     document.getElementById('pagination').innerHTML='';return;
   }
@@ -1529,30 +1548,65 @@ function showDetail(){document.getElementById('profilePage').style.display='none
 /* == Platform Load — 외부 URL 직접 접근 시 OTT 플랫폼 정보 조회 == */
 async function loadPlatforms(){
   if(!WORK.tmdb_id)return;
-  // sessionStorage에서 온 경우(내부 링크)는 platform 이미 있으므로 스킵
-  if(WORK.platform&&WORK.platform!=='netflix'&&WORK.platform!=='-')return;
+  // 박스오피스는 시청가이드+극장링크가 있으므로 스킵
+  if(WORK.platform==='boxoffice')return;
   try{
     const res=await fetch(`${OTTRANK_API}/rankings/platforms/${WORK.tmdb_id}`);
     const data=await res.json();
-    if(data.ok&&data.data&&data.data.length){
-      // 1순위 플랫폼으로 설정 (rank가 가장 낮은 것)
-      WORK.platform=data.data[0].platform;
-      WORK.rank=data.data[0].rank||'-';
+    if(!data.ok||!data.data||!data.data.length)return;
+    const platforms=data.data; // [{platform, rank}, ...]
+
+    // 1순위 플랫폼으로 WORK 업데이트 (포스터 pill + 랭킹 칩용)
+    if(!WORK.platform||WORK.platform==='netflix'||WORK.platform==='-'){
+      WORK.platform=platforms[0].platform;
+      WORK.rank=platforms[0].rank||'-';
       // platform pill 업데이트
-      if(PC[WORK.platform]){
-        const pill=document.getElementById('platformPill');
-        if(pill){
-          pill.textContent=PC[WORK.platform];
-          pill.style.background=CC[WORK.platform]||'#888';
-          pill.style.display='block';
-          const fn=OTT_SEARCH_URL[WORK.platform];
-          if(fn)pill.href=fn(WORK.title);
-        }
+      const pill=document.getElementById('platformPill');
+      if(pill&&PC[WORK.platform]){
+        pill.textContent=PC[WORK.platform];
+        pill.style.background=CC[WORK.platform]||'#888';
+        pill.style.display='block';
+        const fn=OTT_SEARCH_URL[WORK.platform];
+        if(fn)pill.href=fn(WORK.title);
       }
-      // 랭킹 칩 업데이트
       renderRankRow();
     }
+
+    // OTT 지금 보러가기 버튼 렌더링 (모든 플랫폼)
+    const box=document.getElementById('ottWatchNowBox');
+    const btns=document.getElementById('ottWatchNowBtns');
+    if(!box||!btns)return;
+    btns.innerHTML=platforms.map(p=>{
+      const fn=OTT_SEARCH_URL[p.platform];
+      const url=fn?fn(WORK.title):'#';
+      const name=PC[p.platform]||p.platform;
+      const color=CC[p.platform]||'#888';
+      return `<a class="watch-now-btn" href="${url}" target="_blank" rel="noopener" style="border-color:${color}20;color:${color}">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:4px"></span>
+        ${name}${p.rank&&p.rank!=='-'?' '+p.rank+'위':''}
+      </a>`;
+    }).join('');
+    box.style.display='block';
+    // 댓글이 있으면 2칸 레이아웃, 없으면 단독 표시
+    updateCommentWatchLayout();
   }catch(e){}
+}
+
+/* == 댓글+보러가기 레이아웃 업데이트 == */
+function updateCommentWatchLayout(){
+  const row=document.getElementById('commentAndWatchRow');
+  const commentSection=document.getElementById('commentSection');
+  const watchBox=document.getElementById('ottWatchNowBox');
+  if(!row)return;
+  const hasComments=ALL_COMMENTS.length>0;
+  const hasWatch=watchBox&&watchBox.style.display!=='none';
+  if(hasComments&&hasWatch){
+    // 댓글 있고 보러가기 있으면 2칸
+    row.style.gridTemplateColumns='1fr auto';
+  }else{
+    // 댓글 없으면 단독
+    row.style.gridTemplateColumns='1fr';
+  }
 }
 
 async function init(){
