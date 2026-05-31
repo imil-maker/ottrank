@@ -354,6 +354,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
 
+/* ══ 시청가이드 ══ */
+.watch-guide{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:24px}
+.wg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:4px}
+.wg-item{background:var(--bg3);border-radius:var(--r);padding:12px 8px;text-align:center;border:.5px solid var(--border)}
+.wg-emoji{font-size:22px;margin-bottom:6px}
+.wg-label{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:4px}
+.wg-level{font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block}
+.wg-level.none{background:rgba(52,211,153,.1);color:#34d399}
+.wg-level.low{background:rgba(240,180,41,.1);color:var(--gold)}
+.wg-level.mid{background:rgba(230,57,70,.1);color:var(--accent)}
+.wg-level.high{background:rgba(230,57,70,.2);color:#ff6b6b;border:.5px solid rgba(230,57,70,.4)}
+@media(max-width:640px){.wg-grid{grid-template-columns:repeat(2,1fr)}}
+
 /* ══ 모바일 ══ */
 @media(max-width:640px){
   .hero-content{flex-direction:column;align-items:flex-start;gap:16px;padding-bottom:24px}
@@ -486,6 +499,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div class="gallery-section" id="gallerySection" style="display:none">
   <div class="sec-title"><i class="ti ti-photo" style="font-size:16px"></i>이미지</div>
   <div class="gallery-grid" id="galleryGrid"></div>
+</div>
+
+<!-- 시청가이드 -->
+<div class="watch-guide" id="watchGuideSection" style="display:none">
+  <div class="sec-title"><i class="ti ti-shield-check" style="font-size:16px"></i>시청가이드 <small id="watchGradeLabel"></small></div>
+  <div class="wg-grid" id="watchGuideGrid"></div>
+  <div style="font-size:11px;color:var(--muted);margin-top:10px;font-family:var(--font-mono)">출처: 영상물등급위원회 (kmrb.or.kr)</div>
 </div>
 
 <!-- 평점 CTA 배너 -->
@@ -1149,12 +1169,59 @@ function showProfile(username){
 }
 function showDetail(){document.getElementById('profilePage').style.display='none';document.getElementById('detailPage').style.display='block';}
 
+/* ══ 시청가이드 (영상물등급위원회) ══ */
+async function loadWatchGuide(){
+  if(!WORK.tmdb_id||!WORK.title)return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/kmrb/${WORK.tmdb_id}?title_ko=${encodeURIComponent(WORK.title)}`);
+    const data=await res.json();
+    if(!data.ok||!data.data)return;
+    const d=data.data;
+
+    /* 등급 표시 */
+    const gradeEl=document.getElementById('watchGradeLabel');
+    if(gradeEl&&d.watch_grade)gradeEl.textContent=d.watch_grade;
+
+    /* 내용정보 7가지 */
+    const items=[
+      {key:'subject',  label:'주제',     emoji:'📖'},
+      {key:'sexuality',label:'선정성',   emoji:'🔞'},
+      {key:'violence', label:'폭력성',   emoji:'⚔️'},
+      {key:'language', label:'대사',     emoji:'💬'},
+      {key:'horror',   label:'공포',     emoji:'😱'},
+      {key:'drug',     label:'약물',     emoji:'💊'},
+      {key:'imitation',label:'모방위험', emoji:'⚠️'},
+    ];
+
+    /* 수위 → CSS 클래스 매핑 */
+    const levelClass=(val)=>{
+      if(!val||val==='없음'||val==='해당없음')return'none';
+      if(val.includes('약한')||val==='낮음'||val==='저')return'low';
+      if(val.includes('중간')||val==='보통'||val==='중')return'mid';
+      return'high';
+    };
+
+    const grid=document.getElementById('watchGuideGrid');
+    const hasAny=items.some(i=>d[i.key]&&d[i.key]!=='');
+    if(!hasAny)return;
+
+    grid.innerHTML=items.map(i=>`
+      <div class="wg-item">
+        <div class="wg-emoji">${i.emoji}</div>
+        <div class="wg-label">${i.label}</div>
+        <span class="wg-level ${levelClass(d[i.key])}">${d[i.key]||'없음'}</span>
+      </div>`).join('');
+
+    document.getElementById('watchGuideSection').style.display='block';
+  }catch(e){}
+}
+
 /* ══ 초기화 ══ */
 async function init(){
   await loadTmdb();
   // 병렬 로드
   if(WORK.tmdb_id){
-    Promise.all([loadTop10Days(),loadManualBadges(),loadReviews(WORK.tmdb_id)]);
+    Promise.all([loadTop10Days(),loadManualBadges(),loadReviews(WORK.tmdb_id),loadWatchGuide()]);
   }else{renderComments();updateUserRatingCard();}
   if(location.hash)setTimeout(()=>{const el=document.querySelector(location.hash);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},700);
 }
