@@ -1,4 +1,4 @@
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직 */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  11  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -72,7 +72,17 @@ let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',s
       sessionStorage.removeItem('ottrang_slug');return;
     }
   }
+  // Cloudflare _redirects에서 ?slug=2-2023126485 형태로 전달된 경우 처리
   const params=new URLSearchParams(location.search);
+  const slugParam=params.get('slug');
+  if(slugParam){
+    const parsed=parseSlug('/title/'+slugParam);
+    if(parsed&&parsed.tmdb_id){
+      WORK.tmdb_id=parsed.tmdb_id;WORK.season=parsed.season;WORK.year=parsed.year;
+      WORK.title=decodeURIComponent(parsed.titleSlug.replace(/-/g,' '))||'작품명';
+      return;
+    }
+  }
   WORK.tmdb_id=params.get('tmdb_id')?parseInt(params.get('tmdb_id')):null;
   WORK.type=params.get('type')||'tv';
   WORK.platform=params.get('platform')||'netflix';
