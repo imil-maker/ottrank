@@ -292,8 +292,8 @@ async function loadTmdb(){
 
     // Render basic info immediately
     const title=worksData?.title_ko||det.name||det.title||WORK.title;
-    // 영어(원어) 제목: 우리 DB의 title_en만 사용 (TMDB original_name 폴백 제거 — 한국 작품은 한글로 오기 때문)
-    const origTitle=worksData?.title_en||'';
+    // English title: works DB first, fallback TMDB
+    const origTitle=worksData?.title_en||det.original_name||det.original_title||'';
     const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
     const season=det.number_of_seasons||1;
     WORK.title=title;WORK.season=season;
@@ -406,6 +406,12 @@ async function loadTmdb(){
             <div class="director-photo">${p.profile_path?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy">`:`<div class="director-photo-ph">${(p.name||'?')[0]}</div>`}</div>
             <div><div class="director-name">${p.name}</div><div class="director-label">감독</div></div>
           </a>`).join('');
+        // 화살표 초기 상태 + 스크롤 이벤트 연결
+        setTimeout(()=>{
+          updateCastArrows();
+          const cs=document.getElementById('castScroll');
+          if(cs)cs.addEventListener('scroll',updateCastArrows,{passive:true});
+        },100);
         document.getElementById('castScroll').innerHTML=cast.map(p=>`
           <a class="cast-card" href="${tmdbPersonUrl}${p.id}" target="_blank" rel="noopener">
             <div class="cast-photo">
@@ -415,6 +421,12 @@ async function loadTmdb(){
             <div class="cast-name">${p.name}</div>
             <div class="cast-role">${p.character||''}</div>
           </a>`).join('');
+        // 화살표 초기 상태 + 스크롤 이벤트 연결
+        setTimeout(()=>{
+          updateCastArrows();
+          const cs=document.getElementById('castScroll');
+          if(cs)cs.addEventListener('scroll',updateCastArrows,{passive:true});
+        },100);
       }
     }
 
@@ -522,6 +534,36 @@ function openPlayer2(id,title){
 function closePlayer2(){document.getElementById('ytFrame2').src='';document.getElementById('ytModal2').classList.remove('show');}
 
 /* == Feeling Buttons == */
+/* == 별점 호버 효과 == */
+function hoverStar(val){
+  // val번째 별까지 노란색(lit), 이후는 회색으로
+  document.querySelectorAll('#myStarRow .my-star').forEach(el=>{
+    if(parseInt(el.dataset.v)<=val)el.classList.add('lit');
+    else el.classList.remove('lit');
+  });
+}
+function resetStar(){
+  // 마우스 아웃 시 모든 별 초기화
+  document.querySelectorAll('#myStarRow .my-star').forEach(el=>el.classList.remove('lit'));
+}
+
+/* == 출연진 화살표 스크롤 == */
+function scrollCast(dir){
+  // dir: -1(왼쪽), 1(오른쪽) / 한번에 배우 3명 너비만큼 이동
+  const el=document.getElementById('castScroll');if(!el)return;
+  const scrollAmt=el.clientWidth*0.7;
+  el.scrollBy({left:dir*scrollAmt,behavior:'smooth'});
+  // 스크롤 후 화살표 활성/비활성 업데이트
+  setTimeout(()=>updateCastArrows(),350);
+}
+function updateCastArrows(){
+  const el=document.getElementById('castScroll');if(!el)return;
+  const left=document.getElementById('castArrowLeft');
+  const right=document.getElementById('castArrowRight');
+  if(left)left.disabled=el.scrollLeft<=0;
+  if(right)right.disabled=el.scrollLeft+el.clientWidth>=el.scrollWidth-4;
+}
+
 function feelingClick(val){
   const sid=localStorage.getItem('ottrang_sid');
   if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
