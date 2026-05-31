@@ -1,6 +1,6 @@
 /* title_detail.js — 오뜨랑 작품 상세 페이지 로직 */
 
-/* ══ 상수 ══ */
+/* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
 const IMG='https://image.tmdb.org/t/p/w500';
@@ -21,7 +21,7 @@ const ETAG_EMOJI={'긴장감 넘침':'😰','몰입감 최고':'🔥','감동적
 const COUNTRY_MAP={'KR':'한국','US':'미국','JP':'일본','GB':'영국','FR':'프랑스','DE':'독일','CN':'중국','TH':'태국','IN':'인도','IT':'이탈리아','ES':'스페인','AU':'호주','CA':'캐나다','MX':'멕시코','TW':'대만'};
 const CERT_MAP={'ALL':'전체관람가','12':'12세이상','15':'15세이상','18':'청소년관람불가','G':'전체관람가','PG':'PG','PG-13':'13세이상','R':'17세이상','TV-Y':'전체','TV-G':'전체','TV-PG':'보호자지도','TV-14':'14세이상','TV-MA':'성인','NR':'등급없음'};
 
-/* ══ 헤더 삽입 ══ */
+/* == Header Inject == */
 (function(){
   const el=document.getElementById('ottrang-header');
   if(!el)return;
@@ -36,7 +36,7 @@ const CERT_MAP={'ALL':'전체관람가','12':'12세이상','15':'15세이상','1
     }).catch(()=>{});
 })();
 
-/* ══ URL 파싱 ══ */
+/* == URL Parse == */
 function parseSlug(pathname){
   const slug=pathname.replace(/^\/title\/?/,'').replace(/\.html$/,'');
   if(!slug)return null;
@@ -55,7 +55,7 @@ function parseSlug(pathname){
   return{tmdb_id,season,year,titleSlug:slug.slice(0,m.index)};
 }
 
-/* ══ WORK 객체 초기화 ══ */
+/* == WORK Init == */
 let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'—',title:'작품명',season:1,year:null};
 (function initWork(){
   try{
@@ -89,7 +89,7 @@ let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'—',title:'작품명'
   }
 })();
 
-/* ══ 상태 변수 ══ */
+/* == State == */
 let myStars=0,curSort='latest',curPage=1;
 const PER_PAGE=5;
 let selectedEval='';
@@ -99,7 +99,7 @@ let allYtVideos=[],ytPage=0;
 const YT_PER_PAGE=3;
 let _wishlisted=false;
 
-/* ══ SEO ══ */
+/* == SEO == */
 function updateSEO(title,overview,posterUrl,platform,rank){
   const t=title||WORK.title,pName=PC[platform]||platform||'OTT';
   const seoT=`${t} 평점·후기·해외반응 | ${pName} ${rank}위 | 오뜨랑`;
@@ -125,7 +125,7 @@ function updateSEO(title,overview,posterUrl,platform,rank){
 }
 function setMeta(id,attr,val){const el=document.getElementById(id);if(!el)return;if(attr==='textContent')el.textContent=val;else el.setAttribute(attr,val);}
 
-/* ══ 랭킹 정보 행 ══ */
+/* == Rank Row == */
 function renderRankRow(){
   const row=document.getElementById('heroRankRow');if(!row)return;
   const rankVal=WORK.rank&&WORK.rank!=='—'&&WORK.rank!=='0'?WORK.rank:null;
@@ -138,7 +138,7 @@ function renderRankRow(){
   }
 }
 
-/* ══ TOP10 일수 + category_slot 저장 ══ */
+/* == Top10 Days == */
 let WORK_CATEGORY_SLOT = null; // boxoffice category01 여부 판단용
 
 async function loadTop10Days(){
@@ -183,7 +183,7 @@ async function loadManualBadges(){
   }catch(e){}
 }
 
-/* ══ TMDB 이미지 갤러리 ══ */
+/* == Gallery == */
 async function loadGallery(){
   if(!WORK.tmdb_id)return;
   try{
@@ -199,7 +199,7 @@ async function loadGallery(){
   }catch(e){}
 }
 
-/* ══ 시청가이드 (boxoffice만) ══ */
+/* == Watch Guide (boxoffice only) == */
 async function loadWatchGuide(){
   if(WORK.platform!=='boxoffice'||!WORK.tmdb_id||!WORK.title)return;
   try{
@@ -248,7 +248,7 @@ async function loadWatchGuide(){
   }catch(e){}
 }
 
-/* ══ TMDB 메인 로드 — 병렬 처리로 성능 최적화 ══ */
+/* == TMDB Load (parallel) == */
 async function loadTmdb(){
   if(!WORK.tmdb_id){
     document.getElementById('heroLoading').style.display='none';
@@ -264,14 +264,14 @@ async function loadTmdb(){
       fetch(`${TMDB_PROXY}/movie/${WORK.tmdb_id}?language=ko-KR`).then(r=>r.json()).catch(()=>null),
     ]);
 
-    // works 데이터에서 media_type + title_en 추출
+    // Extract media_type + title_en from works
     let worksData=null;
     if(worksRes.status==='fulfilled'&&worksRes.value?.ok){
       worksData=worksRes.value.data;
       if(worksData?.media_type)WORK.type=worksData.media_type;
     }
 
-    // TV/Movie 중 유효한 것 선택
+    // Select valid TV/Movie
     let det=null;
     const tvData=detTv.status==='fulfilled'?detTv.value:null;
     const movieData=detMovie.status==='fulfilled'?detMovie.value:null;
@@ -290,9 +290,9 @@ async function loadTmdb(){
       return;
     }
 
-    // ② 기본 정보 즉시 렌더링
+    // Render basic info immediately
     const title=worksData?.title_ko||det.name||det.title||WORK.title;
-    // 영어 제목 — works DB 우선, 없으면 TMDB original
+    // English title: works DB first, fallback TMDB
     const origTitle=worksData?.title_en||det.original_name||det.original_title||'';
     const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
     const season=det.number_of_seasons||1;
@@ -313,7 +313,7 @@ async function loadTmdb(){
       bdImg.classList.add('loaded');
     }
 
-    // 포스터
+    // poster
     if(det.poster_path){
       const img=document.getElementById('posterImg');
       img.src=IMG+det.poster_path;img.alt=title;img.style.display='block';
@@ -330,7 +330,7 @@ async function loadTmdb(){
       if(fn)pill.href=fn(title);
     }
 
-    // 제목/원제/장르
+    // title/orig/genre
     document.getElementById('mainTitle').textContent=title;
     const countries=det.production_countries||det.origin_country||[];
     let countryStr='';
@@ -343,25 +343,25 @@ async function loadTmdb(){
     const genres=det.genres||(genreStr?genreStr.split(',').map(g=>({name:g.trim()})):[]);
     document.getElementById('genreTags').innerHTML=genres.map(g=>`<span class="hero-tag">${g.name||g}</span>`).join('');
 
-    // TMDB 평점
+    // TMDB rating
     const tmdbRating=det.tmdb_rating||det.vote_average||0;
     const tmdbVotes=det.vote_count||0;
     document.getElementById('tmdbScore').textContent=tmdbRating?parseFloat(tmdbRating).toFixed(1):'—';
     document.getElementById('tmdbVotes').textContent=tmdbVotes?`${tmdbVotes.toLocaleString()}명`:'—';
 
-    // 줄거리
+    // overview
     document.getElementById('overview').textContent=det.overview||'줄거리 정보가 없습니다.';
 
-    // SEO + 찜 + 랭킹 행
+    // SEO + wish + rank row
     updateSEO(title,det.overview||'',det.poster_path,WORK.platform,WORK.rank);
     initWish(WORK.tmdb_id);
     renderRankRow();
 
-    // 히어로 즉시 표시
+    // Show hero immediately
     document.getElementById('heroLoading').style.display='none';
     document.getElementById('heroContent').classList.add('visible');
 
-    // ③ 나머지 API 병렬 호출 (히어로 표시 후 백그라운드)
+    // Parallel API calls after hero shown
     const [creditsRes, videosRes, ratingsRes, extIdsRes] = await Promise.allSettled([
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/credits?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/videos?language=ko-KR`).then(r=>r.json()),
@@ -369,7 +369,7 @@ async function loadTmdb(){
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/external_ids`).then(r=>r.json()),
     ]);
 
-    // 메타 (시즌/화수/개봉일/등급)
+    // Meta info
     let ratingHtml='';
     if(ratingsRes.status==='fulfilled'){
       const rData=ratingsRes.value;let cert='';
@@ -393,7 +393,7 @@ async function loadTmdb(){
     if(dateRaw){const d=new Date(dateRaw);const days=['일','월','화','수','목','금','토'];dateHtml=`<span class="hero-meta-item">개봉 <b>${dateRaw.replace(/-/g,'.')} (${days[d.getDay()]})</b></span>`;}
     document.getElementById('metaRow').innerHTML=`${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
 
-    // 크레딧
+    // Credits
     if(creditsRes.status==='fulfilled'){
       const cr=creditsRes.value;
       const tmdbPersonUrl='https://www.themoviedb.org/person/';
@@ -418,7 +418,7 @@ async function loadTmdb(){
       }
     }
 
-    // 영상
+    // Videos
     if(videosRes.status==='fulfilled'){
       let videos=videosRes.value?.results||[];
       if(!videos.length){
@@ -432,7 +432,7 @@ async function loadTmdb(){
       renderYtPage(0);
     }
 
-    // IMDb (외부 ID → OMDB)
+    // IMDb
     if(extIdsRes.status==='fulfilled'&&extIdsRes.value?.imdb_id){
       const imdbId=extIdsRes.value.imdb_id;
       const imdbCard=document.getElementById('imdbScore').closest('.r-card');
@@ -451,7 +451,7 @@ async function loadTmdb(){
       }catch(e){}
     }
 
-    // 갤러리 (lazy)
+    // Gallery (lazy)
     loadGallery();
 
   }catch(e){
@@ -461,14 +461,14 @@ async function loadTmdb(){
   }
 }
 
-/* ══ DB 저장 유튜브 영상 로드 ══ */
+/* == Load DB Videos == */
 async function loadTitleVideos(){
   if(!WORK.tmdb_id)return;
   try{
     const res=await fetch(`${OTTRANK_API}/videos/${WORK.tmdb_id}`);
     const data=await res.json();
     if(data.ok&&data.data&&data.data.length){
-      // DB 영상이 있으면 TMDB 영상보다 우선 표시
+      // DB videos take priority over TMDB
       const dbVideos=data.data.map(v=>({
         key:v.youtube_id,
         name:v.title||'관련 영상',
@@ -476,7 +476,7 @@ async function loadTitleVideos(){
         site:'YouTube',
         is_main:v.is_main,
       }));
-      // 메인 영상 맨 앞으로
+      // Main video first
       dbVideos.sort((a,b)=>b.is_main-a.is_main);
       allYtVideos=[...dbVideos,...allYtVideos.filter(v=>!dbVideos.find(d=>d.key===v.key))];
       renderYtPage(0);
@@ -484,7 +484,7 @@ async function loadTitleVideos(){
   }catch(e){}
 }
 
-/* ══ YouTube 렌더링 ══ */
+/* == YouTube Render == */
 function renderYtPage(page){
   ytPage=page;
   const total=allYtVideos.length;
@@ -521,14 +521,14 @@ function openPlayer2(id,title){
 }
 function closePlayer2(){document.getElementById('ytFrame2').src='';document.getElementById('ytModal2').classList.remove('show');}
 
-/* ══ 감정 표현 버튼 ══ */
+/* == Feeling Buttons == */
 function feelingClick(val){
   const sid=localStorage.getItem('ottrang_sid');
   if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
   goReview(0,val);
 }
 
-/* ══ 댓글 ══ */
+/* == Comments == */
 function setSort(t){curSort=t;document.getElementById('sortLatest').classList.toggle('on',t==='latest');document.getElementById('sortLikes').classList.toggle('on',t==='likes');curPage=1;renderComments();}
 function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)=>b.likes-a.likes);else a.sort((a,b)=>b.id-a.id);return a;}
 function renderHalfStars(score){let h='';for(let i=1;i<=5;i++){if(score>=i)h+=`<span class="c-star">★</span>`;else if(score>=i-0.5)h+=`<span class="c-star" style="position:relative;display:inline-block;overflow:hidden;width:.7em">★</span>`;else h+=`<span class="c-star off">★</span>`;}return h;}
@@ -583,7 +583,7 @@ function renderPagination(){
 }
 function goPage(p){const t=Math.ceil(ALL_COMMENTS.length/PER_PAGE);if(p<1||p>t)return;curPage=p;renderComments();document.getElementById('commentsArea').scrollIntoView({behavior:'smooth',block:'start'});}
 
-/* ══ 공유 ══ */
+/* == Share == */
 function getShareUrl(){const s=WORK.season||1,y=WORK.year||new Date().getFullYear(),tid=WORK.tmdb_id||'';return`https://ottrank.kr/title/${s}-${y}${tid}`;}
 function shareNative(){
   const url=getShareUrl();const title=document.getElementById('mainTitle').textContent||WORK.title;
@@ -592,7 +592,7 @@ function shareNative(){
 }
 function showToast(msg){const t=document.getElementById('shareToast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 
-/* ══ 후기 작성 페이지로 이동 ══ */
+/* == Go Review Page == */
 function goReview(starVal,evalPreset){
   const sid=localStorage.getItem('ottrang_sid');
   if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
@@ -610,7 +610,7 @@ function goReview(starVal,evalPreset){
 }
 function scrollToRating(){goReview(0);}
 
-/* ══ 내 후기 표시 ══ */
+/* == My Review == */
 function renderMyReview(){
   if(!MY_REVIEW){
     document.getElementById('myReviewEmpty').style.display='block';
@@ -634,7 +634,7 @@ function renderMyReview(){
     <div style="font-size:11px;color:var(--info);cursor:pointer;margin-top:2px" onclick="goReview(0)">수정하기</div>`;
 }
 
-/* ══ 리뷰 로드 ══ */
+/* == Load Reviews == */
 async function loadReviews(tmdbId){
   if(!tmdbId)return;
   try{
@@ -695,7 +695,7 @@ function updateUserRatingCard(){
   document.getElementById('userRatingFilled').style.display='flex';
 }
 
-/* ══ 찜하기 ══ */
+/* == Wishlist == */
 async function initWish(tmdbId){
   if(!tmdbId)return;
   const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
@@ -719,7 +719,7 @@ async function toggleWish(){
   }catch(e){}
 }
 
-/* ══ 프로필 ══ */
+/* == Profile == */
 function showProfile(username){
   const reviews=ALL_COMMENTS.filter(c=>c.user===username);
   document.getElementById('profileAvatar').textContent=(username||'?')[0];
@@ -743,12 +743,12 @@ function showProfile(username){
 }
 function showDetail(){document.getElementById('profilePage').style.display='none';document.getElementById('detailPage').style.display='block';}
 
-/* ══ 초기화 ══ */
+/* == Init == */
 async function init(){
-  // TMDB 로드 (히어로 즉시 표시 포함)
+  // Load TMDB (includes hero render)
   await loadTmdb();
 
-  // 나머지 병렬 로드
+  // Parallel load remaining
   if(WORK.tmdb_id){
     await Promise.all([
       loadTop10Days(),
