@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>영상 관리 | 오뜨랑 Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;--red:#e63946;
+  --sans:'Noto Sans KR',sans-serif;--mono:'DM Mono',monospace;
+  --r:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh}
+
+/* ── 로그인 화면 ── */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:40px;width:360px;text-align:center}
+.login-box h2{font-size:20px;font-weight:700;margin-bottom:8px}
+.login-box p{font-size:13px;color:var(--muted);margin-bottom:24px}
+.login-input{width:100%;padding:10px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;margin-bottom:12px}
+.login-input:focus{border-color:var(--border2)}
+.login-btn{width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.login-btn:hover{background:#ff4d58}
+.login-err{font-size:13px;color:var(--accent);margin-top:10px;display:none}
+
+/* ── 메인 레이아웃 ── */
+.admin-header{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.admin-header h1{font-size:17px;font-weight:700;display:flex;align-items:center;gap:10px}
+.back-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:var(--r);
+  border:1px solid var(--border);background:transparent;
+  color:var(--muted2);font-size:13px;cursor:pointer;
+  text-decoration:none;transition:background .15s;
+}
+.back-btn:hover{background:var(--bg3);color:var(--text)}
+
+.wrap{max-width:900px;margin:0 auto;padding:28px 20px 80px}
+
+/* ── 검색 ── */
+.search-row{display:flex;gap:10px;margin-bottom:24px;align-items:center}
+.search-input{
+  flex:1;padding:10px 14px;border-radius:var(--r);
+  border:1px solid var(--border);background:var(--bg2);
+  color:var(--text);font-size:14px;font-family:var(--sans);outline:none;
+}
+.search-input:focus{border-color:var(--border2)}
+.btn-primary{padding:10px 20px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-primary:hover{background:#ff4d58}
+.btn-secondary{padding:10px 16px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:14px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-secondary:hover{background:var(--bg3);color:var(--text)}
+
+/* ── 작품 정보 ── */
+.work-info-box{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:16px;margin-bottom:20px;display:flex;gap:14px;align-items:center;
+}
+.work-poster{width:52px;height:78px;border-radius:6px;overflow:hidden;background:var(--bg3);flex-shrink:0}
+.work-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.work-title{font-size:16px;font-weight:700;margin-bottom:4px}
+.work-sub{font-size:12px;color:var(--muted);font-family:var(--mono)}
+
+/* ── 영상 추가 폼 ── */
+.add-form{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:20px;margin-bottom:24px}
+.add-form h3{font-size:15px;font-weight:600;margin-bottom:14px}
+.form-row{display:flex;flex-direction:column;gap:10px}
+.form-input{padding:10px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:var(--sans);outline:none}
+.form-input:focus{border-color:var(--border2)}
+.form-actions{display:flex;gap:8px;margin-top:4px}
+
+/* ── 영상 목록 ── */
+.video-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:16px;margin-bottom:12px;display:flex;gap:16px;align-items:center;
+  transition:border-color .15s;
+}
+.video-card:hover{border-color:var(--border2)}
+.video-thumb{
+  width:140px;height:79px;border-radius:8px;overflow:hidden;
+  background:var(--bg3);flex-shrink:0;position:relative;cursor:pointer;
+}
+.video-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.video-thumb-play{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.4);opacity:0;transition:opacity .15s;
+}
+.video-thumb:hover .video-thumb-play{opacity:1}
+.video-play-icon{width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
+.video-info{flex:1;min-width:0}
+.video-title{font-size:14px;font-weight:600;margin-bottom:6px}
+.video-url{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
+.video-badges{display:flex;gap:6px;flex-wrap:wrap}
+.badge-main{font-size:11px;padding:2px 10px;border-radius:10px;background:rgba(240,180,41,.15);color:var(--gold);font-family:var(--mono)}
+.video-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.btn-main{padding:6px 14px;border-radius:var(--r);border:1px solid rgba(240,180,41,.4);background:rgba(240,180,41,.1);color:var(--gold);font-size:12px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-main:hover{background:rgba(240,180,41,.2)}
+.btn-delete{padding:6px 14px;border-radius:var(--r);border:1px solid rgba(230,57,70,.3);background:rgba(230,57,70,.1);color:var(--red);font-size:12px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-delete:hover{background:rgba(230,57,70,.2)}
+
+/* ── 미리보기 모달 ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal-inner{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;overflow:hidden;width:90%;max-width:680px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.modal-close{background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;line-height:1}
+.modal-player{position:relative;width:100%;aspect-ratio:16/9}
+.modal-player iframe{width:100%;height:100%;border:none;display:block}
+
+/* ── 빈 상태 ── */
+.empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+
+/* ── 토스트 ── */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--mono)}
+.toast.show{opacity:1}
+
+@media(max-width:600px){
+  .video-card{flex-direction:column;align-items:flex-start}
+  .video-thumb{width:100%;height:auto;aspect-ratio:16/9}
+  .video-actions{flex-direction:row}
+}
+</style>
+</head>
+<body>
+
+<!-- ── 로그인 화면 ── -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <h2>🎬 영상 관리</h2>
+    <p>관리자 인증이 필요합니다</p>
+    <input class="login-input" id="secretInput" type="password" placeholder="관리자 비밀번호"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">확인</button>
+    <div class="login-err" id="loginErr">비밀번호가 올바르지 않습니다</div>
+  </div>
+</div>
+
+<!-- ── 메인 페이지 ── -->
+<div id="mainWrap" style="display:none">
+
+  <div class="admin-header">
+    <h1>🎬 영상 관리</h1>
+    <a class="back-btn" href="/admin.html">← 어드민으로</a>
+  </div>
+
+  <div class="wrap">
+
+    <!-- 작품 검색 -->
+    <div class="search-row">
+      <input class="search-input" id="tmdbInput" type="number" placeholder="tmdb_id 입력 (예: 259837)"
+        onkeydown="if(event.key==='Enter')loadWork()">
+      <button class="btn-primary" onclick="loadWork()">작품 조회</button>
+    </div>
+
+    <!-- 작품 정보 -->
+    <div class="work-info-box" id="workInfoBox" style="display:none">
+      <div class="work-poster" id="workPoster"></div>
+      <div>
+        <div class="work-title" id="workTitle"></div>
+        <div class="work-sub" id="workSub"></div>
+      </div>
+    </div>
+
+    <!-- 영상 추가 폼 -->
+    <div class="add-form" id="addForm" style="display:none">
+      <h3>+ 영상 추가</h3>
+      <div class="form-row">
+        <input class="form-input" id="ytUrlInput" type="text"
+          placeholder="유튜브 URL (예: https://www.youtube.com/watch?v=xxxxx)">
+        <input class="form-input" id="ytTitleInput" type="text"
+          placeholder="영상 제목 (선택 — 비워두면 유튜브 ID로 표시)">
+        <div class="form-actions">
+          <button class="btn-primary" onclick="addVideo()">추가</button>
+          <button class="btn-secondary" onclick="clearForm()">초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 영상 목록 -->
+    <div id="videosList"></div>
+
+  </div>
+</div>
+
+<!-- 미리보기 모달 -->
+<div class="modal-bg" id="previewModal">
+  <div class="modal-inner">
+    <div class="modal-head">
+      <span id="previewTitle" style="font-size:14px;font-weight:500"></span>
+      <button class="modal-close" onclick="closePreview()">✕</button>
+    </div>
+    <div class="modal-player">
+      <iframe id="previewFrame" src="" allowfullscreen allow="autoplay;encrypted-media"></iframe>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const IMG = 'https://image.tmdb.org/t/p/w185';
+let ADMIN_SECRET = '';
+let currentTmdbId = null;
+
+/* ══ 로그인 ══ */
+function doLogin(){
+  const val = document.getElementById('secretInput').value.trim();
+  if(!val) return;
+  // sessionStorage에 저장된 토큰 확인
+  ADMIN_SECRET = val;
+  verifySecret();
+}
+
+async function verifySecret(){
+  try{
+    const res = await fetch(`${API}/admin/rankings?limit=1`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    if(res.ok){
+      localStorage.setItem('admin_token', ADMIN_SECRET);
+      document.getElementById('loginWrap').style.display = 'none';
+      document.getElementById('mainWrap').style.display = 'block';
+    } else {
+      document.getElementById('loginErr').style.display = 'block';
+      ADMIN_SECRET = '';
+    }
+  }catch(e){
+    document.getElementById('loginErr').style.display = 'block';
+  }
+}
+
+/* ══ 초기화 — admin.html과 같은 localStorage 사용 ══ */
+(function init(){
+  const stored = localStorage.getItem('admin_token');
+  if(stored){
+    ADMIN_SECRET = stored;
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('mainWrap').style.display = 'block';
+  }
+})();
+
+/* ══ 작품 조회 ══ */
+async function loadWork(){
+  const tmdbId = parseInt(document.getElementById('tmdbInput').value.trim());
+  if(!tmdbId){ showToast('tmdb_id를 입력해주세요'); return; }
+  currentTmdbId = tmdbId;
+
+  // works API에서 작품 정보
+  try{
+    const [worksRes, tmdbRes] = await Promise.allSettled([
+      fetch(`${API}/works/${tmdbId}`).then(r=>r.json()),
+      fetch(`${TMDB_PROXY}/tv/${tmdbId}?language=ko-KR`).then(r=>r.json()).catch(()=>
+        fetch(`${TMDB_PROXY}/movie/${tmdbId}?language=ko-KR`).then(r=>r.json())
+      ),
+    ]);
+
+    const works = worksRes.status==='fulfilled'&&worksRes.value?.ok ? worksRes.value.data : null;
+    const tmdb = tmdbRes.status==='fulfilled' ? tmdbRes.value : null;
+
+    const title = works?.title_ko || tmdb?.name || tmdb?.title || `tmdb_id: ${tmdbId}`;
+    const titleEn = works?.title_en || tmdb?.original_name || tmdb?.original_title || '';
+    const poster = tmdb?.poster_path ? IMG+tmdb.poster_path : null;
+
+    const posterEl = document.getElementById('workPoster');
+    posterEl.innerHTML = poster
+      ? `<img src="${poster}" alt="${title}">`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🎬</div>`;
+
+    document.getElementById('workTitle').textContent = title;
+    document.getElementById('workSub').textContent = [titleEn, `tmdb_id: ${tmdbId}`].filter(Boolean).join(' · ');
+    document.getElementById('workInfoBox').style.display = 'flex';
+    document.getElementById('addForm').style.display = 'block';
+
+    // 영상 목록 로드
+    loadVideos();
+  }catch(e){
+    showToast('작품 조회 실패');
+  }
+}
+
+/* ══ 영상 목록 로드 ══ */
+async function loadVideos(){
+  if(!currentTmdbId) return;
+  const el = document.getElementById('videosList');
+  el.innerHTML = '<div class="empty">로딩 중...</div>';
+  try{
+    const res = await fetch(`${API}/videos/${currentTmdbId}`);
+    const data = await res.json();
+    renderVideos(data.data || []);
+  }catch(e){
+    el.innerHTML = '<div class="empty">오류 발생</div>';
+  }
+}
+
+function renderVideos(videos){
+  const el = document.getElementById('videosList');
+  if(!videos.length){
+    el.innerHTML = '<div class="empty">등록된 영상이 없어요<br><span style="font-size:13px">위 폼에서 유튜브 URL을 추가해주세요</span></div>';
+    return;
+  }
+  el.innerHTML = videos.map(v => `
+    <div class="video-card">
+      <div class="video-thumb" onclick="openPreview('${v.youtube_id}','${(v.title||'').replace(/'/g,"\\'")}')">
+        <img src="https://img.youtube.com/vi/${v.youtube_id}/mqdefault.jpg" alt="${v.title||''}"
+          onerror="this.style.display='none'">
+        <div class="video-thumb-play">
+          <div class="video-play-icon">▶</div>
+        </div>
+      </div>
+      <div class="video-info">
+        <div class="video-title">${v.title||v.youtube_id}</div>
+        <div class="video-url">${v.youtube_url}</div>
+        <div class="video-badges">
+          ${v.is_main ? '<span class="badge-main">⭐ 메인 영상</span>' : ''}
+        </div>
+      </div>
+      <div class="video-actions">
+        ${!v.is_main
+          ? `<button class="btn-main" onclick="setMain(${v.id})">⭐ 메인 지정</button>`
+          : '<button class="btn-main" style="opacity:.4;cursor:default" disabled>⭐ 메인</button>'
+        }
+        <button class="btn-delete" onclick="deleteVideo(${v.id})">🗑 삭제</button>
+      </div>
+    </div>`).join('');
+}
+
+/* ══ 영상 추가 ══ */
+async function addVideo(){
+  const url = document.getElementById('ytUrlInput').value.trim();
+  const title = document.getElementById('ytTitleInput').value.trim();
+  if(!url){ showToast('유튜브 URL을 입력해주세요'); return; }
+
+  // youtube_id 추출 검증
+  const ytMatch = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  if(!ytMatch){ showToast('유효한 유튜브 URL이 아닙니다'); return; }
+
+  try{
+    const res = await fetch(`${API}/admin/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: currentTmdbId, youtube_url: url, title })
+    });
+    const data = await res.json();
+    if(data.ok){
+      clearForm();
+      loadVideos();
+      showToast('영상이 추가됐어요!');
+    } else {
+      showToast(data.message || '오류 발생');
+    }
+  }catch(e){ showToast('네트워크 오류'); }
+}
+
+function clearForm(){
+  document.getElementById('ytUrlInput').value = '';
+  document.getElementById('ytTitleInput').value = '';
+}
+
+/* ══ 메인 지정 ══ */
+async function setMain(id){
+  try{
+    const res = await fetch(`${API}/admin/videos/${id}/main`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(data.ok){ loadVideos(); showToast('메인 영상으로 지정됐어요!'); }
+    else showToast(data.message || '오류 발생');
+  }catch(e){ showToast('네트워크 오류'); }
+}
+
+/* ══ 삭제 ══ */
+async function deleteVideo(id){
+  if(!confirm('이 영상을 삭제할까요?')) return;
+  try{
+    const res = await fetch(`${API}/admin/videos/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(data.ok){ loadVideos(); showToast('삭제됐어요'); }
+    else showToast(data.message || '오류 발생');
+  }catch(e){ showToast('네트워크 오류'); }
+}
+
+/* ══ 미리보기 ══ */
+function openPreview(ytId, title){
+  document.getElementById('previewTitle').textContent = title || ytId;
+  document.getElementById('previewFrame').src = `https://www.youtube.com/embed/${ytId}?autoplay=1`;
+  document.getElementById('previewModal').classList.add('show');
+}
+function closePreview(){
+  document.getElementById('previewFrame').src = '';
+  document.getElementById('previewModal').classList.remove('show');
+}
+
+/* ══ 토스트 ══ */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
