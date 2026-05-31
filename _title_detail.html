@@ -1238,7 +1238,7 @@ function goReview(starVal, evalPreset){
     poster_path:document.getElementById('posterImg')?.src||'',
     star:starVal||0,
     eval:evalPreset||'',
-    back_url:location.pathname+location.search,
+    back_url:getShareUrl().replace('https://ottrank.kr',''),
   };
   sessionStorage.setItem('ottrang_review_data',JSON.stringify(reviewData));
   location.href='/review.html';
