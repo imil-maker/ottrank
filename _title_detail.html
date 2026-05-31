@@ -1241,6 +1241,9 @@ function goReview(starVal, evalPreset){
     back_url:getShareUrl().replace('https://ottrank.kr',''),
   };
   sessionStorage.setItem('ottrang_review_data',JSON.stringify(reviewData));
+  // 돌아올 때 작품 정보 복원을 위해 재저장
+  sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year}));
+  sessionStorage.setItem('ottrang_slug',reviewData.back_url);
   location.href='/review.html';
 }
 
