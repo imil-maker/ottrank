@@ -25,7 +25,7 @@
 <!-- 폰트/아이콘 -->
 <!-- 스타일 -->
 <style>
-/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  27  */
+/* title_detail.css — 오뜨랑 작품 상세 페이지 스타일  28  */
 /* title_detail.css — 오뜨랑 작품 상세 페이지 스타일 */
 
 
@@ -696,7 +696,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- 페이지 로직 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  27  */
+/* title_detail.js - 오뜨랑 작품 상세 페이지 로직  28  */
 
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -711,9 +711,9 @@ const OTT_SEARCH_URL={
   netflix :(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
   tving   :(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
   disney  :(t)=>`https://www.disneyplus.com/ko-kr/search`,
-  coupang :(t)=>`https://www.coupangplay.com/search?q=${encodeURIComponent(t)}`,
-  wavve   :(t)=>`https://www.wavve.com/search?keyword=${encodeURIComponent(t)}`,
-  boxoffice:(t)=>`https://www.cgv.co.kr/search/?query=${encodeURIComponent(t)}`,
+  coupang :(t)=>`https://www.coupangplay.com/query?src=page_search&keyword=${encodeURIComponent(t)}`,
+  wavve   :(t)=>`https://www.wavve.com/search?searchWord=${encodeURIComponent(t)}`,
+  boxoffice:(t)=>`https://cgv.co.kr/cnm/movieBook`,
 };
 const ETAG_EMOJI={'긴장감 넘침':'😰','몰입감 최고':'🔥','감동적':'🥹','슬프다':'😭','재미있음':'🤣','결말이 아쉬움':'😤','독특한 설정':'🤯','정주행 필수':'📺','연기력 최고':'👏','소름 돋음':'😱','지루했어요':'💤','설레는 로맨스':'💕'};
 const COUNTRY_MAP={'KR':'한국','US':'미국','JP':'일본','GB':'영국','FR':'프랑스','DE':'독일','CN':'중국','TH':'태국','IN':'인도','IT':'이탈리아','ES':'스페인','AU':'호주','CA':'캐나다','MX':'멕시코','TW':'대만'};
@@ -991,8 +991,8 @@ async function loadWatchGuide(){
     if(isCategory01){
       const t=WORK.title;
       document.getElementById('watchNowBtns').innerHTML=[
-        `<a class="watch-now-btn" href="https://www.cgv.co.kr/search/?query=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 CGV</a>`,
-        `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/MovieList#/Search/${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 롯데시네마</a>`,
+        `<a class="watch-now-btn" href="https://cgv.co.kr/cnm/movieBook" target="_blank" rel="noopener">🎬 CGV</a>`,
+        `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/List?flag=1" target="_blank" rel="noopener">🎬 롯데시네마</a>`,
         `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 메가박스</a>`,
       ].join('');
       document.getElementById('watchNowBox').style.display='block';
