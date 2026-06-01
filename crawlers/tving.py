@@ -1,6 +1,4 @@
-"""티빙 랭킹 크롤러 - 키노라이츠 (기존 유지)
-변경사항: save() → _save_tving_ranking() 으로 직접 저장 (category_slot 방식)
-"""
+"""티빙 랭킹"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -10,7 +8,7 @@ import sqlite3
 from playwright.async_api import async_playwright
 from db import init_db, get_today, lookup_works, search_tmdb_korean, translate_titles_to_korean, insert_work
 
-KINOLIGHTS_URL = "https://m.kinolights.com/ranking/tving?category=series"
+RANKING_URL = "https://m.kinolights.com/ranking/tving?category=series"
 
 USER_AGENT = (
     "Mozilla/5.0 (Linux; Android 10; SM-G981B) "
@@ -55,7 +53,7 @@ def _save_tving(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: d
 
 
 async def run(conn):
-    print("\n[티빙] 크롤링 중... (키노라이츠)")
+    print("\n[티빙] 랭킹 수집 중...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -126,15 +124,15 @@ async def run(conn):
 
 
 async def _crawl(page) -> list[str]:
-    """키노라이츠에서 티빙 랭킹 크롤링
+    """티빙 랭킹 수집
     - 페이지 순서대로 제목 수집 (전체 OTT 순위 숫자 무시)
     - 중복 제목 제거
     - 반환: [title_ko, ...] (순서대로)
     """
     titles = []
-    seen   = set()  # 중복 제거용
+    seen   = set()
     try:
-        await page.goto(KINOLIGHTS_URL, wait_until="networkidle", timeout=40000)
+        await page.goto(RANKING_URL, wait_until="networkidle", timeout=40000)
         await page.wait_for_selector(
             ".ranking-item, [class*='RankingItem'], li[class*='item']",
             timeout=20000
