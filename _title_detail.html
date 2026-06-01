@@ -1254,19 +1254,19 @@ async function loadTitleVideos(){
     const res=await fetch(`${OTTRANK_API}/videos/${WORK.tmdb_id}`);
     const data=await res.json();
     if(data.ok&&data.data&&data.data.length){
-      // DB videos take priority over TMDB
+      // DB 영상이 있으면 TMDB 영상 대신 DB 영상만 사용
       const dbVideos=data.data.map(v=>({
         key:v.youtube_id,
         name:v.title||'관련 영상',
-        type:'Clip',
+        type: v.is_main ? 'Trailer' : 'Clip',
         site:'YouTube',
         is_main:v.is_main,
       }));
-      // Main video first
       dbVideos.sort((a,b)=>b.is_main-a.is_main);
-      allYtVideos=[...dbVideos,...allYtVideos.filter(v=>!dbVideos.find(d=>d.key===v.key))];
+      allYtVideos=dbVideos;
       renderYtPage(0);
     }
+    // DB 영상 없으면 loadTmdb()에서 이미 표시한 TMDB 영상 그대로 유지
   }catch(e){}
 }
 
