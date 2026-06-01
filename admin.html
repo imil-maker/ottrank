@@ -1626,7 +1626,7 @@ function renderTable() {
           : `<span class="no-tmdb">미등록</span>`}</td>
         <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
         <td style="white-space:nowrap">
-          <button class="btn-sm btn-fix" onclick="openModalById(${allIdx})">수정</button>
+          <button class="btn-sm btn-fix" onclick="openModalByRowId(${r.id})">수정</button>
           ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
         </td>`;
 
@@ -1714,6 +1714,12 @@ async function saveReorder(slot) {
 // HTML 특수문자 이스케이프
 function _esc(str) {
   return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// id로 직접 allData에서 찾아 모달 열기 (드래그앤드롭 그룹용)
+function openModalByRowId(id) {
+  const r = allData.find(row => row.id === id);
+  if (r) openModal(r);
 }
 
 // idx 기반으로 모달 열기 (JSON.stringify로 overview 등 긴 텍스트가 HTML 깨는 문제 방지)
