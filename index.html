@@ -748,7 +748,38 @@ async function init(){
 
   // ③ TMDB 포스터·시즌·연도 보강 (병렬, 배치)
   enrichAll(RANKINGS).then(()=>renderGrids()); // 비동기로 뒤에서 처리, 완료되면 다시 렌더
+
+  // 유튜브 급상승 TOP 50 로드
+  loadYoutubeTrending();
 }
+
+async function loadYoutubeTrending(){
+  try{
+    const res  = await fetch(`${API}/youtube/trending`);
+    const data = await res.json();
+    if(!data.ok || !data.data?.length) return;
+    // 기존 renderYT() 구조에 맞게 YT 배열 덮어쓰기
+    YT.length = 0;
+    data.data.forEach(v => YT.push({
+      rank:    v.rank,
+      vid:     v.video_id,
+      title:   v.title || '',
+      channel: v.channel || '',
+      views:   fmtViews(v.view_count),
+      dur:     '',
+    }));
+    renderYT();
+  }catch(e){}
+}
+
+function fmtViews(n){
+  if(!n) return '';
+  if(n>=100000000) return (n/100000000).toFixed(1)+'억';
+  if(n>=10000)     return Math.floor(n/10000)+'만';
+  if(n>=1000)      return (n/1000).toFixed(1)+'천';
+  return String(n);
+}
+
 init();
 </script>
 
