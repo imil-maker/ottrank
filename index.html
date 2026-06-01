@@ -60,13 +60,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 
 
-/* ══ 기간 탭 ══ */
-.period-outer{background:rgba(12,12,16,.96);border-bottom:1px solid var(--border)}
-.period-inner{max-width:var(--max-w);margin:0 auto;padding:0 28px;height:46px;display:flex;align-items:center}
-.pb{height:46px;padding:0 18px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:var(--sans);font-size:15px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
-.pb.on{color:var(--text);border-bottom-color:var(--accent)}
+/* ══ 기간 탭 (섹션 헤더 내 인라인) ══ */
+.period-tabs{display:flex;gap:2px;margin-left:12px}
+.pb{height:28px;padding:0 12px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
+.pb.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
 .pb:hover:not(.on){color:var(--muted2)}
-.period-sep{width:1px;height:18px;background:var(--border);margin:0 4px}
 .update-info{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;flex-shrink:0}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
@@ -81,11 +79,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .sec-sub{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:1px}
 .sec-more{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
 .sec-more:hover{color:var(--text)}
-
-/* 카테고리 탭 */
-.cat-tabs{display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:3px;width:fit-content;margin-bottom:16px}
-.ctab{padding:7px 20px;border-radius:7px;border:none;background:transparent;color:var(--muted);font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer;transition:all .15s}
-.ctab.on{background:var(--card);color:var(--text)}
 
 /* OTT 5열 그리드 */
 .ott-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px}
@@ -248,33 +241,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   </div>
 </div>
 
-<!-- 기간 탭 -->
-<div class="period-outer">
-  <div class="period-inner">
-    <button class="pb on" onclick="setPeriod(&#39;daily&#39;,this)">일간</button>
-    <div class="period-sep"></div>
-    <button class="pb" onclick="setPeriod(&#39;weekly&#39;,this)">주간</button>
-    <div class="period-sep"></div>
-    <button class="pb" onclick="setPeriod(&#39;monthly&#39;,this)">월간</button>
-    <div class="update-info">
-      <div class="live-dot"></div>
-      <span id="updateTxt">2026.05.24 09:00 업데이트</span>
-    </div>
-  </div>
-</div>
-
 <div class="main-outer">
 
   <!-- TV 시리즈 -->
   <div class="sec-hd" id="tv">
     <span class="sec-icon">📺</span>
     <span class="sec-title">TV 시리즈 TOP 10</span>
-    <span class="sec-sub">OTT 5개 플랫폼</span>
-    <a href="#" class="sec-more">전체 보기 →</a>
-  </div>
-  <div class="cat-tabs">
-    <button class="ctab on" onclick="switchCat(this,&#39;tv&#39;)">드라마·예능</button>
-    <button class="ctab" onclick="switchCat(this,&#39;movie&#39;)">영화</button>
+    <div class="period-tabs">
+      <button class="pb on" onclick="setPeriod('daily',this)">일간</button>
+      <button class="pb" onclick="setPeriod('weekly',this)">주간</button>
+      <button class="pb" onclick="setPeriod('monthly',this)">월간</button>
+    </div>
+    <div class="update-info">
+      <div class="live-dot"></div>
+      <span id="updateTxt">업데이트 중...</span>
+    </div>
   </div>
   <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
   <!-- 오늘의 AI 추천 (TV와 영화 사이) -->
@@ -340,8 +321,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <div class="sec-hd" id="movie">
     <span class="sec-icon">🎬</span>
     <span class="sec-title">영화 TOP 10</span>
-    <span class="sec-sub">OTT 5개 플랫폼</span>
-    <a href="#" class="sec-more">전체 보기 →</a>
+    <div class="period-tabs">
+      <button class="pb" onclick="setPeriod('daily',this)" id="moviePb_daily">일간</button>
+      <button class="pb" onclick="setPeriod('weekly',this)" id="moviePb_weekly">주간</button>
+      <button class="pb" onclick="setPeriod('monthly',this)" id="moviePb_monthly">월간</button>
+    </div>
+    <div class="update-info">
+      <span id="updateTxt2"></span>
+    </div>
   </div>
   <div class="ott-grid" id="movieGrid"></div>
   <!-- 유튜브 -->
@@ -349,7 +336,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <span class="sec-icon">▶️</span>
     <span class="sec-title">유튜브 급상승</span>
     <span class="sec-sub">한국 일간 TOP 50</span>
-    <a href="#" class="sec-more">전체 보기 →</a>
+    <div class="update-info" style="margin-left:auto">
+      <span id="updateTxt3"></span>
+    </div>
   </div>
   <div class="yt-grid" id="ytGrid"></div>
   <!-- 커뮤니티 -->
@@ -624,11 +613,10 @@ function renderCard(p,items){
   return card+rows+'</div></div>';
 }
 
-let curCat='tv';
-function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS[curCat][p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');}
+const curCat='tv';
+function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');}
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${v.channel}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 function renderComm(){document.getElementById('commList').innerHTML=POSTS.map(p=>`<div class="comm-item"><div class="comm-dot" style="background:${PC[p.p]||'#888'}"></div><div class="comm-emoji">${p.e}</div><div class="comm-body"><div class="comm-title">${p.title}</div><div class="comm-meta"><span style="color:${PC[p.p]}">${p.work}</span><span>·</span><span>${p.author}</span><span>·</span><span>${p.time}</span></div></div><div class="comm-stats"><span>♥ ${p.likes}</span><span>💬 ${p.comments}</span></div></div>`).join('');document.getElementById('commSide').innerHTML=`<div class="widget"><div class="widget-head">🔥 HOT 토픽</div>${HOT.map((h,i)=>`<div class="hot-row"><span class="hot-n">${i+1}</span><span class="hot-t">${h.t}</span><span class="hot-c">${h.c}</span></div>`).join('')}</div>`;}
-
 
 /* AI 추천 — 실제 랭킹 기반 규칙 필터링 */
 let aiType='all';
@@ -673,8 +661,13 @@ function runAI(){
 
 let curPeriod='daily';
 async function setPeriod(p,btn){
+  // 모든 .pb 버튼 off → 클릭된 버튼 on
   document.querySelectorAll('.pb').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
+  // 같은 기간 버튼 모두 on (TV + 영화 연동)
+  document.querySelectorAll('.pb').forEach(b=>{
+    if((p==='daily'&&b.textContent==='일간')||(p==='weekly'&&b.textContent==='주간')||(p==='monthly'&&b.textContent==='월간'))
+      b.classList.add('on');
+  });
   if(p===curPeriod)return;
   curPeriod=p;
   await loadRankings(p);
@@ -714,8 +707,6 @@ async function loadRankings(period='daily'){
     }
   }catch(e){console.warn(period+' 랭킹 로드 실패:',e);}
 }
-function switchCat(btn,cat){document.querySelectorAll('.ctab').forEach(b=>b.classList.remove('on'));btn.classList.add('on');curCat=cat;renderGrids();}
-
 window.addEventListener('resize',()=>{});
 
 
@@ -743,7 +734,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeYtPlaye
 
 async function init(){
   const today=new Date();
-  document.getElementById('updateTxt').textContent=`${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 09:00 업데이트`;
+  const dateStr=`${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 09:00 업데이트`;
+  document.getElementById('updateTxt').textContent=dateStr;
+  if(document.getElementById('updateTxt2')) document.getElementById('updateTxt2').textContent=dateStr;
+  if(document.getElementById('updateTxt3')) document.getElementById('updateTxt3').textContent=dateStr;
 
   // API 실제 데이터 로드
   await loadRankings('daily');
