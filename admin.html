@@ -181,6 +181,19 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .grade-assign-badge:hover{background:rgba(55,138,221,.2)}
 .user-grade-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--muted2);font-family:var(--mono)}
 .user-grade-badge img{width:14px;height:14px;border-radius:2px;object-fit:cover}
+
+/* ══ 랭킹 순위 재정렬 드래그앤드롭 ══ */
+.category-group{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.category-group-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.category-group-title{font-family:var(--mono);font-size:12px;color:var(--muted2);font-weight:600}
+.btn-reorder-save{padding:6px 16px;border-radius:6px;border:none;background:rgba(52,211,153,.15);color:var(--green);font-size:12px;font-family:var(--mono);font-weight:600;cursor:pointer;border:1px solid rgba(52,211,153,.3);transition:all .15s}
+.btn-reorder-save:hover{background:rgba(52,211,153,.25)}
+.btn-reorder-save:disabled{opacity:.4;cursor:default}
+.drag-row{cursor:grab;transition:background .1s}
+.drag-row:active{cursor:grabbing}
+.drag-row.dragging{opacity:.4;background:rgba(255,255,255,.05)}
+.drag-row.drag-over{border-top:2px solid var(--green)}
+.drag-handle{color:var(--muted);font-size:16px;cursor:grab;padding:0 4px;user-select:none}
 </style>
 </head>
 <body>
@@ -1513,35 +1526,189 @@ function renderTable() {
       rows = rows.filter(r => r.platform === curFilter);
     }
   }
+
+  const tbody = document.getElementById('tableBody');
+
   if (!rows.length) {
-    document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
     return;
   }
-  document.getElementById('tableBody').innerHTML = rows.map((r, idx) => `
-    <tr>
-      <td><span class="rank-num">${r.rank}</span></td>
-      <td>${r.poster_path
-        ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
-        : `<div class="poster-ph">🎬</div>`}</td>
-      <td style="max-width:220px">
-        <div class="title-ko" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko)}</div>
-        <div class="title-en" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en||'')}</div>
-      </td>
-      <td><span class="platform-badge" style="background:${PC[r.platform]||'#888'}">${r.platform}</span></td>
-      <td>
-        <span class="cat-badge">${r.category_slot || r.category}</span>
-        ${rankingMode === 'manual' ? `<div style="font-size:10px;color:var(--gold);font-family:var(--mono);margin-top:2px">🔒 수동</div>` : ''}
-      </td>
-      <td>${r.tmdb_id
-        ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
-        : `<span class="no-tmdb">미등록</span>`}</td>
-      <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
-      <td style="white-space:nowrap;vertical-align:middle">
-        <button class="btn-sm btn-fix" onclick="openModalById(${idx})">수정</button>
-        ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
-      </td>
-    </tr>
-  `).join('');
+
+  // 수동 랭킹이거나 필터가 no_tmdb/new_match 이면 기존 테이블 그대로
+  if (rankingMode === 'manual' || curFilter === 'no_tmdb' || curFilter === 'new_match') {
+    tbody.innerHTML = rows.map((r, idx) => `
+      <tr>
+        <td><span class="rank-num">${r.rank}</span></td>
+        <td>${r.poster_path
+          ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
+          : `<div class="poster-ph">🎬</div>`}</td>
+        <td style="max-width:220px">
+          <div class="title-ko" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko)}</div>
+          <div class="title-en" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en||'')}</div>
+        </td>
+        <td><span class="platform-badge" style="background:${PC[r.platform]||'#888'}">${r.platform}</span></td>
+        <td>
+          <span class="cat-badge">${r.category_slot || r.category}</span>
+          ${rankingMode === 'manual' ? `<div style="font-size:10px;color:var(--gold);font-family:var(--mono);margin-top:2px">🔒 수동</div>` : ''}
+        </td>
+        <td>${r.tmdb_id
+          ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
+          : `<span class="no-tmdb">미등록</span>`}</td>
+        <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
+        <td style="white-space:nowrap;vertical-align:middle">
+          <button class="btn-sm btn-fix" onclick="openModalById(${idx})">수정</button>
+          ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+    return;
+  }
+
+  // ── 일반 랭킹: category_slot별 그룹으로 나눠서 드래그앤드롭 렌더링 ──
+  // tableBody를 숨기고 테이블 밖 div로 렌더링
+  tbody.innerHTML = '';
+  const tableWrap = tbody.closest('.table-wrap');
+
+  // 기존 그룹 div 제거
+  tableWrap.querySelectorAll('.category-group').forEach(el => el.remove());
+
+  // category_slot별 그룹화
+  const groups = {};
+  rows.forEach(r => {
+    const slot = r.category_slot || r.category || 'etc';
+    if (!groups[slot]) groups[slot] = [];
+    groups[slot].push(r);
+  });
+
+  Object.entries(groups).forEach(([slot, items]) => {
+    // 그룹 컨테이너
+    const groupEl = document.createElement('div');
+    groupEl.className = 'category-group';
+    groupEl.dataset.slot = slot;
+    groupEl.dataset.platform = items[0]?.platform || '';
+    groupEl.dataset.date = items[0]?.date || '';
+
+    // 그룹 헤더 (타이틀 + 저장 버튼)
+    groupEl.innerHTML = `
+      <div class="category-group-header">
+        <span class="category-group-title">
+          <span class="platform-badge" style="background:${PC[items[0]?.platform]||'#888'};margin-right:6px">${items[0]?.platform||''}</span>
+          ${slot}
+        </span>
+        <button class="btn-reorder-save" onclick="saveReorder('${slot}')" id="saveBtn-${slot}">💾 순위 저장</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <tbody id="dragBody-${slot}"></tbody>
+      </table>`;
+    tableWrap.appendChild(groupEl);
+
+    // 행 렌더링 + 드래그앤드롭 이벤트
+    const dragBody = groupEl.querySelector(`#dragBody-${slot}`);
+    items.forEach((r, idx) => {
+      const allIdx = allData.indexOf(r);
+      const tr = document.createElement('tr');
+      tr.className = 'drag-row';
+      tr.dataset.id   = r.id;
+      tr.dataset.rank = r.rank;
+      tr.draggable    = true;
+      tr.innerHTML = `
+        <td style="width:30px"><span class="drag-handle">⠿</span></td>
+        <td><span class="rank-num">${r.rank}</span></td>
+        <td>${r.poster_path
+          ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
+          : `<div class="poster-ph">🎬</div>`}</td>
+        <td style="max-width:220px">
+          <div class="title-ko" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko)}</div>
+          <div class="title-en" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en||'')}</div>
+        </td>
+        <td>${r.tmdb_id
+          ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
+          : `<span class="no-tmdb">미등록</span>`}</td>
+        <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-fix" onclick="openModalById(${allIdx})">수정</button>
+          ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
+        </td>`;
+
+      // 드래그 이벤트
+      tr.addEventListener('dragstart', e => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        tr.classList.add('dragging');
+        _dragSrc = tr;
+      });
+      tr.addEventListener('dragend', () => {
+        tr.classList.remove('dragging');
+        dragBody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+        _updateRankNums(dragBody);
+      });
+      tr.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        dragBody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+        if (tr !== _dragSrc) tr.classList.add('drag-over');
+      });
+      tr.addEventListener('drop', e => {
+        e.preventDefault();
+        if (_dragSrc && _dragSrc !== tr) {
+          const allRows = [...dragBody.querySelectorAll('.drag-row')];
+          const srcIdx  = allRows.indexOf(_dragSrc);
+          const tgtIdx  = allRows.indexOf(tr);
+          if (srcIdx < tgtIdx) tr.after(_dragSrc);
+          else tr.before(_dragSrc);
+          _updateRankNums(dragBody);
+        }
+      });
+
+      dragBody.appendChild(tr);
+    });
+  });
+}
+
+// 드래그 소스 추적
+let _dragSrc = null;
+
+// 드래그 후 순위 번호 업데이트
+function _updateRankNums(dragBody) {
+  dragBody.querySelectorAll('.drag-row').forEach((tr, i) => {
+    tr.dataset.rank = i + 1;
+    tr.querySelector('.rank-num').textContent = i + 1;
+  });
+}
+
+// category_slot 순위 저장
+async function saveReorder(slot) {
+  const btn     = document.getElementById(`saveBtn-${slot}`);
+  const groupEl = document.querySelector(`.category-group[data-slot="${slot}"]`);
+  const platform = groupEl.dataset.platform;
+  const date     = groupEl.dataset.date;
+  const dragBody = groupEl.querySelector(`#dragBody-${slot}`);
+
+  const items = [...dragBody.querySelectorAll('.drag-row')].map((tr, i) => ({
+    id:   parseInt(tr.dataset.id),
+    rank: i + 1,
+  }));
+
+  btn.disabled    = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/rankings/reorder`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ date, platform, category_slot: slot, items }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`✅ ${slot} 순위 저장 완료!`, 'ok');
+    } else {
+      showToast('저장 실패: ' + data.message, 'err');
+    }
+  } catch(e) {
+    showToast('네트워크 오류', 'err');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '💾 순위 저장';
+  }
 }
 
 // HTML 특수문자 이스케이프
