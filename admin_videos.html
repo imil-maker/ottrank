@@ -123,6 +123,31 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--mono)}
 .toast.show{opacity:1}
 
+/* ── 작품명 검색 탭 + 드롭다운 ── */
+.search-tabs{display:flex;gap:6px;margin-bottom:10px}
+.search-tab{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--mono);transition:all .15s}
+.search-tab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.search-dropdown{position:relative;flex:1}
+.search-results{
+  display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);
+  max-height:240px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.search-results.show{display:block}
+.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s}
+.search-result-item:last-child{border-bottom:none}
+.search-result-item:hover{background:var(--bg3)}
+.sri-poster{width:32px;height:48px;border-radius:4px;overflow:hidden;background:var(--bg3);flex-shrink:0}
+.sri-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.sri-title{font-size:14px;font-weight:600}
+.sri-sub{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+
+/* ── 자동 채우기 버튼 + 결과 ── */
+.btn-crawl{padding:10px 18px;border-radius:var(--r);border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.1);color:#34d399;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:all .15s}
+.btn-crawl:hover{background:rgba(52,211,153,.2)}
+.btn-crawl:disabled{opacity:.4;cursor:default}
+.crawl-result{font-size:13px;padding:10px 14px;border-radius:var(--r);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);color:#34d399;font-family:var(--mono);margin-bottom:16px;display:none}
+
 @media(max-width:600px){
   .video-card{flex-direction:column;align-items:flex-start}
   .video-thumb{width:100%;height:auto;aspect-ratio:16/9}
@@ -155,10 +180,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <div class="wrap">
 
     <!-- 작품 검색 -->
+    <div class="search-tabs">
+      <button class="search-tab on" id="tabId" onclick="switchTab('id')">TMDB ID</button>
+      <button class="search-tab" id="tabName" onclick="switchTab('name')">작품명 검색</button>
+    </div>
     <div class="search-row">
+      <!-- TMDB ID 입력 -->
       <input class="search-input" id="tmdbInput" type="number" placeholder="tmdb_id 입력 (예: 259837)"
-        onkeydown="if(event.key==='Enter')loadWork()">
-      <button class="btn-primary" onclick="loadWork()">작품 조회</button>
+        onkeydown="if(event.key==='Enter')loadWork()" style="display:block">
+      <!-- 작품명 검색 -->
+      <div class="search-dropdown" id="nameSearchWrap" style="display:none">
+        <input class="search-input" id="nameInput" type="text"
+          placeholder="한글 또는 영어 작품명 입력"
+          oninput="onNameInput(this.value)"
+          onkeydown="if(event.key==='Enter')searchByName()"
+          autocomplete="off" style="width:100%">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+      <button class="btn-primary" onclick="handleSearch()">작품 조회</button>
     </div>
 
     <!-- 작품 정보 -->
@@ -172,17 +211,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <!-- 영상 추가 폼 -->
     <div class="add-form" id="addForm" style="display:none">
-      <h3>+ 영상 추가</h3>
-      <div class="form-row">
-        <input class="form-input" id="ytUrlInput" type="text"
-          placeholder="유튜브 URL (예: https://www.youtube.com/watch?v=xxxxx)">
-        <input class="form-input" id="ytTitleInput" type="text"
-          placeholder="영상 제목 (선택 — 비워두면 유튜브 ID로 표시)">
-        <div class="form-actions">
-          <button class="btn-primary" onclick="addVideo()">추가</button>
-          <button class="btn-secondary" onclick="clearForm()">초기화</button>
+
+      <!-- 유튜브 자동 채우기 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="margin-bottom:0">🤖 유튜브 자동 채우기</h3>
+        <button class="btn-crawl" id="crawlBtn" onclick="crawlVideos()">▶ 자동 채우기</button>
+      </div>
+      <div class="crawl-result" id="crawlResult"></div>
+
+      <!-- 수동 추가 -->
+      <div style="border-top:1px solid var(--border);padding-top:14px">
+        <h3 style="margin-bottom:14px">+ 수동으로 영상 추가</h3>
+        <div class="form-row">
+          <input class="form-input" id="ytUrlInput" type="text"
+            placeholder="유튜브 URL (예: https://www.youtube.com/watch?v=xxxxx)">
+          <input class="form-input" id="ytTitleInput" type="text"
+            placeholder="영상 제목 (선택 — 비워두면 유튜브 ID로 표시)">
+          <div class="form-actions">
+            <button class="btn-primary" onclick="addVideo()">추가</button>
+            <button class="btn-secondary" onclick="clearForm()">초기화</button>
+          </div>
         </div>
       </div>
+
     </div>
 
     <!-- 영상 목록 -->
@@ -212,16 +263,16 @@ const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const IMG = 'https://image.tmdb.org/t/p/w185';
 let ADMIN_SECRET = '';
 let currentTmdbId = null;
+let searchTab = 'id';       // 현재 탭: 'id' | 'name'
+let nameSearchTimer = null; // 작품명 검색 디바운스 타이머
 
 /* ══ 로그인 ══ */
 function doLogin(){
   const val = document.getElementById('secretInput').value.trim();
   if(!val) return;
-  // sessionStorage에 저장된 토큰 확인
   ADMIN_SECRET = val;
   verifySecret();
 }
-
 async function verifySecret(){
   try{
     const res = await fetch(`${API}/admin/rankings?limit=1`, {
@@ -240,7 +291,7 @@ async function verifySecret(){
   }
 }
 
-/* ══ 초기화 — admin.html과 같은 localStorage 사용 ══ */
+/* ══ 초기화 ══ */
 (function init(){
   const stored = localStorage.getItem('admin_token');
   if(stored){
@@ -248,15 +299,87 @@ async function verifySecret(){
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('mainWrap').style.display = 'block';
   }
+  // 드롭다운 외부 클릭 시 닫기
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('.search-dropdown')){
+      document.getElementById('searchResults').classList.remove('show');
+    }
+  });
 })();
 
-/* ══ 작품 조회 ══ */
+/* ══ 검색 탭 전환 ══ */
+function switchTab(tab){
+  searchTab = tab;
+  document.getElementById('tabId').classList.toggle('on', tab === 'id');
+  document.getElementById('tabName').classList.toggle('on', tab === 'name');
+  document.getElementById('tmdbInput').style.display    = tab === 'id'   ? 'block' : 'none';
+  document.getElementById('nameSearchWrap').style.display = tab === 'name' ? 'block' : 'none';
+  document.getElementById('searchResults').classList.remove('show');
+}
+
+/* ══ 검색 버튼 분기 ══ */
+function handleSearch(){
+  if(searchTab === 'id') loadWork();
+  else searchByName();
+}
+
+/* ══ TMDB ID로 작품 조회 ══ */
 async function loadWork(){
   const tmdbId = parseInt(document.getElementById('tmdbInput').value.trim());
   if(!tmdbId){ showToast('tmdb_id를 입력해주세요'); return; }
-  currentTmdbId = tmdbId;
+  await loadWorkById(tmdbId);
+}
 
-  // works API에서 작품 정보
+/* ══ 작품명 입력 — 디바운스 0.4초 ══ */
+function onNameInput(val){
+  clearTimeout(nameSearchTimer);
+  const results = document.getElementById('searchResults');
+  if(!val.trim()){ results.classList.remove('show'); return; }
+  nameSearchTimer = setTimeout(() => searchByName(val), 400);
+}
+
+/* ══ 작품명으로 works 테이블 검색 ══ */
+async function searchByName(query){
+  const val = query || document.getElementById('nameInput').value.trim();
+  if(!val){ showToast('작품명을 입력해주세요'); return; }
+  const results = document.getElementById('searchResults');
+  results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 중...</div>';
+  results.classList.add('show');
+  try{
+    const res = await fetch(`${API}/works/search?q=${encodeURIComponent(val)}&limit=8`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!data.ok || !data.data?.length){
+      results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과가 없습니다</div>';
+      return;
+    }
+    results.innerHTML = data.data.map(w => `
+      <div class="search-result-item" onclick="selectWork(${w.tmdb_id})">
+        <div class="sri-poster">
+          ${w.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`}
+        </div>
+        <div>
+          <div class="sri-title">${w.title_ko || ''}</div>
+          <div class="sri-sub">${[w.title_en, `tmdb: ${w.tmdb_id}`].filter(Boolean).join(' · ')}</div>
+        </div>
+      </div>`).join('');
+  }catch(e){
+    results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--accent)">검색 오류</div>';
+  }
+}
+
+/* ══ 검색 결과에서 작품 선택 ══ */
+async function selectWork(tmdbId){
+  document.getElementById('searchResults').classList.remove('show');
+  await loadWorkById(tmdbId);
+}
+
+/* ══ tmdb_id로 작품 정보 로드 (공통) ══ */
+async function loadWorkById(tmdbId){
+  currentTmdbId = tmdbId;
   try{
     const [worksRes, tmdbRes] = await Promise.allSettled([
       fetch(`${API}/works/${tmdbId}`).then(r=>r.json()),
@@ -264,25 +387,25 @@ async function loadWork(){
         fetch(`${TMDB_PROXY}/movie/${tmdbId}?language=ko-KR`).then(r=>r.json())
       ),
     ]);
-
     const works = worksRes.status==='fulfilled'&&worksRes.value?.ok ? worksRes.value.data : null;
-    const tmdb = tmdbRes.status==='fulfilled' ? tmdbRes.value : null;
-
-    const title = works?.title_ko || tmdb?.name || tmdb?.title || `tmdb_id: ${tmdbId}`;
+    const tmdb  = tmdbRes.status==='fulfilled' ? tmdbRes.value : null;
+    const title   = works?.title_ko || tmdb?.name || tmdb?.title || `tmdb_id: ${tmdbId}`;
     const titleEn = works?.title_en || tmdb?.original_name || tmdb?.original_title || '';
-    const poster = tmdb?.poster_path ? IMG+tmdb.poster_path : null;
+    const poster  = tmdb?.poster_path ? `${IMG}${tmdb.poster_path}` : null;
 
-    const posterEl = document.getElementById('workPoster');
-    posterEl.innerHTML = poster
+    document.getElementById('workPoster').innerHTML = poster
       ? `<img src="${poster}" alt="${title}">`
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🎬</div>`;
-
     document.getElementById('workTitle').textContent = title;
-    document.getElementById('workSub').textContent = [titleEn, `tmdb_id: ${tmdbId}`].filter(Boolean).join(' · ');
+    document.getElementById('workSub').textContent   = [titleEn, `tmdb_id: ${tmdbId}`].filter(Boolean).join(' · ');
     document.getElementById('workInfoBox').style.display = 'flex';
-    document.getElementById('addForm').style.display = 'block';
+    document.getElementById('addForm').style.display     = 'block';
 
-    // 영상 목록 로드
+    // 크롤링 결과 초기화
+    const crawlResult = document.getElementById('crawlResult');
+    crawlResult.style.display = 'none';
+    crawlResult.textContent   = '';
+
     loadVideos();
   }catch(e){
     showToast('작품 조회 실패');
@@ -295,7 +418,7 @@ async function loadVideos(){
   const el = document.getElementById('videosList');
   el.innerHTML = '<div class="empty">로딩 중...</div>';
   try{
-    const res = await fetch(`${API}/videos/${currentTmdbId}`);
+    const res  = await fetch(`${API}/videos/${currentTmdbId}`);
     const data = await res.json();
     renderVideos(data.data || []);
   }catch(e){
@@ -306,7 +429,7 @@ async function loadVideos(){
 function renderVideos(videos){
   const el = document.getElementById('videosList');
   if(!videos.length){
-    el.innerHTML = '<div class="empty">등록된 영상이 없어요<br><span style="font-size:13px">위 폼에서 유튜브 URL을 추가해주세요</span></div>';
+    el.innerHTML = '<div class="empty">등록된 영상이 없어요<br><span style="font-size:13px">자동 채우기를 실행하거나 URL을 직접 추가해주세요</span></div>';
     return;
   }
   el.innerHTML = videos.map(v => `
@@ -314,65 +437,84 @@ function renderVideos(videos){
       <div class="video-thumb" onclick="openPreview('${v.youtube_id}','${(v.title||'').replace(/'/g,"\\'")}')">
         <img src="https://img.youtube.com/vi/${v.youtube_id}/mqdefault.jpg" alt="${v.title||''}"
           onerror="this.style.display='none'">
-        <div class="video-thumb-play">
-          <div class="video-play-icon">▶</div>
-        </div>
+        <div class="video-thumb-play"><div class="video-play-icon">▶</div></div>
       </div>
       <div class="video-info">
-        <div class="video-title">${v.title||v.youtube_id}</div>
+        <div class="video-title">${v.title || v.youtube_id}</div>
         <div class="video-url">${v.youtube_url}</div>
-        <div class="video-badges">
-          ${v.is_main ? '<span class="badge-main">⭐ 메인 영상</span>' : ''}
-        </div>
+        <div class="video-badges">${v.is_main ? '<span class="badge-main">⭐ 메인 영상</span>' : ''}</div>
       </div>
       <div class="video-actions">
         ${!v.is_main
           ? `<button class="btn-main" onclick="setMain(${v.id})">⭐ 메인 지정</button>`
-          : '<button class="btn-main" style="opacity:.4;cursor:default" disabled>⭐ 메인</button>'
-        }
+          : '<button class="btn-main" style="opacity:.4;cursor:default" disabled>⭐ 메인</button>'}
         <button class="btn-delete" onclick="deleteVideo(${v.id})">🗑 삭제</button>
       </div>
     </div>`).join('');
 }
 
-/* ══ 영상 추가 ══ */
-async function addVideo(){
-  const url = document.getElementById('ytUrlInput').value.trim();
-  const title = document.getElementById('ytTitleInput').value.trim();
-  if(!url){ showToast('유튜브 URL을 입력해주세요'); return; }
-
-  // youtube_id 추출 검증
-  const ytMatch = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
-  if(!ytMatch){ showToast('유효한 유튜브 URL이 아닙니다'); return; }
-
+/* ══ 유튜브 자동 채우기 (관리자 수동 크롤링) ══ */
+async function crawlVideos(){
+  if(!currentTmdbId){ showToast('먼저 작품을 조회해주세요'); return; }
+  const btn      = document.getElementById('crawlBtn');
+  const resultEl = document.getElementById('crawlResult');
+  btn.disabled     = true;
+  btn.textContent  = '⏳ 검색 중...';
+  resultEl.style.display = 'none';
   try{
-    const res = await fetch(`${API}/admin/videos`, {
-      method: 'POST',
+    const res  = await fetch(`${API}/admin/videos/crawl`, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
-      body: JSON.stringify({ tmdb_id: currentTmdbId, youtube_url: url, title })
+      body:    JSON.stringify({ tmdb_id: currentTmdbId }),
     });
     const data = await res.json();
     if(data.ok){
-      clearForm();
-      loadVideos();
-      showToast('영상이 추가됐어요!');
+      const count = data.saved || 0;
+      resultEl.textContent   = count > 0 ? `✅ 영상 ${count}개를 새로 가져왔어요!` : `ℹ️ 새로 가져올 영상이 없어요 (이미 등록된 영상과 중복)`;
+      resultEl.style.display = 'block';
+      if(count > 0) loadVideos();
     } else {
-      showToast(data.message || '오류 발생');
+      resultEl.textContent   = `❌ ${data.message || '크롤링 실패'}`;
+      resultEl.style.display = 'block';
     }
-  }catch(e){ showToast('네트워크 오류'); }
+  }catch(e){
+    resultEl.textContent   = '❌ 네트워크 오류';
+    resultEl.style.display = 'block';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '▶ 자동 채우기';
+  }
 }
 
+/* ══ 영상 추가 ══ */
+async function addVideo(){
+  const url   = document.getElementById('ytUrlInput').value.trim();
+  const title = document.getElementById('ytTitleInput').value.trim();
+  if(!url){ showToast('유튜브 URL을 입력해주세요'); return; }
+  const ytMatch = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  if(!ytMatch){ showToast('유효한 유튜브 URL이 아닙니다'); return; }
+  try{
+    const res  = await fetch(`${API}/admin/videos`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body:    JSON.stringify({ tmdb_id: currentTmdbId, youtube_url: url, title }),
+    });
+    const data = await res.json();
+    if(data.ok){ clearForm(); loadVideos(); showToast('영상이 추가됐어요!'); }
+    else showToast(data.message || '오류 발생');
+  }catch(e){ showToast('네트워크 오류'); }
+}
 function clearForm(){
-  document.getElementById('ytUrlInput').value = '';
+  document.getElementById('ytUrlInput').value  = '';
   document.getElementById('ytTitleInput').value = '';
 }
 
 /* ══ 메인 지정 ══ */
 async function setMain(id){
   try{
-    const res = await fetch(`${API}/admin/videos/${id}/main`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    const res  = await fetch(`${API}/admin/videos/${id}/main`, {
+      method:  'PATCH',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
     });
     const data = await res.json();
     if(data.ok){ loadVideos(); showToast('메인 영상으로 지정됐어요!'); }
@@ -384,9 +526,9 @@ async function setMain(id){
 async function deleteVideo(id){
   if(!confirm('이 영상을 삭제할까요?')) return;
   try{
-    const res = await fetch(`${API}/admin/videos/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    const res  = await fetch(`${API}/admin/videos/${id}`, {
+      method:  'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
     });
     const data = await res.json();
     if(data.ok){ loadVideos(); showToast('삭제됐어요'); }
@@ -409,8 +551,9 @@ function closePreview(){
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2200);
+  setTimeout(() => t.classList.remove('show'), 2200);
 }
 </script>
+
 </body>
 </html>
