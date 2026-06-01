@@ -1594,48 +1594,48 @@ function renderTable() {
     return;
   }
 
-  // ── 일반 랭킹: category_slot별 그룹으로 나눠서 드래그앤드롭 렌더링 ──
-  // tableBody를 숨기고 테이블 밖 div로 렌더링
+  // ── 일반 랭킹: platform+category_slot 조합으로 그룹화하여 드래그앤드롭 렌더링 ──
   tbody.innerHTML = '';
   const tableWrap = tbody.closest('.table-wrap');
 
   // 기존 그룹 div 제거
   tableWrap.querySelectorAll('.category-group').forEach(el => el.remove());
 
-  // category_slot별 그룹화
+  // platform + category_slot 조합으로 그룹화
   const groups = {};
   rows.forEach(r => {
-    const slot = r.category_slot || r.category || 'etc';
-    if (!groups[slot]) groups[slot] = [];
-    groups[slot].push(r);
+    const key = `${r.platform}__${r.category_slot || r.category || 'etc'}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
   });
 
-  Object.entries(groups).forEach(([slot, items]) => {
+  Object.entries(groups).forEach(([key, items]) => {
+    const [platform, slot] = key.split('__');
     // 그룹 컨테이너
     const groupEl = document.createElement('div');
     groupEl.className = 'category-group';
-    groupEl.dataset.slot = slot;
-    groupEl.dataset.platform = items[0]?.platform || '';
-    groupEl.dataset.date = items[0]?.date || '';
+    groupEl.dataset.slot     = slot;
+    groupEl.dataset.platform = platform;
+    groupEl.dataset.date     = items[0]?.date || '';
 
     // 그룹 헤더 (타이틀 + 저장 버튼)
+    const groupId = `${platform}-${slot}`;
     groupEl.innerHTML = `
       <div class="category-group-header">
         <span class="category-group-title">
-          <span class="platform-badge" style="background:${PC[items[0]?.platform]||'#888'};margin-right:6px">${items[0]?.platform||''}</span>
+          <span class="platform-badge" style="background:${PC[platform]||'#888'};margin-right:6px">${platform}</span>
           ${slot}
         </span>
-        <button class="btn-reorder-save" onclick="saveReorder('${slot}')" id="saveBtn-${slot}">💾 순위 저장</button>
+        <button class="btn-reorder-save" onclick="saveReorder('${slot}','${platform}')" id="saveBtn-${groupId}">💾 순위 저장</button>
       </div>
       <table style="width:100%;border-collapse:collapse">
-        <tbody id="dragBody-${slot}"></tbody>
+        <tbody id="dragBody-${groupId}"></tbody>
       </table>`;
     tableWrap.appendChild(groupEl);
 
     // 행 렌더링 + 드래그앤드롭 이벤트
-    const dragBody = groupEl.querySelector(`#dragBody-${slot}`);
-    items.forEach((r, idx) => {
-      const allIdx = allData.indexOf(r);
+    const dragBody = groupEl.querySelector(`#dragBody-${groupId}`);
+    items.forEach((r) => {
       const tr = document.createElement('tr');
       tr.className = 'drag-row';
       tr.dataset.id   = r.id;
@@ -1674,7 +1674,6 @@ function renderTable() {
       });
       tr.addEventListener('dragover', e => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
         dragBody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
         if (tr !== _dragSrc) tr.classList.add('drag-over');
       });
@@ -1707,12 +1706,12 @@ function _updateRankNums(dragBody) {
 }
 
 // category_slot 순위 저장
-async function saveReorder(slot) {
-  const btn     = document.getElementById(`saveBtn-${slot}`);
-  const groupEl = document.querySelector(`.category-group[data-slot="${slot}"]`);
-  const platform = groupEl.dataset.platform;
+async function saveReorder(slot, platform) {
+  const groupId  = `${platform}-${slot}`;
+  const btn      = document.getElementById(`saveBtn-${groupId}`);
+  const groupEl  = document.querySelector(`.category-group[data-slot="${slot}"][data-platform="${platform}"]`);
   const date     = groupEl.dataset.date;
-  const dragBody = groupEl.querySelector(`#dragBody-${slot}`);
+  const dragBody = groupEl.querySelector(`#dragBody-${groupId}`);
 
   const items = [...dragBody.querySelectorAll('.drag-row')].map((tr, i) => ({
     id:   parseInt(tr.dataset.id),
@@ -1729,7 +1728,7 @@ async function saveReorder(slot) {
     });
     const data = await res.json();
     if (data.ok) {
-      showToast(`✅ ${slot} 순위 저장 완료!`, 'ok');
+      showToast(`✅ ${platform} ${slot} 순위 저장 완료!`, 'ok');
     } else {
       showToast('저장 실패: ' + data.message, 'err');
     }
