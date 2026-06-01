@@ -1271,12 +1271,31 @@ async function loadTitleVideos(){
 }
 
 /* == YouTube Render == */
+// 1페이지: featured 1개 + 일반 2개 = 3개 (YT_PER_PAGE)
+// 2페이지~: 4개씩 (YT_PER_PAGE_REST)
+const YT_PER_PAGE_REST=4;
 function renderYtPage(page){
   ytPage=page;
   const total=allYtVideos.length;
   if(!total){document.getElementById('ytArea').innerHTML='';document.getElementById('ytSubtitle').textContent='';return;}
   document.getElementById('ytSubtitle').textContent=`${total}개 영상`;
-  const slice=allYtVideos.slice(page*YT_PER_PAGE,(page+1)*YT_PER_PAGE);
+
+  // 페이지별 시작/끝 인덱스 계산
+  // 0페이지: 0 ~ YT_PER_PAGE(3)
+  // 1페이지~: YT_PER_PAGE + (page-1)*YT_PER_PAGE_REST ~ +YT_PER_PAGE_REST
+  let start,end;
+  if(page===0){
+    start=0; end=YT_PER_PAGE;
+  }else{
+    start=YT_PER_PAGE+(page-1)*YT_PER_PAGE_REST;
+    end=start+YT_PER_PAGE_REST;
+  }
+  const slice=allYtVideos.slice(start,end);
+
+  // 전체 페이지 수 계산
+  const restCount=Math.max(0,total-YT_PER_PAGE);
+  const totalPages=1+Math.ceil(restCount/YT_PER_PAGE_REST);
+
   document.getElementById('ytArea').innerHTML=`
     <div id="ytModal2" class="modal-wrap">
       <div class="modal-head"><span class="modal-ttl" id="ytModalTitle2"></span><button class="modal-close" onclick="closePlayer2()">✕</button></div>
@@ -1293,7 +1312,6 @@ function renderYtPage(page){
         <div class="yt-info"><div class="yt-title">${v.name||''}</div><div class="yt-meta"><span>${v.type||''}</span></div></div>
       </div>`).join('')}</div>`;
 
-  const totalPages=Math.ceil(total/YT_PER_PAGE);
   const pgEl=document.getElementById('ytPagination');
   if(totalPages<=1){pgEl.style.display='none';return;}
   pgEl.style.display='flex';
