@@ -5,6 +5,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import asyncio
+import random
 import sqlite3
 from playwright.async_api import async_playwright
 from db import init_db, get_today, lookup_works, search_tmdb_korean, translate_titles_to_korean, insert_work
@@ -66,16 +67,29 @@ async def run(conn):
             timezone_id="Asia/Seoul",
             viewport={"width": 390, "height": 844},
         )
-        page = await context.new_page()
-        titles = await _crawl(page)
+        page    = await context.new_page()
+        titles  = await _crawl(page)
         await browser.close()
 
     if not titles:
         print("  [티빙] 데이터 없음")
         return
 
-    # 매칭 파이프라인
-    for rank, title_ko in titles:
+    # ── 그룹별 랜덤 배치 ──────────────────────────────────────────
+    # 1~10위: 3개 그룹으로 나눠 각각 랜덤 셔플
+    # 11위~: 나머지 전체 랜덤 셔플
+    top10   = titles[:10]
+    rest    = titles[10:]
+
+    g1 = top10[0:4];  random.shuffle(g1)   # 1~4위 그룹
+    g2 = top10[4:7];  random.shuffle(g2)   # 5~7위 그룹
+    g3 = top10[7:10]; random.shuffle(g3)   # 8~10위 그룹
+    random.shuffle(rest)                    # 11위~ 전체 랜덤
+
+    ranked_titles = g1 + g2 + g3 + rest    # 최종 순위 목록
+
+    # ── TMDB 매칭 및 저장 ────────────────────────────────────────
+    for rank, title_ko in enumerate(ranked_titles, start=1):
         # ① works 우선 조회 (한글 제목으로)
         works_data = conn.execute("""
             SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
@@ -91,7 +105,7 @@ async def run(conn):
             _save_tving(conn, rank, title_ko, tmdb_data)
             continue
 
-        # ② TMDB 한글 검색 (티빙은 이미 한글 제목)
+        # ② TMDB 한글 검색
         tmdb_data = search_tmdb_korean(title_ko)
         if tmdb_data:
             tmdb_data["title_en"] = tmdb_data.get("title_en") or title_ko
@@ -100,7 +114,6 @@ async def run(conn):
             _save_tving(conn, rank, title_ko, tmdb_data)
         else:
             print(f"  ⚠️ [티빙] {rank:2d}. '{title_ko}' → 매칭 실패, 검토 큐 저장")
-            # review_queue 저장
             conn.execute("""
                 INSERT OR IGNORE INTO review_queue
                     (platform, category_slot, rank, title_en, title_ko_guess, fail_reason, crawled_date)
@@ -109,12 +122,17 @@ async def run(conn):
             conn.commit()
             _save_tving(conn, rank, title_ko, None)
 
-    print(f"  [티빙] {len(titles)}개 처리 완료")
+    print(f"  [티빙] {len(ranked_titles)}개 처리 완료")
 
 
-async def _crawl(page) -> list[tuple]:
-    """키노라이츠에서 티빙 랭킹 크롤링, 반환: [(rank, title_ko), ...]"""
+async def _crawl(page) -> list[str]:
+    """키노라이츠에서 티빙 랭킹 크롤링
+    - 페이지 순서대로 제목 수집 (전체 OTT 순위 숫자 무시)
+    - 중복 제목 제거
+    - 반환: [title_ko, ...] (순서대로)
+    """
     titles = []
+    seen   = set()  # 중복 제거용
     try:
         await page.goto(KINOLIGHTS_URL, wait_until="networkidle", timeout=40000)
         await page.wait_for_selector(
@@ -124,24 +142,21 @@ async def _crawl(page) -> list[tuple]:
         items = await page.query_selector_all(
             ".ranking-item, [class*='RankingItem'], li[class*='item']"
         )
-        count = 0
         for item in items:
-            if count >= 10:
-                break
             try:
-                rank_el  = await item.query_selector("[class*='rank'], .rank, span:first-child")
                 title_el = await item.query_selector("[class*='title'], .title, strong, h3, h4")
                 if not title_el:
                     continue
-                title    = (await title_el.inner_text()).strip()
-                rank_txt = (await rank_el.inner_text()).strip() if rank_el else str(count + 1)
-                rank     = int(rank_txt) if rank_txt.isdigit() else count + 1
-                if title:
-                    titles.append((rank, title))
-                    count += 1
+                title = (await title_el.inner_text()).strip()
+                # 중복 제목 스킵
+                if not title or title in seen:
+                    continue
+                seen.add(title)
+                titles.append(title)
             except Exception:
                 continue
-        if count == 0:
+
+        if not titles:
             print("  [티빙] ⚠️ 데이터 없음")
     except Exception as e:
         print(f"  [티빙] 에러: {e}")
