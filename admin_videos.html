@@ -181,15 +181,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <!-- 작품 검색 -->
     <div class="search-tabs">
-      <button class="search-tab on" id="tabId" onclick="switchTab('id')">TMDB ID</button>
-      <button class="search-tab" id="tabName" onclick="switchTab('name')">작품명 검색</button>
+      <button class="search-tab" id="tabId" onclick="switchTab('id')">TMDB ID</button>
+      <button class="search-tab on" id="tabName" onclick="switchTab('name')">작품명 검색</button>
     </div>
     <div class="search-row">
       <!-- TMDB ID 입력 -->
       <input class="search-input" id="tmdbInput" type="number" placeholder="tmdb_id 입력 (예: 259837)"
-        onkeydown="if(event.key==='Enter')loadWork()" style="display:block">
+        onkeydown="if(event.key==='Enter')loadWork()" style="display:none">
       <!-- 작품명 검색 -->
-      <div class="search-dropdown" id="nameSearchWrap" style="display:none">
+      <div class="search-dropdown" id="nameSearchWrap" style="display:block;flex:1">
         <input class="search-input" id="nameInput" type="text"
           placeholder="한글 또는 영어 작품명 입력"
           oninput="onNameInput(this.value)"
@@ -226,7 +226,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           <input class="form-input" id="ytUrlInput" type="text"
             placeholder="유튜브 URL (예: https://www.youtube.com/watch?v=xxxxx)">
           <input class="form-input" id="ytTitleInput" type="text"
-            placeholder="영상 제목 (선택 — 비워두면 유튜브 ID로 표시)">
+            placeholder="영상 제목 (비워두면 유튜브 제목 자동 입력)">
           <div class="form-actions">
             <button class="btn-primary" onclick="addVideo()">추가</button>
             <button class="btn-secondary" onclick="clearForm()">초기화</button>
@@ -263,7 +263,7 @@ const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const IMG = 'https://image.tmdb.org/t/p/w185';
 let ADMIN_SECRET = '';
 let currentTmdbId = null;
-let searchTab = 'id';       // 현재 탭: 'id' | 'name'
+let searchTab = 'name';     // 기본 탭: 작품명 검색
 let nameSearchTimer = null; // 작품명 검색 디바운스 타이머
 
 /* ══ 로그인 ══ */
