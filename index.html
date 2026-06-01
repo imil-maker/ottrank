@@ -748,52 +748,8 @@ async function init(){
 
   // ③ TMDB 포스터·시즌·연도 보강 (병렬, 배치)
   enrichAll(RANKINGS).then(()=>renderGrids()); // 비동기로 뒤에서 처리, 완료되면 다시 렌더
-
-  // 유튜브 급상승 TOP 50 로드
-  loadYoutubeTrending();
 }
-
-/* ══ 유튜브 급상승 TOP 50 ══ */
-async function loadYoutubeTrending(){
-  const grid = document.getElementById('ytGrid');
-  grid.innerHTML = Array(10).fill(`
-    <div class="yt-card" style="pointer-events:none">
-      <div class="yt-th" style="background:var(--bg3)"></div>
-      <div class="yt-info">
-        <div style="height:13px;background:var(--bg3);border-radius:3px;margin-bottom:6px;width:90%"></div>
-        <div style="height:11px;background:var(--bg3);border-radius:3px;width:60%"></div>
-      </div>
-    </div>`).join('');
-
-  try{
-    const res  = await fetch(`${API}/youtube/trending`);
-    const data = await res.json();
-    if(!data.ok || !data.data?.length){ grid.innerHTML=''; return; }
-
-    grid.innerHTML = data.data.map(v => `
-      <div class="yt-card" onclick="openYtPlayer('${v.video_id}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'")}','${fmtViews(v.view_count)}')">
-        <div class="yt-th">
-          ${v.thumbnail
-            ? `<img src="${v.thumbnail}" alt="${v.rank}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">`
-            : `<div class="yt-th-ph">▶</div>`}
-          <span class="yt-rn${v.rank<=3?' top3':''}">${v.rank}</span>
-        </div>
-        <div class="yt-info">
-          <div class="yt-title">${v.title||''}</div>
-          <div class="yt-ch">${v.channel||''}</div>
-          <div class="yt-vw">${fmtViews(v.view_count)} 조회</div>
-        </div>
-      </div>`).join('');
-  }catch(e){ grid.innerHTML=''; }
-}
-
-function fmtViews(n){
-  if(!n) return '';
-  if(n>=100000000) return (n/100000000).toFixed(1)+'억';
-  if(n>=10000)     return Math.floor(n/10000)+'만';
-  if(n>=1000)      return (n/1000).toFixed(1)+'천';
-  return String(n);
-}
+init();
 </script>
 
 <!-- 유튜브 인라인 플레이어 -->
