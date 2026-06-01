@@ -645,12 +645,22 @@ def _save_to_rankings(conn: sqlite3.Connection, item: dict, tmdb_data: dict | No
     """rankings 테이블에 저장
     ⚠️ 기존 rankings 테이블의 category 컬럼(NOT NULL) 호환을 위해
     category_slot 값을 category에도 함께 저장
+    tmdb_rating 없으면 works 테이블에서 보완
     """
     today = get_today()
-    # 기존 category 컬럼(NOT NULL) 호환 — category_slot 값으로 채움
     category_compat = item["category_slot"]
 
     if tmdb_data:
+        # tmdb_rating 없으면 works 테이블에서 보완
+        tmdb_rating = tmdb_data.get("tmdb_rating")
+        if not tmdb_rating and tmdb_data.get("tmdb_id"):
+            row = conn.execute(
+                "SELECT tmdb_rating FROM works WHERE tmdb_id = ?",
+                (tmdb_data["tmdb_id"],)
+            ).fetchone()
+            if row and row[0]:
+                tmdb_rating = row[0]
+
         conn.execute("""
             INSERT OR REPLACE INTO rankings
                 (date, platform, category, category_slot, source_name, rank,
@@ -671,7 +681,7 @@ def _save_to_rankings(conn: sqlite3.Connection, item: dict, tmdb_data: dict | No
             tmdb_data.get("genre"),
             tmdb_data.get("overview"),
             tmdb_data.get("release_year"),
-            tmdb_data.get("tmdb_rating"),
+            tmdb_rating,
         ))
     else:
         # TMDB 매칭 실패 — 영어 제목만 저장 (tmdb_id=NULL)
