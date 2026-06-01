@@ -481,13 +481,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <table>
         <thead>
           <tr>
+            <th style="width:30px"></th>
             <th style="width:50px">순위</th>
             <th style="width:40px">포스터</th>
             <th>제목</th>
             <th style="width:80px">TMDB ID</th>
             <th style="width:80px">연도</th>
             <th id="memoColHeader">메모 <span style="font-weight:400;color:var(--muted);font-size:10px">(선택)</span></th>
-            <th style="width:100px">순서 변경</th>
             <th style="width:60px">삭제</th>
           </tr>
         </thead>
@@ -1028,12 +1028,18 @@ function renderManualTable() {
   document.getElementById('manualListStat').textContent = `총 ${manualItems.length}개`;
 
   if (!manualItems.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">등록된 항목이 없습니다. 위에서 작품을 추가하세요.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">등록된 항목이 없습니다. 위에서 작품을 추가하세요.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = manualItems.map((item, idx) => `
-    <tr data-id="${item.id}">
+  tbody.innerHTML = '';
+  manualItems.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+    tr.className    = 'drag-row';
+    tr.dataset.idx  = idx;
+    tr.draggable    = true;
+    tr.innerHTML = `
+      <td style="width:30px"><span class="drag-handle">⠿</span></td>
       <td><span class="rank-num">${item.rank}</span></td>
       <td>
         ${item.poster_path
@@ -1051,26 +1057,61 @@ function renderManualTable() {
       </td>
       <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">${item.release_year || '-'}</td>
       <td>
-        <input
-          type="text"
-          class="date-inp"
+        <input type="text" class="date-inp"
           placeholder="예: 1000만명, 2관왕..."
           value="${(item.memo || '').replace(/"/g, '&quot;')}"
           oninput="updateManualMemo(${idx}, this.value)"
           style="width:100%;font-size:12px;padding:5px 8px">
       </td>
       <td>
-        <div style="display:flex;gap:4px">
-          <button class="btn-sm btn-fix" onclick="moveManualItem(${idx}, -1)" ${idx === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button>
-          <button class="btn-sm btn-fix" onclick="moveManualItem(${idx}, 1)" ${idx === manualItems.length-1 ? 'disabled style="opacity:.3"' : ''}>▼</button>
-        </div>
-      </td>
-      <td>
         <button class="btn-sm btn-unfix" onclick="deleteManualItem(${idx}, ${item.id !== null ? item.id : 'null'})"
           style="color:var(--red);border-color:rgba(248,113,113,.3)">삭제</button>
-      </td>
-    </tr>
-  `).join('');
+      </td>`;
+
+    // 드래그 이벤트
+    tr.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      tr.classList.add('dragging');
+      _dragSrc = tr;
+    });
+    tr.addEventListener('dragend', () => {
+      tr.classList.remove('dragging');
+      tbody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+      _syncManualItemsFromDom(tbody);
+    });
+    tr.addEventListener('dragover', e => {
+      e.preventDefault();
+      tbody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+      if (tr !== _dragSrc) tr.classList.add('drag-over');
+    });
+    tr.addEventListener('drop', e => {
+      e.preventDefault();
+      if (_dragSrc && _dragSrc !== tr) {
+        const allRows = [...tbody.querySelectorAll('.drag-row')];
+        const srcIdx  = allRows.indexOf(_dragSrc);
+        const tgtIdx  = allRows.indexOf(tr);
+        if (srcIdx < tgtIdx) tr.after(_dragSrc);
+        else tr.before(_dragSrc);
+        _syncManualItemsFromDom(tbody);
+      }
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+// DOM 순서 기준으로 manualItems 배열 재정렬 + 순위 번호 업데이트
+function _syncManualItemsFromDom(tbody) {
+  const rows = [...tbody.querySelectorAll('.drag-row')];
+  const reordered = rows.map(tr => manualItems[parseInt(tr.dataset.idx)]);
+  reordered.forEach((item, i) => { item.rank = i + 1; });
+  manualItems = reordered;
+  // 순위 번호만 DOM에 업데이트
+  rows.forEach((tr, i) => {
+    tr.dataset.idx = i;
+    tr.querySelector('.rank-num').textContent = i + 1;
+  });
 }
 
 // 메모 컬럼 이름 저장 (ott_categories.memo_label 업데이트)
@@ -1112,17 +1153,6 @@ function updateManualMemo(idx, value) {
   if (manualItems[idx] !== undefined) {
     manualItems[idx].memo = value.trim() || null;
   }
-}
-
-// 순위 이동 (▲▼)
-function moveManualItem(idx, dir) {
-  const newIdx = idx + dir;
-  if (newIdx < 0 || newIdx >= manualItems.length) return;
-  // 배열에서 위치 교환
-  [manualItems[idx], manualItems[newIdx]] = [manualItems[newIdx], manualItems[idx]];
-  // rank 번호 재부여
-  manualItems.forEach((item, i) => item.rank = i + 1);
-  renderManualTable();
 }
 
 // 작품 검색 (works 테이블 기반)
