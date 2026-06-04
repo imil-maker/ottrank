@@ -373,7 +373,7 @@ async function adminGetContents(url, request, env, headers) {
               view_count, is_pinned, is_hidden, sort_order, created_at
        FROM ott_contents
        WHERE ${where}
-       ORDER BY created_at DESC
+       ORDER BY published_at DESC
        LIMIT ? OFFSET ?`
     ).bind(...dataBindings),
   ]);
