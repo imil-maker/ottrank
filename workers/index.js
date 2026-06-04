@@ -11,8 +11,8 @@
    auth.js      : /auth/*
    user.js      : /wishlist/*, /reviews/*, /mypage/*, /user/*, /grade-settings
    posts.js     : /posts/*
-   admin.js     : /admin/* (reactions 제외)
-   trailers.js  : /trailers/*, /admin/trailers*
+   admin.js     : /admin/* (reactions, videos, contents 제외)
+   contents.js  : /contents/*, /admin/contents*
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -22,7 +22,7 @@ import { handleAuth      } from "./routes/auth.js";
 import { handleUser      } from "./routes/user.js";
 import { handlePosts     } from "./routes/posts.js";
 import { handleAdmin     } from "./routes/admin.js";
-import { handleTrailers  } from "./routes/trailers.js";
+import { handleContents  } from "./routes/contents.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -61,9 +61,9 @@ export default {
 
     let res = null;
 
-    // 1. 예고편 게시판 (신규)
-    if (path.startsWith("/trailers") || path.startsWith("/admin/trailers")) {
-      res = await handleTrailers(path, request, env, url, headers);
+    // 1. OTT 콘텐츠 게시판 (예고편/신작, trailers → contents 대체)
+    if (path.startsWith("/contents") || path.startsWith("/admin/contents")) {
+      res = await handleContents(path, request, env, url, headers);
     }
 
     // 2. 인증
@@ -116,7 +116,7 @@ export default {
       res = await handlePosts(path, request, env, ctx, url, headers);
     }
 
-    // 8. 관리자 (reactions, videos, trailers 제외한 나머지)
+    // 8. 관리자 (reactions, videos, contents 제외한 나머지)
     if (!res && path.startsWith("/admin/")) {
       res = await handleAdmin(path, request, env, url, headers);
     }
