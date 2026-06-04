@@ -3425,15 +3425,14 @@ async function loadTmdbPosters(items){
     const el = document.getElementById(`tmdb-poster-${item.id}`);
     if(!el) continue;
     try {
-      for(const mtype of [item.tmdb_type||'tv', 'movie', 'tv']){
-        const res  = await fetch(`${TMDB_PROXY}/${mtype}/${item.tmdb_id}?language=ko-KR`);
-        const data = await res.json();
-        if(data.poster_path){
-          el.src = `${IMG2}${data.poster_path}`;
-          el.style.display = 'block';
-          el.nextElementSibling.style.display = 'none';
-          break;
-        }
+      // tmdb_type이 명확하면 그것만 조회 (잘못된 타입으로 다른 작품 포스터 나오는 것 방지)
+      const mtype = item.tmdb_type || 'tv';
+      const res   = await fetch(`${TMDB_PROXY}/${mtype}/${item.tmdb_id}?language=ko-KR`);
+      const data  = await res.json();
+      if(data.poster_path){
+        el.src = `${IMG2}${data.poster_path}`;
+        el.style.display = 'block';
+        el.nextElementSibling.style.display = 'none';
       }
     } catch(e){}
     await new Promise(r => setTimeout(r, 80)); // 레이트 리밋 방지
@@ -3492,12 +3491,14 @@ async function saveContentTmdb(){
   if(!contentTmdbTargetId){ showToast('대상 영상이 없습니다.','err'); return; }
   btn.disabled=true; btn.textContent='저장 중...';
   try {
+    const tmdb_type = document.getElementById('ctTmdbType')?.value || null;
     const res  = await fetch(`${API}/admin/contents/${contentTmdbTargetId}`, {
       method : 'PUT',
       headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
       body   : JSON.stringify({
-        tmdb_id    : tmdb_id ? parseInt(tmdb_id) : null,
+        tmdb_id    : tmdb_id    ? parseInt(tmdb_id) : null,
         work_title : work_title || null,
+        tmdb_type  : tmdb_type  || null,
       }),
     });
     const data = await res.json();
@@ -3633,8 +3634,18 @@ async function searchTmdbForContent(){
 }
 
 function selectTmdbItem(tmdbId, tmdbType, title, poster, year){
-  document.getElementById('ctTmdbId').value    = tmdbId;
-  document.getElementById('ctWorkTitle').value = title;
+  document.getElementById('ctTmdbId').value       = tmdbId;
+  document.getElementById('ctWorkTitle').value    = title;
+  // tmdb_type을 hidden input에 저장 (저장 시 함께 전송)
+  let tmdbTypeInp = document.getElementById('ctTmdbType');
+  if(!tmdbTypeInp){
+    tmdbTypeInp = document.createElement('input');
+    tmdbTypeInp.type = 'hidden';
+    tmdbTypeInp.id   = 'ctTmdbType';
+    document.getElementById('ctTmdbId').parentNode.appendChild(tmdbTypeInp);
+  }
+  tmdbTypeInp.value = tmdbType;
+
   const selected = document.getElementById('ctTmdbSelected');
   document.getElementById('ctTmdbPoster').src           = poster||'';
   document.getElementById('ctTmdbPoster').style.display = poster?'block':'none';
