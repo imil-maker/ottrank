@@ -141,7 +141,48 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .spin{width:18px;height:18px;border:2px solid var(--border2);border-top-color:#7ec8e3;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ══ 유튜브 ══ */
+/* ══ 오늘의 신작 & 예정작 ══ */
+.ct-preview-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;cursor:pointer;transition:all .2s}
+.ct-preview-card:hover{border-color:var(--border2);transform:translateY(-3px);
+  box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.ct-preview-thumb{position:relative;width:100%;aspect-ratio:16/9;
+  background:var(--bg3);overflow:hidden}
+.ct-preview-thumb img{width:100%;height:100%;object-fit:cover;
+  display:block;transition:transform .3s}
+.ct-preview-card:hover .ct-preview-thumb img{transform:scale(1.05)}
+.ct-preview-thumb-ph{width:100%;height:100%;display:flex;align-items:center;
+  justify-content:center;font-size:28px;
+  background:linear-gradient(135deg,var(--bg3),var(--bg2))}
+.ct-preview-play{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;background:rgba(0,0,0,.4);opacity:0;transition:opacity .2s}
+.ct-preview-card:hover .ct-preview-play{opacity:1}
+.ct-preview-play-icon{width:40px;height:40px;border-radius:50%;
+  background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center}
+.ct-preview-play-icon svg{width:16px;height:16px;fill:#0c0c10;margin-left:2px}
+.ct-preview-type{position:absolute;top:7px;left:7px;font-family:var(--mono);
+  font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px}
+.ct-preview-type.trailer{background:rgba(230,57,70,.85);color:#fff}
+.ct-preview-type.preview{background:rgba(240,180,41,.85);color:#000}
+.ct-preview-type.teaser{background:rgba(52,211,153,.85);color:#000}
+.ct-preview-pf{position:absolute;bottom:7px;left:7px;font-size:10px;font-weight:700;
+  padding:2px 7px;border-radius:3px;color:#fff}
+.ct-preview-body{padding:9px 11px 11px}
+.ct-preview-work{font-size:13px;font-weight:700;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.ct-preview-title{font-size:11px;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;line-height:1.4}
+/* 스켈레톤 */
+.skel-ct-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.skel-ct-thumb{width:100%;aspect-ratio:16/9;
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite}
+.skel-ct-line{height:12px;border-radius:4px;margin:10px 11px 5px;
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite}
+.skel-ct-line.short{width:55%;height:10px;margin-top:0}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .yt-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .yt-card{display:flex;gap:10px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .15s}
 .yt-card:hover{border-color:var(--border2);background:var(--bg3)}
@@ -256,7 +297,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     </div>
   </div>
   <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
-  <!-- 오늘의 AI 추천 (TV와 영화 사이) -->
+  <!-- 오늘의 AI 추천 — 일단 비활성화 -->
+  <div style="display:none">
   <div class="sec-hd">
     <span class="sec-icon">✨</span>
     <span class="sec-title">오늘의 AI 추천</span>
@@ -313,6 +355,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div class="ai-result-lbl">🤖 <span id="aiDesc">조건 기반 오늘의 추천</span></div>
       <div class="picks-grid" id="aiPicks"></div>
     </div>
+  </div>
+  </div><!-- /AI 추천 비활성화 끝 -->
+
+  <!-- 오늘의 신작 & 예정작 -->
+  <div class="sec-hd">
+    <span class="sec-icon">🎬</span>
+    <span class="sec-title">오늘의 신작 & 예정작</span>
+    <span class="sec-sub">LATEST TRAILERS</span>
+    <a href="/contents.html" class="sec-more">전체보기 →</a>
+  </div>
+  <!-- 스켈레톤 로딩 -->
+  <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
+    <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
+    <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
+    <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
+    <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
+    <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
   </div>
 
   <!-- 영화 -->
@@ -746,6 +805,84 @@ async function init(){
 
   // 유튜브 급상승 TOP 50 로드
   loadYoutubeTrending();
+
+  // 오늘의 신작 & 예정작 로드
+  loadContentsPreview();
+}
+
+/* ── 오늘의 신작 & 예정작 (메인 5개) ── */
+const CT_TYPE_LABEL = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
+const CT_PF_COLOR   = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3' };
+const CT_PF_NAME    = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브' };
+
+async function loadContentsPreview(){
+  try {
+    // 메인 고정 먼저 시도, 없으면 전체 최신 5개
+    const [pinnedRes, latestRes] = await Promise.all([
+      fetch(`${API}/contents/pinned`),
+      fetch(`${API}/contents?limit=5`),
+    ]);
+    const pinnedData = await pinnedRes.json();
+    const latestData = await latestRes.json();
+
+    // 고정 영상 우선, 부족하면 최신으로 채움
+    const pinned = pinnedData.items || [];
+    const latest = latestData.items || [];
+    const seen   = new Set(pinned.map(i => i.id));
+    const fill   = latest.filter(i => !seen.has(i.id));
+    const items  = [...pinned, ...fill].slice(0, 5);
+
+    renderContentsPreview(items);
+  } catch(e){
+    renderContentsPreview([]);
+  }
+}
+
+function renderContentsPreview(items){
+  const wrap = document.getElementById('contentsPreview');
+  if(!wrap) return;
+
+  if(!items.length){
+    wrap.innerHTML = `<div style="grid-column:1/-1;padding:32px;text-align:center;
+      background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+      font-size:14px;color:var(--muted)">등록된 신작 예고편이 없습니다.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = items.map(item => {
+    const typeLabel = CT_TYPE_LABEL[item.type] || item.type;
+    const pfColor   = CT_PF_COLOR[item.platform] || '#888';
+    const pfName    = CT_PF_NAME[item.platform]  || item.platform;
+    const workTitle = item.work_title || '';
+    const thumb     = item.thumbnail || '';
+
+    // 클릭 동작: tmdb_id 있으면 작품 상세, 없으면 영상 상세
+    const clickFn = item.tmdb_id
+      ? `goDetail(${item.tmdb_id},'${item.tmdb_type||'tv'}','${item.platform}',0,'${workTitle.replace(/'/g,'')}',1,'')`
+      : `location.href='/contents_detail.html?id=${item.id}'`;
+
+    return `<div class="ct-preview-card" onclick="${clickFn}">
+      <div class="ct-preview-thumb">
+        ${thumb
+          ? `<img src="${thumb}" alt="${workTitle.replace(/"/g,'')}" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+             <div class="ct-preview-thumb-ph" style="display:none">🎬</div>`
+          : `<div class="ct-preview-thumb-ph">🎬</div>`
+        }
+        <div class="ct-preview-play">
+          <div class="ct-preview-play-icon">
+            <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+          </div>
+        </div>
+        <span class="ct-preview-type ${item.type}">${typeLabel}</span>
+        <span class="ct-preview-pf" style="background:${pfColor}">${pfName}</span>
+      </div>
+      <div class="ct-preview-body">
+        <div class="ct-preview-work">${workTitle || '제목 미확인'}</div>
+        <div class="ct-preview-title">${item.title}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function loadYoutubeTrending(){
