@@ -59,7 +59,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   opacity:.75;transition:opacity .15s;vertical-align:middle;text-decoration:none;
   position:relative;top:-3px}
 .person-insta-icon:hover{opacity:1}
-.person-insta-icon img{width:24px;height:24px;border-radius:6px;display:block}
+.person-insta-icon img{width:48px;height:48px;border-radius:12px;display:block}
 
 /* ── 인물 정보 ── */
 .person-info{flex:1;min-width:0}
@@ -309,8 +309,10 @@ function goWork(el){
   if(!tmdbId) return;
   const y    = new Date().getFullYear();
   const slug = `1-${y}${tmdbId}`;
+  // platform을 지정하지 않음 → _title_detail.html의 loadPlatforms()가
+  // 실제 OTT 순위 API를 조회해서 올바른 플랫폼을 표시
   sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id:tmdbId, type, title
+    tmdb_id: tmdbId, type, title, platform: ''
   }));
   location.href = `/title/${slug}`;
 }
