@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- 동적 메타태그 (JS에서 채움) -->
 <title>예고편 — 오뜨랑</title>
 <meta name="description" content="오뜨랑에서 최신 OTT 예고편을 확인하세요.">
 <meta property="og:type" content="video.other">
@@ -28,47 +27,40 @@
   --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:900px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;overflow-x:hidden}
 #ottrang-header{position:sticky;top:0;z-index:200}
-/* main-outer는 900px 제한 — overflow:visible 필수 (player-outer가 밖으로 나가야 함) */
-.main-outer{max-width:var(--max-w);margin:0 auto;padding:0 24px 80px;overflow:visible}
+
+/* ── 영상 플레이어 — body 직접 자식, 전체 너비 ── */
+.player-section{width:100%;background:#000;margin-bottom:0}
+.player-wrap{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+.player-wrap iframe{width:100%;height:100%;border:none;display:block}
+
+/* ── 콘텐츠 영역 — 900px 제한 ── */
+.content-outer{max-width:var(--max-w);margin:0 auto;padding:0 24px 80px}
 
 /* ── 뒤로가기 ── */
 .back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;
   text-decoration:none;padding:7px 14px;border:1px solid var(--border);
   border-radius:7px;transition:all .15s;font-family:var(--mono);
-  margin-top:24px;margin-bottom:16px;display:flex}
+  margin-top:20px;margin-bottom:16px}
 .back-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
-
-/* ── 영상 플레이어 — 화면 전체 너비 ── */
-.player-outer{
-  width:100vw;
-  position:relative;
-  left:50%;
-  transform:translateX(-50%);
-  background:#000;
-  margin-bottom:20px;
-}
-.player-wrap{position:relative;width:100%;aspect-ratio:16/9;background:#000}
-.player-wrap iframe{width:100%;height:100%;border:none;display:block}
-.spin{width:32px;height:32px;border:3px solid var(--border2);border-top-color:var(--accent);
-  border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── 영상 정보 ── */
 .video-info{background:var(--card);border:1px solid var(--border);
   border-radius:var(--r);padding:20px 24px;margin-bottom:20px}
 
-/* 상단 행: 뱃지들 + 날짜 + 버튼 우측 */
+/* 상단 행: 뱃지 + 날짜 + 버튼 */
 .vi-top{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 
 /* OTT 플랫폼 뱃지 */
 .vi-pf-badge{display:inline-flex;align-items:center;gap:5px;
-  padding:4px 10px;border-radius:5px;border:1px solid var(--border2);flex-shrink:0}
+  padding:4px 10px;border-radius:5px;border:1px solid var(--border2);
+  flex-shrink:0;text-decoration:none}
 .vi-pf-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .vi-pf-name{font-size:12px;font-weight:700}
 
-/* 타입 뱃지 — OTT 뱃지와 동일 크기 */
+/* 타입 뱃지 */
 .vi-type{font-family:var(--mono);font-size:11px;font-weight:700;
   padding:4px 10px;border-radius:5px;flex-shrink:0}
 .vi-type.trailer{background:rgba(230,57,70,.15);color:var(--accent);border:1px solid rgba(230,57,70,.3)}
@@ -139,9 +131,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .page-loading{display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:80px;gap:16px}
 .page-loading p{font-size:14px;color:var(--muted)}
+.spin{width:32px;height:32px;border:3px solid var(--border2);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 @media(max-width:768px){
-  .main-outer{padding:16px 16px 60px}
+  .content-outer{padding:0 16px 60px}
   .vi-work{font-size:20px}
   .vi-top{gap:6px}
   .vi-actions{margin-left:0;width:100%}
@@ -150,6 +145,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 </head>
 <body>
 
+<!-- 헤더 -->
 <div id="ottrang-header"></div>
 <script>
 (function(){
@@ -169,8 +165,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 })();
 </script>
 
-<div class="main-outer" id="mainOuter">
-  <div class="page-loading" id="pageLoading">
+<!-- 영상 플레이어 — 전체 너비 (body 직접 자식) -->
+<div class="player-section" id="playerSection" style="display:none">
+  <div class="player-wrap">
+    <iframe id="ytFrame" src="" allowfullscreen
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      loading="lazy"></iframe>
+  </div>
+</div>
+
+<!-- 콘텐츠 영역 — 900px -->
+<div class="content-outer" id="contentOuter">
+  <div class="page-loading">
     <div class="spin"></div>
     <p>영상 불러오는 중...</p>
   </div>
@@ -180,14 +186,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 const API = 'https://ottrank-api.tdidream.workers.dev';
 
 const TYPE_LABEL = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
-
-// 플랫폼 정보 — OTT 페이지 URL 포함
 const PLATFORM_INFO = {
-  netflix: { name:'넷플릭스',   color:'var(--NF)', url:'/netflix.html'      },
-  tving:   { name:'티빙',       color:'var(--TV)', url:'/tving.html'        },
-  disney:  { name:'디즈니+',    color:'var(--DS)', url:'/disneyplus.html'   },
-  coupang: { name:'쿠팡플레이', color:'var(--CP)', url:'/coupangplay.html'  },
-  wavve:   { name:'웨이브',     color:'var(--WV)', url:'/wavve.html'        },
+  netflix: { name:'넷플릭스',   color:'var(--NF)', url:'/netflix.html'     },
+  tving:   { name:'티빙',       color:'var(--TV)', url:'/tving.html'       },
+  disney:  { name:'디즈니+',    color:'var(--DS)', url:'/disneyplus.html'  },
+  coupang: { name:'쿠팡플레이', color:'var(--CP)', url:'/coupangplay.html' },
+  wavve:   { name:'웨이브',     color:'var(--WV)', url:'/wavve.html'       },
 };
 
 const params    = new URLSearchParams(location.search);
@@ -222,12 +226,11 @@ function goWork(tmdbId, tmdbType, workTitle){
   location.href = slugUrl;
 }
 
-/* ── 로그인 여부 확인 ── */
+/* ── 로그인 여부 확인 — 반드시 완료 후 렌더 ── */
 let currentUser = null;
 async function checkLogin(){
   try {
-    const sid = localStorage.getItem('ottrang_sid');
-    // sid 있으면 Bearer 토큰, 없으면 쿠키 방식
+    const sid  = localStorage.getItem('ottrang_sid');
     const opts = sid
       ? { headers:{ Authorization:`Bearer ${sid}` } }
       : { credentials:'include' };
@@ -327,117 +330,107 @@ function updateMeta(title, description, imageUrl, pageUrl){
 /* ── 메인 렌더 ── */
 async function loadContent(){
   if(!contentId){
-    document.getElementById('mainOuter').innerHTML =
+    document.getElementById('contentOuter').innerHTML =
       `<div class="page-loading"><p>잘못된 접근입니다.</p></div>`;
     return;
   }
 
-  // 로그인 체크와 영상 데이터 병렬 로드
-  const [, res] = await Promise.all([
-    checkLogin(),
-    fetch(`${API}/contents/video/${contentId}`)
-  ]);
+  // ① 로그인 체크 먼저 완료 (댓글 입력창 정확히 렌더하기 위해 순차 실행)
+  await checkLogin();
 
+  // ② 영상 데이터 로드
+  let data;
   try {
-    const data = await res.json();
-
-    if(!data.ok || !data.item){
-      document.getElementById('mainOuter').innerHTML =
-        `<div class="page-loading"><p>영상을 찾을 수 없습니다.</p>
-         <a href="/contents.html" style="color:var(--accent);margin-top:8px;display:block">← 목록으로</a></div>`;
-      return;
-    }
-
-    const item      = data.item;
-    const pInfo     = PLATFORM_INFO[item.platform] || { name: item.platform, color:'var(--muted)', url:'#' };
-    const typeLabel = TYPE_LABEL[item.type] || item.type;
-    const workTitle = item.work_title || '';
-    const dateStr   = fmtDate(item.published_at);
-    const pageUrl   = `https://ottrank.kr/contents_detail.html?id=${contentId}`;
-
-    // 뒤로가기 URL
-    const backUrl = document.referrer.includes('contents_list')
-      ? document.referrer
-      : `/contents.html`;
-
-    // 메타태그 업데이트
-    const metaTitle = workTitle
-      ? `${workTitle} | ${typeLabel} | ${pInfo.name} — 오뜨랑`
-      : `${item.title} — 오뜨랑`;
-    const metaDesc  = workTitle
-      ? `${workTitle} ${typeLabel}. 오뜨랑에서 ${pInfo.name} 최신 예고편을 확인하세요.`
-      : `오뜨랑에서 ${pInfo.name} 최신 예고편을 확인하세요.`;
-    updateMeta(metaTitle, metaDesc, item.thumbnail || '', pageUrl);
-
-    // 작품 상세 버튼
-    const tmdbBtn = item.tmdb_id
-      ? `<button class="vi-tmdb-btn" onclick="goWork(${item.tmdb_id},'${item.tmdb_type||'tv'}','${workTitle.replace(/'/g,'')}')">
-           🎬 작품 상세보기
-         </button>`
-      : '';
-
-    // 댓글 입력창 — 로그인 상태면 textarea, 아니면 안내
-    const cmInput = currentUser
-      ? `<textarea class="cm-textarea" id="cmTextarea" placeholder="댓글을 입력하세요..." maxlength="500"
-           oninput="document.getElementById('cmChar').textContent=this.value.length+' / 500'"></textarea>
-         <div class="cm-input-footer">
-           <span class="cm-char" id="cmChar">0 / 500</span>
-           <button class="cm-submit" id="cmSubmit" onclick="submitComment(${item.id})">등록</button>
-         </div>`
-      : `<div class="cm-login-notice">댓글을 작성하려면 <a href="/login.html">로그인</a>이 필요합니다.</div>`;
-
-    document.getElementById('mainOuter').innerHTML = `
-      <a class="back-btn" href="${backUrl}">← 목록으로</a>
-
-      <!-- 영상 플레이어 — 전체 너비 -->
-      <div class="player-outer">
-        <div class="player-wrap">
-          <iframe
-            src="https://www.youtube.com/embed/${item.youtube_id}?autoplay=0&rel=0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen loading="lazy">
-          </iframe>
-        </div>
-      </div>
-
-      <!-- 영상 정보 -->
-      <div class="video-info">
-        <!-- 상단: 뱃지 + 날짜 + 버튼 (한 줄) -->
-        <div class="vi-top">
-          <a class="vi-pf-badge" href="${pInfo.url}" style="text-decoration:none">
-            <div class="vi-pf-dot" style="background:${pInfo.color}"></div>
-            <span class="vi-pf-name" style="color:${pInfo.color}">${pInfo.name}</span>
-          </a>
-          <span class="vi-type ${item.type}">${typeLabel}</span>
-          <span class="vi-date">${dateStr}</span>
-          <!-- 버튼 우측 -->
-          <div class="vi-actions">
-            ${tmdbBtn}
-            <a class="vi-yt-btn" href="https://www.youtube.com/watch?v=${item.youtube_id}"
-               target="_blank" rel="noopener">▶ YouTube에서 보기</a>
-          </div>
-        </div>
-        <!-- 작품명 + 유튜브 원제 -->
-        <div class="vi-work">${workTitle || item.title}</div>
-        ${workTitle ? `<div class="vi-ytitle">${item.title}</div>` : ''}
-      </div>
-
-      <!-- 댓글 -->
-      <div class="comment-section">
-        <div class="cm-title">💬 댓글 <span class="cm-count" id="cmCount"></span></div>
-        <div class="cm-input-wrap">${cmInput}</div>
-        <div class="cm-list" id="cmList">
-          <div class="cm-empty">댓글을 불러오는 중...</div>
-        </div>
-      </div>`;
-
-    // 댓글 로드
-    await loadComments(item.id);
-
+    const res = await fetch(`${API}/contents/video/${contentId}`);
+    data = await res.json();
   } catch(e){
-    document.getElementById('mainOuter').innerHTML =
+    document.getElementById('contentOuter').innerHTML =
       `<div class="page-loading"><p>오류가 발생했습니다.</p></div>`;
+    return;
   }
+
+  if(!data.ok || !data.item){
+    document.getElementById('contentOuter').innerHTML =
+      `<div class="page-loading"><p>영상을 찾을 수 없습니다.</p>
+       <a href="/contents.html" style="color:var(--accent);margin-top:8px;display:block">← 목록으로</a></div>`;
+    return;
+  }
+
+  const item      = data.item;
+  const pInfo     = PLATFORM_INFO[item.platform] || { name: item.platform, color:'var(--muted)', url:'#' };
+  const typeLabel = TYPE_LABEL[item.type] || item.type;
+  const workTitle = item.work_title || '';
+  const dateStr   = fmtDate(item.published_at);
+  const pageUrl   = `https://ottrank.kr/contents_detail.html?id=${contentId}`;
+  const backUrl   = document.referrer.includes('contents_list')
+    ? document.referrer : `/contents.html`;
+
+  // ③ 영상 플레이어 표시 (전체 너비 section)
+  const playerSection = document.getElementById('playerSection');
+  const ytFrame       = document.getElementById('ytFrame');
+  ytFrame.src = `https://www.youtube.com/embed/${item.youtube_id}?autoplay=0&rel=0`;
+  playerSection.style.display = 'block';
+
+  // ④ 메타태그 업데이트
+  const metaTitle = workTitle
+    ? `${workTitle} | ${typeLabel} | ${pInfo.name} — 오뜨랑`
+    : `${item.title} — 오뜨랑`;
+  const metaDesc = workTitle
+    ? `${workTitle} ${typeLabel}. 오뜨랑에서 ${pInfo.name} 최신 예고편을 확인하세요.`
+    : `오뜨랑에서 ${pInfo.name} 최신 예고편을 확인하세요.`;
+  updateMeta(metaTitle, metaDesc, item.thumbnail || '', pageUrl);
+
+  // ⑤ 작품 상세보기 버튼
+  const tmdbBtn = item.tmdb_id
+    ? `<button class="vi-tmdb-btn" onclick="goWork(${item.tmdb_id},'${item.tmdb_type||'tv'}','${workTitle.replace(/'/g,'')}')">
+         🎬 작품 상세보기
+       </button>`
+    : '';
+
+  // ⑥ 댓글 입력창 — checkLogin() 완료 후라 currentUser 정확함
+  const cmInput = currentUser
+    ? `<textarea class="cm-textarea" id="cmTextarea" placeholder="댓글을 입력하세요..." maxlength="500"
+         oninput="document.getElementById('cmChar').textContent=this.value.length+' / 500'"></textarea>
+       <div class="cm-input-footer">
+         <span class="cm-char" id="cmChar">0 / 500</span>
+         <button class="cm-submit" id="cmSubmit" onclick="submitComment(${item.id})">등록</button>
+       </div>`
+    : `<div class="cm-login-notice">댓글을 작성하려면 <a href="/login.html">로그인</a>이 필요합니다.</div>`;
+
+  // ⑦ 콘텐츠 영역 렌더
+  document.getElementById('contentOuter').innerHTML = `
+    <a class="back-btn" href="${backUrl}">← 목록으로</a>
+
+    <!-- 영상 정보 -->
+    <div class="video-info">
+      <div class="vi-top">
+        <a class="vi-pf-badge" href="${pInfo.url}">
+          <div class="vi-pf-dot" style="background:${pInfo.color}"></div>
+          <span class="vi-pf-name" style="color:${pInfo.color}">${pInfo.name}</span>
+        </a>
+        <span class="vi-type ${item.type}">${typeLabel}</span>
+        <span class="vi-date">${dateStr}</span>
+        <div class="vi-actions">
+          ${tmdbBtn}
+          <a class="vi-yt-btn" href="https://www.youtube.com/watch?v=${item.youtube_id}"
+             target="_blank" rel="noopener">▶ YouTube에서 보기</a>
+        </div>
+      </div>
+      <div class="vi-work">${workTitle || item.title}</div>
+      ${workTitle ? `<div class="vi-ytitle">${item.title}</div>` : ''}
+    </div>
+
+    <!-- 댓글 -->
+    <div class="comment-section">
+      <div class="cm-title">💬 댓글 <span class="cm-count" id="cmCount"></span></div>
+      <div class="cm-input-wrap">${cmInput}</div>
+      <div class="cm-list" id="cmList">
+        <div class="cm-empty">댓글을 불러오는 중...</div>
+      </div>
+    </div>`;
+
+  // ⑧ 댓글 로드
+  await loadComments(item.id);
 }
 
 loadContent();
