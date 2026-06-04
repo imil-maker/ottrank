@@ -257,12 +257,16 @@ export async function handleUser(path, request, env, ctx, headers) {
       const { results: reviews } = await env.DB.prepare(`
         SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
           r.likes, r.spoiler, r.created_at,
-          rk.title_ko, rk.poster_path, rk.category, rk.release_year
+          COALESCE(rk.title_ko,  wk.title_ko)    as title_ko,
+          COALESCE(rk.poster_path, wk.poster_path) as poster_path,
+          COALESCE(rk.category,  wk.media_type)  as category,
+          rk.release_year
         FROM reviews r
         LEFT JOIN (
           SELECT tmdb_id, title_ko, poster_path, category, release_year
           FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
+        LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
         WHERE r.user_id = ?
         ORDER BY r.created_at DESC
       `).bind(uid).all();
@@ -346,12 +350,16 @@ export async function handleUser(path, request, env, ctx, headers) {
       const { results: reviews } = await env.DB.prepare(`
         SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
           r.likes, r.spoiler, r.created_at,
-          rk.title_ko, rk.poster_path, rk.category, rk.release_year
+          COALESCE(rk.title_ko,  wk.title_ko)    as title_ko,
+          COALESCE(rk.poster_path, wk.poster_path) as poster_path,
+          COALESCE(rk.category,  wk.media_type)  as category,
+          rk.release_year
         FROM reviews r
         LEFT JOIN (
           SELECT tmdb_id, title_ko, poster_path, category, release_year
           FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
+        LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
         WHERE r.user_id = ?
         ORDER BY r.created_at DESC
       `).bind(targetUid).all();
