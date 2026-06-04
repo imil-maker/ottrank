@@ -2,7 +2,8 @@
 crawl_contents.py — OTT 콘텐츠(예고편/신작) 크롤러
 =====================================================
 YouTube Data API v3로 5개 OTT 공식 채널에서
-"예고편", "선공개", "메인 예고" 키워드가 포함된 최신 영상 5개를 수집합니다.
+"예고편", "선공개", "티저" 키워드가 포함된 최신 영상 5개를 수집합니다.
+10일 이전 영상은 수집하지 않습니다.
 
 흐름:
   ① YouTube Search API → 채널별 키워드 검색으로 최신 5개 수집
@@ -23,7 +24,7 @@ import sys
 import json
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # ─────────────────────────────────────────────
 # 설정
@@ -45,23 +46,37 @@ TMDB_API_KEY      = os.environ.get("TMDB_API_KEY", "")
 MAX_PER_CHANNEL = 5
 
 # 크롤링 대상 OTT 채널
-# key: platform 코드 (DB 저장값), value: YouTube 채널 ID
+# 크롤링 순서: 웨이브 → 쿠팡 → 디즈니 → 티빙 → 넷플릭스 (역순)
+# DB에 최신순(published_at DESC)으로 저장되므로
+# 프론트에서 넷플릭스 → 티빙 → 디즈니 → 쿠팡 → 웨이브 순으로 최신이 상단에 노출됨
 OTT_CHANNELS = {
-    "netflix" : "UCiEEF51uRAeZeCo8CJFhGWw",  # @NetflixKorea
-    "tving"   : "UCNIiH_4ArJNd_cDZApZ7AFg",  # @TVING_official
-    "disney"  : "UCtdz9LWNNQKUg4Xpma_40Ug",  # @DisneyPlusKR
+    "wavve"   : "UCym5538xAEEppbridXozfgw",  # @wavve         (먼저 저장 → 프론트에서 뒤에 노출)
     "coupang" : "UCjn-VbcIkAeXQKCmLJV8YwQ",  # @CoupangPlay
-    "wavve"   : "UCym5538xAEEppbridXozfgw",  # @wavve
+    "disney"  : "UCtdz9LWNNQKUg4Xpma_40Ug",  # @DisneyPlusKR
+    "tving"   : "UCNIiH_4ArJNd_cDZApZ7AFg",  # @TVING_official
+    "netflix" : "UCiEEF51uRAeZeCo8CJFhGWw",  # @NetflixKorea  (마지막 저장 → 프론트에서 먼저 노출)
 }
 
-# YouTube 검색 키워드 (채널 내 검색에 사용, | 는 OR 조건)
-SEARCH_QUERY = "예고편|선공개|메인 예고"
+# 플랫폼별 YouTube 검색 키워드 (| 는 OR 조건)
+# 공통: 예고편|선공개|티저
+# 웨이브 전용 추가: 라인업
+# 디즈니 전용 추가: 공개 확정
+# 제거: 메인 예고 (메인/예고 각각 검색되어 노이즈 발생)
+SEARCH_QUERIES = {
+    "netflix" : "예고편|선공개|티저",
+    "tving"   : "예고편|선공개|티저",
+    "disney"  : "예고편|선공개|티저|공개 확정",
+    "coupang" : "예고편|선공개|티저",
+    "wavve"   : "예고편|선공개|티저|라인업",
+}
 
 # 키워드별 type 매핑 (DB 저장값)
 TYPE_MAP = {
     "예고편"  : "trailer",
-    "메인 예고": "trailer",
+    "티저"    : "teaser",
     "선공개"  : "preview",
+    "라인업"  : "trailer",
+    "공개 확정": "trailer",
 }
 
 
@@ -89,16 +104,25 @@ def get_content_type(title: str) -> str:
 def fetch_youtube_videos(channel_id: str, platform: str) -> list:
     """
     YouTube Data API v3로 채널 내에서 키워드 검색으로 영상을 수집합니다.
-    "예고편 OR 선공개 OR 메인 예고" 가 포함된 최신 5개만 가져옵니다.
+    플랫폼별로 다른 검색 키워드를 사용합니다.
+    10일 이전에 업로드된 영상은 저장하지 않습니다.
     """
+    # 플랫폼별 검색 키워드 적용
+    search_query = SEARCH_QUERIES.get(platform, "예고편|선공개|티저")
+
+    # 10일 이전 기준일 (YouTube publishedAfter 파라미터용 RFC 3339 형식)
+    cutoff_dt  = datetime.now(timezone.utc) - timedelta(days=10)
+    cutoff_str = cutoff_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     try:
         url = (
             f"{YOUTUBE_API}/search"
             f"?part=snippet"
             f"&channelId={channel_id}"
-            f"&q={requests.utils.quote(SEARCH_QUERY)}"
+            f"&q={requests.utils.quote(search_query)}"
             f"&type=video"
             f"&order=date"
+            f"&publishedAfter={cutoff_str}"
             f"&maxResults={MAX_PER_CHANNEL}"
             f"&key={YOUTUBE_API_KEY}"
         )
@@ -133,7 +157,7 @@ def fetch_youtube_videos(channel_id: str, platform: str) -> list:
                 "platform"    : platform,
             })
 
-        log(f"  📺 [{platform}] 키워드 검색 결과 {len(videos)}개 수집")
+        log(f"  📺 [{platform}] 키워드 검색 결과 {len(videos)}개 수집 (키워드: {search_query}, 기준일: {cutoff_str[:10]} 이후)")
         return videos
 
     except Exception as e:
@@ -274,6 +298,7 @@ def search_tmdb(work_title: str) -> dict | None:
 def save_content(video: dict, claude_result: dict, tmdb_result: dict | None) -> bool:
     """
     /admin/contents API를 호출해 D1에 영상 정보를 저장합니다.
+    TMDB 매칭 성공 시 works 테이블에도 자동 등록합니다.
     UNIQUE 충돌(409) 시 중복으로 처리합니다.
     """
     # 제목 키워드로 type 결정
