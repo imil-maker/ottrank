@@ -224,7 +224,11 @@ const IMG        = 'https://image.tmdb.org/t/p/w500';
 const IMG_PROFILE= 'https://image.tmdb.org/t/p/w342';
 
 /* ── URL 파라미터 ── */
-const personId = new URLSearchParams(location.search).get('id');
+// Pages Function(/person/[id])에서 주입한 __PERSON_ID__ 우선,
+// 없으면 ?id= 쿼리 파라미터 fallback
+const personId = (typeof window.__PERSON_ID__ !== 'undefined' && window.__PERSON_ID__)
+  ? String(window.__PERSON_ID__)
+  : new URLSearchParams(location.search).get('id');
 
 /* ── 필모그래피 상태 ── */
 let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
