@@ -51,10 +51,10 @@ MAX_PER_CHANNEL = 10 if IS_INITIAL else 5
 # key: platform 코드 (DB 저장값), value: YouTube 채널 ID
 OTT_CHANNELS = {
     "netflix" : "UCiEEF51uRAeZeCo8CJFhGWw",  # @NetflixKorea
-    "tving"   : "UCuPSKBzIdUKBzH6zxJfBcgA",  # @TVING_official
-    "disney"  : "UCiDRmGbGqEBpnkPYP9TgLig",  # @DisneyPlusKR
-    "coupang" : "UC7gXFMXsZUKDNJcZOnOhPAw",  # @CoupangPlay
-    "wavve"   : "UCTPKaLvlsOVUGNklvSJFfAw",  # @wavve
+    "tving"   : "UCNIiH_4ArJNd_cDZApZ7AFg",  # @TVING_official
+    "disney"  : "UCtdz9LWNNQKUg4Xpma_40Ug",  # @DisneyPlusKR
+    "coupang" : "UCjn-VbcIkAeXQKCmLJV8YwQ",  # @CoupangPlay
+    "wavve"   : "UCym5538xAEEppbridXozfgw",  # @wavve
 }
 
 # 키워드 1차 필터 — 이 중 하나라도 포함되면 통과
