@@ -2,11 +2,10 @@
 crawl_contents.py — OTT 콘텐츠(예고편/신작) 크롤러
 =====================================================
 YouTube Data API v3로 5개 OTT 공식 채널에서
-"예고편", "선공개", "메인 예고" 키워드가 포함된 영상을 검색해 수집합니다.
+"예고편", "선공개", "메인 예고" 키워드가 포함된 최신 영상 5개를 수집합니다.
 
 흐름:
-  ① YouTube Search API → 채널별 키워드 검색으로 최신 영상 수집
-     (채널 내에서 "예고편 OR 선공개 OR 메인 예고" 포함된 것만)
+  ① YouTube Search API → 채널별 키워드 검색으로 최신 5개 수집
   ② /admin/contents/check 로 중복 체크 (DB에 있으면 Claude 호출 SKIP)
   ③ Claude API → 작품명 추출 (신규 영상만, 채널 단위 배치 처리)
   ④ TMDB API → 작품 매칭 (work_title이 있고 confidence 0.8 이상일 때만)
@@ -42,10 +41,8 @@ ADMIN_SECRET      = os.environ.get("ADMIN_SECRET", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 TMDB_API_KEY      = os.environ.get("TMDB_API_KEY", "")
 
-# 초기 실행 여부 (환경변수로 제어)
-# GitHub Actions workflow_dispatch 시 inputs.initial=true 로 전달
-IS_INITIAL      = os.environ.get("CRAWL_INITIAL", "false").lower() == "true"
-MAX_PER_CHANNEL = 10 if IS_INITIAL else 5
+# 채널당 수집할 최대 영상 수 (고정 5개)
+MAX_PER_CHANNEL = 5
 
 # 크롤링 대상 OTT 채널
 # key: platform 코드 (DB 저장값), value: YouTube 채널 ID
@@ -57,8 +54,7 @@ OTT_CHANNELS = {
     "wavve"   : "UCym5538xAEEppbridXozfgw",  # @wavve
 }
 
-# YouTube 검색 키워드 (채널 내 검색에 사용)
-# "|" 는 OR 조건으로 작동
+# YouTube 검색 키워드 (채널 내 검색에 사용, | 는 OR 조건)
 SEARCH_QUERY = "예고편|선공개|메인 예고"
 
 # 키워드별 type 매핑 (DB 저장값)
@@ -90,10 +86,10 @@ def get_content_type(title: str) -> str:
 # ─────────────────────────────────────────────
 # STEP ①: YouTube 채널 내 키워드 검색
 # ─────────────────────────────────────────────
-def fetch_youtube_videos(channel_id: str, platform: str, max_results: int) -> list:
+def fetch_youtube_videos(channel_id: str, platform: str) -> list:
     """
     YouTube Data API v3로 채널 내에서 키워드 검색으로 영상을 수집합니다.
-    "예고편 OR 선공개 OR 메인 예고" 가 포함된 최신 영상만 가져옵니다.
+    "예고편 OR 선공개 OR 메인 예고" 가 포함된 최신 5개만 가져옵니다.
     """
     try:
         url = (
@@ -103,7 +99,7 @@ def fetch_youtube_videos(channel_id: str, platform: str, max_results: int) -> li
             f"&q={requests.utils.quote(SEARCH_QUERY)}"
             f"&type=video"
             f"&order=date"
-            f"&maxResults={max_results}"
+            f"&maxResults={MAX_PER_CHANNEL}"
             f"&key={YOUTUBE_API_KEY}"
         )
         res  = requests.get(url, timeout=15)
@@ -167,8 +163,6 @@ def check_duplicate(youtube_id: str) -> bool:
 
 # ─────────────────────────────────────────────
 # STEP ③: Claude API — 작품명 추출
-# YouTube 검색으로 이미 예고편/선공개만 걸러졌으므로
-# Claude는 작품명 추출에만 집중합니다.
 # ─────────────────────────────────────────────
 def extract_work_titles(videos: list) -> list:
     """
@@ -180,7 +174,6 @@ def extract_work_titles(videos: list) -> list:
     if not videos:
         return []
 
-    # 배치 프롬프트 구성
     video_list = "\n".join([
         f'{i+1}. youtube_id="{v["youtube_id"]}" | 제목="{v["title"]}"'
         for i, v in enumerate(videos)
@@ -346,8 +339,7 @@ def main():
         log(f"❌ 필수 환경변수 누락: {', '.join(missing)}")
         sys.exit(1)
 
-    mode = "초기(10개)" if IS_INITIAL else "일반(5개)"
-    log(f"🚀 OTT 콘텐츠 크롤링 시작 — 모드: {mode}")
+    log(f"🚀 OTT 콘텐츠 크롤링 시작 (채널당 {MAX_PER_CHANNEL}개)")
     log(f"   검색 키워드: {SEARCH_QUERY}")
     log(f"   대상 채널: {len(OTT_CHANNELS)}개")
 
@@ -359,7 +351,7 @@ def main():
         log(f"\n📡 [{platform.upper()}] 크롤링 중...")
 
         # ① YouTube 채널 내 키워드 검색
-        videos = fetch_youtube_videos(channel_id, platform, MAX_PER_CHANNEL)
+        videos = fetch_youtube_videos(channel_id, platform)
         if not videos:
             continue
 
