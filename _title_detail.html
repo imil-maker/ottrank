@@ -1182,13 +1182,18 @@ async function loadTmdb(){
     // mypage에서 포스터·제목 정상 표시를 위해
     // INSERT OR IGNORE: 이미 있으면 무시 (Admin 수정값 보호)
     if(!worksData && WORK.tmdb_id){
+      // original_name이 영어(라틴 문자)를 포함할 때만 title_en으로 사용
+      const origName   = det.original_name||det.original_title||'';
+      const hasKorean  = /[\uAC00-\uD7A3]/.test(origName);
+      const hasLatin   = /[a-zA-Z]/.test(origName);
+      const title_en   = (hasLatin && !hasKorean) ? origName : '';
       fetch(`${OTTRANK_API}/works/register`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body   : JSON.stringify({
           tmdb_id    : WORK.tmdb_id,
-          title_ko   : title,                          // 한글 제목
-          title_en   : det.original_name||det.original_title||'', // 영어 원제
+          title_ko   : title,
+          title_en,
           poster_path: det.poster_path || '',
           media_type : WORK.type,
         }),
