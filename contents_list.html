@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>신작 & 예정작 더보기 — 오뜨랑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429;
+  --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
+  --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
+  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;overflow-x:hidden}
+#ottrang-header{position:sticky;top:0;z-index:200}
+.main-outer{max-width:var(--max-w);margin:0 auto;padding:24px 24px 80px}
+
+/* ── 페이지 헤더 ── */
+.page-hd{display:flex;align-items:center;gap:16px;padding:20px 0 24px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.back-btn{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;
+  text-decoration:none;padding:7px 14px;border:1px solid var(--border);
+  border-radius:7px;transition:all .15s;font-family:var(--mono)}
+.back-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
+.page-hd-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.page-hd-title{font-family:var(--disp);font-size:28px;letter-spacing:1px}
+.page-hd-count{font-family:var(--mono);font-size:13px;color:var(--muted);margin-left:4px}
+
+/* ── 필터 탭 ── */
+.filter-wrap{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.ftab{padding:6px 16px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--muted2);font-size:13px;font-family:var(--sans);cursor:pointer;transition:all .15s}
+.ftab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.ftab:hover:not(.on){color:var(--text)}
+
+/* ── 카드 그리드 (5열) ── */
+.ct-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:32px}
+
+/* ── 콘텐츠 카드 ── */
+.ct-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;cursor:pointer;transition:all .2s}
+.ct-card:hover{border-color:var(--border2);transform:translateY(-3px);
+  box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.ct-thumb{position:relative;width:100%;aspect-ratio:16/9;background:var(--bg3);overflow:hidden}
+.ct-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.ct-card:hover .ct-thumb img{transform:scale(1.05)}
+.ct-thumb-ph{width:100%;height:100%;display:flex;align-items:center;
+  justify-content:center;font-size:32px;background:linear-gradient(135deg,var(--bg3),var(--bg2))}
+.ct-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.45);opacity:0;transition:opacity .2s}
+.ct-card:hover .ct-play{opacity:1}
+.ct-play-icon{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.9);
+  display:flex;align-items:center;justify-content:center}
+.ct-play-icon svg{width:18px;height:18px;fill:#0c0c10;margin-left:3px}
+.ct-type{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:10px;
+  font-weight:700;padding:2px 8px;border-radius:3px}
+.ct-type.trailer{background:rgba(230,57,70,.85);color:#fff}
+.ct-type.preview{background:rgba(240,180,41,.85);color:#000}
+.ct-type.teaser{background:rgba(52,211,153,.85);color:#000}
+.ct-type.release{background:rgba(6,182,212,.85);color:#000}
+.ct-date{position:absolute;bottom:8px;right:8px;font-family:var(--mono);font-size:10px;
+  background:rgba(0,0,0,.75);color:var(--muted2);padding:2px 7px;border-radius:3px}
+.ct-body{padding:10px 12px 12px}
+.ct-work{font-size:13px;font-weight:700;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.ct-work.no-tmdb{color:var(--muted2);font-weight:500}
+.ct-ytitle{font-size:11px;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4}
+
+/* ── 페이지네이션 ── */
+.pagination{display:flex;gap:4px;justify-content:center;margin-top:32px}
+.pag-btn{width:38px;height:38px;border-radius:7px;border:1px solid var(--border);
+  background:transparent;color:var(--muted2);font-family:var(--mono);font-size:14px;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.pag-btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pag-btn:hover:not(.on):not(:disabled){background:var(--bg3);color:var(--text)}
+.pag-btn:disabled{opacity:.35;cursor:default}
+.pag-ellipsis{width:38px;height:38px;display:flex;align-items:center;
+  justify-content:center;color:var(--muted);font-family:var(--mono);font-size:14px}
+
+/* ── 스켈레톤 ── */
+.skel-card{border-radius:var(--r);background:var(--card);border:1px solid var(--border);overflow:hidden}
+.skel-thumb{width:100%;aspect-ratio:16/9;
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite}
+.skel-line{height:12px;border-radius:4px;margin:10px 12px 6px;
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite}
+.skel-line.short{width:60%;height:10px;margin-top:0}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+.empty-state{grid-column:1/-1;padding:60px;text-align:center;font-size:14px;color:var(--muted)}
+
+@media(max-width:1024px){.ct-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:768px){
+  .main-outer{padding:16px 16px 60px}
+  .ct-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .page-hd-title{font-size:22px}
+}
+</style>
+</head>
+<body>
+
+<div id="ottrang-header"></div>
+<script>
+(function(){
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      const el=document.getElementById('ottrang-header');
+      el.innerHTML=h;
+      el.querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');
+        ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function') initHeader();
+    })
+    .catch(()=>{});
+})();
+</script>
+
+<div class="main-outer">
+  <!-- 페이지 헤더 -->
+  <div class="page-hd">
+    <a class="back-btn" href="/contents.html">← 목록으로</a>
+    <div class="page-hd-dot" id="hdDot"></div>
+    <span class="page-hd-title" id="hdTitle">신작 & 예정작</span>
+    <span class="page-hd-count" id="hdCount"></span>
+  </div>
+
+  <!-- 타입 필터 -->
+  <div class="filter-wrap">
+    <button class="ftab on" data-type="" onclick="setType('',this)">전체</button>
+    <button class="ftab" data-type="trailer" onclick="setType('trailer',this)">예고편</button>
+    <button class="ftab" data-type="preview" onclick="setType('preview',this)">선공개</button>
+    <button class="ftab" data-type="teaser" onclick="setType('teaser',this)">티저</button>
+    <button class="ftab" data-type="release" onclick="setType('release',this)">신작공개</button>
+  </div>
+
+  <!-- 카드 그리드 -->
+  <div class="ct-grid" id="ctGrid"></div>
+
+  <!-- 페이지네이션 -->
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+const TYPE_LABEL = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
+const PLATFORM_INFO = {
+  netflix: { name:'넷플릭스',   color:'var(--NF)' },
+  tving:   { name:'티빙',       color:'var(--TV)' },
+  disney:  { name:'디즈니+',    color:'var(--DS)' },
+  coupang: { name:'쿠팡플레이', color:'var(--CP)' },
+  wavve:   { name:'웨이브',     color:'var(--WV)' },
+};
+
+/* ── URL 파라미터 ── */
+const params   = new URLSearchParams(location.search);
+let curPlatform = params.get('platform') || '';
+let curType     = '';
+let curPage     = parseInt(params.get('page') || '1');
+
+/* ── 헤더 플랫폼 표시 ── */
+function initHeader(){
+  const pInfo = PLATFORM_INFO[curPlatform];
+  const dot   = document.getElementById('hdDot');
+  const title = document.getElementById('hdTitle');
+  if(pInfo){
+    dot.style.background   = pInfo.color;
+    title.textContent      = `${pInfo.name} 신작 & 예정작`;
+    title.style.color      = pInfo.color;
+  } else {
+    dot.style.display = 'none';
+    title.textContent = '전체 신작 & 예정작';
+  }
+}
+
+/* ── 날짜 포맷 ── */
+function fmtDate(iso){
+  if(!iso) return '';
+  const d=new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/* ── 타입 필터 ── */
+function setType(type, btn){
+  curType = type; curPage = 1;
+  document.querySelectorAll('.ftab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  loadContents();
+}
+
+/* ── 콘텐츠 이동 ── */
+function goContent(id){ location.href=`/contents_detail.html?id=${id}`; }
+
+/* ── 카드 HTML ── */
+function makeCard(item){
+  const typeLabel = TYPE_LABEL[item.type] || item.type;
+  const dateStr   = fmtDate(item.published_at);
+  const thumb     = item.thumbnail
+    ? `<img src="${item.thumbnail}" alt="${(item.work_title||item.title).replace(/"/g,'')}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : '';
+  const workTitle = item.work_title || '';
+  return `<div class="ct-card" onclick="goContent(${item.id})">
+    <div class="ct-thumb">
+      ${thumb}<div class="ct-thumb-ph">🎬</div>
+      <div class="ct-play">
+        <div class="ct-play-icon">
+          <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+        </div>
+      </div>
+      <span class="ct-type ${item.type}">${typeLabel}</span>
+      ${dateStr?`<span class="ct-date">${dateStr}</span>`:''}
+    </div>
+    <div class="ct-body">
+      <div class="ct-work ${workTitle?'':'no-tmdb'}">${workTitle||'제목 미확인'}</div>
+      <div class="ct-ytitle">${item.title}</div>
+    </div>
+  </div>`;
+}
+
+/* ── 스켈레톤 ── */
+function showSkeleton(){
+  document.getElementById('ctGrid').innerHTML = Array(10).fill(0).map(()=>`
+    <div class="skel-card">
+      <div class="skel-thumb"></div>
+      <div class="skel-line"></div>
+      <div class="skel-line short"></div>
+    </div>`).join('');
+}
+
+/* ── 페이지네이션 렌더 ── */
+function renderPagination(total, pageSize){
+  const totalPages = Math.ceil(total / pageSize);
+  const pag = document.getElementById('pagination');
+  if(totalPages <= 1){ pag.innerHTML=''; return; }
+
+  let html = `<button class="pag-btn" onclick="goPage(${curPage-1})" ${curPage===1?'disabled':''}>‹</button>`;
+
+  const range = [];
+  for(let i=1;i<=totalPages;i++){
+    if(i===1||i===totalPages||Math.abs(i-curPage)<=2) range.push(i);
+    else if(range[range.length-1]!=='...') range.push('...');
+  }
+
+  range.forEach(p=>{
+    if(p==='...'){
+      html+=`<span class="pag-ellipsis">…</span>`;
+    } else {
+      html+=`<button class="pag-btn ${p===curPage?'on':''}" onclick="goPage(${p})">${p}</button>`;
+    }
+  });
+
+  html+=`<button class="pag-btn" onclick="goPage(${curPage+1})" ${curPage===totalPages?'disabled':''}>›</button>`;
+  pag.innerHTML = html;
+}
+
+/* ── 페이지 이동 ── */
+function goPage(page){
+  curPage = page;
+  loadContents();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ── 데이터 로드 ── */
+async function loadContents(){
+  showSkeleton();
+  try {
+    const qp = new URLSearchParams({ page: curPage });
+    if(curPlatform) qp.set('platform', curPlatform);
+    if(curType)     qp.set('type', curType);
+
+    const res  = await fetch(`${API}/contents/list?${qp}`);
+    const data = await res.json();
+    const items = data.items || [];
+    const pag   = data.pagination || {};
+
+    // 카운트 업데이트
+    const countEl = document.getElementById('hdCount');
+    if(countEl && pag.total) countEl.textContent = `(총 ${pag.total}개)`;
+
+    const grid = document.getElementById('ctGrid');
+    if(!items.length){
+      grid.innerHTML = `<div class="empty-state">등록된 영상이 없습니다.</div>`;
+      document.getElementById('pagination').innerHTML = '';
+      return;
+    }
+    grid.innerHTML = items.map(makeCard).join('');
+    renderPagination(pag.total || 0, pag.pageSize || 30);
+
+  } catch(e){
+    document.getElementById('ctGrid').innerHTML =
+      `<div class="empty-state">데이터를 불러올 수 없습니다.</div>`;
+  }
+}
+
+initHeader();
+loadContents();
+</script>
+</body>
+</html>

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>영상 상세 — 오뜨랑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429; --green:#34d399;
+  --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
+  --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
+  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:900px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;overflow-x:hidden}
+#ottrang-header{position:sticky;top:0;z-index:200}
+.main-outer{max-width:var(--max-w);margin:0 auto;padding:24px 24px 80px}
+
+/* ── 뒤로가기 ── */
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;
+  text-decoration:none;padding:7px 14px;border:1px solid var(--border);
+  border-radius:7px;transition:all .15s;font-family:var(--mono);margin-bottom:20px}
+.back-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
+
+/* ── 영상 플레이어 ── */
+.player-wrap{position:relative;width:100%;aspect-ratio:16/9;
+  background:#000;border-radius:12px;overflow:hidden;margin-bottom:20px}
+.player-wrap iframe{width:100%;height:100%;border:none;display:block}
+.player-loading{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;background:var(--bg2);flex-direction:column;gap:12px}
+.spin{width:32px;height:32px;border:3px solid var(--border2);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── 영상 정보 ── */
+.video-info{background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:20px 24px;margin-bottom:20px}
+.vi-top{display:flex;align-items:flex-start;gap:16px;margin-bottom:14px}
+.vi-pf-badge{display:flex;align-items:center;gap:6px;padding:5px 12px;
+  border-radius:6px;border:1px solid var(--border2);flex-shrink:0}
+.vi-pf-dot{width:8px;height:8px;border-radius:50%}
+.vi-pf-name{font-size:13px;font-weight:700}
+.vi-type{font-family:var(--mono);font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:4px;flex-shrink:0}
+.vi-type.trailer{background:rgba(230,57,70,.15);color:var(--accent);border:1px solid rgba(230,57,70,.3)}
+.vi-type.preview{background:rgba(240,180,41,.15);color:var(--gold);border:1px solid rgba(240,180,41,.3)}
+.vi-type.teaser{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.vi-type.release{background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.3)}
+.vi-date{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);flex-shrink:0}
+
+.vi-work{font-family:var(--disp);font-size:26px;letter-spacing:1px;
+  color:var(--text);margin-bottom:6px}
+.vi-ytitle{font-size:14px;color:var(--muted2);line-height:1.5;margin-bottom:14px}
+
+/* 작품 상세보기 버튼 */
+.vi-tmdb-btn{display:inline-flex;align-items:center;gap:8px;
+  padding:9px 20px;border-radius:8px;
+  background:rgba(230,57,70,.12);color:var(--accent);
+  border:1px solid rgba(230,57,70,.3);font-size:14px;font-weight:500;
+  cursor:pointer;text-decoration:none;transition:all .15s}
+.vi-tmdb-btn:hover{background:rgba(230,57,70,.2);border-color:var(--accent)}
+
+/* YouTube 외부 링크 버튼 */
+.vi-yt-btn{display:inline-flex;align-items:center;gap:8px;
+  padding:9px 20px;border-radius:8px;
+  background:var(--bg3);color:var(--muted2);
+  border:1px solid var(--border);font-size:14px;
+  cursor:pointer;text-decoration:none;transition:all .15s;margin-left:10px}
+.vi-yt-btn:hover{color:var(--text);border-color:var(--border2)}
+
+/* ── 댓글 섹션 ── */
+.comment-section{background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:20px 24px}
+.cm-title{font-size:16px;font-weight:700;margin-bottom:16px;
+  display:flex;align-items:center;gap:8px}
+.cm-count{font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:400}
+
+/* 댓글 입력 */
+.cm-input-wrap{margin-bottom:20px}
+.cm-login-notice{padding:14px 16px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;font-size:14px;color:var(--muted);text-align:center}
+.cm-login-notice a{color:var(--accent);text-decoration:none}
+.cm-login-notice a:hover{text-decoration:underline}
+.cm-textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);
+  border-radius:8px;padding:12px 16px;color:var(--text);
+  font-family:var(--sans);font-size:14px;resize:none;outline:none;
+  min-height:80px;transition:border-color .15s;line-height:1.6}
+.cm-textarea:focus{border-color:var(--accent)}
+.cm-textarea::placeholder{color:var(--muted)}
+.cm-input-footer{display:flex;justify-content:space-between;
+  align-items:center;margin-top:8px}
+.cm-char{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.cm-submit{padding:9px 22px;border-radius:8px;background:var(--accent);
+  color:#fff;border:none;font-family:var(--sans);font-size:14px;
+  font-weight:500;cursor:pointer;transition:opacity .15s}
+.cm-submit:hover{opacity:.85}
+.cm-submit:disabled{opacity:.4;cursor:not-allowed}
+
+/* 댓글 목록 */
+.cm-list{display:flex;flex-direction:column;gap:12px}
+.cm-item{padding:14px 16px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px}
+.cm-item-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.cm-nick{font-size:14px;font-weight:500;color:var(--text)}
+.cm-time{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
+.cm-body{font-size:14px;color:var(--muted2);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.cm-empty{padding:32px;text-align:center;font-size:14px;color:var(--muted)}
+
+/* ── 로딩 ── */
+.page-loading{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:80px;gap:16px}
+.page-loading p{font-size:14px;color:var(--muted)}
+
+@media(max-width:768px){
+  .main-outer{padding:16px 16px 60px}
+  .vi-work{font-size:20px}
+  .vi-top{flex-wrap:wrap;gap:8px}
+  .vi-date{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+
+<div id="ottrang-header"></div>
+<script>
+(function(){
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      const el=document.getElementById('ottrang-header');
+      el.innerHTML=h;
+      el.querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');
+        ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function') initHeader();
+    })
+    .catch(()=>{});
+})();
+</script>
+
+<div class="main-outer" id="mainOuter">
+  <div class="page-loading" id="pageLoading">
+    <div class="spin"></div>
+    <p>영상 불러오는 중...</p>
+  </div>
+</div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+
+const TYPE_LABEL = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
+const PLATFORM_INFO = {
+  netflix: { name:'넷플릭스',   color:'var(--NF)' },
+  tving:   { name:'티빙',       color:'var(--TV)' },
+  disney:  { name:'디즈니+',    color:'var(--DS)' },
+  coupang: { name:'쿠팡플레이', color:'var(--CP)' },
+  wavve:   { name:'웨이브',     color:'var(--WV)' },
+};
+
+const params    = new URLSearchParams(location.search);
+const contentId = params.get('id');
+
+/* ── 날짜 포맷 ── */
+function fmtDate(iso){
+  if(!iso) return '';
+  const d=new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/* ── 상대 시간 ── */
+function relTime(iso){
+  if(!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m=Math.floor(diff/60000), h=Math.floor(diff/3600000), day=Math.floor(diff/86400000);
+  if(m<1)  return '방금 전';
+  if(m<60) return `${m}분 전`;
+  if(h<24) return `${h}시간 전`;
+  return fmtDate(iso);
+}
+
+/* ── 작품 상세 이동 ── */
+function goWork(tmdbId, tmdbType, workTitle){
+  if(!tmdbId) return;
+  const y = new Date().getFullYear();
+  const slugUrl = `/title/1-${y}${tmdbId}`;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type: tmdbType||'tv', title: workTitle||''
+  }));
+  location.href = slugUrl;
+}
+
+/* ── 로그인 세션 가져오기 ── */
+function getAuthHeader(){
+  const sid = localStorage.getItem('ottrang_sid');
+  return sid ? { 'Authorization': `Bearer ${sid}` } : {};
+}
+
+/* ── 로그인 여부 확인 ── */
+let currentUser = null;
+async function checkLogin(){
+  try {
+    const sid = localStorage.getItem('ottrang_sid');
+    const opts = sid
+      ? { headers:{ Authorization:`Bearer ${sid}` } }
+      : { credentials:'include' };
+    const res  = await fetch(`${API}/auth/me`, opts);
+    const data = await res.json();
+    if(data.ok && data.user) currentUser = data.user;
+  } catch(e){}
+}
+
+/* ── 댓글 목록 렌더 ── */
+function renderComments(comments){
+  const list = document.getElementById('cmList');
+  if(!list) return;
+  const count = document.getElementById('cmCount');
+  if(count) count.textContent = `(${comments.length})`;
+  if(!comments.length){
+    list.innerHTML = `<div class="cm-empty">첫 번째 댓글을 남겨보세요!</div>`;
+    return;
+  }
+  list.innerHTML = comments.map(c=>`
+    <div class="cm-item">
+      <div class="cm-item-top">
+        <span class="cm-nick">${c.nickname||'익명'}</span>
+        <span class="cm-time">${relTime(c.created_at)}</span>
+      </div>
+      <div class="cm-body">${c.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+    </div>`).join('');
+}
+
+/* ── 댓글 로드 ── */
+async function loadComments(contentId){
+  try {
+    const res  = await fetch(`${API}/contents/comments/${contentId}`);
+    const data = await res.json();
+    renderComments(data.comments || []);
+  } catch(e){
+    const list=document.getElementById('cmList');
+    if(list) list.innerHTML=`<div class="cm-empty">댓글을 불러올 수 없습니다.</div>`;
+  }
+}
+
+/* ── 댓글 제출 ── */
+async function submitComment(contentId){
+  const textarea = document.getElementById('cmTextarea');
+  const btn      = document.getElementById('cmSubmit');
+  if(!textarea||!btn) return;
+
+  const body = textarea.value.trim();
+  if(!body) return;
+  if(body.length > 500){ alert('댓글은 500자 이내로 입력해주세요.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '등록 중...';
+
+  try {
+    const sid = localStorage.getItem('ottrang_sid');
+    const headers = { 'Content-Type':'application/json' };
+    if(sid) headers['Authorization'] = `Bearer ${sid}`;
+
+    const res  = await fetch(`${API}/contents/comments`, {
+      method : 'POST',
+      headers,
+      credentials: 'include',
+      body   : JSON.stringify({ content_id: parseInt(contentId), body }),
+    });
+    const data = await res.json();
+    if(data.ok){
+      textarea.value = '';
+      document.getElementById('cmChar').textContent = '0 / 500';
+      await loadComments(contentId);
+    } else {
+      alert(data.error || '댓글 등록에 실패했습니다.');
+    }
+  } catch(e){
+    alert('댓글 등록에 실패했습니다.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '등록';
+  }
+}
+
+/* ── 메인 렌더 ── */
+async function loadContent(){
+  if(!contentId){
+    document.getElementById('mainOuter').innerHTML =
+      `<div class="page-loading"><p>잘못된 접근입니다.</p></div>`;
+    return;
+  }
+
+  await checkLogin();
+
+  try {
+    const res  = await fetch(`${API}/contents/video/${contentId}`);
+    const data = await res.json();
+
+    if(!data.ok || !data.item){
+      document.getElementById('mainOuter').innerHTML =
+        `<div class="page-loading"><p>영상을 찾을 수 없습니다.</p><a href="/contents.html" style="color:var(--accent);margin-top:8px;display:block">← 목록으로</a></div>`;
+      return;
+    }
+
+    const item     = data.item;
+    const pInfo    = PLATFORM_INFO[item.platform] || { name: item.platform, color:'var(--muted)' };
+    const typeLabel = TYPE_LABEL[item.type] || item.type;
+    const workTitle = item.work_title || '';
+    const dateStr   = fmtDate(item.published_at);
+
+    // 뒤로가기 URL
+    const backUrl = document.referrer.includes('contents_list')
+      ? document.referrer
+      : `/contents.html`;
+
+    // 페이지 타이틀
+    document.title = `${workTitle||item.title} — 오뜨랑`;
+
+    // 작품 상세 버튼
+    const tmdbBtn = item.tmdb_id
+      ? `<button class="vi-tmdb-btn" onclick="goWork(${item.tmdb_id},'${item.tmdb_type||'tv'}','${(workTitle).replace(/'/g,'')}')">
+           🎬 작품 상세보기
+         </button>`
+      : '';
+
+    // 댓글 입력창 (로그인 여부에 따라)
+    const cmInput = currentUser
+      ? `<textarea class="cm-textarea" id="cmTextarea" placeholder="댓글을 입력하세요..." maxlength="500"
+           oninput="document.getElementById('cmChar').textContent=this.value.length+' / 500'"></textarea>
+         <div class="cm-input-footer">
+           <span class="cm-char" id="cmChar">0 / 500</span>
+           <button class="cm-submit" id="cmSubmit" onclick="submitComment(${item.id})">등록</button>
+         </div>`
+      : `<div class="cm-login-notice">댓글을 작성하려면 <a href="/login.html">로그인</a>이 필요합니다.</div>`;
+
+    document.getElementById('mainOuter').innerHTML = `
+      <a class="back-btn" href="${backUrl}">← 목록으로</a>
+
+      <!-- 영상 플레이어 -->
+      <div class="player-wrap">
+        <iframe
+          src="https://www.youtube.com/embed/${item.youtube_id}?autoplay=0&rel=0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy">
+        </iframe>
+      </div>
+
+      <!-- 영상 정보 -->
+      <div class="video-info">
+        <div class="vi-top">
+          <div class="vi-pf-badge">
+            <div class="vi-pf-dot" style="background:${pInfo.color}"></div>
+            <span class="vi-pf-name" style="color:${pInfo.color}">${pInfo.name}</span>
+          </div>
+          <span class="vi-type ${item.type}">${typeLabel}</span>
+          <span class="vi-date">${dateStr}</span>
+        </div>
+        <div class="vi-work">${workTitle||item.title}</div>
+        ${workTitle?`<div class="vi-ytitle">${item.title}</div>`:''}
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:${workTitle?'14px':'0'}">
+          ${tmdbBtn}
+          <a class="vi-yt-btn" href="https://www.youtube.com/watch?v=${item.youtube_id}" target="_blank" rel="noopener">
+            ▶ YouTube에서 보기
+          </a>
+        </div>
+      </div>
+
+      <!-- 댓글 -->
+      <div class="comment-section">
+        <div class="cm-title">💬 댓글 <span class="cm-count" id="cmCount"></span></div>
+        <div class="cm-input-wrap">${cmInput}</div>
+        <div class="cm-list" id="cmList">
+          <div class="cm-empty">댓글을 불러오는 중...</div>
+        </div>
+      </div>`;
+
+    // 댓글 로드
+    await loadComments(item.id);
+
+  } catch(e){
+    document.getElementById('mainOuter').innerHTML =
+      `<div class="page-loading"><p>오류가 발생했습니다.</p></div>`;
+  }
+}
+
+loadContent();
+</script>
+</body>
+</html>

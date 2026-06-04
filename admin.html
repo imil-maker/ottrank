@@ -1,0 +1,3331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오뜨랑 관리자</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429; --green:#34d399; --red:#f87171;
+  --info:#378ADD; --info-bg:rgba(55,138,221,.12); --info-border:rgba(55,138,221,.35);
+  --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh}
+
+/* 헤더 */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;gap:16px}
+.header h1{font-size:18px;font-weight:700}
+.header .badge{font-family:var(--mono);font-size:11px;background:rgba(230,57,70,.15);color:var(--accent);border:1px solid rgba(230,57,70,.3);padding:3px 10px;border-radius:4px}
+
+/* 로그인 */
+.login-wrap{max-width:400px;margin:100px auto;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:32px}
+.login-wrap h2{font-size:20px;margin-bottom:24px;text-align:center}
+.inp{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-bottom:12px}
+.inp:focus{border-color:var(--accent)}
+.btn{width:100%;padding:12px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer}
+.btn:hover{opacity:.9}
+.btn-sm{padding:6px 14px;border-radius:6px;border:none;font-family:var(--mono);font-size:12px;cursor:pointer;font-weight:500}
+.btn-fix{background:rgba(240,180,41,.15);color:var(--gold);border:1px solid rgba(240,180,41,.3)}
+.btn-fix:hover{background:rgba(240,180,41,.25)}
+.btn-unfix{background:rgba(126,126,150,.1);color:var(--muted2);border:1px solid var(--border)}
+.btn-unfix:hover{background:var(--bg3)}
+.btn-save{background:var(--green);color:#000;padding:10px 24px;border-radius:8px;border:none;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer}
+.btn-save:hover{opacity:.9}
+.btn-cancel{background:transparent;color:var(--muted2);border:1px solid var(--border);padding:10px 20px;border-radius:8px;font-family:var(--sans);font-size:14px;cursor:pointer}
+
+/* 메인 */
+.main{max-width:960px;margin:0 auto;padding:24px}
+.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.toolbar label{font-size:13px;color:var(--muted2)}
+.date-inp{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none}
+.btn-load{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 16px;border-radius:6px;font-family:var(--sans);font-size:13px;cursor:pointer}
+.btn-load:hover{background:var(--bg2)}
+.stat{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto}
+
+/* 필터 탭 */
+.filter-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.ftab{padding:6px 16px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer}
+.ftab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+
+/* 테이블 */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{background:var(--bg3);padding:10px 14px;text-align:left;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.rank-num{font-family:var(--mono);font-size:15px;font-weight:500;color:var(--gold);width:32px}
+.poster-thumb{width:36px;height:54px;object-fit:cover;border-radius:4px;background:var(--bg3);display:block}
+.poster-ph{width:36px;height:54px;border-radius:4px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px}
+.title-ko{font-size:14px;font-weight:500;color:var(--text)}
+.title-en{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+.platform-badge{font-size:10px;padding:2px 8px;border-radius:3px;color:#fff;font-weight:600;font-family:var(--mono)}
+.cat-badge{font-size:10px;padding:2px 8px;border-radius:3px;font-family:var(--mono);background:var(--bg3);color:var(--muted2)}
+.tmdb-id{font-family:var(--mono);font-size:12px;color:var(--muted2)}
+.tmdb-id a{color:#7ec8e3;text-decoration:none}
+.tmdb-id a:hover{text-decoration:underline}
+.manual-badge{font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(240,180,41,.15);color:var(--gold);font-family:var(--mono);font-weight:600}
+.no-tmdb{font-size:11px;color:var(--red);font-family:var(--mono)}
+
+/* 수정 모달 */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:var(--card);border:1px solid var(--border2);border-radius:16px;padding:28px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:17px;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.modal h3 .sub{font-size:13px;color:var(--muted);font-weight:400}
+.form-row{margin-bottom:16px}
+.form-row label{display:block;font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)}
+.form-row .inp{margin-bottom:0}
+.form-hint{font-size:11px;color:var(--muted);margin-top:5px;font-family:var(--mono)}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+.poster-preview{display:flex;align-items:center;gap:12px;margin-top:8px}
+.poster-preview img{width:50px;height:75px;object-fit:cover;border-radius:6px;background:var(--bg3)}
+.poster-preview .no-poster{width:50px;height:75px;border-radius:6px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:20px}
+
+/* 토스트 */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 20px;font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
+
+.empty{text-align:center;padding:60px;color:var(--muted)}
+.loading{text-align:center;padding:40px;color:var(--muted);font-family:var(--mono)}
+
+/* 페이지 탭 */
+.page-tabs{display:flex;gap:2px;padding:0 28px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto}
+.page-tab{padding:12px 20px;font-size:14px;color:var(--muted2);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans);transition:all .15s;white-space:nowrap}
+.page-tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.page-tab:hover{color:var(--text)}
+
+/* 해외반응 섹션 */
+.reaction-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.yt-input-wrap{flex:1;min-width:280px;position:relative}
+.yt-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 16px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none}
+.yt-input:focus{border-color:var(--accent)}
+.btn-yt-load{background:rgba(230,57,70,.15);color:var(--accent);border:1px solid rgba(230,57,70,.3);padding:10px 18px;border-radius:8px;font-size:14px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-yt-load:hover{background:rgba(230,57,70,.25)}
+
+/* 영상 미리보기 카드 */
+.yt-preview{background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:20px;display:none}
+.yt-preview.show{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.yt-thumb-wrap{position:relative;width:200px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--bg3)}
+.yt-thumb-wrap img{width:100%;display:block}
+.yt-thumb-wrap .yt-dur{position:absolute;bottom:5px;right:7px;background:rgba(0,0,0,.85);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 6px;border-radius:3px}
+.yt-info-wrap{flex:1;min-width:200px}
+.yt-vtitle{font-size:15px;font-weight:600;margin-bottom:8px;line-height:1.4}
+.yt-channel{font-size:12px;color:var(--muted2);margin-bottom:6px}
+.yt-stats{display:flex;gap:12px;font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:12px;flex-wrap:wrap}
+.yt-link-work{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.work-search-inp{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;font-family:var(--sans);outline:none;width:220px}
+.work-search-inp:focus{border-color:var(--border2)}
+.work-search-results{position:absolute;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;z-index:50;width:300px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:200px;overflow-y:auto}
+.work-result-item{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:13px;border-bottom:1px solid var(--border)}
+.work-result-item:last-child{border-bottom:none}
+.work-result-item:hover{background:var(--bg3)}
+.work-result-poster{width:28px;height:40px;object-fit:cover;border-radius:3px;background:var(--bg3);flex-shrink:0}
+.btn-yt-register{background:var(--green);color:#000;padding:10px 20px;border-radius:8px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.btn-yt-register:disabled{opacity:.4;cursor:default}
+
+/* 해외반응 목록 */
+.reaction-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.reaction-card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .15s}
+.reaction-card:hover{border-color:var(--border2)}
+.rc-thumb{position:relative;aspect-ratio:16/9;background:var(--bg3)}
+.rc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.rc-platform{position:absolute;top:7px;left:7px;background:rgba(0,0,0,.8);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:3px}
+.rc-manual{position:absolute;top:7px;right:7px;background:rgba(240,180,41,.9);color:#000;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:3px;font-weight:700}
+.rc-body{padding:12px}
+.rc-work{font-size:11px;color:var(--accent);font-family:var(--mono);margin-bottom:4px}
+.rc-title{font-size:13px;font-weight:500;line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rc-meta{font-size:11px;color:var(--muted);font-family:var(--mono);display:flex;gap:8px;flex-wrap:wrap}
+.rc-footer{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
+.btn-rc-del{background:rgba(230,57,70,.1);color:var(--accent);border:1px solid rgba(230,57,70,.2);padding:5px 12px;border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--mono)}
+.btn-rc-del:hover{background:rgba(230,57,70,.2)}
+
+/* ══ 회원등급 설정 ══ */
+.grade-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-bottom:24px}
+.grade-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;transition:border-color .15s}
+.grade-card:hover{border-color:var(--border2)}
+.grade-card-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.grade-emoji-preview{width:52px;height:52px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1px solid var(--border)}
+.grade-emoji-preview img{width:100%;height:100%;object-fit:cover}
+.grade-emoji-preview .no-emoji{font-size:24px}
+.grade-title-wrap{flex:1}
+.grade-key-badge{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:2px}
+.grade-name-disp{font-size:16px;font-weight:700}
+.grade-special-badge{font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(240,180,41,.15);color:var(--gold);font-family:var(--mono);margin-left:6px}
+.grade-inp-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.grade-inp-row label{font-size:11px;color:var(--muted2);font-family:var(--mono);min-width:80px;flex-shrink:0}
+.grade-inp{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:var(--sans);font-size:13px;outline:none}
+.grade-inp:focus{border-color:var(--border2)}
+.grade-inp-num{width:80px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;text-align:right}
+.grade-inp-num:focus{border-color:var(--border2)}
+.grade-url-preview{display:flex;align-items:center;gap:8px;margin-top:6px}
+.grade-url-preview img{width:32px;height:32px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+.grade-conditions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.grade-cond-chip{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--bg3);color:var(--muted2);font-family:var(--mono);border:1px solid var(--border)}
+.grade-cond-chip.active{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
+.grade-save-all-bar{position:sticky;bottom:0;background:var(--bg2);border-top:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.grade-save-all-bar p{font-size:13px;color:var(--muted2)}
+
+/* ══ 회원 관리 ══ */
+.user-search-bar{display:flex;gap:10px;margin-bottom:20px;align-items:center;flex-wrap:wrap}
+.user-search-inp{flex:1;min-width:200px;max-width:320px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 14px;color:var(--text);font-family:var(--sans);font-size:13px;outline:none}
+.user-search-inp:focus{border-color:var(--accent)}
+.grade-assign-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:6px;background:var(--info-bg);color:var(--info);border:1px solid var(--info-border);cursor:pointer;font-family:var(--mono)}
+.grade-assign-badge:hover{background:rgba(55,138,221,.2)}
+.user-grade-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--muted2);font-family:var(--mono)}
+.user-grade-badge img{width:14px;height:14px;border-radius:2px;object-fit:cover}
+
+/* ══ 랭킹 순위 재정렬 드래그앤드롭 ══ */
+.category-group{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.category-group-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.category-group-title{font-family:var(--mono);font-size:12px;color:var(--muted2);font-weight:600}
+.btn-reorder-save{padding:6px 16px;border-radius:6px;border:none;background:rgba(52,211,153,.15);color:var(--green);font-size:12px;font-family:var(--mono);font-weight:600;cursor:pointer;border:1px solid rgba(52,211,153,.3);transition:all .15s}
+.btn-reorder-save:hover{background:rgba(52,211,153,.25)}
+.btn-reorder-save:disabled{opacity:.4;cursor:default}
+.drag-row{cursor:grab;transition:background .1s}
+.drag-row:active{cursor:grabbing}
+.drag-row.dragging{opacity:.4;background:rgba(255,255,255,.05)}
+.drag-row.drag-over{border-top:2px solid var(--green)}
+.drag-handle{color:var(--muted);font-size:16px;cursor:grab;padding:0 4px;user-select:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎬 오뜨랑 관리자</h1>
+  <span class="badge">ADMIN</span>
+  <span id="logoutBtn" style="margin-left:auto;cursor:pointer;color:var(--muted);font-size:13px;display:none" onclick="logout()">로그아웃</span>
+</div>
+<div id="pageTabs" style="display:none">
+  <div class="page-tabs">
+    <button class="page-tab on"  onclick="switchPage('ranking',this)">📊 랭킹 관리</button>
+    <button class="page-tab"     onclick="switchPage('pagecat',this)">📋 페이지 카테고리 설정</button>
+    <button class="page-tab"     onclick="switchPage('categories',this)">⚙️ 카테고리 관리</button>
+    <button class="page-tab"     onclick="switchPage('manual',this)">✏️ 수동 랭킹 관리</button>
+    <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
+    <button class="page-tab"     onclick="switchPage('reaction',this)">🌍 해외반응 관리</button>
+    <button class="page-tab"     onclick="switchPage('grade',this)">🏅 회원등급 설정</button>
+    <button class="page-tab"     onclick="switchPage('users',this)">👥 회원 관리</button>
+    <button class="page-tab"     onclick="location.href='/admin_videos.html'">🎬 영상 관리</button>
+    <button class="page-tab"     onclick="switchPage('contents',this)">🎞️ 예고편/신작 관리</button>
+  </div>
+</div>
+
+<!-- ══ 예고편/신작 관리 ══ -->
+<div id="contentsSection" class="main" style="display:none">
+
+  <!-- 메인 고정 관리 -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:4px">📌 메인 고정 영상 (최대 5개)</div>
+        <div style="font-size:12px;color:var(--muted)">드래그로 순서를 변경하고 "순서 저장"을 눌러주세요. 고정이 5개 미만이면 나머지는 플랫폼별 최신 예고편으로 자동 채워집니다.</div>
+      </div>
+      <button id="btnSavePinned" class="btn-save" onclick="savePinnedOrder()" style="white-space:nowrap;margin-left:16px">순서 저장</button>
+    </div>
+    <div id="pinnedList"></div>
+  </div>
+
+  <!-- 수동 등록 -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px">➕ 예고편 수동 등록</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- YouTube URL -->
+      <div style="grid-column:1/-1">
+        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">YouTube URL *</label>
+        <div style="display:flex;gap:8px">
+          <input id="ctYtUrl" class="inp" style="margin-bottom:0;flex:1" type="text"
+            placeholder="https://www.youtube.com/watch?v=...">
+          <button class="btn-save" style="white-space:nowrap;padding:0 18px" onclick="fetchYoutubeInfo()">정보 가져오기</button>
+        </div>
+        <input type="hidden" id="ctYoutubeId">
+        <input type="hidden" id="ctThumbUrl">
+      </div>
+      <!-- 썸네일 미리보기 -->
+      <div style="grid-column:1/-1">
+        <img id="ctThumbPreview" src="" alt="" style="display:none;height:90px;border-radius:6px;object-fit:cover;border:1px solid var(--border2)">
+      </div>
+      <!-- 제목 -->
+      <div style="grid-column:1/-1">
+        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">제목 (비우면 YouTube 제목 자동 입력)</label>
+        <input id="ctTitle" class="inp" style="margin-bottom:0" type="text" placeholder="YouTube에서 자동으로 가져옵니다">
+      </div>
+      <!-- OTT 플랫폼 -->
+      <div>
+        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">OTT 플랫폼 *</label>
+        <select id="ctPlatform" class="inp" style="margin-bottom:0;cursor:pointer">
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="wavve">웨이브</option>
+          <option value="">기타</option>
+        </select>
+      </div>
+      <!-- 타입 -->
+      <div>
+        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">타입 *</label>
+        <select id="ctType" class="inp" style="margin-bottom:0;cursor:pointer">
+          <option value="trailer">예고편</option>
+          <option value="preview">선공개</option>
+          <option value="teaser">티저</option>
+          <option value="release">신작공개</option>
+        </select>
+      </div>
+      <!-- 업로드 날짜 -->
+      <div>
+        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">업로드 날짜 *</label>
+        <input id="ctPublishedAt" class="inp" style="margin-bottom:0" type="datetime-local">
+      </div>
+      <!-- 등록 버튼 -->
+      <div style="display:flex;align-items:flex-end">
+        <button id="btnAddContent" class="btn-save" style="width:100%;padding:12px" onclick="submitContentAdd()">등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 목록 테이블 -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:16px;font-weight:700">📋 영상 목록</span>
+      <span id="contentsTotalCount" style="font-family:var(--mono);font-size:13px;color:var(--muted)"></span>
+      <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+        <select id="ctFilterPlatform" class="inp" style="margin-bottom:0;padding:6px 12px;width:auto;cursor:pointer"
+          onchange="contentsPlatformFilter=this.value;contentsPage=1;loadContentsTable()">
+          <option value="">전체 플랫폼</option>
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="wavve">웨이브</option>
+        </select>
+        <select id="ctFilterType" class="inp" style="margin-bottom:0;padding:6px 12px;width:auto;cursor:pointer"
+          onchange="contentsTypeFilter=this.value;contentsPage=1;loadContentsTable()">
+          <option value="">전체 타입</option>
+          <option value="trailer">예고편</option>
+          <option value="preview">선공개</option>
+          <option value="teaser">티저</option>
+          <option value="release">신작공개</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap" style="border-radius:0;border:none">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60px">썸네일</th>
+            <th>제목</th>
+            <th style="width:100px">플랫폼</th>
+            <th style="width:80px">타입</th>
+            <th style="width:100px">날짜</th>
+            <th style="width:90px">메인고정</th>
+            <th style="width:120px">관리</th>
+          </tr>
+        </thead>
+        <tbody id="contentsTbody"></tbody>
+      </table>
+    </div>
+    <div id="contentsPagination" style="padding:16px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap"></div>
+  </div>
+
+</div>
+
+<!-- 드래그앤드롭 CSS -->
+<style>
+.pinned-item{display:flex;align-items:center;gap:12px;padding:10px 14px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  margin-bottom:8px;cursor:grab;transition:all .15s}
+.pinned-item:hover{border-color:var(--border2)}
+.pinned-item.drag-over{border-color:var(--accent);background:rgba(230,57,70,.08)}
+.pin-handle{color:var(--muted);font-size:18px;cursor:grab;flex-shrink:0;line-height:1}
+.pin-order{font-family:var(--mono);font-size:18px;color:var(--accent);
+  font-weight:700;width:20px;flex-shrink:0;text-align:center}
+.pin-thumb{width:64px;height:36px;object-fit:cover;border-radius:4px;
+  background:var(--bg2);flex-shrink:0}
+.pin-info{flex:1;min-width:0}
+.pin-work{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pin-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
+.pin-pf{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;color:#fff}
+</style>
+
+<!-- 랭킹 관리 -->
+<div class="login-wrap" id="loginSection">
+  <h2>🔐 관리자 로그인</h2>
+  <input class="inp" type="password" id="tokenInp" placeholder="Admin Secret Token" onkeydown="if(event.key==='Enter')login()">
+  <button class="btn" onclick="login()">로그인</button>
+</div>
+
+<!-- ══ 랭킹 관리 ══ -->
+<div class="main" id="mainSection" style="display:none">
+  <div class="toolbar">
+    <label>날짜</label>
+    <input type="date" class="date-inp" id="dateInp">
+    <button class="btn-load" onclick="loadData()">불러오기</button>
+    <!-- 수동 데이터 전용 불러오기 버튼 — date=manual 데이터만 표시 -->
+    <button class="btn-load" id="btnLoadManualData"
+      onclick="loadManualData()"
+      style="border-color:rgba(240,180,41,.4);color:var(--gold)">
+      🔒 수동 데이터 불러오기
+    </button>
+    <span class="stat" id="statTxt"></span>
+  </div>
+  <div class="filter-tabs" id="filterTabs">
+    <button class="ftab on" onclick="setFilter('all',this)">전체</button>
+    <button class="ftab" onclick="setFilter('netflix',this)">넷플릭스</button>
+    <button class="ftab" onclick="setFilter('tving',this)">티빙</button>
+    <button class="ftab" onclick="setFilter('disney',this)">디즈니+</button>
+    <button class="ftab" onclick="setFilter('coupang',this)">쿠팡플레이</button>
+    <button class="ftab" onclick="setFilter('wavve',this)">웨이브</button>
+    <button class="ftab" onclick="setFilter('boxoffice',this)">박스오피스</button>
+    <button class="ftab" id="btnNoTmdb" style="margin-left:auto;border-color:rgba(247,129,113,.3);color:var(--red)" onclick="setFilter('no_tmdb',this)">⚠ TMDB없음 <span id="noTmdbCount"></span></button>
+    <button class="ftab" id="btnNewMatch" style="border-color:rgba(52,211,153,.3);color:var(--green)" onclick="setFilter('new_match',this)">🆕 신규매칭 <span id="newMatchCount"></span></button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>순위</th><th>포스터</th><th>제목</th><th>플랫폼</th>
+          <th>카테고리</th><th>TMDB ID</th><th>상태</th><th>수정</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="8" class="loading">날짜를 선택하고 불러오기를 클릭하세요</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ 해외반응 관리 ══ -->
+<div id="reactionSection" class="main" style="display:none">
+  <div class="reaction-toolbar">
+    <div class="yt-input-wrap">
+      <input class="yt-input" id="ytUrlInp" type="text"
+        placeholder="YouTube URL 입력  예) https://www.youtube.com/watch?v=abc123"
+        oninput="onYtUrlInput(this.value)">
+    </div>
+    <button class="btn-yt-load" onclick="fetchYtInfo()">영상 정보 가져오기</button>
+  </div>
+  <div class="yt-preview" id="ytPreview">
+    <div class="yt-thumb-wrap">
+      <img id="ytThumbImg" src="" alt="">
+    </div>
+    <div class="yt-info-wrap">
+      <div class="yt-vtitle" id="ytVtitle"></div>
+      <div class="yt-channel" id="ytChannel"></div>
+      <div class="yt-stats">
+        <span id="ytViews"></span><span id="ytLikes"></span><span id="ytDate"></span>
+      </div>
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">게시판 제목 <span style="color:var(--accent)">*</span> <span style="color:var(--muted);font-size:10px">(직접 입력, 미입력 시 영상 제목 사용)</span></div>
+      <input class="work-search-inp" id="customTitleInp" type="text" placeholder="예) 원더풀스 1화 외국인 반응 모음" maxlength="100" style="width:100%;margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">연결할 작품 검색 <span style="color:var(--muted);font-size:10px">(작품명 또는 tmdb_id 입력)</span></div>
+      <div class="yt-link-work" style="position:relative">
+        <input class="work-search-inp" id="workSearchInp" type="text"
+          placeholder="작품명 검색..."
+          oninput="searchWorks(this.value)"
+          autocomplete="off">
+        <div class="work-search-results" id="workSearchResults" style="display:none;position:absolute;top:38px;left:0"></div>
+        <div id="selectedWork" style="font-size:13px;color:var(--green);font-family:var(--mono)"></div>
+      </div>
+      <button class="btn-yt-register" id="btnRegister" onclick="registerReaction()" disabled>
+        ✅ 등록하기
+      </button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:600">등록된 해외반응</div>
+    <div class="stat" id="reactionStat"></div>
+    <button class="btn-load" onclick="loadReactions()" style="margin-left:auto">새로고침</button>
+  </div>
+  <div class="reaction-list" id="reactionList">
+    <div class="loading">불러오는 중...</div>
+  </div>
+</div>
+
+
+<!-- ══ 페이지 카테고리 설정 ══ -->
+<div id="pagecatSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">📋 페이지 카테고리 설정</div>
+    <button class="btn-load" onclick="loadPageCat()" style="margin-left:auto">새로고침</button>
+    <button class="btn-save" onclick="saveAllPageCat()" style="padding:8px 20px;font-size:13px">💾 전체 저장</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    💡 각 카테고리를 메인페이지/OTT페이지 어느 위치에 노출할지 설정합니다. 순서 숫자가 낮을수록 먼저 표시됩니다.
+  </div>
+
+  <!-- 메인페이지 설정 -->
+  <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--gold)">🖥️ 메인페이지 설정</div>
+  <div class="table-wrap" style="margin-bottom:24px">
+    <table>
+      <thead>
+        <tr>
+          <th>플랫폼</th><th>슬롯</th><th>크롤링 원본명</th><th>프론트 표시명</th>
+          <th>메인 섹션</th><th>순서</th><th>노출 개수</th><th>저장</th>
+        </tr>
+      </thead>
+      <tbody id="pagecatMainBody">
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- OTT 페이지 설정 -->
+  <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--info)">📺 OTT 페이지 설정</div>
+  <div class="filter-tabs" id="pagecatPlatformTabs">
+    <button class="ftab on" onclick="setPagecatPlatform('netflix',this)">넷플릭스</button>
+    <button class="ftab" onclick="setPagecatPlatform('tving',this)">티빙</button>
+    <button class="ftab" onclick="setPagecatPlatform('disney',this)">디즈니+</button>
+    <button class="ftab" onclick="setPagecatPlatform('coupang',this)">쿠팡플레이</button>
+    <button class="ftab" onclick="setPagecatPlatform('wavve',this)">웨이브</button>
+    <button class="ftab" onclick="setPagecatPlatform('boxoffice',this)">박스오피스</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>플랫폼</th><th>슬롯</th><th>크롤링 원본명</th><th>프론트 표시명</th>
+          <th>OTT페이지 노출</th><th>순서</th><th>노출 개수</th><th>저장</th>
+        </tr>
+      </thead>
+      <tbody id="pagecatPlatformBody">
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ 카테고리 관리 ══ -->
+<div id="categoriesSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">⚙️ OTT 카테고리 슬롯 관리</div>
+    <span id="catStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+    <button class="btn-load" onclick="loadCategories()" style="margin-left:auto">새로고침</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    💡 is_active=OFF 로 설정하면 크롤링에서 제외됩니다. display_name은 프론트엔드에 표시되는 이름입니다.
+  </div>
+  <div class="filter-tabs" id="catFilterTabs">
+    <button class="ftab on" onclick="setCatFilter('all',this)">전체</button>
+    <button class="ftab" onclick="setCatFilter('netflix',this)">넷플릭스</button>
+    <button class="ftab" onclick="setCatFilter('disney',this)">디즈니+</button>
+    <button class="ftab" onclick="setCatFilter('wavve',this)">웨이브</button>
+    <button class="ftab" onclick="setCatFilter('coupang',this)">쿠팡플레이</button>
+    <button class="ftab" onclick="setCatFilter('tving',this)">티빙</button>
+    <button class="ftab" onclick="setCatFilter('boxoffice',this)">박스오피스</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>플랫폼</th><th>슬롯</th><th>크롤링 원본명</th>
+          <th>프론트 표시명</th><th>크롤 limit</th><th>메인 limit</th><th>플랫폼 limit</th><th>크롤링</th><th>저장</th>
+        </tr>
+      </thead>
+      <tbody id="catTableBody">
+        <tr><td colspan="9" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ 수동 랭킹 관리 ══ -->
+<div id="manualSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">✏️ 수동 랭킹 관리</div>
+    <button class="btn-save" id="btnAddManualSlot" onclick="openNewSlotModal()" style="padding:8px 18px;font-size:13px;margin-left:auto">+ 새 카테고리 슬롯 추가</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    💡 크롤링 없이 관리자가 직접 입력하는 랭킹입니다. (예: 역대 한국영화 관객수 TOP20)<br>
+    순위는 ▲▼ 버튼으로 조정하고 저장 버튼을 누르면 반영됩니다. date='manual'로 고정되어 크롤링에 영향받지 않습니다.
+  </div>
+
+  <!-- 플랫폼 + 슬롯 선택 -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">플랫폼</div>
+        <select class="inp" id="manualPlatformSel" onchange="onManualPlatformChange()" style="width:160px;cursor:pointer">
+          <option value="">선택...</option>
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="wavve">웨이브</option>
+          <option value="boxoffice">박스오피스</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">카테고리 슬롯</div>
+        <select class="inp" id="manualSlotSel" onchange="loadManualRankings()" style="width:200px;cursor:pointer">
+          <option value="">플랫폼 먼저 선택...</option>
+        </select>
+      </div>
+      <!-- 메모 컬럼 이름 입력 -->
+      <div id="memoLabelWrap" style="display:none;flex:1;min-width:160px">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+          메모 컬럼 이름 <span style="color:var(--muted);font-size:10px">(예: 역대 관객수, 수상내역)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="inp" type="text" id="memoLabelInp"
+            placeholder="예: 역대 관객수"
+            style="margin-bottom:0;flex:1">
+          <button class="btn-sm btn-save" onclick="saveMemoLabel()" style="padding:8px 14px;font-size:12px;white-space:nowrap">저장</button>
+        </div>
+      </div>
+      <div id="manualSlotInfo" style="font-size:12px;color:var(--muted);font-family:var(--mono);padding-bottom:4px"></div>
+    </div>
+  </div>
+
+  <!-- 작품 추가 영역 -->
+  <div id="manualAddArea" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:14px;color:var(--gold)">➕ 작품 추가</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px;position:relative">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">작품 검색 (제목 또는 TMDB ID)</div>
+        <input class="inp" type="text" id="manualWorkSearch"
+          placeholder="작품명 검색 또는 TMDB URL 붙여넣기 (예: themoviedb.org/movie/1255)"
+          oninput="searchManualWork(this.value)"
+          autocomplete="off"
+          style="margin-bottom:0">
+        <div id="manualSearchResults" style="display:none;position:absolute;top:68px;left:0;right:0;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;z-index:50;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
+      </div>
+      <div id="manualSelectedWork" style="display:none;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;min-width:200px">
+        <img id="manualSelPoster" src="" style="width:32px;height:48px;object-fit:cover;border-radius:4px;background:var(--bg2)">
+        <div>
+          <div id="manualSelTitle" style="font-size:13px;font-weight:500"></div>
+          <div id="manualSelTmdbId" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+        </div>
+        <button onclick="clearManualSelected()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;margin-left:auto">✕</button>
+      </div>
+      <button class="btn-save" onclick="addManualRanking()" style="padding:10px 20px;font-size:13px;white-space:nowrap">+ 목록에 추가</button>
+    </div>
+  </div>
+
+  <!-- 수동 랭킹 목록 -->
+  <div id="manualListArea" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:600">📋 현재 랭킹 목록</div>
+      <span id="manualListStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+      <button class="btn-save" onclick="saveManualOrder()" style="margin-left:auto;padding:8px 20px;font-size:13px">💾 순위 저장</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px"></th>
+            <th style="width:50px">순위</th>
+            <th style="width:40px">포스터</th>
+            <th>제목</th>
+            <th style="width:80px">TMDB ID</th>
+            <th style="width:80px">연도</th>
+            <th id="memoColHeader">메모 <span style="font-weight:400;color:var(--muted);font-size:10px">(선택)</span></th>
+            <th style="width:60px">삭제</th>
+          </tr>
+        </thead>
+        <tbody id="manualTableBody">
+          <tr><td colspan="8" class="loading">슬롯을 선택하세요</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- 하단 저장 버튼 (목록이 길 때 편의용) -->
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn-save" onclick="saveManualOrder()" style="padding:10px 28px;font-size:14px">💾 순위 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 신규 슬롯 추가 모달 -->
+<div class="overlay" id="newSlotOverlay" onclick="if(event.target===this)closeNewSlotModal()">
+  <div class="modal" style="width:440px">
+    <h3>➕ 새 카테고리 슬롯 추가</h3>
+    <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:6px;padding:10px 14px">
+      수동 랭킹을 위한 새 카테고리 슬롯을 생성합니다.<br>
+      슬롯 번호는 기존 슬롯과 겹치지 않게 입력하세요. (예: category02, category03...)
+    </div>
+    <div class="form-row">
+      <label>플랫폼</label>
+      <select class="inp" id="newSlotPlatform" style="cursor:pointer">
+        <option value="netflix">넷플릭스</option>
+        <option value="tving">티빙</option>
+        <option value="disney">디즈니+</option>
+        <option value="coupang">쿠팡플레이</option>
+        <option value="wavve">웨이브</option>
+        <option value="boxoffice" selected>박스오피스</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>슬롯 번호 <span style="color:var(--muted);font-size:10px">(예: category02)</span></label>
+      <input class="inp" type="text" id="newSlotKey" placeholder="category02">
+    </div>
+    <div class="form-row">
+      <label>크롤링 원본명 <span style="color:var(--muted);font-size:10px">(source_name)</span></label>
+      <input class="inp" type="text" id="newSlotSourceName" placeholder="예: 역대 한국영화 관객수 TOP20">
+    </div>
+    <div class="form-row">
+      <label>프론트 표시명 <span style="color:var(--muted);font-size:10px">(display_name)</span></label>
+      <input class="inp" type="text" id="newSlotDisplayName" placeholder="예: 역대 흥행 TOP 20">
+    </div>
+    <div class="form-row">
+      <label>노출 개수</label>
+      <input class="inp" type="number" id="newSlotLimit" value="20" min="1" max="100">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeNewSlotModal()">취소</button>
+      <button class="btn-save" onclick="createNewSlot()">슬롯 생성</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ works 관리 ══ -->
+<div id="worksSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">🎬 works 테이블 관리</div>
+    <input class="date-inp" type="text" id="worksSearchInp" placeholder="제목 검색..." oninput="searchWorksTable(this.value)" style="width:200px">
+    <button class="btn-load" onclick="loadWorks()" style="margin-left:auto">새로고침</button>
+    <span id="worksStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    ⚠️ works 테이블은 Admin만 수정/삭제 가능합니다. 크롤러는 INSERT만 허용됩니다. 모든 변경은 admin_logs에 기록됩니다.
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>포스터</th><th>TMDB ID</th><th>한글 제목</th><th>영어 제목</th>
+          <th>매칭 출처</th><th>신뢰도</th><th>수정</th><th>삭제</th>
+        </tr>
+      </thead>
+      <tbody id="worksTableBody">
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ 회원등급 설정 ══ -->
+<div id="gradeSection" class="main" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:600">🏅 회원등급 설정</div>
+    <div style="font-size:12px;color:var(--muted2);flex:1">각 등급의 이름, 이모지 이미지 URL, 승급 조건을 설정하세요.<br>이모지 이미지는 GitHub 레포(<code style="color:var(--info);font-family:var(--mono)">grade-emojis/</code> 폴더)에 올리고 Raw URL을 입력해 주세요.</div>
+    <button class="btn-load" onclick="loadGrades()">새로고침</button>
+  </div>
+
+  <!-- GitHub Raw URL 예시 안내 -->
+  <div style="background:var(--info-bg);border:1px solid var(--info-border);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:12px;color:var(--muted2);font-family:var(--mono);line-height:1.8">
+    📌 GitHub Raw URL 형식:<br>
+    <span style="color:var(--info)">https://raw.githubusercontent.com/imil-maker/ottrank/main/grade-emojis/파일명.png</span>
+  </div>
+
+  <div class="grade-grid" id="gradeGrid">
+    <div class="loading">불러오는 중...</div>
+  </div>
+
+  <!-- 저장 바 -->
+  <div class="grade-save-all-bar">
+    <p>변경사항은 아래 버튼을 눌러야 저장됩니다.</p>
+    <button class="btn-save" onclick="saveAllGrades()">💾 전체 저장</button>
+  </div>
+</div>
+
+<!-- ══ 회원 관리 ══ -->
+<div id="usersSection" class="main" style="display:none">
+  <div class="user-search-bar">
+    <div style="font-size:15px;font-weight:600">👥 회원 관리</div>
+    <input class="user-search-inp" id="userSearchInp" type="text"
+      placeholder="닉네임 검색..."
+      oninput="searchUsers(this.value)">
+    <button class="btn-load" onclick="loadUsers()">새로고침</button>
+    <span class="stat" id="userStat"></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>닉네임</th><th>등급</th><th>소셜</th>
+          <th>후기</th><th>찜</th><th>게시글</th><th>받은♥</th>
+          <th>가입일</th><th>등급지정</th>
+        </tr>
+      </thead>
+      <tbody id="usersTableBody">
+        <tr><td colspan="10" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 랭킹 수정 모달 -->
+<div class="overlay" id="editOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>✏️ 수동 수정 <span class="sub" id="modalSub"></span></h3>
+    <input type="hidden" id="editId">
+    <div class="form-row">
+      <label>한국어 제목 <span style="color:var(--muted);font-size:10px">(메인페이지에 표시될 제목)</span></label>
+      <input class="inp" type="text" id="editTitleKo" placeholder="예: 사랑을 처방해 드립니다">
+    </div>
+    <div class="form-row">
+      <label>영어 원제 <span style="color:var(--muted);font-size:10px">(크롤링 원본 제목 — 미래 자동매칭에 사용)</span></label>
+      <input class="inp" type="text" id="editTitleEn" placeholder="예: Recipe For Love">
+      <div class="form-hint">영어 원제를 저장하면 다음 크롤링 시 자동으로 한글 제목과 매칭됩니다</div>
+    </div>
+    <div class="form-row">
+      <label>TMDB ID</label>
+      <input class="inp" type="number" id="editTmdbId" placeholder="예: 1411577" oninput="previewPoster()">
+      <div class="form-hint">themoviedb.org/movie/[ID] 또는 /tv/[ID] 에서 확인</div>
+      <div class="poster-preview" id="posterPreview">
+        <div class="no-poster">🎬</div>
+        <span style="font-size:12px;color:var(--muted)">TMDB ID 입력 시 포스터 미리보기</span>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="editDeleteDuplicates" style="cursor:pointer;width:16px;height:16px">
+        <span style="font-size:13px">같은 영어 제목의 기존 잘못된 works 데이터 삭제</span>
+        <span style="font-size:11px;color:var(--red)">(오매칭 제거 시 사용)</span>
+      </label>
+    </div>
+
+    <!-- ══ 미디어 타입 지정 — 기존 category(category01/02...)와 완전 별도 ══ -->
+    <div style="border-top:1px solid var(--border);margin:16px 0 14px;padding-top:14px">
+      <div style="font-size:11px;font-family:var(--mono);color:var(--info);margin-bottom:8px;letter-spacing:.5px">
+        ⚠️ TMDB ID 충돌 방지용 미디어 타입
+        <span style="color:var(--muted);font-weight:400"> — movie/tv가 같은 ID를 공유할 때만 지정</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-family:var(--mono)">
+        예) movie/321564=Reborn, tv/321564=스타워즈 특별편 → 📺 TV 선택
+      </div>
+      <div style="display:flex;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px" id="mtLabel_null">
+          <input type="radio" name="editMediaType" value="" id="editMt_null" checked style="cursor:pointer">
+          <span>🔄 자동 (기본값)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px" id="mtLabel_tv">
+          <input type="radio" name="editMediaType" value="tv" id="editMt_tv" style="cursor:pointer">
+          <span>📺 TV</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px" id="mtLabel_movie">
+          <input type="radio" name="editMediaType" value="movie" id="editMt_movie" style="cursor:pointer">
+          <span>🎬 Movie</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-save" onclick="saveEdit()">저장 (수동고정)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 등급 지정 모달 -->
+<div class="overlay" id="gradeAssignOverlay" onclick="if(event.target===this)closeGradeAssign()">
+  <div class="modal" style="width:380px">
+    <h3>🏅 등급 수동 지정</h3>
+    <input type="hidden" id="assignUserId">
+    <div style="font-size:13px;color:var(--muted2);margin-bottom:16px">
+      <strong id="assignNickname" style="color:var(--text)"></strong> 님의 등급을 변경합니다.
+    </div>
+    <div class="form-row">
+      <label>새 등급</label>
+      <select class="inp" id="assignGradeSelect" style="cursor:pointer">
+        <option value="">선택...</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeGradeAssign()">취소</button>
+      <button class="btn-save" onclick="saveGradeAssign()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+const IMG = 'https://image.tmdb.org/t/p/w500';
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const IMG2 = 'https://image.tmdb.org/t/p/w92';
+const PC = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
+
+let token = '';
+let allData = [];
+let curFilter = 'all';
+let allGradeSettings = []; // 등급 설정 전체 캐시
+let userSearchTimer = null;
+
+// ════════════════════════════════════════════════════
+// 로그인
+// ════════════════════════════════════════════════════
+function login() {
+  const t = document.getElementById('tokenInp').value.trim();
+  if (!t) return;
+  token = t;
+  localStorage.setItem('admin_token', t);
+  document.getElementById('loginSection').style.display = 'none';
+  document.getElementById('mainSection').style.display = 'block';
+  document.getElementById('logoutBtn').style.display = 'block';
+  document.getElementById('pageTabs').style.display = 'block';
+  // DB 최신 날짜 가져와서 세팅
+  fetch(`${API}/latest-date`)
+    .then(r => r.json())
+    .then(json => {
+      const latest = json.data?.date || new Date().toISOString().slice(0,10);
+      document.getElementById('dateInp').value = latest;
+      loadData();
+    })
+    .catch(() => {
+      document.getElementById('dateInp').value = new Date().toISOString().slice(0,10);
+      loadData();
+    });
+  loadReactions();
+  loadGrades();
+  loadQueueCount();
+}
+
+function logout() {
+  token = '';
+  localStorage.removeItem('admin_token');
+  location.reload();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('admin_token');
+  if (saved) { document.getElementById('tokenInp').value = saved; login(); }
+});
+
+// ════════════════════════════════════════════════════
+// 페이지 탭 전환
+// ════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════
+// 영상 관리
+// ════════════════════════════════════════════════════
+let currentVideoTmdbId = null;
+
+async function loadVideosByTmdb() {
+  const tmdb_id = document.getElementById('videoTmdbInput').value.trim();
+  if (!tmdb_id) { alert('tmdb_id를 입력해주세요'); return; }
+  currentVideoTmdbId = parseInt(tmdb_id);
+  document.getElementById('videoAddForm').style.display = 'block';
+  try {
+    const res = await fetch(`${API}/videos/${tmdb_id}`);
+    const data = await res.json();
+    renderVideosList(data.data || []);
+  } catch(e) {
+    document.getElementById('videosList').innerHTML = '<p style="color:var(--muted)">오류 발생</p>';
+  }
+}
+
+function renderVideosList(videos) {
+  const el = document.getElementById('videosList');
+  if (!videos.length) {
+    el.innerHTML = '<p style="color:var(--muted);font-size:14px">등록된 영상이 없어요</p>';
+    return;
+  }
+  el.innerHTML = videos.map(v => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;gap:14px;align-items:center">
+      <img src="https://img.youtube.com/vi/${v.youtube_id}/mqdefault.jpg" style="width:120px;height:68px;object-fit:cover;border-radius:6px;flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">${v.title||v.youtube_id}</div>
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono)">${v.youtube_url}</div>
+        <div style="margin-top:6px">
+          ${v.is_main ? '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(240,180,41,.15);color:var(--gold)">⭐ 메인</span>' : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+        ${!v.is_main ? `<button onclick="setMainVideo(${v.id})" style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;cursor:pointer">메인 지정</button>` : ''}
+        <button onclick="deleteVideo(${v.id})" style="padding:5px 12px;border-radius:6px;border:1px solid rgba(230,57,70,.3);background:rgba(230,57,70,.1);color:var(--red);font-size:12px;cursor:pointer">삭제</button>
+      </div>
+    </div>`).join('');
+}
+
+async function addVideo() {
+  const url = document.getElementById('videoUrlInput').value.trim();
+  const title = document.getElementById('videoTitleInput').value.trim();
+  if (!url) { alert('유튜브 URL을 입력해주세요'); return; }
+  try {
+    const res = await fetch(`${API}/admin/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: currentVideoTmdbId, youtube_url: url, title })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('videoUrlInput').value = '';
+      document.getElementById('videoTitleInput').value = '';
+      loadVideosByTmdb();
+    } else { alert(data.message || '오류 발생'); }
+  } catch(e) { alert('네트워크 오류'); }
+}
+
+async function setMainVideo(id) {
+  try {
+    const res = await fetch(`${API}/admin/videos/${id}/main`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (data.ok) loadVideosByTmdb();
+    else alert(data.message || '오류 발생');
+  } catch(e) { alert('네트워크 오류'); }
+}
+
+async function deleteVideo(id) {
+  if (!confirm('이 영상을 삭제할까요?')) return;
+  try {
+    const res = await fetch(`${API}/admin/videos/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (data.ok) loadVideosByTmdb();
+    else alert(data.message || '오류 발생');
+  } catch(e) { alert('네트워크 오류'); }
+}
+
+function switchPage(page, btn) {
+  document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('mainSection').style.display       = page === 'ranking'    ? 'block' : 'none';
+  document.getElementById('pagecatSection').style.display    = page === 'pagecat'    ? 'block' : 'none';
+  document.getElementById('categoriesSection').style.display = page === 'categories' ? 'block' : 'none';
+  document.getElementById('manualSection').style.display     = page === 'manual'     ? 'block' : 'none';
+  document.getElementById('worksSection').style.display      = page === 'works'      ? 'block' : 'none';
+  document.getElementById('reactionSection').style.display   = page === 'reaction'   ? 'block' : 'none';
+  document.getElementById('gradeSection').style.display      = page === 'grade'      ? 'block' : 'none';
+  document.getElementById('usersSection').style.display      = page === 'users'      ? 'block' : 'none';
+  document.getElementById('contentsSection').style.display   = page === 'contents'   ? 'block' : 'none';
+  if (page === 'users')      loadUsers();
+  if (page === 'pagecat')    loadPageCat();
+  if (page === 'categories') loadCategories();
+  if (page === 'works')      loadWorks();
+  if (page === 'contents')   loadContentsAdmin();
+}
+
+// ════════════════════════════════════════════════════
+// 페이지 카테고리 전체 저장
+// ════════════════════════════════════════════════════
+async function saveAllPageCat() {
+  // 메인페이지 테이블과 OTT 페이지 테이블을 분리해서 저장
+  // 같은 catid가 두 테이블에 있으므로 섞이면 서로 덮어씀
+  const btn = document.querySelector('[onclick="saveAllPageCat()"]');
+  const orig = btn.textContent;
+  btn.textContent = '저장 중...';
+  btn.disabled = true;
+
+  let ok = 0, fail = 0;
+
+  // ① 메인페이지 테이블 저장 (main_section, main_order, main_limit만)
+  const mainRows = document.querySelectorAll('#pagecatMainBody [data-catid]');
+  for (const row of mainRows) {
+    const id           = row.dataset.catid;
+    const mainSection  = row.querySelector('[data-field="main_section"]')?.value || null;
+    const mainOrder    = parseInt(row.querySelector('[data-field="main_order"]')?.value) || 0;
+    const mainLimit    = parseInt(row.querySelector('[data-field="main_limit"]')?.value) || 10;
+    try {
+      const res = await fetch(`${API}/admin/categories/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          main_section: mainSection || null,
+          main_order:   mainOrder,
+          main_limit:   mainLimit,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+
+  // ② OTT 페이지 테이블 저장 (platform_section, platform_order, platform_limit만)
+  const platRows = document.querySelectorAll('#pagecatPlatformBody [data-catid]');
+  for (const row of platRows) {
+    const id            = row.dataset.catid;
+    const platSection   = row.querySelector('[data-field="platform_section"]')?.value || null;
+    const platOrder     = parseInt(row.querySelector('[data-field="platform_order"]')?.value) || 0;
+    const platLimit     = parseInt(row.querySelector('[data-field="platform_limit"]')?.value) || 20;
+    try {
+      const res = await fetch(`${API}/admin/categories/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform_section: platSection || null,
+          platform_order:   platOrder,
+          platform_limit:   platLimit,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+
+  btn.textContent = orig;
+  btn.disabled = false;
+
+  if (fail === 0) {
+    showToast(`✅ 전체 ${ok}개 저장 완료!`, 'ok');
+  } else {
+    showToast(`⚠️ ${ok}개 성공 / ${fail}개 실패`, 'err');
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 수동 랭킹 관리
+// ════════════════════════════════════════════════════
+let manualItems = [];          // 현재 편집 중인 목록 (로컬 상태)
+let manualSelectedTmdb = null; // 선택된 작품 tmdb 정보
+let manualSearchTimer  = null;
+
+// 플랫폼 변경 시 해당 플랫폼의 카테고리 슬롯 목록 로드
+async function onManualPlatformChange() {
+  const platform = document.getElementById('manualPlatformSel').value;
+  const slotSel  = document.getElementById('manualSlotSel');
+  slotSel.innerHTML = '<option value="">불러오는 중...</option>';
+  document.getElementById('manualAddArea').style.display   = 'none';
+  document.getElementById('manualListArea').style.display  = 'none';
+  document.getElementById('manualSlotInfo').textContent    = '';
+
+  if (!platform) {
+    slotSel.innerHTML = '<option value="">플랫폼 먼저 선택...</option>';
+    return;
+  }
+
+  try {
+    const res  = await fetch(`${API}/admin/categories?platform=${platform}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    const cats = (json.data || []);
+
+    slotSel.innerHTML = '<option value="">슬롯 선택...</option>';
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.category_slot;
+      opt.textContent = `${c.category_slot} — ${c.display_name || c.source_name}`;
+      opt.dataset.sourceName  = c.source_name;
+      opt.dataset.displayName = c.display_name || c.source_name;
+      opt.dataset.limit       = c.platform_limit || 20;
+      opt.dataset.memoLabel   = c.memo_label || '';
+      opt.dataset.catId       = c.id;
+      slotSel.appendChild(opt);
+    });
+  } catch(e) {
+    slotSel.innerHTML = '<option value="">불러오기 실패</option>';
+  }
+}
+
+// 슬롯 선택 시 수동 랭킹 로드
+async function loadManualRankings() {
+  const platform = document.getElementById('manualPlatformSel').value;
+  const slot     = document.getElementById('manualSlotSel').value;
+  const slotSel  = document.getElementById('manualSlotSel');
+  const selOpt   = slotSel.options[slotSel.selectedIndex];
+
+  if (!platform || !slot) return;
+
+  // 슬롯 정보 표시
+  const limit     = selOpt?.dataset?.limit     || 20;
+  const memoLabel = selOpt?.dataset?.memoLabel || '';
+  document.getElementById('manualSlotInfo').textContent = `최대 ${limit}개`;
+
+  // 메모 컬럼 이름 입력창 표시 + 기존 값 세팅
+  document.getElementById('memoLabelWrap').style.display = 'block';
+  document.getElementById('memoLabelInp').value          = memoLabel;
+
+  // 테이블 헤더 메모 컬럼 이름 동적 업데이트
+  const memoHeaderLabel = memoLabel || '메모';
+  document.getElementById('memoColHeader').innerHTML =
+    `${memoHeaderLabel} <span style="font-weight:400;color:var(--muted);font-size:10px">(선택)</span>`;
+
+  document.getElementById('manualAddArea').style.display  = 'block';
+  document.getElementById('manualListArea').style.display = 'block';
+  document.getElementById('manualTableBody').innerHTML    =
+    '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+
+  try {
+    const res  = await fetch(
+      `${API}/admin/manual-rankings?platform=${platform}&category_slot=${slot}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const json = await res.json();
+    manualItems = json.data || [];
+    renderManualTable();
+  } catch(e) {
+    document.getElementById('manualTableBody').innerHTML =
+      `<tr><td colspan="8" class="loading" style="color:var(--red)">불러오기 실패: ${e.message}</td></tr>`;
+  }
+}
+
+// 수동 랭킹 테이블 렌더링
+function renderManualTable() {
+  const tbody = document.getElementById('manualTableBody');
+  document.getElementById('manualListStat').textContent = `총 ${manualItems.length}개`;
+
+  if (!manualItems.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">등록된 항목이 없습니다. 위에서 작품을 추가하세요.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  manualItems.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+    tr.className    = 'drag-row';
+    tr.dataset.idx  = idx;
+    tr.draggable    = true;
+    tr.innerHTML = `
+      <td style="width:30px"><span class="drag-handle">⠿</span></td>
+      <td><span class="rank-num">${item.rank}</span></td>
+      <td>
+        ${item.poster_path
+          ? `<img src="https://image.tmdb.org/t/p/w92${item.poster_path}" class="poster-thumb" onerror="this.style.display='none'">`
+          : `<div class="poster-ph">🎬</div>`}
+      </td>
+      <td>
+        <div class="title-ko">${item.title_ko || ''}</div>
+        <div class="title-en">${item.title_en || ''}</div>
+      </td>
+      <td>
+        <span class="tmdb-id">
+          <a href="https://www.themoviedb.org/movie/${item.tmdb_id}" target="_blank">${item.tmdb_id}</a>
+        </span>
+      </td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">${item.release_year || '-'}</td>
+      <td>
+        <input type="text" class="date-inp"
+          placeholder="예: 1000만명, 2관왕..."
+          value="${(item.memo || '').replace(/"/g, '&quot;')}"
+          oninput="updateManualMemo(${idx}, this.value)"
+          style="width:100%;font-size:12px;padding:5px 8px">
+      </td>
+      <td>
+        <button class="btn-sm btn-unfix" onclick="deleteManualItem(${idx}, ${item.id !== null ? item.id : 'null'})"
+          style="color:var(--red);border-color:rgba(248,113,113,.3)">삭제</button>
+      </td>`;
+
+    // 드래그 이벤트
+    tr.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      tr.classList.add('dragging');
+      _dragSrc = tr;
+    });
+    tr.addEventListener('dragend', () => {
+      tr.classList.remove('dragging');
+      tbody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+      _syncManualItemsFromDom(tbody);
+    });
+    tr.addEventListener('dragover', e => {
+      e.preventDefault();
+      tbody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+      if (tr !== _dragSrc) tr.classList.add('drag-over');
+    });
+    tr.addEventListener('drop', e => {
+      e.preventDefault();
+      if (_dragSrc && _dragSrc !== tr) {
+        const allRows = [...tbody.querySelectorAll('.drag-row')];
+        const srcIdx  = allRows.indexOf(_dragSrc);
+        const tgtIdx  = allRows.indexOf(tr);
+        if (srcIdx < tgtIdx) tr.after(_dragSrc);
+        else tr.before(_dragSrc);
+        _syncManualItemsFromDom(tbody);
+      }
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+// DOM 순서 기준으로 manualItems 배열 재정렬 + 순위 번호 업데이트
+function _syncManualItemsFromDom(tbody) {
+  const rows = [...tbody.querySelectorAll('.drag-row')];
+  const reordered = rows.map(tr => manualItems[parseInt(tr.dataset.idx)]);
+  reordered.forEach((item, i) => { item.rank = i + 1; });
+  manualItems = reordered;
+  // 순위 번호만 DOM에 업데이트
+  rows.forEach((tr, i) => {
+    tr.dataset.idx = i;
+    tr.querySelector('.rank-num').textContent = i + 1;
+  });
+}
+
+// 메모 컬럼 이름 저장 (ott_categories.memo_label 업데이트)
+async function saveMemoLabel() {
+  const platform  = document.getElementById('manualPlatformSel').value;
+  const slot      = document.getElementById('manualSlotSel').value;
+  const slotSel   = document.getElementById('manualSlotSel');
+  const selOpt    = slotSel.options[slotSel.selectedIndex];
+  const catId     = selOpt?.dataset?.catId;
+  const memoLabel = document.getElementById('memoLabelInp').value.trim();
+
+  if (!catId) { showToast('슬롯을 먼저 선택하세요.', 'err'); return; }
+
+  try {
+    const res  = await fetch(`${API}/admin/categories/${catId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memo_label: memoLabel || null }),
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(`저장 실패: ${json.message}`, 'err'); return; }
+
+    // dataset 갱신 (재선택 시 반영)
+    if (selOpt) selOpt.dataset.memoLabel = memoLabel;
+
+    // 테이블 헤더 즉시 반영
+    const headerLabel = memoLabel || '메모';
+    document.getElementById('memoColHeader').innerHTML =
+      `${headerLabel} <span style="font-weight:400;color:var(--muted);font-size:10px">(선택)</span>`;
+
+    showToast(`✅ 메모 컬럼 이름 저장: "${memoLabel || '(없음)'}"`, 'ok');
+  } catch(e) {
+    showToast(`저장 오류: ${e.message}`, 'err');
+  }
+}
+
+// 메모 실시간 업데이트 (입력 즉시 로컬 상태 반영)
+function updateManualMemo(idx, value) {
+  if (manualItems[idx] !== undefined) {
+    manualItems[idx].memo = value.trim() || null;
+  }
+}
+
+// 작품 검색 (works 테이블 기반)
+function searchManualWork(q) {
+  clearTimeout(manualSearchTimer);
+  const resultBox = document.getElementById('manualSearchResults');
+  if (!q || q.length < 1) { resultBox.style.display = 'none'; return; }
+
+  manualSearchTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(`${API}/admin/works?q=${encodeURIComponent(q)}&page=1`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+      const list = (json.data || []).slice(0, 8);
+
+      if (!list.length) {
+        resultBox.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과 없음</div>';
+        resultBox.style.display = 'block';
+        return;
+      }
+
+      resultBox.innerHTML = list.map(w => `
+        <div class="work-result-item" onclick="selectManualWork(${w.tmdb_id}, '${(w.title_ko||'').replace(/'/g,"\\'")}', '${(w.title_en||'').replace(/'/g,"\\'")}', '${w.poster_path||''}', ${w.release_year||null}, '${w.genre||''}', ${w.tmdb_rating||null})">
+          ${w.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" class="work-result-poster">`
+            : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center">🎬</div>`}
+          <div>
+            <div style="font-size:13px;font-weight:500">${w.title_ko||''}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${w.title_en||''} · ${w.release_year||''}</div>
+          </div>
+        </div>
+      `).join('');
+      resultBox.style.display = 'block';
+    } catch(e) {}
+  }, 300);
+}
+
+// 작품 선택
+function selectManualWork(tmdb_id, title_ko, title_en, poster_path, release_year, genre, tmdb_rating) {
+  manualSelectedTmdb = { tmdb_id, title_ko, title_en, poster_path, release_year, genre, tmdb_rating };
+
+  const selBox = document.getElementById('manualSelectedWork');
+  document.getElementById('manualSelPoster').src =
+    poster_path ? `https://image.tmdb.org/t/p/w92${poster_path}` : '';
+  document.getElementById('manualSelTitle').textContent   = title_ko || title_en;
+  document.getElementById('manualSelTmdbId').textContent  = `TMDB: ${tmdb_id}`;
+  selBox.style.display = 'flex';
+
+  document.getElementById('manualWorkSearch').value       = '';
+  document.getElementById('manualSearchResults').style.display = 'none';
+}
+
+// 선택 초기화
+function clearManualSelected() {
+  manualSelectedTmdb = null;
+  document.getElementById('manualSelectedWork').style.display = 'none';
+  document.getElementById('manualWorkSearch').value = '';
+}
+
+// 목록에 추가 (로컬 상태에만 추가, 저장은 💾 버튼으로)
+async function addManualRanking() {
+  // manualSelectedTmdb가 없으면 → 입력창 값에서 TMDB ID + 미디어 타입 파싱
+  if (!manualSelectedTmdb) {
+    const inputVal = document.getElementById('manualWorkSearch').value.trim();
+    if (!inputVal) {
+      showToast('작품을 검색하거나 TMDB URL/ID를 입력하세요.', 'err');
+      return;
+    }
+
+    // ── TMDB URL 또는 숫자 파싱 ──────────────────────────
+    // 지원 형식:
+    //   https://www.themoviedb.org/movie/1255
+    //   https://www.themoviedb.org/tv/1255-october-road
+    //   https://www.themoviedb.org/movie/1255?language=ko
+    //   1255  (숫자만 → mtype 불명확, movie/tv 순으로 시도)
+    let tmdbId   = null;
+    let mtypes   = ['movie', 'tv']; // 기본: movie 먼저 (숫자만 입력 시)
+
+    const urlMatch = inputVal.match(/themoviedb\.org\/(movie|tv)\/(\d+)/);
+    if (urlMatch) {
+      // URL에서 타입+ID 추출 → 정확하게 1번만 조회
+      mtypes = [urlMatch[1]];
+      tmdbId = parseInt(urlMatch[2]);
+    } else {
+      // 숫자만 입력
+      tmdbId = parseInt(inputVal);
+      if (isNaN(tmdbId) || tmdbId <= 0) {
+        showToast('TMDB URL 또는 숫자 ID를 입력하세요.\n예) https://www.themoviedb.org/movie/1255', 'err');
+        return;
+      }
+    }
+
+    showToast('작품 조회 중...', 'ok');
+    try {
+      // ① works 테이블에서 먼저 조회 (tmdb_id 기준)
+      const res  = await fetch(`${API}/works/${tmdbId}`);
+      const json = await res.json();
+
+      if (json.ok && json.data) {
+        // works에 있는 경우 → 바로 선택
+        const w = json.data;
+        selectManualWork(
+          w.tmdb_id, w.title_ko || '', w.title_en || '',
+          w.poster_path || '', w.release_year || null,
+          w.genre || '', w.tmdb_rating || null
+        );
+      } else {
+        // ② works에 없으면 → TMDB 프록시 직접 조회 (파싱된 타입 순서로)
+        let found = false;
+        for (const mtype of mtypes) {
+          const tr = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
+          if (!tr.ok) continue;
+          const td = await tr.json();
+          if (!td.name && !td.title) continue;
+
+          // 영어 제목 추가 조회
+          let title_en = '';
+          try {
+            const er = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=en-US`);
+            if (er.ok) {
+              const ed  = await er.json();
+              const orig = ed.original_title || ed.original_name || '';
+              const isKo = /[\uAC00-\uD7A3]/.test(orig);
+              title_en = isKo ? (ed.title || ed.name || '') : (orig || ed.title || ed.name || '');
+            }
+          } catch(e) {}
+
+          selectManualWork(
+            tmdbId,
+            td.name || td.title || '',
+            title_en,
+            td.poster_path || '',
+            parseInt((td.release_date || td.first_air_date || '').slice(0,4)) || null,
+            (td.genres || []).map(g => g.name).join(','),
+            td.vote_average || null
+          );
+          found = true;
+          break;
+        }
+        if (!found) {
+          showToast(`TMDB에서 해당 작품을 찾을 수 없습니다. (ID: ${tmdbId})`, 'err');
+          return;
+        }
+      }
+    } catch(e) {
+      showToast(`조회 실패: ${e.message}`, 'err');
+      return;
+    }
+  }
+
+  // 중복 체크
+  if (manualItems.some(item => item.tmdb_id === manualSelectedTmdb.tmdb_id)) {
+    showToast('이미 목록에 있는 작품입니다.', 'err');
+    clearManualSelected();
+    return;
+  }
+
+  // 목록 맨 끝에 추가
+  const newRank  = manualItems.length + 1;
+  const addedTitle = manualSelectedTmdb.title_ko || manualSelectedTmdb.title_en || '';
+  manualItems.push({
+    id:           null,   // 신규 항목은 id 없음
+    rank:         newRank,
+    tmdb_id:      manualSelectedTmdb.tmdb_id,
+    title_ko:     manualSelectedTmdb.title_ko,
+    title_en:     manualSelectedTmdb.title_en,
+    poster_path:  manualSelectedTmdb.poster_path,
+    release_year: manualSelectedTmdb.release_year,
+    genre:        manualSelectedTmdb.genre,
+    tmdb_rating:  manualSelectedTmdb.tmdb_rating,
+    memo:         null,
+    _isNew:       true,   // 신규 항목 표시
+  });
+
+  clearManualSelected();
+  renderManualTable();
+  showToast(`✅ '${addedTitle}' 추가됨. 💾 저장 버튼으로 반영하세요.`, 'ok');
+}
+
+// 항목 삭제 (idx: 배열 인덱스, id: DB id, null이면 신규 미저장 항목)
+async function deleteManualItem(idx, id) {
+  if (id === null || id === undefined) {
+    // 신규 항목 (아직 DB에 없음) → 배열에서 인덱스로 제거
+    manualItems.splice(idx, 1);
+    manualItems.forEach((item, i) => item.rank = i + 1);
+    renderManualTable();
+    return;
+  }
+  if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+
+  try {
+    const res  = await fetch(`${API}/admin/manual-rankings/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    if (json.ok) {
+      // DB 삭제 성공 → 배열에서도 인덱스로 제거
+      manualItems.splice(idx, 1);
+      manualItems.forEach((item, i) => item.rank = i + 1);
+      renderManualTable();
+      showToast('삭제 완료', 'ok');
+    } else {
+      showToast(`삭제 실패: ${json.message}`, 'err');
+    }
+  } catch(e) {
+    showToast(`삭제 오류: ${e.message}`, 'err');
+  }
+}
+
+// 💾 순위 저장 (신규 추가 + 기존 순서 변경 일괄 처리)
+async function saveManualOrder() {
+  const platform = document.getElementById('manualPlatformSel').value;
+  const slot     = document.getElementById('manualSlotSel').value;
+  const slotSel  = document.getElementById('manualSlotSel');
+  const selOpt   = slotSel.options[slotSel.selectedIndex];
+  const sourceName = selOpt?.dataset?.sourceName || slot;
+
+  if (!platform || !slot) { showToast('플랫폼과 슬롯을 선택하세요.', 'err'); return; }
+  if (!manualItems.length) { showToast('저장할 항목이 없습니다.', 'err'); return; }
+
+  const btn  = document.querySelector('[onclick="saveManualOrder()"]');
+  const orig = btn.textContent;
+  btn.textContent = '저장 중...';
+  btn.disabled = true;
+
+  try {
+    // ① 기존 항목 순위 재정렬 먼저 (신규 POST 전에 해야 rank 충돌 없음)
+    const existingItems = manualItems.filter(item => !item._isNew && item.id);
+    if (existingItems.length) {
+      const res  = await fetch(`${API}/admin/manual-rankings/reorder`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          category_slot: slot,
+          items: existingItems.map(item => ({ id: item.id, rank: item.rank, memo: item.memo ?? null })),
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+    }
+
+    // ② 신규 항목 추가 (POST) — memo 포함
+    const newItems = manualItems.filter(item => item._isNew);
+    for (const item of newItems) {
+      const res  = await fetch(`${API}/admin/manual-rankings`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          category_slot: slot,
+          source_name:   sourceName,
+          tmdb_id:       item.tmdb_id,
+          rank:          item.rank,
+          title_ko:      item.title_ko,
+          title_en:      item.title_en,
+          poster_path:   item.poster_path,
+          release_year:  item.release_year,
+          genre:         item.genre,
+          tmdb_rating:   item.tmdb_rating,
+          memo:          item.memo ?? null,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+    }
+
+    showToast('✅ 저장 완료!', 'ok');
+    // 저장 후 다시 로드 (id 갱신 등)
+    await loadManualRankings();
+  } catch(e) {
+    showToast(`저장 실패: ${e.message}`, 'err');
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
+// ── 신규 슬롯 모달 ──────────────────────────────────
+function openNewSlotModal() {
+  document.getElementById('newSlotOverlay').classList.add('show');
+}
+function closeNewSlotModal() {
+  document.getElementById('newSlotOverlay').classList.remove('show');
+}
+async function createNewSlot() {
+  const platform     = document.getElementById('newSlotPlatform').value;
+  const category_slot = document.getElementById('newSlotKey').value.trim();
+  const source_name  = document.getElementById('newSlotSourceName').value.trim();
+  const display_name = document.getElementById('newSlotDisplayName').value.trim();
+  const limit        = parseInt(document.getElementById('newSlotLimit').value) || 20;
+
+  if (!platform || !category_slot || !source_name) {
+    showToast('플랫폼, 슬롯 번호, 원본명은 필수입니다.', 'err'); return;
+  }
+  if (!/^category\d+$/.test(category_slot)) {
+    showToast('슬롯 번호 형식: category01, category02 ...', 'err'); return;
+  }
+
+  try {
+    const res  = await fetch(`${API}/admin/categories`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform, category_slot, source_name,
+        display_name: display_name || source_name,
+        crawl_limit: limit, main_limit: limit, platform_limit: limit,
+        is_active: 1,
+      }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(`✅ '${category_slot}' 슬롯 생성 완료!`, 'ok');
+      closeNewSlotModal();
+      // 방금 만든 플랫폼으로 자동 이동
+      document.getElementById('manualPlatformSel').value = platform;
+      await onManualPlatformChange();
+      // 생성한 슬롯 자동 선택
+      document.getElementById('manualSlotSel').value = category_slot;
+      await loadManualRankings();
+    } else {
+      showToast(`생성 실패: ${json.message}`, 'err');
+    }
+  } catch(e) {
+    showToast(`오류: ${e.message}`, 'err');
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 랭킹 관리
+// ════════════════════════════════════════════════════
+
+// 현재 랭킹 모드: 'date' = 날짜별 크롤링 데이터, 'manual' = 수동 데이터
+let rankingMode = 'date';
+
+// 날짜별 크롤링 데이터 불러오기 (manual 완전 제외)
+async function loadData() {
+  rankingMode = 'date';
+  document.getElementById('btnLoadManualData').style.background = '';
+  document.getElementById('btnLoadManualData').style.fontWeight = '';
+  const date = document.getElementById('dateInp').value;
+  document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  document.getElementById('btnNoTmdb').style.display   = '';
+  document.getElementById('btnNewMatch').style.display = '';
+  try {
+    const url = date ? `${API}/admin/rankings?date=${date}` : `${API}/admin/rankings`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) { showToast('인증 실패. 토큰을 확인하세요.', 'err'); return; }
+    const json = await res.json();
+    allData = json.data || [];
+    document.getElementById('statTxt').textContent = `총 ${allData.length}개 (${date || '최신'})`;
+    const noTmdbCnt = allData.filter(r => !r.tmdb_id).length;
+    document.getElementById('noTmdbCount').textContent = noTmdbCnt > 0 ? `(${noTmdbCnt})` : '';
+    loadNewMatchCount(date);
+    setFilter('all', document.querySelector('.ftab'));
+  } catch(e) {
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+// 수동 데이터만 불러오기 (date='manual' 전용)
+async function loadManualData() {
+  rankingMode = 'manual';
+  document.getElementById('btnLoadManualData').style.background = 'rgba(240,180,41,.15)';
+  document.getElementById('btnLoadManualData').style.fontWeight = '700';
+  document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="loading">수동 데이터 불러오는 중...</td></tr>';
+  document.getElementById('btnNoTmdb').style.display   = 'none';
+  document.getElementById('btnNewMatch').style.display = 'none';
+  try {
+    const url = `${API}/admin/rankings?manual=true`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) { showToast('인증 실패. 토큰을 확인하세요.', 'err'); return; }
+    const json = await res.json();
+    allData = json.data || [];
+    document.getElementById('statTxt').textContent = `수동 데이터 총 ${allData.length}개`;
+    document.getElementById('noTmdbCount').textContent = '';
+    document.getElementById('newMatchCount').textContent = '';
+    setFilter('all', document.querySelector('.ftab'));
+  } catch(e) {
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function setFilter(f, btn) {
+  curFilter = f;
+  document.querySelectorAll('.ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderTable();
+}
+
+function renderTable() {
+  let rows = allData;
+  if (rankingMode === 'date') {
+    if (curFilter === 'no_tmdb')        rows = rows.filter(r => !r.tmdb_id);
+    else if (curFilter === 'new_match') rows = rows.filter(r => newMatchIds.has(r.tmdb_id));
+    else if (curFilter !== 'all')       rows = rows.filter(r => r.platform === curFilter);
+  } else {
+    if (curFilter !== 'all' && curFilter !== 'no_tmdb' && curFilter !== 'new_match') {
+      rows = rows.filter(r => r.platform === curFilter);
+    }
+  }
+
+  const tbody = document.getElementById('tableBody');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+
+  // 수동 랭킹이거나 필터가 no_tmdb/new_match 이면 기존 테이블 그대로
+  if (rankingMode === 'manual' || curFilter === 'no_tmdb' || curFilter === 'new_match') {
+    tbody.innerHTML = rows.map((r, idx) => `
+      <tr>
+        <td><span class="rank-num">${r.rank}</span></td>
+        <td>${r.poster_path
+          ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
+          : `<div class="poster-ph">🎬</div>`}</td>
+        <td style="max-width:220px">
+          <div class="title-ko" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko)}</div>
+          <div class="title-en" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en||'')}</div>
+        </td>
+        <td><span class="platform-badge" style="background:${PC[r.platform]||'#888'}">${r.platform}</span></td>
+        <td>
+          <span class="cat-badge">${r.category_slot || r.category}</span>
+          ${rankingMode === 'manual' ? `<div style="font-size:10px;color:var(--gold);font-family:var(--mono);margin-top:2px">🔒 수동</div>` : ''}
+        </td>
+        <td>${r.tmdb_id
+          ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
+          : `<span class="no-tmdb">미등록</span>`}</td>
+        <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
+        <td style="white-space:nowrap;vertical-align:middle">
+          <button class="btn-sm btn-fix" onclick="openModalById(${idx})">수정</button>
+          ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+    return;
+  }
+
+  // ── 일반 랭킹: platform+category_slot 조합으로 그룹화하여 드래그앤드롭 렌더링 ──
+  tbody.innerHTML = '';
+  const tableWrap = tbody.closest('.table-wrap');
+
+  // 기존 그룹 div 제거
+  tableWrap.querySelectorAll('.category-group').forEach(el => el.remove());
+
+  // platform + category_slot 조합으로 그룹화
+  const groups = {};
+  rows.forEach(r => {
+    const key = `${r.platform}__${r.category_slot || r.category || 'etc'}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
+  });
+
+  Object.entries(groups).forEach(([key, items]) => {
+    const [platform, slot] = key.split('__');
+    // 그룹 컨테이너
+    const groupEl = document.createElement('div');
+    groupEl.className = 'category-group';
+    groupEl.dataset.slot     = slot;
+    groupEl.dataset.platform = platform;
+    groupEl.dataset.date     = items[0]?.date || '';
+
+    // 그룹 헤더 (타이틀 + 저장 버튼)
+    const groupId = `${platform}-${slot}`;
+    groupEl.innerHTML = `
+      <div class="category-group-header">
+        <span class="category-group-title">
+          <span class="platform-badge" style="background:${PC[platform]||'#888'};margin-right:6px">${platform}</span>
+          ${slot}
+        </span>
+        <button class="btn-reorder-save" onclick="saveReorder('${slot}','${platform}')" id="saveBtn-${groupId}">💾 순위 저장</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <tbody id="dragBody-${groupId}"></tbody>
+      </table>`;
+    tableWrap.appendChild(groupEl);
+
+    // 행 렌더링 + 드래그앤드롭 이벤트
+    const dragBody = groupEl.querySelector(`#dragBody-${groupId}`);
+    items.forEach((r) => {
+      const tr = document.createElement('tr');
+      tr.className = 'drag-row';
+      tr.dataset.id   = r.id;
+      tr.dataset.rank = r.rank;
+      tr.draggable    = true;
+      tr.innerHTML = `
+        <td style="width:30px"><span class="drag-handle">⠿</span></td>
+        <td><span class="rank-num">${r.rank}</span></td>
+        <td>${r.poster_path
+          ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
+          : `<div class="poster-ph">🎬</div>`}</td>
+        <td style="max-width:220px">
+          <div class="title-ko" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko)}</div>
+          <div class="title-en" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en||'')}</div>
+        </td>
+        <td>${r.tmdb_id
+          ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
+          : `<span class="no-tmdb">미등록</span>`}</td>
+        <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-fix" onclick="openModalByRowId(${r.id})">수정</button>
+          ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
+        </td>`;
+
+      // 드래그 이벤트
+      tr.addEventListener('dragstart', e => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        tr.classList.add('dragging');
+        _dragSrc = tr;
+      });
+      tr.addEventListener('dragend', () => {
+        tr.classList.remove('dragging');
+        dragBody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+        _updateRankNums(dragBody);
+      });
+      tr.addEventListener('dragover', e => {
+        e.preventDefault();
+        dragBody.querySelectorAll('.drag-row').forEach(r => r.classList.remove('drag-over'));
+        if (tr !== _dragSrc) tr.classList.add('drag-over');
+      });
+      tr.addEventListener('drop', e => {
+        e.preventDefault();
+        if (_dragSrc && _dragSrc !== tr) {
+          const allRows = [...dragBody.querySelectorAll('.drag-row')];
+          const srcIdx  = allRows.indexOf(_dragSrc);
+          const tgtIdx  = allRows.indexOf(tr);
+          if (srcIdx < tgtIdx) tr.after(_dragSrc);
+          else tr.before(_dragSrc);
+          _updateRankNums(dragBody);
+        }
+      });
+
+      dragBody.appendChild(tr);
+    });
+  });
+}
+
+// 드래그 소스 추적
+let _dragSrc = null;
+
+// 드래그 후 순위 번호 업데이트
+function _updateRankNums(dragBody) {
+  dragBody.querySelectorAll('.drag-row').forEach((tr, i) => {
+    tr.dataset.rank = i + 1;
+    tr.querySelector('.rank-num').textContent = i + 1;
+  });
+}
+
+// category_slot 순위 저장
+async function saveReorder(slot, platform) {
+  const groupId  = `${platform}-${slot}`;
+  const btn      = document.getElementById(`saveBtn-${groupId}`);
+  const groupEl  = document.querySelector(`.category-group[data-slot="${slot}"][data-platform="${platform}"]`);
+  const date     = groupEl.dataset.date;
+  const dragBody = groupEl.querySelector(`#dragBody-${groupId}`);
+
+  const items = [...dragBody.querySelectorAll('.drag-row')].map((tr, i) => ({
+    id:   parseInt(tr.dataset.id),
+    rank: i + 1,
+  }));
+
+  btn.disabled    = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/rankings/reorder`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ date, platform, category_slot: slot, items }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`✅ ${platform} ${slot} 순위 저장 완료!`, 'ok');
+    } else {
+      showToast('저장 실패: ' + data.message, 'err');
+    }
+  } catch(e) {
+    showToast('네트워크 오류', 'err');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '💾 순위 저장';
+  }
+}
+
+// HTML 특수문자 이스케이프
+function _esc(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// id로 직접 allData에서 찾아 모달 열기 (드래그앤드롭 그룹용)
+function openModalByRowId(id) {
+  const r = allData.find(row => row.id === id);
+  if (r) openModal(r);
+}
+
+// idx 기반으로 모달 열기 (JSON.stringify로 overview 등 긴 텍스트가 HTML 깨는 문제 방지)
+function openModalById(idx) {
+  const r = allData.filter(row => {
+    if (curFilter === 'no_tmdb') return !row.tmdb_id;
+    if (curFilter !== 'all') return row.platform === curFilter;
+    return true;
+  })[idx];
+  if (r) openModal(r);
+}
+
+function openModal(r) {
+  document.getElementById('editId').value = r.id;
+  document.getElementById('editTitleKo').value = r.title_ko || '';
+  document.getElementById('editTitleEn').value = r.title_en || '';
+  document.getElementById('editTmdbId').value = r.tmdb_id || '';
+  document.getElementById('modalSub').textContent = `${r.platform} · ${r.category} · ${r.rank}위`;
+  updatePosterPreview(r.poster_path);
+  // media_type 라디오 버튼 초기값 세팅
+  const mt = r.media_type || '';
+  document.querySelectorAll('input[name="editMediaType"]').forEach(radio => {
+    radio.checked = (radio.value === mt);
+  });
+  updateMediaTypeStyle(mt);
+  document.getElementById('editOverlay').classList.add('show');
+}
+
+// 미디어 타입 선택 라벨 스타일 업데이트
+function updateMediaTypeStyle(val) {
+  const map = { '': 'mtLabel_null', 'tv': 'mtLabel_tv', 'movie': 'mtLabel_movie' };
+  Object.entries(map).forEach(([k, labelId]) => {
+    const el = document.getElementById(labelId);
+    if (!el) return;
+    if (k === val) {
+      el.style.borderColor = 'var(--info)';
+      el.style.background  = 'var(--info-bg)';
+    } else {
+      el.style.borderColor = 'var(--border)';
+      el.style.background  = 'transparent';
+    }
+  });
+}
+function closeModal() {
+  document.getElementById('editOverlay').classList.remove('show');
+  const cb = document.getElementById('editDeleteDuplicates');
+  if (cb) cb.checked = false;
+  const nullRadio = document.getElementById('editMt_null');
+  if (nullRadio) { nullRadio.checked = true; updateMediaTypeStyle(''); }
+}
+
+let previewTimer = null;
+function previewPoster() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    const tmdbId = document.getElementById('editTmdbId').value;
+    if (!tmdbId) { updatePosterPreview(null); return; }
+    const el = document.getElementById('posterPreview');
+    el.innerHTML = '<span style="font-size:12px;color:var(--muted)">조회 중...</span>';
+    // tv/movie 둘 다 시도
+    for (const mtype of ['tv', 'movie']) {
+      try {
+        const resp = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
+        const data = await resp.json();
+        if (data.poster_path) {
+          const title = data.name || data.title || '';
+          el.innerHTML = `<img src="${IMG}${data.poster_path}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
+            <span style="font-size:12px;color:var(--green)">${_esc ? _esc(title) : title}</span>`;
+          // 한국어 제목 입력란에 자동으로 채우기
+          if (title) document.getElementById('editTitleKo').value = title;
+          return;
+        }
+      } catch(e) {}
+    }
+    el.innerHTML = '<span style="font-size:12px;color:var(--red)">포스터 없음</span>';
+  }, 800);
+}
+function updatePosterPreview(posterPath) {
+  const el = document.getElementById('posterPreview');
+  if (posterPath) {
+    el.innerHTML = `<img src="${IMG+posterPath}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
+      <span style="font-size:12px;color:var(--muted2)">현재 포스터</span>`;
+  } else {
+    el.innerHTML = `<div class="no-poster">🎬</div>
+      <span style="font-size:12px;color:var(--muted)">저장 시 TMDB ID로 자동 조회</span>`;
+  }
+}
+async function saveEdit() {
+  const id       = document.getElementById('editId').value;
+  const title_ko = document.getElementById('editTitleKo').value.trim();
+  const title_en = document.getElementById('editTitleEn').value.trim();
+  const tmdb_id  = parseInt(document.getElementById('editTmdbId').value) || null;
+  const deleteDuplicates = document.getElementById('editDeleteDuplicates')?.checked || false;
+  const mediaTypeEl = document.querySelector('input[name="editMediaType"]:checked');
+  const media_type  = mediaTypeEl?.value || null;
+  try {
+    const res = await fetch(`${API}/admin/fix`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: parseInt(id), title_ko, title_en, tmdb_id, delete_duplicates: deleteDuplicates, media_type: media_type || null })
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('저장 완료! 🔒 수동고정 + 제목 매핑 저장됨', 'ok');
+      closeModal();
+      loadData();
+    } else showToast('저장 실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+async function unfix(id) {
+  if (!confirm('수동고정을 해제하면 다음 크롤링 시 자동으로 덮어씁니다. 해제할까요?')) return;
+  try {
+    const res = await fetch(`${API}/admin/unfix`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id })
+    });
+    const json = await res.json();
+    if (json.ok) { showToast('고정 해제됨', 'ok'); loadData(); }
+  } catch(e) { showToast('오류', 'err'); }
+}
+
+// ════════════════════════════════════════════════════
+// 해외반응 관리
+// ════════════════════════════════════════════════════
+let ytVideoData = null;
+let selectedWorkData = null;
+let _workResults = [];
+
+function extractVideoId(url) {
+  if (!url) return null;
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+function onYtUrlInput(val) {
+  const vid = extractVideoId(val);
+  if (!vid) { document.getElementById('ytPreview').classList.remove('show'); ytVideoData = null; }
+}
+async function fetchYtInfo() {
+  const url = document.getElementById('ytUrlInp').value.trim();
+  const videoId = extractVideoId(url);
+  if (!videoId) { showToast('올바른 YouTube URL을 입력해주세요', 'err'); return; }
+  showToast('영상 정보 가져오는 중...', 'ok');
+  try {
+    const oembed = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+    if (!oembed.ok) throw new Error('영상을 찾을 수 없습니다');
+    const od = await oembed.json();
+    ytVideoData = {
+      video_id: videoId, video_title: od.title || '',
+      channel_name: od.author_name || '',
+      thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+      view_count: 0, like_count: 0, published_at: new Date().toISOString(),
+    };
+    document.getElementById('ytThumbImg').src    = ytVideoData.thumbnail;
+    document.getElementById('ytVtitle').textContent   = ytVideoData.video_title;
+    document.getElementById('ytChannel').textContent  = '📺 ' + ytVideoData.channel_name;
+    document.getElementById('ytViews').textContent    = '조회수 정보 없음';
+    document.getElementById('ytLikes').textContent    = '';
+    document.getElementById('ytDate').textContent     = '';
+    document.getElementById('ytPreview').classList.add('show');
+    document.getElementById('workSearchInp').focus();
+    showToast('영상 정보를 가져왔습니다!', 'ok');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+
+let workSearchTimer = null;
+async function searchWorks(q) {
+  clearTimeout(workSearchTimer);
+  const el = document.getElementById('workSearchResults');
+  if (!q || q.length < 1) { el.style.display = 'none'; return; }
+  workSearchTimer = setTimeout(async () => {
+    try {
+      if (/^\d{3,8}$/.test(q)) {
+        const [tvRes, mvRes] = await Promise.all([
+          fetch(`${TMDB_PROXY}/tv/${q}?language=ko-KR`),
+          fetch(`${TMDB_PROXY}/movie/${q}?language=ko-KR`),
+        ]);
+        const tvD = await tvRes.json(); const mvD = await mvRes.json();
+        const rows = [];
+        if (tvD.id) rows.push({ tmdb_id: tvD.id, title_ko: tvD.name||tvD.original_name||'', poster_path: tvD.poster_path||'', category:'tv', year:(tvD.first_air_date||'').slice(0,4) });
+        if (mvD.id) rows.push({ tmdb_id: mvD.id, title_ko: mvD.title||mvD.original_title||'', poster_path: mvD.poster_path||'', category:'movie', year:(mvD.release_date||'').slice(0,4) });
+        if (rows.length) {
+          _workResults = rows;
+          el.innerHTML = rows.map((r,i) => `
+            <div class="work-result-item" onclick="selectWorkByIdx(${i})">
+              ${r.poster_path ? `<img class="work-result-poster" src="https://image.tmdb.org/t/p/w92${r.poster_path}" alt="">` : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`}
+              <div><div style="font-weight:500">${r.title_ko}</div><div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${r.category==='tv'?'📺 TV':'🎬 영화'} · ${r.year} · tmdb:${r.tmdb_id}</div></div>
+            </div>`).join('');
+          el.style.display = 'block'; return;
+        }
+      }
+      const [tvRes, mvRes] = await Promise.all([
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+      ]);
+      const tvData = await tvRes.json(); const mvData = await mvRes.json();
+      const tvRows = (tvData.results||[]).slice(0,5).map(r=>({tmdb_id:r.id,title_ko:r.name||r.original_name||'',poster_path:r.poster_path||'',category:'tv',year:(r.first_air_date||'').slice(0,4),popularity:r.popularity||0}));
+      const mvRows = (mvData.results||[]).slice(0,5).map(r=>({tmdb_id:r.id,title_ko:r.title||r.original_title||'',poster_path:r.poster_path||'',category:'movie',year:(r.release_date||'').slice(0,4),popularity:r.popularity||0}));
+      const rows = [...tvRows,...mvRows].sort((a,b)=>b.popularity-a.popularity).slice(0,10);
+      if (!rows.length) { el.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--muted)">검색 결과 없음</div>'; el.style.display = 'block'; return; }
+      _workResults = rows;
+      el.innerHTML = rows.map((r,i) => `
+        <div class="work-result-item" onclick="selectWorkByIdx(${i})">
+          ${r.poster_path ? `<img class="work-result-poster" src="https://image.tmdb.org/t/p/w92${r.poster_path}" alt="">` : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`}
+          <div><div style="font-weight:500">${r.title_ko}</div><div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${r.category==='tv'?'📺 TV':'🎬 영화'} · ${r.year} · tmdb:${r.tmdb_id}</div></div>
+        </div>`).join('');
+      el.style.display = 'block';
+    } catch(e) { console.error('작품검색 오류:', e); }
+  }, 400);
+}
+function selectWorkByIdx(i) { selectWork(_workResults[i]); }
+function selectWork(r) {
+  selectedWorkData = r;
+  document.getElementById('workSearchInp').value = r.title_ko;
+  document.getElementById('workSearchResults').style.display = 'none';
+  document.getElementById('selectedWork').textContent = `✅ ${r.title_ko} (tmdb:${r.tmdb_id})`;
+  document.getElementById('btnRegister').disabled = !ytVideoData;
+}
+async function registerReaction() {
+  if (!ytVideoData || !selectedWorkData) { showToast('영상과 작품을 모두 선택해주세요', 'err'); return; }
+  try {
+    const body = {
+      tmdb_id: selectedWorkData.tmdb_id, title_ko: selectedWorkData.title_ko,
+      poster_path: selectedWorkData.poster_path || '', video_id: ytVideoData.video_id,
+      video_title: ytVideoData.video_title,
+      custom_title: document.getElementById('customTitleInp')?.value.trim() || ytVideoData.video_title,
+      channel_name: ytVideoData.channel_name, thumbnail: ytVideoData.thumbnail,
+      view_count: ytVideoData.view_count, like_count: ytVideoData.like_count, published_at: ytVideoData.published_at,
+    };
+    const res = await fetch(`${API}/admin/reactions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(json.collecting ? `✅ "${selectedWorkData.title_ko}" 등록! 댓글 수집·번역 중...` : `✅ "${selectedWorkData.title_ko}" 등록 완료!`, 'ok');
+      document.getElementById('ytUrlInp').value = '';
+      document.getElementById('customTitleInp').value = '';
+      document.getElementById('ytPreview').classList.remove('show');
+      document.getElementById('workSearchInp').value = '';
+      document.getElementById('selectedWork').textContent = '';
+      document.getElementById('btnRegister').disabled = true;
+      ytVideoData = null; selectedWorkData = null;
+      loadReactions();
+    } else showToast('등록 실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+async function loadReactions() {
+  const el = document.getElementById('reactionList');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    const res  = await fetch(`${API}/reactions`);
+    const json = await res.json();
+    const data = json.data || [];
+    document.getElementById('reactionStat').textContent = `총 ${data.length}개`;
+    if (!data.length) { el.innerHTML = '<div class="empty">등록된 해외반응이 없습니다</div>'; return; }
+    el.innerHTML = data.map(r => `
+      <div class="reaction-card" id="rc_${r.id}">
+        <div class="rc-thumb">
+          <img src="${r.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'">
+          <span class="rc-platform">YouTube</span>
+          ${r.is_featured
+            ? '<span class="rc-manual" style="background:rgba(240,180,41,.9);color:#000">⭐ 메인</span>'
+            : r.is_manual ? '<span class="rc-manual">수동</span>' : '<span class="rc-manual" style="background:rgba(52,211,153,.9)">자동</span>'}
+        </div>
+        <div class="rc-body">
+          <div class="rc-work">🎬 ${r.title_ko || 'tmdb:'+r.tmdb_id}</div>
+          <div class="rc-title" id="rctitle_${r.id}" data-current="${(r.custom_title||r.video_title||'').replace(/"/g,'&quot;')}">
+            ${r.custom_title || r.video_title}
+            ${r.custom_title && r.custom_title !== r.video_title
+              ? '<span style="font-size:9px;color:var(--accent);margin-left:4px;font-family:var(--mono)">수정됨</span>' : ''}
+          </div>
+          <div class="rc-meta">
+            <span>📺 ${r.channel_name}</span>
+            ${r.view_count ? `<span>👁 ${Number(r.view_count).toLocaleString()}</span>` : ''}
+          </div>
+        </div>
+        <div class="rc-footer" style="flex-wrap:wrap;gap:4px">
+          <button class="btn-rc-del" onclick="deleteReaction(${r.id})">🗑 삭제</button>
+          <button class="btn-rc-del" style="background:rgba(55,138,221,.1);color:#378ADD;border-color:rgba(55,138,221,.3)" onclick="editReaction(${r.id})">✏ 수정</button>
+          <button class="btn-rc-del"
+            style="${r.is_featured ? 'background:rgba(240,180,41,.2);color:#c89a10;border-color:rgba(240,180,41,.4)' : 'background:rgba(52,211,153,.1);color:var(--green);border-color:rgba(52,211,153,.3)'}"
+            onclick="setFeatured(${r.id},${r.is_featured?1:0})">
+            ${r.is_featured ? '⭐ 메인해제' : '⭐ 메인'}
+          </button>
+          <button class="btn-rc-del" style="background:rgba(240,180,41,.1);color:#c89a10;border-color:rgba(240,180,41,.3)" onclick="collectComments(${r.id})">💬 댓글수집</button>
+          <a href="https://youtube.com/watch?v=${r.video_id}" target="_blank" style="font-size:11px;color:var(--muted2);font-family:var(--mono);margin-left:auto;text-decoration:none;align-self:center">↗</a>
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = `<div class="empty">오류: ${e.message}</div>`; }
+}
+async function collectComments(id) {
+  showToast('댓글 수집·번역 시작... 약 30초 후 새로고침하세요', 'ok');
+  try {
+    const res  = await fetch(`${API}/admin/reactions/${id}/collect`, { method:'POST', headers:{ Authorization:`Bearer ${token}` }});
+    const json = await res.json();
+    if (json.ok) showToast('✅ ' + json.message, 'ok');
+    else showToast('실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+async function editReaction(id) {
+  const titleEl = document.getElementById('rctitle_' + id);
+  const currentTitle = titleEl ? titleEl.getAttribute('data-current') : '';
+  const newTitle = prompt('게시판 제목을 수정하세요:', currentTitle);
+  if (newTitle === null) return;
+  if (!newTitle.trim()) { showToast('제목을 입력해주세요', 'err'); return; }
+  try {
+    const res  = await fetch(`${API}/admin/reactions/${id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+      body: JSON.stringify({ custom_title: newTitle.trim() }),
+    });
+    const json = await res.json();
+    if (json.ok) { showToast('제목이 수정됐습니다', 'ok'); loadReactions(); }
+    else showToast('수정 실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+async function setFeatured(id, isFeatured) {
+  if (isFeatured) {
+    if (!confirm('메인 지정을 해제할까요?')) return;
+    try {
+      await fetch(`${API}/admin/reactions/${id}`, {
+        method:'PATCH', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+        body: JSON.stringify({ is_featured_off: true }),
+      });
+      showToast('메인 지정이 해제됐습니다', 'ok'); loadReactions();
+    } catch(e) { showToast('오류: ' + e.message, 'err'); }
+  } else {
+    if (!confirm('이 영상을 게시판 메인으로 지정할까요?')) return;
+    try {
+      const res  = await fetch(`${API}/admin/reactions/${id}/featured`, { method:'PUT', headers:{ Authorization:`Bearer ${token}` }});
+      const json = await res.json();
+      if (json.ok) { showToast('⭐ 메인 영상으로 지정됐습니다!', 'ok'); loadReactions(); }
+      else showToast('실패: ' + json.message, 'err');
+    } catch(e) { showToast('오류: ' + e.message, 'err'); }
+  }
+}
+async function deleteReaction(id) {
+  const titleEl = document.getElementById('rctitle_' + id);
+  const title = titleEl ? titleEl.getAttribute('data-current').slice(0,20) : '';
+  if (!confirm(`"${title}..." 영상을 삭제할까요?`)) return;
+  try {
+    const res  = await fetch(`${API}/admin/reactions/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token}` }});
+    const json = await res.json();
+    if (json.ok) { showToast('삭제 완료', 'ok'); loadReactions(); }
+    else showToast('삭제 실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.yt-link-work'))
+    document.getElementById('workSearchResults').style.display = 'none';
+});
+
+// ════════════════════════════════════════════════════
+// 회원등급 설정
+// ════════════════════════════════════════════════════
+
+// 기본 등급 정의 (DB에 없으면 이 값으로 초기화)
+const DEFAULT_GRADES = [
+  { grade_key:'rookie',   grade_name:'막내',   emoji_url:'', min_reviews:0,   min_wishlist:0,  min_likes:0,   is_special:0, sort_order:1  },
+  { grade_key:'third',    grade_name:'서드',   emoji_url:'', min_reviews:5,   min_wishlist:5,  min_likes:0,   is_special:0, sort_order:2  },
+  { grade_key:'asst_dir', grade_name:'조감독', emoji_url:'', min_reviews:10,  min_wishlist:10, min_likes:10,  is_special:0, sort_order:3  },
+  { grade_key:'critic',   grade_name:'비평가', emoji_url:'', min_reviews:20,  min_wishlist:20, min_likes:0,   is_special:0, sort_order:4  },
+  { grade_key:'pd',       grade_name:'PD',     emoji_url:'', min_reviews:30,  min_wishlist:30, min_likes:50,  is_special:0, sort_order:5  },
+  { grade_key:'writer',   grade_name:'작가',   emoji_url:'', min_reviews:50,  min_wishlist:0,  min_likes:100, is_special:0, sort_order:6  },
+  { grade_key:'director', grade_name:'감독',   emoji_url:'', min_reviews:100, min_wishlist:50, min_likes:200, is_special:0, sort_order:7  },
+  { grade_key:'legend',   grade_name:'명감독', emoji_url:'', min_reviews:200, min_wishlist:50, min_likes:500, is_special:0, sort_order:8  },
+  { grade_key:'staff',    grade_name:'연출부', emoji_url:'', min_reviews:0,   min_wishlist:0,  min_likes:0,   is_special:1, sort_order:9  },
+  { grade_key:'producer', grade_name:'제작자', emoji_url:'', min_reviews:0,   min_wishlist:0,  min_likes:0,   is_special:1, sort_order:10 },
+];
+
+async function loadGrades() {
+  const el = document.getElementById('gradeGrid');
+  if (el) el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    const res  = await fetch(`${API}/grade-settings`);
+    const json = await res.json();
+    let grades = json.data || [];
+    // DB가 비어있으면 기본값 사용
+    if (!grades.length) grades = DEFAULT_GRADES;
+    allGradeSettings = grades;
+    renderGradeGrid(grades);
+    populateAssignSelect(grades);
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="empty">오류: ${e.message}</div>`;
+  }
+}
+
+function renderGradeGrid(grades) {
+  const el = document.getElementById('gradeGrid');
+  if (!el) return;
+  el.innerHTML = grades.map((g, idx) => `
+    <div class="grade-card" id="gc_${g.grade_key}">
+      <div class="grade-card-header">
+        <div class="grade-emoji-preview" id="gep_${g.grade_key}">
+          ${g.emoji_url
+            ? `<img src="${g.emoji_url}" alt="${g.grade_name}" onerror="this.parentNode.innerHTML='<span class=\\'no-emoji\\'>🏅</span>'">`
+            : `<span class="no-emoji">🏅</span>`}
+        </div>
+        <div class="grade-title-wrap">
+          <div class="grade-key-badge">${g.grade_key}</div>
+          <div class="grade-name-disp">
+            ${g.grade_name}
+            ${g.is_special ? '<span class="grade-special-badge">⭐ 특별</span>' : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- 등급명 -->
+      <div class="grade-inp-row">
+        <label>등급명</label>
+        <input class="grade-inp" type="text" id="gname_${g.grade_key}"
+          value="${g.grade_name}" placeholder="예: 막내"
+          oninput="document.querySelector('#gc_${g.grade_key} .grade-name-disp').childNodes[0].textContent=this.value">
+      </div>
+
+      <!-- 이모지 URL -->
+      <div class="grade-inp-row" style="align-items:flex-start">
+        <label style="padding-top:8px">이모지 URL</label>
+        <div style="flex:1">
+          <input class="grade-inp" type="text" id="gurl_${g.grade_key}"
+            value="${g.emoji_url || ''}"
+            placeholder="https://raw.githubusercontent.com/..."
+            oninput="previewGradeEmoji('${g.grade_key}',this.value)">
+          <div class="grade-url-preview" id="gurlprev_${g.grade_key}">
+            ${g.emoji_url ? `<img src="${g.emoji_url}" alt="" onerror="this.style.display='none'"><span style="font-size:11px;color:var(--muted2)">미리보기</span>` : `<span style="font-size:11px;color:var(--muted)">URL 입력 시 미리보기</span>`}
+          </div>
+        </div>
+      </div>
+
+      ${g.is_special ? `
+        <!-- 특별 등급: 조건 없음, 관리자 수동 지정 -->
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono);padding:10px;background:var(--bg3);border-radius:8px;margin-top:4px">
+          ⭐ 관리자가 직접 지정하는 특별 등급입니다.<br>자동 승급 조건이 적용되지 않습니다.
+        </div>
+      ` : `
+        <!-- 일반 등급: 조건 설정 -->
+        <div style="font-size:11px;color:var(--muted2);font-family:var(--mono);margin:10px 0 6px">승급 조건 (모두 충족 시 자동 승급)</div>
+        <div class="grade-inp-row">
+          <label>평점+게시글</label>
+          <input class="grade-inp-num" type="number" id="grev_${g.grade_key}"
+            value="${g.min_reviews || 0}" min="0" placeholder="0">
+          <span style="font-size:11px;color:var(--muted);margin-left:4px">개 이상</span>
+        </div>
+        <div class="grade-inp-row">
+          <label>찜한 작품</label>
+          <input class="grade-inp-num" type="number" id="gwish_${g.grade_key}"
+            value="${g.min_wishlist || 0}" min="0" placeholder="0">
+          <span style="font-size:11px;color:var(--muted);margin-left:4px">개 이상</span>
+        </div>
+        <div class="grade-inp-row">
+          <label>받은 좋아요</label>
+          <input class="grade-inp-num" type="number" id="glikes_${g.grade_key}"
+            value="${g.min_likes || 0}" min="0" placeholder="0">
+          <span style="font-size:11px;color:var(--muted);margin-left:4px">개 이상</span>
+        </div>
+      `}
+    </div>
+  `).join('');
+}
+
+function previewGradeEmoji(gradeKey, url) {
+  const prev = document.getElementById(`gurlprev_${gradeKey}`);
+  const ep   = document.getElementById(`gep_${gradeKey}`);
+  if (!url.trim()) {
+    if (prev) prev.innerHTML = `<span style="font-size:11px;color:var(--muted)">URL 입력 시 미리보기</span>`;
+    if (ep)   ep.innerHTML   = `<span class="no-emoji">🏅</span>`;
+    return;
+  }
+  if (prev) prev.innerHTML = `<img src="${url}" alt="" onerror="this.style.display='none'"><span style="font-size:11px;color:var(--muted2)">미리보기</span>`;
+  if (ep)   ep.innerHTML   = `<img src="${url}" alt="" onerror="this.innerHTML='🏅'">`;
+}
+
+async function saveAllGrades() {
+  const grades = allGradeSettings.map(g => ({
+    grade_key:   g.grade_key,
+    grade_name:  document.getElementById(`gname_${g.grade_key}`)?.value.trim() || g.grade_name,
+    emoji_url:   document.getElementById(`gurl_${g.grade_key}`)?.value.trim()  || '',
+    min_reviews: parseInt(document.getElementById(`grev_${g.grade_key}`)?.value  || 0),
+    min_wishlist:parseInt(document.getElementById(`gwish_${g.grade_key}`)?.value || 0),
+    min_likes:   parseInt(document.getElementById(`glikes_${g.grade_key}`)?.value|| 0),
+    is_special:  g.is_special,
+    sort_order:  g.sort_order,
+  }));
+
+  try {
+    const res  = await fetch(`${API}/admin/grade-settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(grades),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('✅ 등급 설정이 저장됐습니다!', 'ok');
+      loadGrades();
+    } else showToast('저장 실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════
+// 회원 관리
+// ════════════════════════════════════════════════════
+async function loadUsers(search = '') {
+  const el = document.getElementById('usersTableBody');
+  el.innerHTML = '<tr><td colspan="10" class="loading">불러오는 중...</td></tr>';
+  try {
+    const q = search || document.getElementById('userSearchInp')?.value.trim() || '';
+    const url = `${API}/admin/users?page=1` + (q ? `&q=${encodeURIComponent(q)}` : '');
+    const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    const data = json.data || [];
+    document.getElementById('userStat').textContent = `${data.length}명 표시`;
+    if (!data.length) {
+      el.innerHTML = '<tr><td colspan="10" class="empty">회원 없음</td></tr>'; return;
+    }
+    el.innerHTML = data.map(u => `
+      <tr>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">${u.id}</td>
+        <td style="font-weight:500">${u.nickname || '<span style="color:var(--muted)">미설정</span>'}</td>
+        <td>
+          <span class="user-grade-badge">
+            ${u.grade_emoji_url ? `<img src="${u.grade_emoji_url}" alt="">` : ''}
+            ${u.grade_name || u.grade || 'rookie'}
+          </span>
+        </td>
+        <td><span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">${_providerLabel(u.provider)}</span></td>
+        <td style="font-family:var(--mono);font-size:13px;text-align:center">${u.review_count||0}</td>
+        <td style="font-family:var(--mono);font-size:13px;text-align:center">${u.wishlist_count||0}</td>
+        <td style="font-family:var(--mono);font-size:13px;text-align:center">${u.post_count||0}</td>
+        <td style="font-family:var(--mono);font-size:13px;text-align:center;color:var(--accent)">${u.total_likes_received||0}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${_fmtDate(u.created_at)}</td>
+        <td>
+          <span class="grade-assign-badge" onclick="openGradeAssign(${u.id},'${(u.nickname||'').replace(/'/g,"\\'")}')">
+            🏅 등급지정
+          </span>
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<tr><td colspan="10" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function searchUsers(q) {
+  clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(() => loadUsers(q), 400);
+}
+
+function _providerLabel(p) {
+  return { kakao:'🟡 카카오', google:'🔵 구글', naver:'🟢 네이버' }[p] || p || '—';
+}
+function _fmtDate(d) {
+  if (!d) return '—';
+  return d.slice(0,10);
+}
+
+// 등급 지정 모달
+function populateAssignSelect(grades) {
+  const sel = document.getElementById('assignGradeSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">선택...</option>' +
+    grades.map(g => `<option value="${g.grade_key}">${g.is_special ? '⭐ ' : ''}${g.grade_name} (${g.grade_key})</option>`).join('');
+}
+function openGradeAssign(userId, nickname) {
+  document.getElementById('assignUserId').value = userId;
+  document.getElementById('assignNickname').textContent = nickname || `#${userId}`;
+  document.getElementById('gradeAssignOverlay').classList.add('show');
+}
+function closeGradeAssign() { document.getElementById('gradeAssignOverlay').classList.remove('show'); }
+async function saveGradeAssign() {
+  const userId   = document.getElementById('assignUserId').value;
+  const gradeKey = document.getElementById('assignGradeSelect').value;
+  if (!gradeKey) { showToast('등급을 선택해주세요', 'err'); return; }
+  try {
+    const res  = await fetch(`${API}/admin/grade-settings/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ user_id: parseInt(userId), grade_key: gradeKey }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('✅ 등급이 변경됐습니다!', 'ok');
+      closeGradeAssign();
+      loadUsers();
+    } else showToast('실패: ' + json.message, 'err');
+  } catch(e) { showToast('오류: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════
+// 공통 유틸
+// ════════════════════════════════════════════════════
+function showToast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+
+// ════════════════════════════════════════════════════
+// 검토 큐 (review_queue)
+// ════════════════════════════════════════════════════
+let allQueueData = [];
+let curQueueFilter = 'all';
+
+async function loadQueueCount() {
+  try {
+    const res = await fetch(`${API}/admin/review-queue/count`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    const count = json.count || 0;
+    // 검토 큐 탭 제목 업데이트 (숫자 없이 유지)
+    // 건수는 랭킹 테이블 필터 버튼에서 표시
+  } catch(e) {}
+}
+
+async function loadQueue() {
+  document.getElementById('queueTableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin/review-queue?status=pending`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    allQueueData = json.data || [];
+    document.getElementById('queueStat').textContent = `대기 ${allQueueData.length}건`;
+    renderQueue();
+  } catch(e) {
+    document.getElementById('queueTableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function setQueueFilter(f, btn) {
+  curQueueFilter = f;
+  document.querySelectorAll('#queueFilterTabs .ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderQueue();
+}
+
+function renderQueue() {
+  let rows = allQueueData;
+  if (curQueueFilter !== 'all') rows = rows.filter(r => r.platform === curQueueFilter);
+  if (!rows.length) {
+    document.getElementById('queueTableBody').innerHTML = '<tr><td colspan="8" class="empty">✅ 검토 큐 비어있음</td></tr>';
+    return;
+  }
+  const PC = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
+  document.getElementById('queueTableBody').innerHTML = rows.map(r => `
+    <tr id="qrow-${r.id}">
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.crawled_date}</span></td>
+      <td><span style="color:${PC[r.platform]||'#fff'};font-size:12px;font-weight:600">${r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td><span style="font-family:var(--mono);font-size:12px">${r.rank}</span></td>
+      <td style="max-width:180px">
+        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_en)}</div>
+      </td>
+      <td style="max-width:160px">
+        <div style="font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title_ko_guess||'')}</div>
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="qtmdb-${r.id}" placeholder="TMDB ID"
+          style="width:110px;font-size:12px" oninput="previewQueuePoster(${r.id},this.value)">
+        <div id="qposter-${r.id}" style="margin-top:4px"></div>
+      </td>
+      <td>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="qdel-${r.id}" style="cursor:pointer">
+          <span style="color:var(--red)">기존 삭제</span>
+        </label>
+      </td>
+      <td>
+        <button class="btn-sm btn-fix" onclick="resolveQueue(${r.id})">저장</button>
+        <button class="btn-sm btn-unfix" onclick="ignoreQueue(${r.id})" style="margin-top:4px">무시</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function previewQueuePoster(qid, tmdbId) {
+  const el = document.getElementById(`qposter-${qid}`);
+  if (!tmdbId || tmdbId.length < 4) { el.innerHTML = ''; return; }
+  for (const mtype of ['tv','movie']) {
+    try {
+      const res = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
+      const d = await res.json();
+      if (d.poster_path) {
+        el.innerHTML = `<img src="${IMG2}${d.poster_path}" style="width:40px;border-radius:4px"> <span style="font-size:11px;color:var(--green)">${_esc(d.name||d.title||'')}</span>`;
+        return;
+      }
+    } catch(e) {}
+  }
+  el.innerHTML = '<span style="font-size:11px;color:var(--red)">포스터 없음</span>';
+}
+
+async function resolveQueue(qid) {
+  const tmdbId = document.getElementById(`qtmdb-${qid}`).value;
+  if (!tmdbId) { showToast('TMDB ID를 입력하세요', 'err'); return; }
+  const deleteDuplicates = document.getElementById(`qdel-${qid}`)?.checked || false;
+  try {
+    const res = await fetch(`${API}/admin/review-queue/${qid}/resolve`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id: parseInt(tmdbId), delete_duplicates: deleteDuplicates })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    showToast(`✅ 저장 완료 — ${json.title_ko || tmdbId}`, 'ok');
+    document.getElementById(`qrow-${qid}`)?.remove();
+    allQueueData = allQueueData.filter(r => r.id !== qid);
+    document.getElementById('queueStat').textContent = `대기 ${allQueueData.length}건`;
+    loadQueueCount();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function ignoreQueue(qid) {
+  try {
+    document.getElementById(`qrow-${qid}`)?.remove();
+    allQueueData = allQueueData.filter(r => r.id !== qid);
+    document.getElementById('queueStat').textContent = `대기 ${allQueueData.length}건`;
+  } catch(e) {}
+}
+
+
+// ════════════════════════════════════════════════════
+// 카테고리 관리 (ott_categories)
+// ════════════════════════════════════════════════════
+let allCatData = [];
+let curCatFilter = 'all';
+
+async function loadCategories() {
+  document.getElementById('catTableBody').innerHTML = '<tr><td colspan="9" class="loading">불러오는 중...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin/categories`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    allCatData = json.data || [];
+    document.getElementById('catStat').textContent = `총 ${allCatData.length}개`;
+    renderCategories();
+  } catch(e) {
+    document.getElementById('catTableBody').innerHTML = `<tr><td colspan="9" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function setCatFilter(f, btn) {
+  curCatFilter = f;
+  document.querySelectorAll('#catFilterTabs .ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderCategories();
+}
+
+function renderCategories() {
+  let rows = allCatData;
+  if (curCatFilter !== 'all') rows = rows.filter(r => r.platform === curCatFilter);
+  if (!rows.length) {
+    document.getElementById('catTableBody').innerHTML = '<tr><td colspan="9" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  const PC = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
+  document.getElementById('catTableBody').innerHTML = rows.map(r => `
+    <tr>
+      <td><span style="color:${PC[r.platform]||'#fff'};font-weight:600;font-size:12px">${r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td style="max-width:160px">
+        <span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span>
+      </td>
+      <td>
+        <input class="date-inp" type="text" id="cat-dname-${r.id}"
+          value="${_esc(r.display_name||'')}" placeholder="프론트 표시명"
+          style="width:120px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="cat-climit-${r.id}"
+          value="${r.crawl_limit}" style="width:60px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="cat-mlimit-${r.id}"
+          value="${r.main_limit}" style="width:60px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="cat-plimit-${r.id}"
+          value="${r.platform_limit}" style="width:60px;font-size:12px">
+      </td>
+      <td>
+        <button class="btn-sm ${r.is_active ? 'btn-fix' : 'btn-unfix'}" id="cat-active-${r.id}"
+          onclick="toggleCatActive(${r.id},${r.is_active})">
+          ${r.is_active ? '✅ ON' : '⛔ OFF'}
+        </button>
+      </td>
+      <td>
+        <button class="btn-sm btn-save" onclick="saveCat(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function toggleCatActive(id, cur) {
+  const newVal = cur ? 0 : 1;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: newVal })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    const btn = document.getElementById(`cat-active-${id}`);
+    if (newVal) { btn.textContent = '✅ ON'; btn.className = 'btn-sm btn-fix'; }
+    else        { btn.textContent = '⛔ OFF'; btn.className = 'btn-sm btn-unfix'; }
+    // 로컬 데이터 업데이트
+    const item = allCatData.find(r => r.id === id);
+    if (item) item.is_active = newVal;
+    showToast(`크롤링 ${newVal ? 'ON' : 'OFF'} 저장 완료`, 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function saveCat(id) {
+  const display_name    = document.getElementById(`cat-dname-${id}`)?.value || null;
+  const crawl_limit     = parseInt(document.getElementById(`cat-climit-${id}`)?.value) || null;
+  const main_limit      = parseInt(document.getElementById(`cat-mlimit-${id}`)?.value) || null;
+  const platform_limit  = parseInt(document.getElementById(`cat-plimit-${id}`)?.value) || null;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name, crawl_limit, main_limit, platform_limit })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    showToast('✅ 카테고리 설정 저장 완료', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+
+// ════════════════════════════════════════════════════
+// works 관리
+// ════════════════════════════════════════════════════
+let worksTimer = null;
+
+async function loadWorks() {
+  document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  try {
+    const q = document.getElementById('worksSearchInp')?.value || '';
+    const url = q ? `${API}/admin/works?q=${encodeURIComponent(q)}` : `${API}/admin/works`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    const rows = json.data || [];
+    document.getElementById('worksStat').textContent = `${rows.length}개`;
+    renderWorks(rows);
+  } catch(e) {
+    document.getElementById('worksTableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function searchWorksTable(val) {
+  clearTimeout(worksTimer);
+  worksTimer = setTimeout(loadWorks, 400);
+}
+
+function renderWorks(rows) {
+  if (!rows.length) {
+    document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  const srcColor = { admin:'var(--green)', auto_claude:'var(--info)', auto_tmdb:'var(--muted2)' };
+  document.getElementById('worksTableBody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.poster_path
+        ? `<img class="poster-thumb" src="${IMG}${r.poster_path}" alt="" loading="lazy">`
+        : `<div class="poster-ph">🎬</div>`}
+      </td>
+      <td><span style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${r.tmdb_id}</span></td>
+      <td>
+        <input class="date-inp" type="text" id="wtko-${r.tmdb_id}" value="${_esc(r.title_ko||'')}"
+          style="width:140px;font-size:12px">
+      </td>
+      <td>
+        <input class="date-inp" type="text" id="wten-${r.tmdb_id}" value="${_esc(r.title_en||'')}"
+          style="width:140px;font-size:12px">
+      </td>
+      <td><span style="font-size:11px;color:${srcColor[r.match_source]||'var(--muted)'}">${r.match_source||'admin'}</span></td>
+      <td><span style="font-family:var(--mono);font-size:12px">${r.confidence_score||100}</span></td>
+      <td style="min-width:120px">
+        <button class="btn-sm btn-fix" onclick="saveWork(${r.tmdb_id})">저장</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;margin-top:4px;cursor:pointer">
+          <input type="checkbox" id="wdel-${r.tmdb_id}">
+          <span style="color:var(--red)">중복삭제</span>
+        </label>
+      </td>
+      <td>
+        <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)"
+          onclick="deleteWork(${r.tmdb_id},'${_esc(r.title_ko||r.title_en||'')}')">삭제</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function saveWork(tmdbId) {
+  const title_ko = document.getElementById(`wtko-${tmdbId}`)?.value;
+  const title_en = document.getElementById(`wten-${tmdbId}`)?.value;
+  const deleteDuplicates = document.getElementById(`wdel-${tmdbId}`)?.checked || false;
+  try {
+    const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title_ko, title_en, delete_duplicates: deleteDuplicates })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    showToast(`✅ works 저장 완료 (${tmdbId})`, 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function deleteWork(tmdbId, title) {
+  if (!confirm(`⚠️ works에서 삭제합니다.\n"${title}" (tmdb_id: ${tmdbId})\n\n삭제 후 다음 크롤링에서 재매칭됩니다. 계속하시겠습니까?`)) return;
+  try {
+    const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id: tmdbId })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '삭제 실패', 'err'); return; }
+    showToast(`🗑️ 삭제 완료 (${tmdbId})`, 'ok');
+    loadWorks();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+
+
+// ════════════════════════════════════════════════════
+// 신규매칭 (new_match) 기능
+// ════════════════════════════════════════════════════
+let newMatchIds = new Set(); // 신규매칭 tmdb_id 목록
+
+async function loadNewMatchCount(date) {
+  if (!date || !token) return;
+  try {
+    // 신규매칭 건수 API
+    const res = await fetch(`${API}/admin/new-match-count?date=${date}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    const count = json.count || 0;
+    document.getElementById('newMatchCount').textContent = count > 0 ? `(${count})` : '';
+
+    // 신규매칭 tmdb_id 목록 로드 (필터용)
+    if (count > 0) {
+      const res2 = await fetch(
+        `${API}/admin/works?filter=new_match&date=${date}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const json2 = await res2.json();
+      newMatchIds = new Set((json2.data || []).map(w => w.tmdb_id));
+    } else {
+      newMatchIds = new Set();
+    }
+  } catch(e) {}
+}
+
+
+
+// ════════════════════════════════════════════════════
+// 페이지 카테고리 설정
+// ════════════════════════════════════════════════════
+let allPageCatData   = [];
+let curPagecatPlatform = 'netflix';
+
+const PLATFORM_KO = {
+  netflix:'넷플릭스', tving:'티빙', disney:'디즈니+',
+  coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스'
+};
+const PC2 = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
+
+async function loadPageCat() {
+  try {
+    const res = await fetch(`${API}/admin/categories`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    allPageCatData = json.data || [];
+    renderPageCatMain();
+    renderPageCatPlatform();
+  } catch(e) {
+    showToast('카테고리 로드 실패: ' + e.message, 'err');
+  }
+}
+
+function setPagecatPlatform(platform, btn) {
+  curPagecatPlatform = platform;
+  document.querySelectorAll('#pagecatPlatformTabs .ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderPageCatPlatform();
+}
+
+function renderPageCatMain() {
+  const rows = allPageCatData;
+  if (!rows.length) {
+    document.getElementById('pagecatMainBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  document.getElementById('pagecatMainBody').innerHTML = rows.map(r => `
+    <tr data-catid="${r.id}">
+      <td><span style="color:${PC2[r.platform]||'#fff'};font-weight:600;font-size:12px">${PLATFORM_KO[r.platform]||r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td style="max-width:150px"><span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span></td>
+      <td><span style="font-size:12px">${_esc(r.display_name||'')}</span></td>
+      <td>
+        <select class="inp" id="pmc-section-${r.id}" data-field="main_section" style="font-size:12px;padding:4px 8px;width:110px">
+          <option value="" ${!r.main_section?'selected':''}>미노출</option>
+          <option value="tv" ${r.main_section==='tv'?'selected':''}>📺 TV 시리즈줄</option>
+          <option value="movie" ${r.main_section==='movie'?'selected':''}>🎬 영화줄</option>
+        </select>
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="pmc-order-${r.id}" data-field="main_order"
+          value="${r.main_order||0}" style="width:50px;font-size:12px" min="0" max="99">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="pmc-limit-${r.id}" data-field="main_limit"
+          value="${r.main_limit||10}" style="width:50px;font-size:12px" min="1" max="50">
+      </td>
+      <td>
+        <button class="btn-sm btn-save" onclick="savePageCatMain(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderPageCatPlatform() {
+  const rows = allPageCatData.filter(r => r.platform === curPagecatPlatform);
+  if (!rows.length) {
+    document.getElementById('pagecatPlatformBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    return;
+  }
+  document.getElementById('pagecatPlatformBody').innerHTML = rows.map(r => `
+    <tr data-catid="${r.id}">
+      <td><span style="color:${PC2[r.platform]||'#fff'};font-weight:600;font-size:12px">${PLATFORM_KO[r.platform]||r.platform}</span></td>
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted2)">${r.category_slot}</span></td>
+      <td style="max-width:150px"><span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span></td>
+      <td><span style="font-size:12px">${_esc(r.display_name||'')}</span></td>
+      <td>
+        <select class="inp" id="ppp-section-${r.id}" data-field="platform_section" style="font-size:12px;padding:4px 8px;width:100px">
+          <option value="" ${!r.platform_section?'selected':''}>미노출</option>
+          <option value="main" ${r.platform_section==='main'?'selected':''}>✅ 노출</option>
+        </select>
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="ppp-order-${r.id}" data-field="platform_order"
+          value="${r.platform_order||0}" style="width:50px;font-size:12px" min="0" max="99">
+      </td>
+      <td>
+        <input class="date-inp" type="number" id="ppp-limit-${r.id}" data-field="platform_limit"
+          value="${r.platform_limit||20}" style="width:50px;font-size:12px" min="1" max="50">
+      </td>
+      <td>
+        <button class="btn-sm btn-save" onclick="savePageCatPlatform(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function savePageCatMain(id) {
+  const main_section = document.getElementById(`pmc-section-${id}`)?.value || null;
+  const main_order   = parseInt(document.getElementById(`pmc-order-${id}`)?.value) || 0;
+  const main_limit   = parseInt(document.getElementById(`pmc-limit-${id}`)?.value) || 10;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        main_section: main_section || null,
+        main_order,
+        main_limit
+      })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    // 로컬 데이터 업데이트
+    const item = allPageCatData.find(r => r.id === id);
+    if (item) { item.main_section = main_section || null; item.main_order = main_order; item.main_limit = main_limit; }
+    showToast('✅ 메인페이지 설정 저장 완료', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function savePageCatPlatform(id) {
+  const platform_section = document.getElementById(`ppp-section-${id}`)?.value || null;
+  const platform_order   = parseInt(document.getElementById(`ppp-order-${id}`)?.value) || 0;
+  const platform_limit   = parseInt(document.getElementById(`ppp-limit-${id}`)?.value) || 20;
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform_section: platform_section || null,
+        platform_order,
+        platform_limit
+      })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    const item = allPageCatData.find(r => r.id === id);
+    if (item) { item.platform_section = platform_section || null; item.platform_order = platform_order; item.platform_limit = platform_limit; }
+    showToast('✅ OTT 페이지 설정 저장 완료', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+
+// ════════════════════════════════════════════════════
+// 예고편/신작 관리 (contentsSection)
+// ════════════════════════════════════════════════════
+
+const PLATFORM_NAMES = {
+  netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브'
+};
+const PLATFORM_COLORS = {
+  netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3'
+};
+const PLATFORM_ORDER = ['netflix','tving','disney','coupang','wavve'];
+const TYPE_LABELS = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
+
+let contentsPage = 1;
+let contentsPlatformFilter = '';
+let contentsTypeFilter = '';
+let pinnedItems = []; // 메인 고정 목록
+let dragSrcIdx  = null;
+
+/* ── 날짜 포맷 ── */
+function fmtDateC(iso){
+  if(!iso) return '';
+  const d=new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/* ── 콘텐츠 관리 탭 초기 로드 ── */
+async function loadContentsAdmin(){
+  await Promise.all([ loadPinned(), loadContentsTable() ]);
+}
+
+/* ── 메인 고정 목록 로드 ── */
+async function loadPinned(){
+  try {
+    const res  = await fetch(`${API}/contents/pinned`);
+    const data = await res.json();
+    pinnedItems = data.items || [];
+    renderPinned();
+  } catch(e){ console.error(e); }
+}
+
+/* ── 메인 고정 렌더 (드래그앤드롭) ── */
+function renderPinned(){
+  const wrap = document.getElementById('pinnedList');
+  if(!wrap) return;
+
+  if(!pinnedItems.length){
+    wrap.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:14px">
+      고정된 영상이 없습니다. 아래 목록에서 ☆ 버튼으로 고정하세요.<br>
+      <small style="font-size:12px;margin-top:4px;display:block">플랫폼 최신 예고편 순으로 5개가 자동 노출됩니다.</small>
+    </div>`;
+    return;
+  }
+
+  wrap.innerHTML = pinnedItems.map((item, idx) => `
+    <div class="pinned-item" draggable="true"
+      data-idx="${idx}" data-id="${item.id}"
+      ondragstart="onDragStart(event,${idx})"
+      ondragover="onDragOver(event)"
+      ondrop="onDrop(event,${idx})"
+      ondragend="onDragEnd()">
+      <span class="pin-handle">⠿</span>
+      <span class="pin-order">${idx+1}</span>
+      <img class="pin-thumb" src="${item.thumbnail||''}" alt="" onerror="this.style.display='none'">
+      <div class="pin-info">
+        <div class="pin-work">${item.work_title||item.title}</div>
+        <div class="pin-meta">
+          <span class="pin-pf" style="background:${PLATFORM_COLORS[item.platform]||'#666'}">${PLATFORM_NAMES[item.platform]||item.platform}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${TYPE_LABELS[item.type]||item.type}</span>
+        </div>
+      </div>
+      <button class="btn-sm btn-unfix" onclick="unpinContent(${item.id})">고정 해제</button>
+    </div>`).join('');
+}
+
+/* ── 드래그앤드롭 ── */
+function onDragStart(e, idx){ dragSrcIdx=idx; e.dataTransfer.effectAllowed='move'; }
+function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function onDragEnd(){ dragSrcIdx=null; document.querySelectorAll('.pinned-item').forEach(el=>el.classList.remove('drag-over')); }
+function onDrop(e, targetIdx){
+  e.preventDefault();
+  if(dragSrcIdx===null||dragSrcIdx===targetIdx) return;
+  const moved = pinnedItems.splice(dragSrcIdx, 1)[0];
+  pinnedItems.splice(targetIdx, 0, moved);
+  renderPinned();
+}
+
+/* ── 고정 순서 저장 ── */
+async function savePinnedOrder(){
+  const btn = document.getElementById('btnSavePinned');
+  if(btn){ btn.disabled=true; btn.textContent='저장 중...'; }
+  try {
+    const ordered_ids = pinnedItems.map(i=>i.id);
+    const res = await fetch(`${API}/admin/contents/pinned/reorder`, {
+      method : 'PATCH',
+      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
+      body   : JSON.stringify({ ordered_ids }),
+    });
+    const data = await res.json();
+    if(data.ok){ showToast('✅ 고정 순서 저장 완료', 'ok'); }
+    else        { showToast(data.error||'저장 실패', 'err'); }
+  } catch(e){ showToast(e.message,'err'); }
+  finally { if(btn){ btn.disabled=false; btn.textContent='순서 저장'; } }
+}
+
+/* ── 고정 해제 ── */
+async function unpinContent(id){
+  if(!confirm('고정을 해제할까요?')) return;
+  try {
+    const res  = await fetch(`${API}/admin/contents/${id}`, {
+      method : 'PUT',
+      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
+      body   : JSON.stringify({ is_pinned:0, sort_order:0 }),
+    });
+    const data = await res.json();
+    if(data.ok){ showToast('✅ 고정 해제 완료','ok'); await loadPinned(); await loadContentsTable(); }
+    else        { showToast(data.error||'실패','err'); }
+  } catch(e){ showToast(e.message,'err'); }
+}
+
+/* ── 고정 설정 ── */
+async function pinContent(id){
+  if(pinnedItems.length >= 5){ showToast('고정은 최대 5개까지 가능합니다.','err'); return; }
+  try {
+    const res  = await fetch(`${API}/admin/contents/${id}`, {
+      method : 'PUT',
+      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
+      body   : JSON.stringify({ is_pinned:1, sort_order: pinnedItems.length+1 }),
+    });
+    const data = await res.json();
+    if(data.ok){ showToast('✅ 고정 완료','ok'); await loadPinned(); await loadContentsTable(); }
+    else        { showToast(data.error||'실패','err'); }
+  } catch(e){ showToast(e.message,'err'); }
+}
+
+/* ── 콘텐츠 목록 테이블 로드 ── */
+async function loadContentsTable(){
+  const tbody = document.getElementById('contentsTbody');
+  if(!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">로딩 중...</td></tr>`;
+
+  try {
+    const qp = new URLSearchParams({ page: contentsPage });
+    if(contentsPlatformFilter) qp.set('platform', contentsPlatformFilter);
+    if(contentsTypeFilter)     qp.set('type', contentsTypeFilter);
+
+    const res  = await fetch(`${API}/admin/contents?${qp}`, {
+      headers:{ Authorization:`Bearer ${token}` }
+    });
+    const data = await res.json();
+    const items = data.items || [];
+    const pag   = data.pagination || {};
+
+    // 카운트 업데이트
+    const countEl = document.getElementById('contentsTotalCount');
+    if(countEl) countEl.textContent = `총 ${pag.total||0}개`;
+
+    if(!items.length){
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">등록된 영상이 없습니다.</td></tr>`;
+      renderContentsPagination(0, pag.pageSize||50);
+      return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+      const isPinned = item.is_pinned === 1;
+      const isHidden = item.is_hidden === 1;
+      return `<tr style="${isHidden?'opacity:.5':''}">
+        <td style="width:48px">
+          <img src="${item.thumbnail||''}" alt="" style="width:48px;height:27px;object-fit:cover;border-radius:4px;background:var(--bg3)"
+            onerror="this.style.display='none'">
+        </td>
+        <td>
+          <div style="font-size:13px;font-weight:500;color:var(--text);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${item.work_title||'<span style="color:var(--muted)">미확인</span>'}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${item.title}
+          </div>
+        </td>
+        <td style="white-space:nowrap">
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${PLATFORM_COLORS[item.platform]||'#666'};color:#fff">
+            ${PLATFORM_NAMES[item.platform]||item.platform}
+          </span>
+        </td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--muted2);white-space:nowrap">
+          ${TYPE_LABELS[item.type]||item.type}
+        </td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap">
+          ${fmtDateC(item.published_at)}
+        </td>
+        <td style="text-align:center">
+          <button class="btn-sm ${isPinned?'btn-fix':'btn-unfix'}" onclick="${isPinned?`unpinContent(${item.id})`:`pinContent(${item.id})`}">
+            ${isPinned?'★ 고정중':'☆ 고정'}
+          </button>
+        </td>
+        <td style="white-space:nowrap;display:flex;gap:6px;padding:8px">
+          <button class="btn-sm" style="background:rgba(247,129,113,.1);color:var(--red);border:1px solid rgba(247,129,113,.3)"
+            onclick="toggleHideContent(${item.id},${isHidden?0:1})">${isHidden?'숨김해제':'숨김'}</button>
+          <button class="btn-sm" style="background:rgba(230,57,70,.1);color:var(--accent);border:1px solid rgba(230,57,70,.3)"
+            onclick="deleteContent(${item.id})">삭제</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    renderContentsPagination(pag.total||0, pag.pageSize||50);
+
+  } catch(e){ tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--red)">오류: ${e.message}</td></tr>`; }
+}
+
+/* ── 목록 페이지네이션 ── */
+function renderContentsPagination(total, pageSize){
+  const wrap = document.getElementById('contentsPagination');
+  if(!wrap) return;
+  const totalPages = Math.ceil(total/pageSize);
+  if(totalPages<=1){ wrap.innerHTML=''; return; }
+  let html='';
+  for(let i=1;i<=totalPages;i++){
+    html+=`<button class="btn-sm ${i===contentsPage?'btn-fix':''}" style="min-width:32px"
+      onclick="contentsPage=${i};loadContentsTable()">${i}</button>`;
+  }
+  wrap.innerHTML=html;
+}
+
+/* ── 숨김 토글 ── */
+async function toggleHideContent(id, isHidden){
+  try {
+    const res  = await fetch(`${API}/admin/contents/${id}`, {
+      method : 'PUT',
+      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
+      body   : JSON.stringify({ is_hidden: isHidden }),
+    });
+    const data = await res.json();
+    if(data.ok){ showToast(isHidden?'숨김 처리됨':'숨김 해제됨','ok'); loadContentsTable(); }
+    else        { showToast(data.error||'실패','err'); }
+  } catch(e){ showToast(e.message,'err'); }
+}
+
+/* ── 삭제 ── */
+async function deleteContent(id){
+  if(!confirm('삭제하면 댓글도 함께 삭제됩니다. 정말 삭제할까요?')) return;
+  try {
+    const res  = await fetch(`${API}/admin/contents/${id}`, {
+      method : 'DELETE',
+      headers: { Authorization:`Bearer ${token}` },
+    });
+    const data = await res.json();
+    if(data.ok){ showToast('✅ 삭제 완료','ok'); await loadPinned(); loadContentsTable(); }
+    else        { showToast(data.error||'실패','err'); }
+  } catch(e){ showToast(e.message,'err'); }
+}
+
+/* ── YouTube URL에서 ID 추출 ── */
+function extractYoutubeId(url){
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for(const p of patterns){
+    const m=url.match(p);
+    if(m) return m[1];
+  }
+  return null;
+}
+
+/* ── YouTube oEmbed로 제목/썸네일 자동 가져오기 ── */
+async function fetchYoutubeInfo(){
+  const urlInp = document.getElementById('ctYtUrl');
+  const titleInp = document.getElementById('ctTitle');
+  const thumbPreview = document.getElementById('ctThumbPreview');
+  const ytId = extractYoutubeId(urlInp.value.trim());
+
+  if(!ytId){ showToast('유효한 YouTube URL을 입력해주세요.','err'); return; }
+
+  document.getElementById('ctYoutubeId').value = ytId;
+  thumbPreview.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+  thumbPreview.style.display = 'block';
+  document.getElementById('ctThumbUrl').value = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+
+  // oEmbed로 제목 가져오기
+  try {
+    const res  = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`);
+    const data = await res.json();
+    if(data.title && !titleInp.value.trim()){
+      titleInp.value = data.title;
+    }
+    document.getElementById('ctPublishedAt').value = new Date().toISOString().slice(0,16);
+  } catch(e){
+    // oEmbed 실패 시 제목 없이 진행
+    document.getElementById('ctPublishedAt').value = new Date().toISOString().slice(0,16);
+  }
+}
+
+/* ── 수동 등록 제출 ── */
+async function submitContentAdd(){
+  const btn = document.getElementById('btnAddContent');
+  const youtube_id   = document.getElementById('ctYoutubeId').value.trim();
+  const platform     = document.getElementById('ctPlatform').value;
+  const type         = document.getElementById('ctType').value;
+  const title        = document.getElementById('ctTitle').value.trim();
+  const thumbnail    = document.getElementById('ctThumbUrl').value.trim();
+  const published_at = document.getElementById('ctPublishedAt').value;
+
+  if(!youtube_id){ showToast('YouTube URL을 먼저 입력하고 "정보 가져오기"를 눌러주세요.','err'); return; }
+  if(!platform)  { showToast('OTT 플랫폼을 선택해주세요.','err'); return; }
+  if(!title)     { showToast('제목을 입력해주세요.','err'); return; }
+  if(!published_at){ showToast('업로드 날짜를 입력해주세요.','err'); return; }
+
+  btn.disabled=true; btn.textContent='등록 중...';
+  try {
+    const res  = await fetch(`${API}/admin/contents`, {
+      method : 'POST',
+      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
+      body   : JSON.stringify({
+        youtube_id, platform, type, title,
+        thumbnail : thumbnail || null,
+        published_at: new Date(published_at).toISOString(),
+      }),
+    });
+    const data = await res.json();
+    if(data.ok){
+      showToast('✅ 등록 완료','ok');
+      // 입력 초기화
+      ['ctYtUrl','ctYoutubeId','ctTitle','ctThumbUrl'].forEach(id=>{
+        const el=document.getElementById(id); if(el) el.value='';
+      });
+      document.getElementById('ctThumbPreview').style.display='none';
+      document.getElementById('ctPlatform').value='netflix';
+      document.getElementById('ctType').value='trailer';
+      await loadContentsTable();
+    } else {
+      showToast(data.error||'등록 실패','err');
+    }
+  } catch(e){ showToast(e.message,'err'); }
+  finally { btn.disabled=false; btn.textContent='등록'; }
+}
+
+</script>
+</body>
+</html>

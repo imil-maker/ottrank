@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오늘의 신작 & 예정작 — 오뜨랑</title>
+<meta name="description" content="넷플릭스, 티빙, 디즈니+, 쿠팡플레이, 웨이브 최신 예고편과 신작을 한눈에 확인하세요.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429; --green:#34d399;
+  --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
+  --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
+  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;overflow-x:hidden}
+
+/* ── 헤더 컨테이너 ── */
+#ottrang-header{position:sticky;top:0;z-index:200}
+
+/* ── 메인 ── */
+.main-outer{max-width:var(--max-w);margin:0 auto;padding:24px 24px 80px}
+
+/* ── 페이지 타이틀 ── */
+.page-title-wrap{padding:20px 0 28px;border-bottom:1px solid var(--border);margin-bottom:32px}
+.page-title{font-family:var(--disp);font-size:36px;letter-spacing:2px;color:var(--text)}
+.page-title span{color:var(--accent)}
+.page-sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;letter-spacing:.5px}
+
+/* ── 섹션 ── */
+.ott-section{margin-bottom:48px}
+.sec-hd{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.sec-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sec-title{font-family:var(--disp);font-size:22px;letter-spacing:1px}
+.sec-count{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:4px}
+.sec-more{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--muted);
+  text-decoration:none;padding:6px 14px;border:1px solid var(--border);
+  border-radius:6px;transition:all .15s;white-space:nowrap}
+.sec-more:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
+
+/* ── 스와이프 컨테이너 ── */
+.swipe-wrap{position:relative}
+.swipe-track{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;
+  scrollbar-width:none;-ms-overflow-style:none;padding-bottom:4px;cursor:grab}
+.swipe-track::-webkit-scrollbar{display:none}
+.swipe-track.dragging{cursor:grabbing;user-select:none}
+
+/* ── 콘텐츠 카드 ── */
+.ct-card{flex:0 0 calc(20% - 12px);min-width:200px;max-width:240px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;cursor:pointer;transition:all .2s;scroll-snap-align:start}
+.ct-card:hover{border-color:var(--border2);transform:translateY(-3px);
+  box-shadow:0 8px 24px rgba(0,0,0,.4)}
+
+/* 썸네일 */
+.ct-thumb{position:relative;width:100%;aspect-ratio:16/9;background:var(--bg3);overflow:hidden}
+.ct-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.ct-card:hover .ct-thumb img{transform:scale(1.05)}
+.ct-thumb-ph{width:100%;height:100%;display:flex;align-items:center;
+  justify-content:center;font-size:32px;background:linear-gradient(135deg,var(--bg3),var(--bg2))}
+
+/* 재생 버튼 오버레이 */
+.ct-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.45);opacity:0;transition:opacity .2s}
+.ct-card:hover .ct-play{opacity:1}
+.ct-play-icon{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.9);
+  display:flex;align-items:center;justify-content:center}
+.ct-play-icon svg{width:18px;height:18px;fill:#0c0c10;margin-left:3px}
+
+/* 타입 뱃지 */
+.ct-type{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:10px;
+  font-weight:700;padding:2px 8px;border-radius:3px;text-transform:uppercase}
+.ct-type.trailer{background:rgba(230,57,70,.85);color:#fff}
+.ct-type.preview{background:rgba(240,180,41,.85);color:#000}
+.ct-type.teaser{background:rgba(52,211,153,.85);color:#000}
+.ct-type.release{background:rgba(6,182,212,.85);color:#000}
+
+/* 날짜 */
+.ct-date{position:absolute;bottom:8px;right:8px;font-family:var(--mono);font-size:10px;
+  background:rgba(0,0,0,.75);color:var(--muted2);padding:2px 7px;border-radius:3px}
+
+/* 카드 본문 */
+.ct-body{padding:10px 12px 12px}
+.ct-work{font-size:13px;font-weight:700;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.ct-work.no-tmdb{color:var(--muted2);font-weight:500}
+.ct-ytitle{font-size:11px;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;line-height:1.4}
+
+/* ── 스와이프 화살표 ── */
+.swipe-btn{position:absolute;top:50%;transform:translateY(-60%);
+  width:36px;height:36px;border-radius:50%;border:1px solid var(--border2);
+  background:var(--bg2);color:var(--text);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;z-index:10;
+  transition:all .15s;opacity:0}
+.swipe-wrap:hover .swipe-btn{opacity:1}
+.swipe-btn:hover{background:var(--bg3)}
+.swipe-btn.prev{left:-18px}
+.swipe-btn.next{right:-18px}
+.swipe-btn:disabled{opacity:0!important;pointer-events:none}
+
+/* ── 로딩 / 빈 상태 ── */
+.sec-loading{display:flex;gap:14px;overflow:hidden}
+.skel-card{flex:0 0 calc(20% - 12px);min-width:200px;border-radius:var(--r);
+  background:var(--card);border:1px solid var(--border);overflow:hidden}
+.skel-thumb{width:100%;aspect-ratio:16/9;background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite}
+.skel-line{height:12px;border-radius:4px;margin:10px 12px 6px;
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite}
+.skel-line.short{width:60%;height:10px;margin-top:0}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.sec-empty{padding:32px;text-align:center;font-size:14px;color:var(--muted);
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r)}
+
+/* ── 모바일 ── */
+@media(max-width:768px){
+  .main-outer{padding:16px 16px 60px}
+  .page-title{font-size:28px}
+  .ct-card{min-width:160px;max-width:180px}
+  .swipe-btn{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ── 공용 헤더 ── -->
+<div id="ottrang-header"></div>
+<script>
+(function(){
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      const el=document.getElementById('ottrang-header');
+      el.innerHTML=h;
+      el.querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');
+        ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function') initHeader();
+    })
+    .catch(()=>{});
+})();
+</script>
+
+<div class="main-outer">
+
+  <!-- 페이지 타이틀 -->
+  <div class="page-title-wrap">
+    <div class="page-title">오늘의 <span>신작</span> & 예정작</div>
+    <div class="page-sub">NETFLIX · TVING · DISNEY+ · COUPANG PLAY · WAVVE — LATEST TRAILERS</div>
+  </div>
+
+  <!-- 섹션 컨테이너 (JS로 렌더링) -->
+  <div id="sectionsWrap"></div>
+
+</div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+
+/* ── 플랫폼 설정 ── */
+const PLATFORMS = [
+  { id:'netflix',  name:'넷플릭스',    color:'var(--NF)', label:'NETFLIX'      },
+  { id:'tving',    name:'티빙',        color:'var(--TV)', label:'TVING'        },
+  { id:'disney',   name:'디즈니+',     color:'var(--DS)', label:'DISNEY+'      },
+  { id:'coupang',  name:'쿠팡플레이',  color:'var(--CP)', label:'COUPANG PLAY' },
+  { id:'wavve',    name:'웨이브',      color:'var(--WV)', label:'WAVVE'        },
+];
+
+/* ── 타입 한글 ── */
+const TYPE_LABEL = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
+
+/* ── 날짜 포맷 ── */
+function fmtDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/* ── 작품 상세페이지 이동 (기존 goDetail 방식) ── */
+function goDetail(tmdbId, tmdbType, workTitle){
+  if(!tmdbId) return;
+  const y = new Date().getFullYear();
+  const slugUrl = `/title/1-${y}${tmdbId}`;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type: tmdbType || 'tv', title: workTitle || ''
+  }));
+  location.href = slugUrl;
+}
+
+/* ── 콘텐츠 상세페이지 이동 ── */
+function goContent(id){
+  location.href = `/contents_detail.html?id=${id}`;
+}
+
+/* ── 카드 HTML 생성 ── */
+function makeCard(item){
+  const typeLabel = TYPE_LABEL[item.type] || item.type;
+  const dateStr   = fmtDate(item.published_at);
+  const thumb     = item.thumbnail
+    ? `<img src="${item.thumbnail}" alt="${(item.work_title||item.title).replace(/"/g,'')}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : '';
+  const thumbPh   = `<div class="ct-thumb-ph">🎬</div>`;
+  const workTitle = item.work_title || '';
+
+  return `<div class="ct-card" onclick="goContent(${item.id})">
+    <div class="ct-thumb">
+      ${thumb}${thumbPh}
+      <div class="ct-play">
+        <div class="ct-play-icon">
+          <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+        </div>
+      </div>
+      <span class="ct-type ${item.type}">${typeLabel}</span>
+      ${dateStr ? `<span class="ct-date">${dateStr}</span>` : ''}
+    </div>
+    <div class="ct-body">
+      <div class="ct-work ${workTitle?'':'no-tmdb'}">${workTitle || '제목 미확인'}</div>
+      <div class="ct-ytitle">${item.title}</div>
+    </div>
+  </div>`;
+}
+
+/* ── 스켈레톤 로딩 HTML ── */
+function makeSkeleton(){
+  return Array(5).fill(0).map(()=>`
+    <div class="skel-card">
+      <div class="skel-thumb"></div>
+      <div class="skel-line"></div>
+      <div class="skel-line short"></div>
+    </div>`).join('');
+}
+
+/* ── 스와이프 드래그 초기화 ── */
+function initSwipe(track){
+  let isDown=false, startX=0, scrollLeft=0;
+  track.addEventListener('mousedown', e=>{
+    isDown=true; track.classList.add('dragging');
+    startX=e.pageX-track.offsetLeft; scrollLeft=track.scrollLeft;
+  });
+  track.addEventListener('mouseleave', ()=>{ isDown=false; track.classList.remove('dragging'); });
+  track.addEventListener('mouseup',    ()=>{ isDown=false; track.classList.remove('dragging'); });
+  track.addEventListener('mousemove',  e=>{
+    if(!isDown) return;
+    e.preventDefault();
+    const x=e.pageX-track.offsetLeft;
+    track.scrollLeft=scrollLeft-(x-startX)*1.2;
+  });
+}
+
+/* ── 화살표 버튼 스크롤 ── */
+function scrollTrack(trackId, dir){
+  const track=document.getElementById(trackId);
+  if(!track) return;
+  track.scrollBy({ left: dir * (220 * 3), behavior:'smooth' });
+}
+
+/* ── 섹션 렌더링 ── */
+function renderSection(platform, items){
+  const wrap = document.getElementById(`sec-${platform.id}`);
+  if(!wrap) return;
+  const track = document.getElementById(`track-${platform.id}`);
+  if(!items || !items.length){
+    track.innerHTML = `<div class="sec-empty" style="width:100%">아직 등록된 영상이 없습니다.</div>`;
+    return;
+  }
+  track.innerHTML = items.map(makeCard).join('');
+  initSwipe(track);
+
+  // 더보기 카운트 업데이트
+  const countEl = document.getElementById(`count-${platform.id}`);
+  if(countEl) countEl.textContent = `(${items.length})`;
+}
+
+/* ── 전체 섹션 HTML 생성 ── */
+function buildSections(){
+  const wrap = document.getElementById('sectionsWrap');
+  wrap.innerHTML = PLATFORMS.map(p => `
+    <div class="ott-section" id="sec-${p.id}">
+      <div class="sec-hd">
+        <div class="sec-dot" style="background:${p.color}"></div>
+        <span class="sec-title" style="color:${p.color}">${p.name}</span>
+        <span class="sec-count" id="count-${p.id}"></span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">신작 & 예정작</span>
+        <a class="sec-more" href="/contents_list.html?platform=${p.id}">더보기 →</a>
+      </div>
+      <div class="swipe-wrap">
+        <button class="swipe-btn prev" onclick="scrollTrack('track-${p.id}',-1)" aria-label="이전">‹</button>
+        <div class="swipe-track" id="track-${p.id}">
+          ${makeSkeleton()}
+        </div>
+        <button class="swipe-btn next" onclick="scrollTrack('track-${p.id}',1)" aria-label="다음">›</button>
+      </div>
+    </div>`).join('');
+}
+
+/* ── 데이터 로드 ── */
+async function loadAll(){
+  buildSections();
+  // 플랫폼별 병렬 로드
+  await Promise.all(PLATFORMS.map(async p => {
+    try {
+      const res  = await fetch(`${API}/contents?platform=${p.id}&limit=20`);
+      const data = await res.json();
+      renderSection(p, data.items || []);
+    } catch(e){
+      const track = document.getElementById(`track-${p.id}`);
+      if(track) track.innerHTML = `<div class="sec-empty" style="width:100%">데이터를 불러올 수 없습니다.</div>`;
+    }
+  }));
+}
+
+loadAll();
+</script>
+</body>
+</html>
