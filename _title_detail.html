@@ -169,6 +169,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .director-name{font-size:15px;font-weight:600;color:var(--text)}
 .director-label{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
 
+/* 인스타 아이콘 링크 (감독칩/배우카드 공용) */
+.cast-insta{display:inline-flex;align-items:center;margin-left:4px;
+  opacity:.65;transition:opacity .15s;vertical-align:middle;text-decoration:none;flex-shrink:0}
+.cast-insta:hover{opacity:1}
+
 /* ══ 평점 4블록 ══ */
 .ratings-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
 .r-card{background:var(--bg2);border-radius:var(--r);padding:16px 12px;text-align:center;border:.5px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;transition:border-color .15s}
@@ -1159,31 +1164,76 @@ async function loadTmdb(){
     // Credits
     if(creditsRes.status==='fulfilled'){
       const cr=creditsRes.value;
-      const tmdbPersonUrl='https://www.themoviedb.org/person/';
       const directors=(cr.crew||[]).filter(p=>p.job==='Director'||p.department==='Directing').slice(0,3);
       const cast=(cr.cast||[]).slice(0,12);
+
       if(directors.length||cast.length){
         document.getElementById('castSection').style.display='block';
+
+        // 감독 + 배우 전체 인물 ID 수집 후 external_ids 병렬 호출
+        const allPeople=[...directors,...cast];
+        const personIds=allPeople.map(p=>p.id);
+
+        // external_ids 병렬 조회 (실패해도 카드 렌더에 영향 없음)
+        const extResults=await Promise.allSettled(
+          personIds.map(id=>
+            fetch(`${TMDB_PROXY}/person/${id}/external_ids`)
+              .then(r=>r.json())
+              .catch(()=>null)
+          )
+        );
+
+        // person_id → instagram_id Map 생성
+        const instaMap=new Map();
+        extResults.forEach((res,i)=>{
+          if(res.status==='fulfilled'&&res.value?.instagram_id){
+            instaMap.set(personIds[i], res.value.instagram_id);
+          }
+        });
+
+        // 인물 페이지 URL 생성 함수 (우리 사이트 내부)
+        const personUrl=(id)=>`/person.html?id=${id}`;
+
+        // 인스타 아이콘 HTML (있을 때만)
+        const instaIcon=(pid)=>{
+          const igId=instaMap.get(pid);
+          if(!igId) return '';
+          return `<a class="cast-insta" href="https://www.instagram.com/${igId}/"
+            target="_blank" rel="noopener"
+            onclick="event.stopPropagation()"
+            title="Instagram @${igId}">
+            <img src="/instagram.png" alt="Instagram" width="13" height="13"
+              style="border-radius:3px;vertical-align:middle;margin-bottom:1px">
+          </a>`;
+        };
+
+        // 감독 칩 렌더
         document.getElementById('directorRow').innerHTML=directors.map(p=>`
-          <a class="director-chip" href="${tmdbPersonUrl}${p.id}" target="_blank" rel="noopener">
-            <div class="director-photo">${p.profile_path?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy">`:`<div class="director-photo-ph">${(p.name||'?')[0]}</div>`}</div>
-            <div><div class="director-name">${p.name}</div><div class="director-label">감독</div></div>
+          <a class="director-chip" href="${personUrl(p.id)}">
+            <div class="director-photo">${p.profile_path
+              ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy">`
+              :`<div class="director-photo-ph">${(p.name||'?')[0]}</div>`}
+            </div>
+            <div>
+              <div class="director-name">${p.name} ${instaIcon(p.id)}</div>
+              <div class="director-label">감독</div>
+            </div>
           </a>`).join('');
-        // 화살표 초기 상태 + 스크롤 이벤트 연결
-        setTimeout(()=>{
-          updateCastArrows();
-          const cs=document.getElementById('castScroll');
-          if(cs)cs.addEventListener('scroll',updateCastArrows,{passive:true});
-        },100);
+
+        // 배우 카드 렌더
         document.getElementById('castScroll').innerHTML=cast.map(p=>`
-          <a class="cast-card" href="${tmdbPersonUrl}${p.id}" target="_blank" rel="noopener">
+          <a class="cast-card" href="${personUrl(p.id)}">
             <div class="cast-photo">
-              ${p.profile_path?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}
+              ${p.profile_path
+                ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                :''}
               <div class="cast-photo-ph" style="${p.profile_path?'display:none':'display:flex'}">${(p.name||'?')[0]}</div>
             </div>
-            <div class="cast-name">${p.name}</div>
+            <div class="cast-name">${p.name} ${instaIcon(p.id)}</div>
             <div class="cast-role">${p.character||''}</div>
           </a>`).join('');
+
         // 화살표 초기 상태 + 스크롤 이벤트 연결
         setTimeout(()=>{
           updateCastArrows();
