@@ -1,0 +1,401 @@
+/* ══════════════════════════════════════════════════════════════
+   영상 관련 API 라우트
+   GET    /videos/:tmdb_id          작품별 영상 목록
+   POST   /admin/videos/crawl       관리자 YouTube 크롤링
+   POST   /admin/videos             관리자 영상 수동 추가
+   PATCH  /admin/videos/:id/main    메인 영상 지정
+   DELETE /admin/videos/:id         영상 삭제
+   GET    /imdb/:imdbId             IMDb 평점 조회
+   POST   /imdb/save                IMDb ID 저장
+   GET    /youtube/trending         YouTube 한국 급상승 TOP50
+   GET    /works/search             작품 검색 (Admin)
+   GET    /works/:tmdb_id           작품 단건 조회
+   GET    /kmrb/:tmdb_id            영상물등급위원회 시청가이드
+══════════════════════════════════════════════════════════════ */
+
+import { _checkAuth } from "../utils/authUtils.js";
+import { _crawlYoutubeVideos, _saveTmdbVideos } from "../utils/youtube.js";
+
+export async function handleVideos(path, request, env, ctx, url, headers) {
+
+  // ── GET /videos/:tmdb_id ─────────────────────────────────────
+  // DB 0개: TMDB 저장 + YouTube 크롤링 동시 실행
+  // DB 1~2개: YouTube 크롤링 추가 실행
+  // DB 3개 이상: DB 영상만 표시
+  if (path.startsWith("/videos/") && !path.includes("/admin") && request.method === "GET") {
+    const tmdb_id = parseInt(path.split("/videos/")[1]);
+    if (!tmdb_id) {
+      return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM title_videos WHERE tmdb_id = ? ORDER BY is_main DESC, created_at DESC"
+      ).bind(tmdb_id).all();
+
+      if (results.length === 0) {
+        ctx.waitUntil(_saveTmdbVideos(tmdb_id, env));
+        ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
+      } else if (results.length <= 2) {
+        ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
+      }
+
+      return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/videos/crawl ─────────────────────────────────
+  if (path === "/admin/videos/crawl" && request.method === "POST") {
+    if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json();
+      const { tmdb_id } = body;
+      if (!tmdb_id) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+      }
+      const saved = await _crawlYoutubeVideos(parseInt(tmdb_id), env);
+      return new Response(JSON.stringify({ ok: true, saved }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/videos ───────────────────────────────────────
+  // title 빈칸이면 YouTube oEmbed API로 제목 자동 조회
+  if (path === "/admin/videos" && request.method === "POST") {
+    if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json();
+      const { tmdb_id, youtube_url } = body;
+      let { title } = body;
+      if (!tmdb_id || !youtube_url) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id, youtube_url required" }), { status: 400, headers });
+      }
+      // youtube_id 추출
+      const ytMatch = youtube_url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+      if (!ytMatch) {
+        return new Response(JSON.stringify({ ok: false, message: "유효하지 않은 유튜브 URL" }), { status: 400, headers });
+      }
+      const youtube_id = ytMatch[1];
+      // title 빈칸이면 oEmbed API로 유튜브 제목 자동 조회
+      if (!title) {
+        try {
+          const oembedRes  = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${youtube_id}&format=json`);
+          const oembedData = await oembedRes.json();
+          title = oembedData.title || "";
+        } catch (e) {
+          title = "";
+        }
+      }
+      await env.DB.prepare(
+        "INSERT INTO title_videos (tmdb_id, youtube_url, youtube_id, title, is_main) VALUES (?, ?, ?, ?, 0)"
+      ).bind(tmdb_id, youtube_url, youtube_id, title).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── PATCH /admin/videos/:id/main ────────────────────────────
+  if (path.match(/\/admin\/videos\/(\d+)\/main/) && request.method === "PATCH") {
+    if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    const id = parseInt(path.match(/\/admin\/videos\/(\d+)\/main/)[1]);
+    try {
+      const { results } = await env.DB.prepare(
+        "SELECT tmdb_id FROM title_videos WHERE id = ?"
+      ).bind(id).all();
+      if (!results.length) {
+        return new Response(JSON.stringify({ ok: false, message: "없음" }), { status: 404, headers });
+      }
+      const tmdb_id = results[0].tmdb_id;
+      await env.DB.batch([
+        env.DB.prepare("UPDATE title_videos SET is_main = 0 WHERE tmdb_id = ?").bind(tmdb_id),
+        env.DB.prepare("UPDATE title_videos SET is_main = 1 WHERE id = ?").bind(id),
+      ]);
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/videos/:id ─────────────────────────────────
+  if (path.match(/\/admin\/videos\/(\d+)$/) && request.method === "DELETE") {
+    if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    const id = parseInt(path.match(/\/admin\/videos\/(\d+)$/)[1]);
+    try {
+      await env.DB.prepare("DELETE FROM title_videos WHERE id = ?").bind(id).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /imdb/:imdbId ─────────────────────────────────────
+  if (path.startsWith("/imdb/") && path !== "/imdb/save" && request.method === "GET") {
+    const imdbId = path.split("/imdb/")[1];
+    if (!imdbId || !/^tt\d+$/.test(imdbId)) {
+      return new Response(JSON.stringify({ ok: false, message: "invalid imdb_id" }), { status: 400, headers });
+    }
+    try {
+      const cached = await env.DB.prepare(
+        "SELECT imdb_rating, imdb_votes, imdb_updated FROM works WHERE imdb_id = ? LIMIT 1"
+      ).bind(imdbId).first();
+
+      if (cached?.imdb_rating) {
+        const updatedAt = new Date(cached.imdb_updated || 0);
+        const daysSince = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSince < 7) {
+          return new Response(JSON.stringify({
+            ok: true, source: "cache",
+            rating: cached.imdb_rating.toFixed(1),
+            votes:  cached.imdb_votes || "",
+          }), { headers });
+        }
+      }
+
+      const omdbKey = env.OMDB_API_KEY;
+      if (!omdbKey) {
+        return new Response(JSON.stringify({ ok: false, message: "OMDB key not configured" }), { status: 500, headers });
+      }
+
+      const omdbRes  = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
+      const omdbData = await omdbRes.json();
+
+      if (omdbData.Response !== "False") {
+        const r = parseFloat(omdbData.imdbRating);
+        if (!isNaN(r)) {
+          const v   = omdbData.imdbVotes || "";
+          const now = new Date().toISOString();
+          await env.DB.prepare(
+            "UPDATE works SET imdb_rating = ?, imdb_votes = ?, imdb_updated = ? WHERE imdb_id = ?"
+          ).bind(r, v, now, imdbId).run();
+          return new Response(JSON.stringify({ ok: true, source: "omdb", rating: r.toFixed(1), votes: v }), { headers });
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: false, message: "rating not available" }), { status: 404, headers });
+    } catch (e) {
+      console.error("[IMDB GET]", e);
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /imdb/save ───────────────────────────────────────
+  if (path === "/imdb/save" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      const { tmdb_id, imdb_id } = body;
+      if (!tmdb_id || !imdb_id) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id and imdb_id required" }), { status: 400, headers });
+      }
+      if (!/^tt\d+$/.test(imdb_id)) {
+        return new Response(JSON.stringify({ ok: false, message: "invalid imdb_id format" }), { status: 400, headers });
+      }
+      await env.DB.prepare(
+        "UPDATE works SET imdb_id = ? WHERE tmdb_id = ?"
+      ).bind(imdb_id, parseInt(tmdb_id)).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      console.error("[IMDB SAVE]", e);
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /youtube/trending ─────────────────────────────────────
+  // 유튜브 한국 급상승 TOP 50 (6시간 캐시)
+  if (path === "/youtube/trending" && request.method === "GET") {
+    try {
+      const { results: cached } = await env.DB.prepare(
+        "SELECT * FROM youtube_trending ORDER BY rank ASC"
+      ).all();
+
+      if (cached.length > 0) {
+        const collectedAt = new Date(cached[0].collected_at);
+        const diffHours   = (Date.now() - collectedAt.getTime()) / (1000 * 60 * 60);
+        if (diffHours < 6) {
+          return new Response(JSON.stringify({ ok: true, data: cached, cached: true }), { headers });
+        }
+      }
+
+      // YouTube Data API v3 호출 — 한국 급상승 TOP 50
+      const ytUrl =
+        `https://www.googleapis.com/youtube/v3/videos` +
+        `?part=snippet,statistics` +
+        `&chart=mostPopular` +
+        `&regionCode=KR` +
+        `&maxResults=50` +
+        `&key=${env.YOUTUBE_API_KEY}`;
+
+      const ytRes  = await fetch(ytUrl);
+      const ytData = await ytRes.json();
+
+      if (!ytRes.ok || !ytData.items?.length) {
+        if (cached.length > 0) {
+          return new Response(JSON.stringify({ ok: true, data: cached, cached: true }), { headers });
+        }
+        return new Response(JSON.stringify({ ok: false, message: "YouTube API 오류" }), { status: 500, headers });
+      }
+
+      const now   = new Date().toISOString();
+      const items = ytData.items.map((item, i) => ({
+        rank:         i + 1,
+        video_id:     item.id,
+        title:        item.snippet?.title || "",
+        channel:      item.snippet?.channelTitle || "",
+        thumbnail:    item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || "",
+        view_count:   parseInt(item.statistics?.viewCount || 0),
+        collected_at: now,
+      }));
+
+      // 기존 데이터 삭제 후 새 데이터 저장
+      await env.DB.prepare("DELETE FROM youtube_trending").run();
+      const inserts = items.map(v =>
+        env.DB.prepare(`
+          INSERT INTO youtube_trending (rank, video_id, title, channel, thumbnail, view_count, collected_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(v.rank, v.video_id, v.title, v.channel, v.thumbnail, v.view_count, v.collected_at)
+      );
+      await env.DB.batch(inserts);
+
+      return new Response(JSON.stringify({ ok: true, data: items, cached: false }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /works/search ────────────────────────────────────────
+  if (path === "/works/search" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    const q     = url.searchParams.get("q") || "";
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "8"), 20);
+    if (!q.trim()) {
+      return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, poster_path, media_type
+        FROM works
+        WHERE title_ko LIKE ? OR title_en LIKE ?
+        ORDER BY
+          CASE WHEN title_ko LIKE ? THEN 0 ELSE 1 END,
+          title_ko ASC
+        LIMIT ?
+      `).bind(`%${q}%`, `%${q}%`, `${q}%`, limit).all();
+      return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /works/:tmdb_id ───────────────────────────────────
+  if (path.startsWith("/works/") && request.method === "GET") {
+    const tmdb_id = path.split("/works/")[1];
+    if (!tmdb_id) {
+      return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+    }
+    const { results } = await env.DB.prepare(
+      "SELECT * FROM works WHERE tmdb_id = ?"
+    ).bind(parseInt(tmdb_id)).all();
+    if (!results.length) {
+      return new Response(JSON.stringify({ ok: false, message: "Not found" }), { status: 404, headers });
+    }
+    return new Response(JSON.stringify({ ok: true, data: results[0] }), { headers });
+  }
+
+  // ── GET /kmrb/:tmdb_id ───────────────────────────────────────
+  // 영상물등급위원회 시청가이드 (30일 캐시)
+  if (path.startsWith("/kmrb/") && request.method === "GET") {
+    const tmdb_id  = parseInt(path.split("/kmrb/")[1]);
+    const title_ko = url.searchParams.get("title_ko") || "";
+    if (!tmdb_id || !title_ko) {
+      return new Response(JSON.stringify({ ok: false, message: "tmdb_id and title_ko required" }), { status: 400, headers });
+    }
+    try {
+      // D1 캐시 확인 (30일 이내)
+      const cached = await env.DB.prepare(
+        "SELECT * FROM kmrb_ratings WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+      if (cached) {
+        const fetchedAt = new Date(cached.fetched_at || 0);
+        const daysSince = (Date.now() - fetchedAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSince < 30) {
+          return new Response(JSON.stringify({ ok: true, source: "cache", data: cached }), { headers });
+        }
+      }
+
+      // 영화진흥위원회 API 호출
+      const kmrbUrl =
+        `https://www.kmrb.or.kr/openapi/openApi.do` +
+        `?serviceKey=${env.KMRB_API_KEY}` +
+        `&searchType=MOVIE_NM` +
+        `&searchNm=${encodeURIComponent(title_ko)}` +
+        `&pageNo=1&numOfRows=5`;
+
+      const kmrbRes  = await fetch(kmrbUrl);
+      const kmrbText = await kmrbRes.text();
+
+      // XML 파싱 (정규식 기반)
+      const getTag = (tag) => {
+        const m = kmrbText.match(new RegExp(`<${tag}>([^<]*)<\/${tag}>`));
+        return m ? m[1].trim() : "";
+      };
+
+      const rating = {
+        tmdb_id,
+        title_ko:    title_ko,
+        watch_grade: getTag("watchGrade") || getTag("movieGrade") || "",
+        subject:     getTag("subject")     || "",
+        sexuality:   getTag("sexuality")   || "",
+        violence:    getTag("violence")    || "",
+        language:    getTag("language")    || "",
+        imitation:   getTag("imitation")   || "",
+        drug:        getTag("drug")        || "",
+        horror:      getTag("horror")      || "",
+        source:      "kmrb_api",
+        fetched_at:  new Date().toISOString(),
+      };
+
+      // D1에 캐시 저장
+      await env.DB.prepare(`
+        INSERT INTO kmrb_ratings
+          (tmdb_id, title_ko, watch_grade, subject, sexuality, violence,
+           language, imitation, drug, horror, source, fetched_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(tmdb_id) DO UPDATE SET
+          watch_grade = excluded.watch_grade,
+          subject     = excluded.subject,
+          sexuality   = excluded.sexuality,
+          violence    = excluded.violence,
+          language    = excluded.language,
+          imitation   = excluded.imitation,
+          drug        = excluded.drug,
+          horror      = excluded.horror,
+          source      = excluded.source,
+          fetched_at  = excluded.fetched_at
+      `).bind(
+        rating.tmdb_id, rating.title_ko, rating.watch_grade,
+        rating.subject, rating.sexuality, rating.violence,
+        rating.language, rating.imitation, rating.drug,
+        rating.horror, rating.source, rating.fetched_at
+      ).run();
+
+      return new Response(JSON.stringify({ ok: true, source: "api", data: rating }), { headers });
+    } catch (e) {
+      console.error("[KMRB]", e.message);
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  return null;
+}

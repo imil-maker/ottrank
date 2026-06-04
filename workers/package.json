@@ -1,0 +1,12 @@
+{
+  "name": "ottrank-workers",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild index.js --bundle --outfile=../workers.js --format=esm --platform=browser --minify",
+    "build:dev": "esbuild index.js --bundle --outfile=../workers.js --format=esm --platform=browser"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
