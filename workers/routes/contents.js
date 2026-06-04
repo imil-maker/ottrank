@@ -11,6 +11,7 @@
 
    Admin:
      GET    /admin/contents                  전체 목록 (숨김 포함)
+     GET    /admin/contents/check            youtube_id 중복 체크 (크롤러용)
      POST   /admin/contents                  수동 등록
      PUT    /admin/contents/:id              수정
      DELETE /admin/contents/:id              삭제
@@ -67,6 +68,12 @@ export async function handleContents(path, request, env, url, headers) {
     // (PUT /:id 보다 앞에 배치해야 경로 충돌 없음)
     if (method === "PATCH" && path === "/admin/contents/pinned/reorder") {
       return adminReorderPinned(request, env, headers);
+    }
+
+    // GET /admin/contents/check — youtube_id 중복 체크 (크롤러용)
+    // (GET /admin/contents 보다 앞에 배치해야 경로 충돌 없음)
+    if (method === "GET" && path === "/admin/contents/check") {
+      return adminCheckDuplicate(url, request, env, headers);
     }
 
     // GET /admin/contents — 관리자 전체 목록
@@ -384,6 +391,28 @@ async function adminGetContents(url, request, env, headers) {
       totalPages: Math.ceil(total / pageSize),
     },
   }, 200, headers);
+}
+
+// ─────────────────────────────────────────────
+// Admin: youtube_id 중복 체크 (크롤러용)
+// GET /admin/contents/check?youtube_id=xxxx
+// 응답: { ok: true, exists: true/false }
+// ─────────────────────────────────────────────
+async function adminCheckDuplicate(url, request, env, headers) {
+  if (!checkAdmin(request, env)) {
+    return json({ ok: false, error: "권한이 없습니다." }, 403, headers);
+  }
+
+  const youtube_id = url.searchParams.get("youtube_id");
+  if (!youtube_id) {
+    return json({ ok: false, error: "youtube_id가 필요합니다." }, 400, headers);
+  }
+
+  const existing = await env.DB.prepare(
+    `SELECT id FROM ott_contents WHERE youtube_id = ?`
+  ).bind(youtube_id).first();
+
+  return json({ ok: true, exists: !!existing }, 200, headers);
 }
 
 // ─────────────────────────────────────────────
