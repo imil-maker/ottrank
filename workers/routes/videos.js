@@ -300,8 +300,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
   // ── POST /works/register ─────────────────────────────────────
   // 인물 페이지 등 크롤러 미수집 작품을 첫 방문 시 자동 등록
-  // INSERT OR IGNORE — 이미 있으면 무시 (Admin 수정값 보호)
-  // 인증 없음 (공개 API, 중복 등록 불가로 안전)
+  // - 미등록 작품: 전체 INSERT
+  // - 이미 등록된 작품: title_en이 비어있거나 한글일 때만 업데이트
+  //   (flixpatrol 기준 영어 제목이 있으면 절대 건드리지 않음)
+  // 인증 없음 (공개 API, 조건부 업데이트로 안전)
   if (path === "/works/register" && request.method === "POST") {
     try {
       const body = await request.json();
@@ -312,16 +314,36 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "tmdb_id, title_ko required" }), { status: 400, headers });
       }
 
-      // INSERT OR IGNORE — 이미 존재하면 건너뜀 (Admin 데이터 보호)
+      // JS에서 title_en 유효성 판단
+      // 라틴 문자(영어)가 포함된 경우만 유효한 영어 제목으로 인정
+      const hasKorean = title_en && /[\uAC00-\uD7A3]/.test(title_en); // 한글 포함 여부
+      const hasLatin  = title_en && /[a-zA-Z]/.test(title_en);        // 영어 포함 여부
+      // 영어가 있고 한글이 없을 때만 유효한 title_en으로 사용
+      const validTitle_en = (hasLatin && !hasKorean) ? title_en : null;
+
       await env.DB.prepare(`
-        INSERT OR IGNORE INTO works (tmdb_id, title_ko, title_en, poster_path, media_type)
+        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type)
         VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(tmdb_id) DO UPDATE SET
+          -- title_en 업데이트 조건:
+          --   1) 현재 title_en이 비어있을 때
+          --   2) 현재 title_en이 한글일 때 (잘못 입력된 경우)
+          -- 현재 title_en이 이미 영어면 절대 건드리지 않음 (flixpatrol 기준 보호)
+          title_en = CASE
+            WHEN excluded.title_en IS NULL OR excluded.title_en = ''
+              THEN works.title_en
+            WHEN works.title_en IS NULL OR works.title_en = ''
+              THEN excluded.title_en
+            WHEN works.title_en = works.title_ko
+              THEN excluded.title_en
+            ELSE works.title_en
+          END
       `).bind(
         parseInt(tmdb_id),
-        title_ko    || null,
-        title_en    || null,
-        poster_path || null,
-        media_type  || 'tv'
+        title_ko       || null,
+        validTitle_en  || null,
+        poster_path    || null,
+        media_type     || 'tv'
       ).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
