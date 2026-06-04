@@ -365,7 +365,7 @@ def main():
         sys.exit(1)
 
     log(f"🚀 OTT 콘텐츠 크롤링 시작 (채널당 {MAX_PER_CHANNEL}개)")
-    log(f"   검색 키워드: {SEARCH_QUERY}")
+    log(f"   검색 키워드: 공통={SEARCH_QUERIES['netflix']} / 웨이브={SEARCH_QUERIES['wavve']} / 디즈니={SEARCH_QUERIES['disney']}")
     log(f"   대상 채널: {len(OTT_CHANNELS)}개")
 
     total_saved   = 0  # 최종 저장 수
