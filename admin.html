@@ -2667,12 +2667,22 @@ let worksModalTmdbId = null;
 
 function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
   worksModalTmdbId = tmdbId;
-  document.getElementById('editId').value       = tmdbId; // works는 tmdb_id가 key
+  document.getElementById('editId').value       = tmdbId;
   document.getElementById('editTitleKo').value  = titleKo;
   document.getElementById('editTitleEn').value  = titleEn;
   document.getElementById('editTmdbId').value   = tmdbId;
   document.getElementById('modalSub').textContent = `works 테이블 · tmdb_id: ${tmdbId}`;
-  updatePosterPreview(posterPath);
+
+  // poster_path 있으면 바로 표시, 없으면 TMDB에서 자동 조회
+  if (posterPath) {
+    updatePosterPreview(posterPath);
+  } else {
+    // 포스터 없음 안내 후 TMDB 자동 조회 시작
+    const el = document.getElementById('posterPreview');
+    el.innerHTML = `<span style="font-size:12px;color:var(--muted)">TMDB 조회 중...</span>`;
+    // previewPoster()는 editTmdbId 값을 읽어서 조회하므로 바로 호출
+    previewPoster();
+  }
 
   // media_type 라디오 세팅
   const mt = mediaType || '';
@@ -2693,13 +2703,37 @@ function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
 
 /* ── works 모달에서 저장 ── */
 async function saveWorkFromModal() {
-  const tmdbId   = worksModalTmdbId;
-  const title_ko = document.getElementById('editTitleKo').value.trim();
-  const title_en = document.getElementById('editTitleEn').value.trim();
-  const newTmdbId = parseInt(document.getElementById('editTmdbId').value) || null;
+  const tmdbId         = worksModalTmdbId;
+  const title_ko       = document.getElementById('editTitleKo').value.trim();
+  const title_en       = document.getElementById('editTitleEn').value.trim();
+  const newTmdbId      = parseInt(document.getElementById('editTmdbId').value) || null;
   const deleteDuplicates = document.getElementById('editDeleteDuplicates')?.checked || false;
-  const mediaTypeEl = document.querySelector('input[name="editMediaType"]:checked');
-  const media_type  = mediaTypeEl?.value || null;
+  const mediaTypeEl    = document.querySelector('input[name="editMediaType"]:checked');
+  const media_type     = mediaTypeEl?.value || null;
+
+  // TMDB ID가 있으면 포스터/연도/영문제목 자동 조회 후 함께 저장
+  let poster_path  = null;
+  let release_year = null;
+  let auto_title_en = title_en;
+
+  if (newTmdbId) {
+    // tv → movie 순으로 시도
+    for (const mtype of ['tv', 'movie']) {
+      try {
+        const resp = await fetch(`${TMDB_PROXY}/${mtype}/${newTmdbId}?language=ko-KR`);
+        const data = await resp.json();
+        if (data.poster_path) {
+          poster_path   = data.poster_path;
+          release_year  = parseInt((data.first_air_date || data.release_date || '').slice(0,4)) || null;
+          // 영문 제목이 비어있으면 원제로 자동 채움
+          if (!auto_title_en) {
+            auto_title_en = data.original_name || data.original_title || '';
+          }
+          break;
+        }
+      } catch(e) {}
+    }
+  }
 
   try {
     const res = await fetch(`${API}/admin/works/${tmdbId}`, {
@@ -2707,15 +2741,17 @@ async function saveWorkFromModal() {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title_ko,
-        title_en,
-        tmdb_id: newTmdbId,
+        title_en       : auto_title_en || null,
+        tmdb_id        : newTmdbId,
+        poster_path    : poster_path || null,
+        release_year   : release_year || null,
         delete_duplicates: deleteDuplicates,
-        media_type: media_type || null,
+        media_type     : media_type || null,
       })
     });
     const json = await res.json();
     if (json.ok) {
-      showToast('✅ works 저장 완료', 'ok');
+      showToast('✅ works 저장 완료' + (poster_path ? ' (포스터 업데이트됨)' : ''), 'ok');
       closeWorksModal();
       loadWorks();
     } else {
