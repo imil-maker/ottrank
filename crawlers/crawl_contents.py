@@ -2,14 +2,17 @@
 crawl_contents.py — OTT 콘텐츠(예고편/신작) 크롤러
 =====================================================
 YouTube Data API v3로 5개 OTT 공식 채널의 최신 영상을 수집하고
-Claude API로 작품명 추출 + 타입 분류 후 D1에 저장합니다.
+Claude API로 작품명을 추출한 후 D1에 저장합니다.
+
+저장 기준:
+  제목에 "예고편", "선공개", "메인 예고" 중 하나라도 포함된 영상만 저장
 
 흐름:
   ① YouTube API → 채널별 최신 영상 수집 (초기 10개 / 이후 5개)
   ② /admin/contents/check 로 중복 체크 (DB에 있으면 Claude 호출 SKIP)
-  ③ Python 키워드 1차 필터 (무료)
-  ④ Claude API → 작품명 추출 + 타입 분류 (신규 영상만)
-  ⑤ TMDB API → 작품 매칭 (confidence 0.8 이상만 자동 매칭)
+  ③ 키워드 필터 — "예고편" / "선공개" / "메인 예고" 포함된 것만 통과
+  ④ Claude API → 작품명 추출 (신규 영상만, 채널 단위 배치 처리)
+  ⑤ TMDB API → 작품 매칭 (work_title이 있을 때만)
   ⑥ /admin/contents POST → D1 저장
 
 환경변수 (GitHub Actions Secrets):
@@ -24,7 +27,7 @@ import sys
 import json
 import time
 import requests
-from datetime import datetime, timezone
+from datetime import datetime
 
 # ─────────────────────────────────────────────
 # 설정
@@ -43,8 +46,8 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 TMDB_API_KEY      = os.environ.get("TMDB_API_KEY", "")
 
 # 초기 실행 여부 (환경변수로 제어)
-# GitHub Actions에서 workflow_dispatch 시 inputs.initial=true 로 전달 가능
-IS_INITIAL = os.environ.get("CRAWL_INITIAL", "false").lower() == "true"
+# GitHub Actions workflow_dispatch 시 inputs.initial=true 로 전달
+IS_INITIAL      = os.environ.get("CRAWL_INITIAL", "false").lower() == "true"
 MAX_PER_CHANNEL = 10 if IS_INITIAL else 5
 
 # 크롤링 대상 OTT 채널
@@ -57,15 +60,18 @@ OTT_CHANNELS = {
     "wavve"   : "UCym5538xAEEppbridXozfgw",  # @wavve
 }
 
-# 키워드 1차 필터 — 이 중 하나라도 포함되면 통과
-KEYWORDS = [
-    "예고편", "티저", "선공개", "메인 예고", "공식 예고",
-    "클립", "하이라이트", "trailer", "teaser", "preview",
-    "now streaming", "공개", "지금 바로",
-]
+# 키워드 필터 — 이 중 하나라도 제목에 포함되어야 저장
+# 정확히 이 3가지만 허용 (클립/하이라이트/티저 등 제외)
+KEYWORDS = ["예고편", "선공개", "메인 예고"]
 
-# Claude 타입 분류 기준
-VALID_TYPES = ["trailer", "teaser", "preview", "release"]
+# DB 저장 시 type 값
+# 키워드로 이미 필터링됐으므로 모두 "trailer"로 저장
+# (선공개는 "preview"로 구분하고 싶으면 아래 TYPE_MAP 활용)
+TYPE_MAP = {
+    "예고편"  : "trailer",
+    "메인 예고": "trailer",
+    "선공개"  : "preview",
+}
 
 
 # ─────────────────────────────────────────────
@@ -73,6 +79,17 @@ VALID_TYPES = ["trailer", "teaser", "preview", "release"]
 # ─────────────────────────────────────────────
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+# ─────────────────────────────────────────────
+# 헬퍼: 제목에서 매칭된 키워드 반환
+# ─────────────────────────────────────────────
+def get_matched_keyword(title: str) -> str | None:
+    """제목에서 매칭된 키워드를 반환합니다. 없으면 None."""
+    for kw in KEYWORDS:
+        if kw in title:
+            return kw
+    return None
 
 
 # ─────────────────────────────────────────────
@@ -150,47 +167,46 @@ def check_duplicate(youtube_id: str) -> bool:
 
 
 # ─────────────────────────────────────────────
-# STEP ③: 키워드 1차 필터
+# STEP ③: 키워드 필터
+# "예고편" / "선공개" / "메인 예고" 포함된 것만 통과
 # ─────────────────────────────────────────────
 def keyword_filter(title: str) -> bool:
-    """제목에 OTT 콘텐츠 관련 키워드가 포함되어 있는지 확인합니다."""
-    title_lower = title.lower()
-    return any(kw.lower() in title_lower for kw in KEYWORDS)
+    """제목에 허용된 키워드가 포함되어 있는지 확인합니다."""
+    return get_matched_keyword(title) is not None
 
 
 # ─────────────────────────────────────────────
-# STEP ④: Claude API — 작품명 추출 + 타입 분류
+# STEP ④: Claude API — 작품명 추출
+# 키워드 필터로 이미 예고편/선공개만 걸러졌으므로
+# Claude는 작품명 추출에만 집중합니다.
 # ─────────────────────────────────────────────
-def classify_with_claude(videos: list) -> list:
+def extract_work_titles(videos: list) -> list:
     """
-    Claude API로 YouTube 제목에서 작품명을 추출하고 타입을 분류합니다.
-    비용 최소화를 위해 여러 영상을 한 번에 배치 처리합니다.
+    Claude API로 YouTube 제목에서 작품명만 추출합니다.
+    비용 최소화를 위해 채널 단위 배치 처리합니다.
 
-    반환: [{ youtube_id, work_title, type, confidence }, ...]
+    반환: [{ youtube_id, work_title, confidence }, ...]
     """
     if not videos:
         return []
 
-    # 배치 프롬프트 구성 (여러 영상을 한 번에 처리)
+    # 배치 프롬프트 구성
     video_list = "\n".join([
-        f'{i+1}. youtube_id="{v["youtube_id"]}" | 제목="{v["title"]}" | 플랫폼={v["platform"]}'
+        f'{i+1}. youtube_id="{v["youtube_id"]}" | 제목="{v["title"]}"'
         for i, v in enumerate(videos)
     ])
 
-    prompt = f"""아래는 OTT 플랫폼 공식 YouTube 채널의 영상 제목 목록입니다.
-각 영상에 대해 다음을 분석해 주세요:
+    prompt = f"""아래는 OTT 플랫폼 공식 YouTube 채널의 예고편/선공개 영상 제목 목록입니다.
+각 영상 제목에서 작품명만 추출해 주세요.
 
-1. work_title: 영상에 등장하는 작품명 (한국어 또는 영어 원제). 작품명을 특정할 수 없으면 null
-2. type: 영상 타입 분류
-   - "trailer"  : 공식 예고편, 메인 예고편
-   - "teaser"   : 티저, 짧은 예고
-   - "preview"  : 선공개 클립, 하이라이트
-   - "release"  : 신작 공개 알림 ("지금 공개", "Now Streaming" 등)
-3. confidence: 분류 신뢰도 (0.0 ~ 1.0)
+규칙:
+- work_title: 제목에서 드라마/영화/예능 작품명만 추출 (한국어 또는 영어 원제)
+- 작품명을 특정할 수 없으면 null
+- confidence: 추출 신뢰도 (0.0 ~ 1.0)
 
 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 [
-  {{"youtube_id": "...", "work_title": "작품명 또는 null", "type": "trailer", "confidence": 0.95}},
+  {{"youtube_id": "...", "work_title": "작품명 또는 null", "confidence": 0.95}},
   ...
 ]
 
@@ -216,10 +232,10 @@ def classify_with_claude(videos: list) -> list:
         raw_text = data.get("content", [{}])[0].get("text", "[]")
 
         # JSON 파싱 (마크다운 코드블록 제거)
-        cleaned  = raw_text.replace("```json", "").replace("```", "").strip()
-        results  = json.loads(cleaned)
+        cleaned = raw_text.replace("```json", "").replace("```", "").strip()
+        results = json.loads(cleaned)
 
-        log(f"  🤖 Claude 분류 완료: {len(results)}개")
+        log(f"  🤖 Claude 작품명 추출 완료: {len(results)}개")
         return results if isinstance(results, list) else []
 
     except json.JSONDecodeError as e:
@@ -236,12 +252,12 @@ def classify_with_claude(videos: list) -> list:
 def search_tmdb(work_title: str) -> dict | None:
     """
     TMDB API로 작품을 검색합니다.
-    영화/TV 순으로 검색해 첫 번째 결과를 반환합니다.
+    TV → 영화 순으로 검색해 첫 번째 결과를 반환합니다.
     """
     if not work_title:
         return None
 
-    for media_type in ["movie", "tv"]:
+    for media_type in ["tv", "movie"]:
         try:
             res = requests.get(
                 f"{TMDB_API}/search/{media_type}",
@@ -276,6 +292,10 @@ def save_content(video: dict, claude_result: dict, tmdb_result: dict | None) -> 
     /admin/contents API를 호출해 D1에 영상 정보를 저장합니다.
     UNIQUE 충돌(409) 시 중복으로 처리합니다.
     """
+    # 매칭된 키워드로 type 결정 (예고편/메인 예고 → trailer, 선공개 → preview)
+    matched_kw   = get_matched_keyword(video["title"])
+    content_type = TYPE_MAP.get(matched_kw, "trailer")
+
     # confidence 0.8 미만이면 tmdb_id 저장 안 함 (Admin 수동 매칭 대기)
     confidence = claude_result.get("confidence", 0)
     use_tmdb   = tmdb_result if confidence >= 0.8 else None
@@ -283,7 +303,7 @@ def save_content(video: dict, claude_result: dict, tmdb_result: dict | None) -> 
     payload = {
         "youtube_id"  : video["youtube_id"],
         "platform"    : video["platform"],
-        "type"        : claude_result.get("type", "trailer"),
+        "type"        : content_type,
         "title"       : video["title"],
         "work_title"  : claude_result.get("work_title") or None,
         "tmdb_id"     : use_tmdb["tmdb_id"]   if use_tmdb else None,
@@ -312,7 +332,7 @@ def save_content(video: dict, claude_result: dict, tmdb_result: dict | None) -> 
             return False
 
         tmdb_info = f" (TMDB:{use_tmdb['tmdb_id']})" if use_tmdb else " (TMDB 미매칭)"
-        log(f"  ✅ 저장 완료: [{video['platform']}] {video['title'][:40]}{tmdb_info}")
+        log(f"  ✅ 저장: [{video['platform']}] [{content_type}] {video['title'][:40]}{tmdb_info}")
         return True
 
     except Exception as e:
@@ -338,6 +358,7 @@ def main():
 
     mode = "초기(10개)" if IS_INITIAL else "일반(5개)"
     log(f"🚀 OTT 콘텐츠 크롤링 시작 — 모드: {mode}")
+    log(f"   저장 기준 키워드: {KEYWORDS}")
     log(f"   대상 채널: {len(OTT_CHANNELS)}개")
 
     total_saved   = 0  # 최종 저장 수
@@ -356,7 +377,7 @@ def main():
         new_videos = []
         for v in videos:
             if check_duplicate(v["youtube_id"]):
-                log(f"  ⏭️  중복 스킵: {v['youtube_id']} ({v['title'][:30]})")
+                log(f"  ⏭️  중복 스킵: {v['title'][:35]}")
                 total_skipped += 1
             else:
                 new_videos.append(v)
@@ -366,30 +387,25 @@ def main():
             log(f"  ℹ️  [{platform}] 신규 영상 없음")
             continue
 
-        log(f"  🆕 [{platform}] 신규 영상 {len(new_videos)}개 처리 시작")
-
-        # ③ 키워드 1차 필터
+        # ③ 키워드 필터 — "예고편" / "선공개" / "메인 예고" 만 통과
         filtered_videos = [v for v in new_videos if keyword_filter(v["title"])]
-        skipped_keyword = len(new_videos) - len(filtered_videos)
-        if skipped_keyword:
-            log(f"  🔍 키워드 필터로 {skipped_keyword}개 제외")
+        skipped_kw      = len(new_videos) - len(filtered_videos)
+
+        log(f"  🆕 신규 {len(new_videos)}개 중 키워드 통과 {len(filtered_videos)}개 (제외 {skipped_kw}개)")
 
         if not filtered_videos:
             log(f"  ℹ️  [{platform}] 키워드 통과 영상 없음")
             continue
 
-        # ④ Claude API — 배치 처리 (채널 단위로 한 번만 호출)
+        # ④ Claude API — 작품명 추출 (채널 단위 배치, 1회 호출)
         total_claude += 1
-        claude_results = classify_with_claude(filtered_videos)
-
-        # claude_results를 youtube_id 기준 딕셔너리로 변환
-        claude_map = {r["youtube_id"]: r for r in claude_results}
+        claude_results = extract_work_titles(filtered_videos)
+        claude_map     = {r["youtube_id"]: r for r in claude_results}
 
         # ⑤⑥ TMDB 검색 + D1 저장
         for video in filtered_videos:
             claude_result = claude_map.get(video["youtube_id"], {
                 "work_title" : None,
-                "type"       : "trailer",
                 "confidence" : 0,
             })
 
