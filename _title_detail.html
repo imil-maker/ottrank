@@ -153,7 +153,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .cast-arrow:disabled{opacity:.25;cursor:default}
 .cast-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;-ms-overflow-style:none}
 .cast-scroll::-webkit-scrollbar{display:none}
-.cast-card{flex-shrink:0;width:88px;cursor:pointer;text-decoration:none;transition:transform .2s ease}
+.cast-card{flex-shrink:0;width:88px;cursor:pointer;text-decoration:none;
+  transition:transform .2s ease;color:var(--text)} /* color 명시 — 브라우저 기본 링크색 방지 */
 .cast-card:hover{transform:translateY(-3px)}
 .cast-photo{width:88px;height:88px;border-radius:50%;overflow:hidden;background:var(--bg3);border:2px solid var(--border);margin-bottom:7px;position:relative}
 .cast-photo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -161,18 +162,75 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .cast-name{font-size:14px;font-weight:600;text-align:center;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cast-role{font-size:13px;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--font-mono)}
 .director-row{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
-.director-chip{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;border-radius:30px;border:.5px solid var(--border2);background:var(--bg2);cursor:pointer;text-decoration:none;transition:all .15s}
+.director-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;
+  border-radius:30px;border:.5px solid var(--border2);background:var(--bg2);
+  cursor:pointer;text-decoration:none;transition:all .15s;color:var(--text)}
 .director-chip:hover{border-color:var(--info-border);background:var(--info-bg)}
 .director-photo{width:28px;height:28px;border-radius:50%;overflow:hidden;background:var(--bg3);flex-shrink:0}
 .director-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .director-photo-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--info)}
+/* 감독 이름 + "감독" 라벨을 1줄로 */
+.director-info{display:flex;align-items:center;gap:6px}
 .director-name{font-size:15px;font-weight:600;color:var(--text)}
 .director-label{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
 
-/* 인스타 아이콘 링크 (감독칩/배우카드 공용) */
-.cast-insta{display:inline-flex;align-items:center;margin-left:4px;
-  opacity:.65;transition:opacity .15s;vertical-align:middle;text-decoration:none;flex-shrink:0}
-.cast-insta:hover{opacity:1}
+/* ══ 후기 0개 CTA ══ */
+.review-cta{
+  position:relative;overflow:hidden;
+  border-radius:var(--r-lg);border:.5px solid rgba(230,57,70,.25);
+  background:var(--bg2);
+  padding:32px 28px;margin-bottom:24px;
+  display:flex;align-items:center;justify-content:space-between;gap:24px;
+  cursor:pointer;transition:border-color .2s,background .2s;
+}
+.review-cta::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(230,57,70,.07) 0%,transparent 60%);
+  pointer-events:none;
+}
+.review-cta:hover{border-color:rgba(230,57,70,.5);background:var(--bg3)}
+.review-cta-left{flex:1;min-width:0}
+.review-cta-eyebrow{
+  font-family:var(--font-mono);font-size:11px;font-weight:700;
+  color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;
+  margin-bottom:8px;display:flex;align-items:center;gap:6px;
+}
+.review-cta-eyebrow::before{content:'';display:inline-block;
+  width:18px;height:1.5px;background:var(--accent);border-radius:2px}
+.review-cta-title{
+  font-size:18px;font-weight:700;color:var(--text);line-height:1.45;
+  margin-bottom:10px;
+}
+.review-cta-title em{color:var(--accent);font-style:normal}
+.review-cta-sub{font-size:14px;color:var(--muted2);line-height:1.6}
+.review-cta-btn{
+  flex-shrink:0;display:inline-flex;align-items:center;gap:8px;
+  padding:12px 22px;border-radius:var(--r);border:none;
+  background:var(--accent);color:#fff;
+  font-size:14px;font-weight:700;font-family:var(--font-sans);
+  cursor:pointer;transition:opacity .15s;white-space:nowrap;
+}
+.review-cta-btn:hover{opacity:.85}
+.review-cta-stars{
+  display:flex;gap:3px;margin-bottom:12px;
+}
+.review-cta-stars span{
+  font-size:22px;color:var(--border2);
+  animation:starPulse 2s ease-in-out infinite;
+}
+.review-cta-stars span:nth-child(1){animation-delay:.0s}
+.review-cta-stars span:nth-child(2){animation-delay:.15s}
+.review-cta-stars span:nth-child(3){animation-delay:.30s}
+.review-cta-stars span:nth-child(4){animation-delay:.45s}
+.review-cta-stars span:nth-child(5){animation-delay:.60s}
+@keyframes starPulse{
+  0%,100%{color:var(--border2);transform:scale(1)}
+  50%{color:var(--gold);transform:scale(1.15)}
+}
+@media(max-width:560px){
+  .review-cta{flex-direction:column;align-items:flex-start;gap:16px}
+  .review-cta-btn{width:100%;justify-content:center}
+}
 
 /* ══ 평점 4블록 ══ */
 .ratings-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
@@ -632,6 +690,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
     <div class="watch-now-btns" id="watchNowBtns"></div>
   </div>
+</div>
+
+<!-- 후기 0개 CTA — JS에서 후기 있으면 숨김 -->
+<div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:none">
+  <div class="review-cta-left">
+    <div class="review-cta-eyebrow">첫 번째 평점</div>
+    <div class="review-cta-stars">
+      <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+    </div>
+    <div class="review-cta-title">
+      지금 <em>당신의 평점</em>을 남기면<br>이 자리에 모든 사람에게 보여집니다
+    </div>
+    <div class="review-cta-sub">오뜨랑에서 이 작품의 첫 번째 평점을 남겨보세요</div>
+  </div>
+  <button class="review-cta-btn" onclick="event.stopPropagation();goReview(0)">
+    ✍ 평점 남기기
+  </button>
 </div>
 
 <!-- 사용자 댓글 -->
@@ -1170,42 +1245,8 @@ async function loadTmdb(){
       if(directors.length||cast.length){
         document.getElementById('castSection').style.display='block';
 
-        // 감독 + 배우 전체 인물 ID 수집 후 external_ids 병렬 호출
-        const allPeople=[...directors,...cast];
-        const personIds=allPeople.map(p=>p.id);
-
-        // external_ids 병렬 조회 (실패해도 카드 렌더에 영향 없음)
-        const extResults=await Promise.allSettled(
-          personIds.map(id=>
-            fetch(`${TMDB_PROXY}/person/${id}/external_ids`)
-              .then(r=>r.json())
-              .catch(()=>null)
-          )
-        );
-
-        // person_id → instagram_id Map 생성
-        const instaMap=new Map();
-        extResults.forEach((res,i)=>{
-          if(res.status==='fulfilled'&&res.value?.instagram_id){
-            instaMap.set(personIds[i], res.value.instagram_id);
-          }
-        });
-
-        // 인물 페이지 URL 생성 함수 (우리 사이트 내부)
+        // 인물 페이지 내부 URL
         const personUrl=(id)=>`/person.html?id=${id}`;
-
-        // 인스타 아이콘 HTML (있을 때만)
-        const instaIcon=(pid)=>{
-          const igId=instaMap.get(pid);
-          if(!igId) return '';
-          return `<a class="cast-insta" href="https://www.instagram.com/${igId}/"
-            target="_blank" rel="noopener"
-            onclick="event.stopPropagation()"
-            title="Instagram @${igId}">
-            <img src="/img/instagram.png" alt="Instagram" width="13" height="13"
-              style="border-radius:3px;vertical-align:middle;margin-bottom:1px">
-          </a>`;
-        };
 
         // 감독 칩 렌더
         document.getElementById('directorRow').innerHTML=directors.map(p=>`
@@ -1214,9 +1255,9 @@ async function loadTmdb(){
               ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy">`
               :`<div class="director-photo-ph">${(p.name||'?')[0]}</div>`}
             </div>
-            <div>
-              <div class="director-name">${p.name} ${instaIcon(p.id)}</div>
-              <div class="director-label">감독</div>
+            <div class="director-info">
+              <span class="director-name">${p.name}</span>
+              <span class="director-label">감독</span>
             </div>
           </a>`).join('');
 
@@ -1230,7 +1271,7 @@ async function loadTmdb(){
                 :''}
               <div class="cast-photo-ph" style="${p.profile_path?'display:none':'display:flex'}">${(p.name||'?')[0]}</div>
             </div>
-            <div class="cast-name">${p.name} ${instaIcon(p.id)}</div>
+            <div class="cast-name">${p.name}</div>
             <div class="cast-role">${p.character||''}</div>
           </a>`).join('');
 
@@ -1428,14 +1469,18 @@ function renderComments(){
   const el=document.getElementById('commentsArea');
   const sorted=getSorted();
   document.getElementById('commentCount').textContent=`${sorted.length}개`;
-  // 댓글 0개면 섹션 전체 숨김
+  // 후기 0개: CTA 표시 / 있으면: CTA 숨기고 댓글 섹션 표시
+  const cta=document.getElementById('reviewCta');
   const commentSection=document.getElementById('commentSection');
-  if(commentSection)commentSection.style.display=sorted.length?'block':'none';
-  // 댓글 유무에 따라 레이아웃 업데이트
-  updateCommentWatchLayout();
-  if(!sorted.length){
-    document.getElementById('pagination').innerHTML='';return;
+  if(sorted.length===0){
+    if(cta) cta.style.display='flex';
+    if(commentSection) commentSection.style.display='none';
+    document.getElementById('pagination').innerHTML='';
+    return;
   }
+  if(cta) cta.style.display='none';
+  if(commentSection) commentSection.style.display='block';
+  updateCommentWatchLayout();
   const start=(curPage-1)*PER_PAGE,slice=sorted.slice(start,start+PER_PAGE);
   el.innerHTML=`<div class="comments-section">${slice.map(c=>`
     <div class="comment-item" id="cmt_${c.id}">
