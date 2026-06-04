@@ -214,171 +214,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="page-tab"     onclick="switchPage('grade',this)">🏅 회원등급 설정</button>
     <button class="page-tab"     onclick="switchPage('users',this)">👥 회원 관리</button>
     <button class="page-tab"     onclick="location.href='/admin_videos.html'">🎬 영상 관리</button>
-    <button class="page-tab"     onclick="switchPage('contents',this)">🎞️ 예고편/신작 관리</button>
   </div>
 </div>
 
-<!-- ══ 예고편/신작 관리 ══ -->
-<div id="contentsSection" class="main" style="display:none">
-
-  <!-- 메인 고정 관리 -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div>
-        <div style="font-size:16px;font-weight:700;margin-bottom:4px">📌 메인 고정 영상 (최대 5개)</div>
-        <div style="font-size:12px;color:var(--muted)">드래그로 순서를 변경하고 "순서 저장"을 눌러주세요. 고정이 5개 미만이면 나머지는 플랫폼별 최신 예고편으로 자동 채워집니다.</div>
-      </div>
-      <button id="btnSavePinned" class="btn-save" onclick="savePinnedOrder()" style="white-space:nowrap;margin-left:16px">순서 저장</button>
-    </div>
-    <div id="pinnedList"></div>
-  </div>
-
-  <!-- 수동 등록 -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
-    <div style="font-size:16px;font-weight:700;margin-bottom:16px">➕ 예고편 수동 등록</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <!-- YouTube URL -->
-      <div style="grid-column:1/-1">
-        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">YouTube URL *</label>
-        <div style="display:flex;gap:8px">
-          <input id="ctYtUrl" class="inp" style="margin-bottom:0;flex:1" type="text"
-            placeholder="https://www.youtube.com/watch?v=...">
-          <button class="btn-save" style="white-space:nowrap;padding:0 18px" onclick="fetchYoutubeInfo()">정보 가져오기</button>
-        </div>
-        <input type="hidden" id="ctYoutubeId">
-        <input type="hidden" id="ctThumbUrl">
-      </div>
-      <!-- 썸네일 미리보기 -->
-      <div style="grid-column:1/-1">
-        <img id="ctThumbPreview" src="" alt="" style="display:none;height:90px;border-radius:6px;object-fit:cover;border:1px solid var(--border2)">
-      </div>
-      <!-- 제목 -->
-      <div style="grid-column:1/-1">
-        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">제목 (비우면 YouTube 제목 자동 입력)</label>
-        <input id="ctTitle" class="inp" style="margin-bottom:0" type="text" placeholder="YouTube에서 자동으로 가져옵니다">
-      </div>
-      <!-- TMDB 작품 연결 -->
-      <div style="grid-column:1/-1">
-        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">TMDB 작품 연결 (선택)</label>
-        <div style="display:flex;gap:8px">
-          <input id="ctTmdbQuery" class="inp" style="margin-bottom:0;flex:1" type="text"
-            placeholder="작품명으로 검색 (예: 남편들, 골드랜드...)"
-            onkeydown="if(event.key==='Enter')searchTmdbForContent()">
-          <button class="btn-save" style="white-space:nowrap;padding:0 18px;background:var(--info)" onclick="searchTmdbForContent()">검색</button>
-        </div>
-        <!-- TMDB 검색 결과 -->
-        <div id="ctTmdbResults" style="display:none;margin-top:8px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;overflow:hidden;max-height:220px;overflow-y:auto"></div>
-        <!-- 선택된 작품 -->
-        <div id="ctTmdbSelected" style="display:none;margin-top:8px;align-items:center;gap:10px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:8px;padding:10px 14px">
-          <img id="ctTmdbPoster" src="" alt="" style="width:32px;height:48px;object-fit:cover;border-radius:3px;flex-shrink:0">
-          <div style="flex:1;min-width:0">
-            <div id="ctTmdbTitle" style="font-size:14px;font-weight:500;color:var(--green)"></div>
-            <div id="ctTmdbMeta" style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px"></div>
-          </div>
-          <button class="btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0" onclick="clearTmdbSelection()">✕ 해제</button>
-        </div>
-        <input type="hidden" id="ctTmdbId">
-        <input type="hidden" id="ctWorkTitle">
-      </div>
-      <!-- OTT 플랫폼 -->
-      <div>
-        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">OTT 플랫폼 *</label>
-        <select id="ctPlatform" class="inp" style="margin-bottom:0;cursor:pointer">
-          <option value="netflix">넷플릭스</option>
-          <option value="tving">티빙</option>
-          <option value="disney">디즈니+</option>
-          <option value="coupang">쿠팡플레이</option>
-          <option value="wavve">웨이브</option>
-          <option value="">기타</option>
-        </select>
-      </div>
-      <!-- 타입 -->
-      <div>
-        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">타입 *</label>
-        <select id="ctType" class="inp" style="margin-bottom:0;cursor:pointer">
-          <option value="trailer">예고편</option>
-          <option value="preview">선공개</option>
-          <option value="teaser">티저</option>
-          <option value="release">신작공개</option>
-        </select>
-      </div>
-      <!-- 업로드 날짜 -->
-      <div>
-        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">업로드 날짜 *</label>
-        <input id="ctPublishedAt" class="inp" style="margin-bottom:0" type="datetime-local">
-      </div>
-      <!-- 등록 버튼 -->
-      <div style="display:flex;align-items:flex-end">
-        <button id="btnAddContent" class="btn-save" style="width:100%;padding:12px" onclick="submitContentAdd()">등록</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 목록 테이블 -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="font-size:16px;font-weight:700">📋 영상 목록</span>
-      <span id="contentsTotalCount" style="font-family:var(--mono);font-size:13px;color:var(--muted)"></span>
-      <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
-        <select id="ctFilterPlatform" class="inp" style="margin-bottom:0;padding:6px 12px;width:auto;cursor:pointer"
-          onchange="contentsPlatformFilter=this.value;contentsPage=1;loadContentsTable()">
-          <option value="">전체 플랫폼</option>
-          <option value="netflix">넷플릭스</option>
-          <option value="tving">티빙</option>
-          <option value="disney">디즈니+</option>
-          <option value="coupang">쿠팡플레이</option>
-          <option value="wavve">웨이브</option>
-        </select>
-        <select id="ctFilterType" class="inp" style="margin-bottom:0;padding:6px 12px;width:auto;cursor:pointer"
-          onchange="contentsTypeFilter=this.value;contentsPage=1;loadContentsTable()">
-          <option value="">전체 타입</option>
-          <option value="trailer">예고편</option>
-          <option value="preview">선공개</option>
-          <option value="teaser">티저</option>
-          <option value="release">신작공개</option>
-        </select>
-      </div>
-    </div>
-    <div class="table-wrap" style="border-radius:0;border:none">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:60px">썸네일</th>
-            <th>제목</th>
-            <th style="width:100px">플랫폼</th>
-            <th style="width:80px">타입</th>
-            <th style="width:100px">날짜</th>
-            <th style="width:90px">메인고정</th>
-            <th style="width:120px">관리</th>
-          </tr>
-        </thead>
-        <tbody id="contentsTbody"></tbody>
-      </table>
-    </div>
-    <div id="contentsPagination" style="padding:16px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap"></div>
-  </div>
-
-</div>
-
-<!-- 드래그앤드롭 CSS -->
-<style>
-.pinned-item{display:flex;align-items:center;gap:12px;padding:10px 14px;
-  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
-  margin-bottom:8px;cursor:grab;transition:all .15s}
-.pinned-item:hover{border-color:var(--border2)}
-.pinned-item.drag-over{border-color:var(--accent);background:rgba(230,57,70,.08)}
-.pin-handle{color:var(--muted);font-size:18px;cursor:grab;flex-shrink:0;line-height:1}
-.pin-order{font-family:var(--mono);font-size:18px;color:var(--accent);
-  font-weight:700;width:20px;flex-shrink:0;text-align:center}
-.pin-thumb{width:64px;height:36px;object-fit:cover;border-radius:4px;
-  background:var(--bg2);flex-shrink:0}
-.pin-info{flex:1;min-width:0}
-.pin-work{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pin-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
-.pin-pf{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;color:#fff}
-</style>
-
-<!-- 랭킹 관리 -->
+<!-- 로그인 -->
 <div class="login-wrap" id="loginSection">
   <h2>🔐 관리자 로그인</h2>
   <input class="inp" type="password" id="tokenInp" placeholder="Admin Secret Token" onkeydown="if(event.key==='Enter')login()">
@@ -1023,12 +862,10 @@ function switchPage(page, btn) {
   document.getElementById('reactionSection').style.display   = page === 'reaction'   ? 'block' : 'none';
   document.getElementById('gradeSection').style.display      = page === 'grade'      ? 'block' : 'none';
   document.getElementById('usersSection').style.display      = page === 'users'      ? 'block' : 'none';
-  document.getElementById('contentsSection').style.display   = page === 'contents'   ? 'block' : 'none';
   if (page === 'users')      loadUsers();
   if (page === 'pagecat')    loadPageCat();
   if (page === 'categories') loadCategories();
   if (page === 'works')      loadWorks();
-  if (page === 'contents')   loadContentsAdmin();
 }
 
 // ════════════════════════════════════════════════════
@@ -1961,6 +1798,15 @@ function closeModal() {
   if (cb) cb.checked = false;
   const nullRadio = document.getElementById('editMt_null');
   if (nullRadio) { nullRadio.checked = true; updateMediaTypeStyle(''); }
+  // works 모달에서 열었을 경우 저장 버튼 원복
+  if (typeof worksModalTmdbId !== 'undefined' && worksModalTmdbId !== null) {
+    worksModalTmdbId = null;
+    const saveBtn = document.querySelector('#editOverlay .btn-save');
+    if (saveBtn) {
+      saveBtn.textContent = '저장 (수동고정)';
+      saveBtn.onclick = saveEdit;
+    }
+  }
 }
 
 let previewTimer = null;
@@ -2787,12 +2633,14 @@ function renderWorks(rows) {
       </td>
       <td><span style="font-size:11px;color:${srcColor[r.match_source]||'var(--muted)'}">${r.match_source||'admin'}</span></td>
       <td><span style="font-family:var(--mono);font-size:12px">${r.confidence_score||100}</span></td>
-      <td style="min-width:120px">
-        <button class="btn-sm btn-fix" onclick="saveWork(${r.tmdb_id})">저장</button>
-        <label style="display:flex;align-items:center;gap:4px;font-size:10px;margin-top:4px;cursor:pointer">
-          <input type="checkbox" id="wdel-${r.tmdb_id}">
-          <span style="color:var(--red)">중복삭제</span>
-        </label>
+      <td style="min-width:80px">
+        <button class="btn-sm btn-fix"
+          data-tmdb-id="${r.tmdb_id}"
+          data-title-ko="${_esc(r.title_ko||'')}"
+          data-title-en="${_esc(r.title_en||'')}"
+          data-poster="${_esc(r.poster_path||'')}"
+          data-media-type="${r.media_type||''}"
+          onclick="openWorksModalEl(this)">수정</button>
       </td>
       <td>
         <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)"
@@ -2800,6 +2648,92 @@ function renderWorks(rows) {
       </td>
     </tr>
   `).join('');
+}
+
+/* ── data-* 속성으로 works 수정 모달 열기 (onclick 문자열 이스케이프 문제 방지) ── */
+function openWorksModalEl(btn) {
+  const tmdbId    = parseInt(btn.dataset.tmdbId);
+  const titleKo   = btn.dataset.titleKo   || '';
+  const titleEn   = btn.dataset.titleEn   || '';
+  const posterPath = btn.dataset.poster   || '';
+  const mediaType = btn.dataset.mediaType || '';
+  openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType);
+}
+
+/* ── works 전용 수정 모달 열기 ── */
+// 기존 editOverlay 모달을 재활용 (랭킹관리와 동일한 UI)
+// worksMode=true 일 때는 saveEdit 대신 saveWorkFromModal 호출
+let worksModalTmdbId = null;
+
+function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
+  worksModalTmdbId = tmdbId;
+  document.getElementById('editId').value       = tmdbId; // works는 tmdb_id가 key
+  document.getElementById('editTitleKo').value  = titleKo;
+  document.getElementById('editTitleEn').value  = titleEn;
+  document.getElementById('editTmdbId').value   = tmdbId;
+  document.getElementById('modalSub').textContent = `works 테이블 · tmdb_id: ${tmdbId}`;
+  updatePosterPreview(posterPath);
+
+  // media_type 라디오 세팅
+  const mt = mediaType || '';
+  document.querySelectorAll('input[name="editMediaType"]').forEach(radio => {
+    radio.checked = (radio.value === mt);
+  });
+  updateMediaTypeStyle(mt);
+
+  // 저장 버튼 텍스트 변경 + 핸들러 교체
+  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  if (saveBtn) {
+    saveBtn.textContent = '저장';
+    saveBtn.onclick = saveWorkFromModal;
+  }
+
+  document.getElementById('editOverlay').classList.add('show');
+}
+
+/* ── works 모달에서 저장 ── */
+async function saveWorkFromModal() {
+  const tmdbId   = worksModalTmdbId;
+  const title_ko = document.getElementById('editTitleKo').value.trim();
+  const title_en = document.getElementById('editTitleEn').value.trim();
+  const newTmdbId = parseInt(document.getElementById('editTmdbId').value) || null;
+  const deleteDuplicates = document.getElementById('editDeleteDuplicates')?.checked || false;
+  const mediaTypeEl = document.querySelector('input[name="editMediaType"]:checked');
+  const media_type  = mediaTypeEl?.value || null;
+
+  try {
+    const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title_ko,
+        title_en,
+        tmdb_id: newTmdbId,
+        delete_duplicates: deleteDuplicates,
+        media_type: media_type || null,
+      })
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('✅ works 저장 완료', 'ok');
+      closeWorksModal();
+      loadWorks();
+    } else {
+      showToast(json.message || '저장 실패', 'err');
+    }
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+/* ── works 모달 닫기 (저장 버튼 원복) ── */
+function closeWorksModal() {
+  worksModalTmdbId = null;
+  // 저장 버튼 원복 (랭킹관리용으로)
+  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  if (saveBtn) {
+    saveBtn.textContent = '저장 (수동고정)';
+    saveBtn.onclick = saveEdit;
+  }
+  closeModal();
 }
 
 async function saveWork(tmdbId) {
@@ -3011,432 +2945,6 @@ async function savePageCatPlatform(id) {
     showToast('✅ OTT 페이지 설정 저장 완료', 'ok');
   } catch(e) { showToast(e.message, 'err'); }
 }
-
-
-// ════════════════════════════════════════════════════
-// 예고편/신작 관리 (contentsSection)
-// ════════════════════════════════════════════════════
-
-const PLATFORM_NAMES = {
-  netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브'
-};
-const PLATFORM_COLORS = {
-  netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3'
-};
-const PLATFORM_ORDER = ['netflix','tving','disney','coupang','wavve'];
-const TYPE_LABELS = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
-
-let contentsPage = 1;
-let contentsPlatformFilter = '';
-let contentsTypeFilter = '';
-let pinnedItems = []; // 메인 고정 목록
-let dragSrcIdx  = null;
-
-/* ── 날짜 포맷 ── */
-function fmtDateC(iso){
-  if(!iso) return '';
-  const d=new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-}
-
-/* ── 콘텐츠 관리 탭 초기 로드 ── */
-async function loadContentsAdmin(){
-  await Promise.all([ loadPinned(), loadContentsTable() ]);
-}
-
-/* ── 메인 고정 목록 로드 ── */
-async function loadPinned(){
-  try {
-    const res  = await fetch(`${API}/contents/pinned`);
-    const data = await res.json();
-    pinnedItems = data.items || [];
-    renderPinned();
-  } catch(e){ console.error(e); }
-}
-
-/* ── 메인 고정 렌더 (드래그앤드롭) ── */
-function renderPinned(){
-  const wrap = document.getElementById('pinnedList');
-  if(!wrap) return;
-
-  if(!pinnedItems.length){
-    wrap.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:14px">
-      고정된 영상이 없습니다. 아래 목록에서 ☆ 버튼으로 고정하세요.<br>
-      <small style="font-size:12px;margin-top:4px;display:block">플랫폼 최신 예고편 순으로 5개가 자동 노출됩니다.</small>
-    </div>`;
-    return;
-  }
-
-  wrap.innerHTML = pinnedItems.map((item, idx) => `
-    <div class="pinned-item" draggable="true"
-      data-idx="${idx}" data-id="${item.id}"
-      ondragstart="onDragStart(event,${idx})"
-      ondragover="onDragOver(event)"
-      ondrop="onDrop(event,${idx})"
-      ondragend="onDragEnd()">
-      <span class="pin-handle">⠿</span>
-      <span class="pin-order">${idx+1}</span>
-      <img class="pin-thumb" src="${item.thumbnail||''}" alt="" onerror="this.style.display='none'">
-      <div class="pin-info">
-        <div class="pin-work">${item.work_title||item.title}</div>
-        <div class="pin-meta">
-          <span class="pin-pf" style="background:${PLATFORM_COLORS[item.platform]||'#666'}">${PLATFORM_NAMES[item.platform]||item.platform}</span>
-          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${TYPE_LABELS[item.type]||item.type}</span>
-        </div>
-      </div>
-      <button class="btn-sm btn-unfix" onclick="unpinContent(${item.id})">고정 해제</button>
-    </div>`).join('');
-}
-
-/* ── 드래그앤드롭 ── */
-function onDragStart(e, idx){ dragSrcIdx=idx; e.dataTransfer.effectAllowed='move'; }
-function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
-function onDragEnd(){ dragSrcIdx=null; document.querySelectorAll('.pinned-item').forEach(el=>el.classList.remove('drag-over')); }
-function onDrop(e, targetIdx){
-  e.preventDefault();
-  if(dragSrcIdx===null||dragSrcIdx===targetIdx) return;
-  const moved = pinnedItems.splice(dragSrcIdx, 1)[0];
-  pinnedItems.splice(targetIdx, 0, moved);
-  renderPinned();
-}
-
-/* ── 고정 순서 저장 ── */
-async function savePinnedOrder(){
-  const btn = document.getElementById('btnSavePinned');
-  if(btn){ btn.disabled=true; btn.textContent='저장 중...'; }
-  try {
-    const ordered_ids = pinnedItems.map(i=>i.id);
-    const res = await fetch(`${API}/admin/contents/pinned/reorder`, {
-      method : 'PATCH',
-      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
-      body   : JSON.stringify({ ordered_ids }),
-    });
-    const data = await res.json();
-    if(data.ok){ showToast('✅ 고정 순서 저장 완료', 'ok'); }
-    else        { showToast(data.error||'저장 실패', 'err'); }
-  } catch(e){ showToast(e.message,'err'); }
-  finally { if(btn){ btn.disabled=false; btn.textContent='순서 저장'; } }
-}
-
-/* ── 고정 해제 ── */
-async function unpinContent(id){
-  if(!confirm('고정을 해제할까요?')) return;
-  try {
-    const res  = await fetch(`${API}/admin/contents/${id}`, {
-      method : 'PUT',
-      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
-      body   : JSON.stringify({ is_pinned:0, sort_order:0 }),
-    });
-    const data = await res.json();
-    if(data.ok){ showToast('✅ 고정 해제 완료','ok'); await loadPinned(); await loadContentsTable(); }
-    else        { showToast(data.error||'실패','err'); }
-  } catch(e){ showToast(e.message,'err'); }
-}
-
-/* ── 고정 설정 ── */
-async function pinContent(id){
-  if(pinnedItems.length >= 5){ showToast('고정은 최대 5개까지 가능합니다.','err'); return; }
-  try {
-    const res  = await fetch(`${API}/admin/contents/${id}`, {
-      method : 'PUT',
-      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
-      body   : JSON.stringify({ is_pinned:1, sort_order: pinnedItems.length+1 }),
-    });
-    const data = await res.json();
-    if(data.ok){ showToast('✅ 고정 완료','ok'); await loadPinned(); await loadContentsTable(); }
-    else        { showToast(data.error||'실패','err'); }
-  } catch(e){ showToast(e.message,'err'); }
-}
-
-/* ── 콘텐츠 목록 테이블 로드 ── */
-async function loadContentsTable(){
-  const tbody = document.getElementById('contentsTbody');
-  if(!tbody) return;
-  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">로딩 중...</td></tr>`;
-
-  try {
-    const qp = new URLSearchParams({ page: contentsPage });
-    if(contentsPlatformFilter) qp.set('platform', contentsPlatformFilter);
-    if(contentsTypeFilter)     qp.set('type', contentsTypeFilter);
-
-    const res  = await fetch(`${API}/admin/contents?${qp}`, {
-      headers:{ Authorization:`Bearer ${token}` }
-    });
-    const data = await res.json();
-    const items = data.items || [];
-    const pag   = data.pagination || {};
-
-    // 카운트 업데이트
-    const countEl = document.getElementById('contentsTotalCount');
-    if(countEl) countEl.textContent = `총 ${pag.total||0}개`;
-
-    if(!items.length){
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">등록된 영상이 없습니다.</td></tr>`;
-      renderContentsPagination(0, pag.pageSize||50);
-      return;
-    }
-
-    tbody.innerHTML = items.map(item => {
-      const isPinned = item.is_pinned === 1;
-      const isHidden = item.is_hidden === 1;
-      return `<tr style="${isHidden?'opacity:.5':''}">
-        <td style="width:48px">
-          <img src="${item.thumbnail||''}" alt="" style="width:48px;height:27px;object-fit:cover;border-radius:4px;background:var(--bg3)"
-            onerror="this.style.display='none'">
-        </td>
-        <td>
-          <div style="font-size:13px;font-weight:500;color:var(--text);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            ${item.work_title||'<span style="color:var(--muted)">미확인</span>'}
-          </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            ${item.title}
-          </div>
-        </td>
-        <td style="white-space:nowrap">
-          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${PLATFORM_COLORS[item.platform]||'#666'};color:#fff">
-            ${PLATFORM_NAMES[item.platform]||item.platform}
-          </span>
-        </td>
-        <td style="font-family:var(--mono);font-size:12px;color:var(--muted2);white-space:nowrap">
-          ${TYPE_LABELS[item.type]||item.type}
-        </td>
-        <td style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap">
-          ${fmtDateC(item.published_at)}
-        </td>
-        <td style="text-align:center">
-          <button class="btn-sm ${isPinned?'btn-fix':'btn-unfix'}" onclick="${isPinned?`unpinContent(${item.id})`:`pinContent(${item.id})`}">
-            ${isPinned?'★ 고정중':'☆ 고정'}
-          </button>
-        </td>
-        <td style="white-space:nowrap;display:flex;gap:6px;padding:8px">
-          <button class="btn-sm" style="background:rgba(247,129,113,.1);color:var(--red);border:1px solid rgba(247,129,113,.3)"
-            onclick="toggleHideContent(${item.id},${isHidden?0:1})">${isHidden?'숨김해제':'숨김'}</button>
-          <button class="btn-sm" style="background:rgba(230,57,70,.1);color:var(--accent);border:1px solid rgba(230,57,70,.3)"
-            onclick="deleteContent(${item.id})">삭제</button>
-        </td>
-      </tr>`;
-    }).join('');
-
-    renderContentsPagination(pag.total||0, pag.pageSize||50);
-
-  } catch(e){ tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--red)">오류: ${e.message}</td></tr>`; }
-}
-
-/* ── 목록 페이지네이션 ── */
-function renderContentsPagination(total, pageSize){
-  const wrap = document.getElementById('contentsPagination');
-  if(!wrap) return;
-  const totalPages = Math.ceil(total/pageSize);
-  if(totalPages<=1){ wrap.innerHTML=''; return; }
-  let html='';
-  for(let i=1;i<=totalPages;i++){
-    html+=`<button class="btn-sm ${i===contentsPage?'btn-fix':''}" style="min-width:32px"
-      onclick="contentsPage=${i};loadContentsTable()">${i}</button>`;
-  }
-  wrap.innerHTML=html;
-}
-
-/* ── 숨김 토글 ── */
-async function toggleHideContent(id, isHidden){
-  try {
-    const res  = await fetch(`${API}/admin/contents/${id}`, {
-      method : 'PUT',
-      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
-      body   : JSON.stringify({ is_hidden: isHidden }),
-    });
-    const data = await res.json();
-    if(data.ok){ showToast(isHidden?'숨김 처리됨':'숨김 해제됨','ok'); loadContentsTable(); }
-    else        { showToast(data.error||'실패','err'); }
-  } catch(e){ showToast(e.message,'err'); }
-}
-
-/* ── 삭제 ── */
-async function deleteContent(id){
-  if(!confirm('삭제하면 댓글도 함께 삭제됩니다. 정말 삭제할까요?')) return;
-  try {
-    const res  = await fetch(`${API}/admin/contents/${id}`, {
-      method : 'DELETE',
-      headers: { Authorization:`Bearer ${token}` },
-    });
-    const data = await res.json();
-    if(data.ok){ showToast('✅ 삭제 완료','ok'); await loadPinned(); loadContentsTable(); }
-    else        { showToast(data.error||'실패','err'); }
-  } catch(e){ showToast(e.message,'err'); }
-}
-
-/* ── YouTube URL에서 ID 추출 ── */
-function extractYoutubeId(url){
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
-  ];
-  for(const p of patterns){
-    const m=url.match(p);
-    if(m) return m[1];
-  }
-  return null;
-}
-
-/* ── YouTube oEmbed로 제목/썸네일 자동 가져오기 ── */
-async function fetchYoutubeInfo(){
-  const urlInp = document.getElementById('ctYtUrl');
-  const titleInp = document.getElementById('ctTitle');
-  const thumbPreview = document.getElementById('ctThumbPreview');
-  const ytId = extractYoutubeId(urlInp.value.trim());
-
-  if(!ytId){ showToast('유효한 YouTube URL을 입력해주세요.','err'); return; }
-
-  document.getElementById('ctYoutubeId').value = ytId;
-  thumbPreview.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
-  thumbPreview.style.display = 'block';
-  document.getElementById('ctThumbUrl').value = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
-
-  // oEmbed로 제목 가져오기
-  try {
-    const res  = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`);
-    const data = await res.json();
-    if(data.title && !titleInp.value.trim()){
-      titleInp.value = data.title;
-    }
-    document.getElementById('ctPublishedAt').value = new Date().toISOString().slice(0,16);
-  } catch(e){
-    // oEmbed 실패 시 제목 없이 진행
-    document.getElementById('ctPublishedAt').value = new Date().toISOString().slice(0,16);
-  }
-}
-
-/* ── TMDB 작품 검색 (수동 등록용, TMDB 프록시 사용) ── */
-async function searchTmdbForContent(){
-  const q = document.getElementById('ctTmdbQuery').value.trim();
-  if(!q){ showToast('작품명을 입력해주세요.','err'); return; }
-
-  const resultsEl = document.getElementById('ctTmdbResults');
-  resultsEl.style.display = 'block';
-  resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">검색 중...</div>`;
-
-  try {
-    // TV + 영화 동시 검색 (기존 TMDB 프록시 활용)
-    const [tvRes, mvRes] = await Promise.all([
-      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
-      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
-    ]);
-    const tvData = await tvRes.json();
-    const mvData = await mvRes.json();
-
-    const tvItems = (tvData.results||[]).slice(0,4).map(r=>({...r, _type:'tv'}));
-    const mvItems = (mvData.results||[]).slice(0,3).map(r=>({...r, _type:'movie'}));
-    const items   = [...tvItems, ...mvItems];
-
-    if(!items.length){
-      resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">검색 결과 없음</div>`;
-      return;
-    }
-
-    resultsEl.innerHTML = items.map(item => {
-      const title    = item.name || item.title || '';
-      const orgTitle = item.original_name || item.original_title || '';
-      const year     = (item.first_air_date || item.release_date || '').slice(0,4);
-      const poster   = item.poster_path ? `${IMG2}${item.poster_path}` : '';
-      const typeLabel = item._type === 'tv' ? 'TV' : '영화';
-      const typeColor = item._type === 'tv' ? 'var(--info)' : 'var(--gold)';
-
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s"
-        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
-        onclick="selectTmdbItem(${item.id},'${item._type}','${title.replace(/'/g,"\\'")}','${poster}','${year}')">
-        ${poster
-          ? `<img src="${poster}" alt="" style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">`
-          : `<div style="width:28px;height:42px;background:var(--bg3);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`
-        }
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
-          <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${orgTitle}${year?` · ${year}`:''}</div>
-        </div>
-        <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;background:transparent;color:${typeColor};border:1px solid ${typeColor};flex-shrink:0">${typeLabel}</span>
-      </div>`;
-    }).join('');
-
-  } catch(e){
-    resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--red);font-size:13px">검색 실패: ${e.message}</div>`;
-  }
-}
-
-/* ── TMDB 작품 선택 ── */
-function selectTmdbItem(tmdbId, tmdbType, title, poster, year){
-  document.getElementById('ctTmdbId').value    = tmdbId;
-  document.getElementById('ctWorkTitle').value = title;
-
-  // 선택 표시
-  const selected = document.getElementById('ctTmdbSelected');
-  document.getElementById('ctTmdbPoster').src          = poster || '';
-  document.getElementById('ctTmdbPoster').style.display = poster ? 'block' : 'none';
-  document.getElementById('ctTmdbTitle').textContent   = title;
-  document.getElementById('ctTmdbMeta').textContent    = `TMDB:${tmdbId} · ${tmdbType==='tv'?'TV 시리즈':'영화'} ${year?`· ${year}`:''}`;
-  selected.style.display = 'flex';
-
-  // 검색 결과 닫기
-  document.getElementById('ctTmdbResults').style.display = 'none';
-  document.getElementById('ctTmdbQuery').value = title;
-}
-
-/* ── TMDB 선택 해제 ── */
-function clearTmdbSelection(){
-  document.getElementById('ctTmdbId').value    = '';
-  document.getElementById('ctWorkTitle').value = '';
-  document.getElementById('ctTmdbSelected').style.display = 'none';
-  document.getElementById('ctTmdbQuery').value = '';
-  document.getElementById('ctTmdbResults').style.display = 'none';
-}
-
-/* ── 수동 등록 제출 ── */
-async function submitContentAdd(){
-  const btn = document.getElementById('btnAddContent');
-  const youtube_id   = document.getElementById('ctYoutubeId').value.trim();
-  const platform     = document.getElementById('ctPlatform').value;
-  const type         = document.getElementById('ctType').value;
-  const title        = document.getElementById('ctTitle').value.trim();
-  const thumbnail    = document.getElementById('ctThumbUrl').value.trim();
-  const published_at = document.getElementById('ctPublishedAt').value;
-  const tmdb_id      = document.getElementById('ctTmdbId').value.trim();
-  const work_title   = document.getElementById('ctWorkTitle').value.trim();
-
-  if(!youtube_id){ showToast('YouTube URL을 먼저 입력하고 "정보 가져오기"를 눌러주세요.','err'); return; }
-  if(!platform)  { showToast('OTT 플랫폼을 선택해주세요.','err'); return; }
-  if(!title)     { showToast('제목을 입력해주세요.','err'); return; }
-  if(!published_at){ showToast('업로드 날짜를 입력해주세요.','err'); return; }
-
-  btn.disabled=true; btn.textContent='등록 중...';
-  try {
-    const res  = await fetch(`${API}/admin/contents`, {
-      method : 'POST',
-      headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
-      body   : JSON.stringify({
-        youtube_id, platform, type, title,
-        work_title  : work_title  || null,
-        tmdb_id     : tmdb_id     ? parseInt(tmdb_id) : null,
-        thumbnail   : thumbnail   || null,
-        published_at: new Date(published_at).toISOString(),
-      }),
-    });
-    const data = await res.json();
-    if(data.ok){
-      showToast('✅ 등록 완료','ok');
-      // 입력 초기화
-      ['ctYtUrl','ctYoutubeId','ctTitle','ctThumbUrl','ctTmdbQuery','ctTmdbId','ctWorkTitle'].forEach(id=>{
-        const el=document.getElementById(id); if(el) el.value='';
-      });
-      document.getElementById('ctThumbPreview').style.display='none';
-      document.getElementById('ctTmdbSelected').style.display='none';
-      document.getElementById('ctTmdbResults').style.display='none';
-      document.getElementById('ctPlatform').value='netflix';
-      document.getElementById('ctType').value='trailer';
-      await loadContentsTable();
-    } else {
-      showToast(data.error||'등록 실패','err');
-    }
-  } catch(e){ showToast(e.message,'err'); }
-  finally { btn.disabled=false; btn.textContent='등록'; }
-}
-
 
 </script>
 </body>
