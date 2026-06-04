@@ -304,33 +304,79 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 
 /* ══ 댓글 ══ */
-.comment-sort-row{display:flex;gap:6px;margin-bottom:14px}
+.comment-sort-row{display:flex;gap:6px;margin-bottom:16px}
 .sort-btn{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:14px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
 .sort-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
-.comments-section{display:flex;flex-direction:column;gap:1px}
-.comment-item{padding:16px 0;border-bottom:.5px solid var(--border)}
-.comment-item:last-child{border-bottom:none}
-.comment-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.avatar{width:34px;height:34px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--info);cursor:pointer;flex-shrink:0;border:.5px solid var(--info-border)}
+
+/* 카드형 댓글 컨테이너 */
+.comments-section{display:flex;flex-direction:column;gap:10px}
+.comment-item{
+  background:var(--bg2);border:.5px solid var(--border);
+  border-radius:var(--r-lg);padding:16px 18px;
+  transition:border-color .15s;
+}
+.comment-item:hover{border-color:var(--border2)}
+
+/* 댓글 헤더 */
+.comment-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.avatar{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--info-bg);border:.5px solid var(--info-border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;color:var(--info);
+  cursor:pointer;flex-shrink:0;transition:opacity .15s;
+}
 .avatar:hover{opacity:.75}
 .c-name-wrap{display:flex;align-items:center;gap:6px;cursor:pointer}
-.c-name{font-size:13px;font-weight:600;color:var(--text)}
-.c-name:hover{color:var(--info);text-decoration:underline}
-.c-stars{display:flex;gap:1px}
-.c-star{font-size:14px;color:var(--gold)}
+.c-name{font-size:14px;font-weight:600;color:var(--text)}
+.c-name:hover{color:var(--info)}
+.c-stars{display:flex;gap:1px;margin-top:2px}
+.c-star{font-size:13px;color:var(--gold)}
 .c-star.off{color:var(--border2)}
-.c-time{font-size:13px;color:var(--muted);font-family:var(--font-mono);margin-left:auto}
-.c-text{font-size:14px;color:var(--muted2);line-height:1.65;margin-bottom:8px}
-.c-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.c-like{font-size:13px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:10px;border:.5px solid var(--border);transition:all .15s}
+.c-time{font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-left:auto;white-space:nowrap}
+
+/* 본문 */
+.c-text{font-size:14px;color:var(--text);line-height:1.7;margin-bottom:12px;word-break:break-word}
+
+/* 푸터 */
+.c-footer{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding-top:10px;border-top:.5px solid var(--border);
+}
+.c-like{
+  font-size:13px;color:var(--muted);cursor:pointer;
+  font-family:var(--font-mono);display:inline-flex;align-items:center;gap:4px;
+  padding:4px 10px;border-radius:20px;border:.5px solid var(--border);
+  background:transparent;transition:all .15s;
+}
 .c-like:hover{color:var(--accent);border-color:rgba(230,57,70,.4);background:var(--danger-bg)}
-.c-share{font-size:13px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;gap:3px;background:none;border:none;padding:0;transition:color .15s}
-.c-share:hover{color:var(--info)}
-.c-delete-btn{background:none;border:none;font-size:13px;color:var(--accent);cursor:pointer;font-family:var(--font-mono);padding:0}
-.c-delete-btn:hover{text-decoration:underline}
-.c-ebadge{font-size:13px;padding:2px 10px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
-.c-cbadge{font-size:13px;padding:2px 8px;border-radius:10px;background:var(--warn-bg);color:#c89a10;font-family:var(--font-mono)}
-.sp-badge{font-size:13px;padding:2px 8px;border-radius:10px;background:var(--danger-bg);color:var(--accent);font-family:var(--font-mono)}
+.c-share{
+  font-size:13px;color:var(--muted);cursor:pointer;
+  font-family:var(--font-mono);display:inline-flex;align-items:center;gap:4px;
+  padding:4px 10px;border-radius:20px;border:.5px solid var(--border);
+  background:none;transition:all .15s;
+}
+.c-share:hover{color:var(--info);border-color:var(--info-border);background:var(--info-bg)}
+.c-delete-btn{
+  background:none;border:.5px solid rgba(230,57,70,.25);
+  font-size:13px;color:var(--accent);cursor:pointer;
+  font-family:var(--font-mono);padding:4px 10px;border-radius:20px;
+  transition:all .15s;margin-left:auto;
+}
+.c-delete-btn:hover{background:var(--danger-bg);border-color:var(--accent)}
+.c-ebadge{
+  font-size:12px;padding:3px 10px;border-radius:20px;
+  background:var(--info-bg);color:var(--info);
+  border:.5px solid var(--info-border);font-family:var(--font-mono);
+}
+.c-cbadge{font-size:12px;padding:3px 8px;border-radius:20px;background:var(--warn-bg);color:#c89a10;font-family:var(--font-mono)}
+.sp-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:12px;padding:3px 10px;border-radius:20px;
+  background:var(--danger-bg);color:var(--accent);
+  border:.5px solid rgba(230,57,70,.3);font-family:var(--font-mono);
+  margin-bottom:8px;
+}
 .empty-comments{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 20px;text-align:center}
 .empty-comments-btn{margin-top:4px;padding:10px 24px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font-sans)}
 
@@ -1486,14 +1532,27 @@ function renderComments(){
     <div class="comment-item" id="cmt_${c.id}">
       <div class="comment-header">
         <div class="avatar" onclick="showProfile('${c.user}')">${c.init}</div>
-        <div style="flex:1;min-width:0"><div class="c-name-wrap" onclick="showProfile('${c.user}')"><span class="c-name">${c.user}</span></div><div class="c-stars">${renderHalfStars(c.score)}</div></div>
+        <div style="flex:1;min-width:0">
+          <div class="c-name-wrap" onclick="showProfile('${c.user}')">
+            <span class="c-name">${c.user}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+            <div class="c-stars">${renderHalfStars(c.score)}</div>
+            <span style="font-size:12px;color:var(--gold);font-family:var(--font-mono);font-weight:600">${(c.score*2).toFixed(1)}</span>
+          </div>
+        </div>
         <span class="c-time">${c.time}</span>
       </div>
-      ${c.spoiler?'<span class="sp-badge" style="display:inline-block;margin-bottom:8px">⚠ 스포일러</span>':''}
+      ${c.spoiler?'<span class="sp-badge">⚠ 스포일러</span>':''}
       <div class="c-text">${c.text}</div>
       <div class="c-footer">
-        <span class="c-like" onclick="likeComment('${c.id}')"><i class="ti ti-heart" style="font-size:11px;vertical-align:-1px"></i> <span id="like_cmt_${c.id}">${c.likes}</span></span>
-        <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">🔗 이 후기 공유</button>
+        <span class="c-like" onclick="likeComment('${c.id}')">
+          <i class="ti ti-heart" style="font-size:11px"></i>
+          <span id="like_cmt_${c.id}">${c.likes}</span>
+        </span>
+        <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">
+          🔗 공유
+        </button>
         ${c.emotions.map(e=>`<span class="c-ebadge">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}
         ${c.isMe?`<button class="c-delete-btn" onclick="deleteMyReview(${c.id})">삭제</button>`:''}
       </div>
