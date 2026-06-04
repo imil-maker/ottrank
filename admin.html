@@ -257,6 +257,29 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">제목 (비우면 YouTube 제목 자동 입력)</label>
         <input id="ctTitle" class="inp" style="margin-bottom:0" type="text" placeholder="YouTube에서 자동으로 가져옵니다">
       </div>
+      <!-- TMDB 작품 연결 -->
+      <div style="grid-column:1/-1">
+        <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">TMDB 작품 연결 (선택)</label>
+        <div style="display:flex;gap:8px">
+          <input id="ctTmdbQuery" class="inp" style="margin-bottom:0;flex:1" type="text"
+            placeholder="작품명으로 검색 (예: 남편들, 골드랜드...)"
+            onkeydown="if(event.key==='Enter')searchTmdbForContent()">
+          <button class="btn-save" style="white-space:nowrap;padding:0 18px;background:var(--info)" onclick="searchTmdbForContent()">검색</button>
+        </div>
+        <!-- TMDB 검색 결과 -->
+        <div id="ctTmdbResults" style="display:none;margin-top:8px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;overflow:hidden;max-height:220px;overflow-y:auto"></div>
+        <!-- 선택된 작품 -->
+        <div id="ctTmdbSelected" style="display:none;margin-top:8px;align-items:center;gap:10px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:8px;padding:10px 14px">
+          <img id="ctTmdbPoster" src="" alt="" style="width:32px;height:48px;object-fit:cover;border-radius:3px;flex-shrink:0">
+          <div style="flex:1;min-width:0">
+            <div id="ctTmdbTitle" style="font-size:14px;font-weight:500;color:var(--green)"></div>
+            <div id="ctTmdbMeta" style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px"></div>
+          </div>
+          <button class="btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0" onclick="clearTmdbSelection()">✕ 해제</button>
+        </div>
+        <input type="hidden" id="ctTmdbId">
+        <input type="hidden" id="ctWorkTitle">
+      </div>
       <!-- OTT 플랫폼 -->
       <div>
         <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">OTT 플랫폼 *</label>
@@ -3282,6 +3305,88 @@ async function fetchYoutubeInfo(){
   }
 }
 
+/* ── TMDB 작품 검색 (수동 등록용, TMDB 프록시 사용) ── */
+async function searchTmdbForContent(){
+  const q = document.getElementById('ctTmdbQuery').value.trim();
+  if(!q){ showToast('작품명을 입력해주세요.','err'); return; }
+
+  const resultsEl = document.getElementById('ctTmdbResults');
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">검색 중...</div>`;
+
+  try {
+    // TV + 영화 동시 검색 (기존 TMDB 프록시 활용)
+    const [tvRes, mvRes] = await Promise.all([
+      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+    ]);
+    const tvData = await tvRes.json();
+    const mvData = await mvRes.json();
+
+    const tvItems = (tvData.results||[]).slice(0,4).map(r=>({...r, _type:'tv'}));
+    const mvItems = (mvData.results||[]).slice(0,3).map(r=>({...r, _type:'movie'}));
+    const items   = [...tvItems, ...mvItems];
+
+    if(!items.length){
+      resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">검색 결과 없음</div>`;
+      return;
+    }
+
+    resultsEl.innerHTML = items.map(item => {
+      const title    = item.name || item.title || '';
+      const orgTitle = item.original_name || item.original_title || '';
+      const year     = (item.first_air_date || item.release_date || '').slice(0,4);
+      const poster   = item.poster_path ? `${IMG2}${item.poster_path}` : '';
+      const typeLabel = item._type === 'tv' ? 'TV' : '영화';
+      const typeColor = item._type === 'tv' ? 'var(--info)' : 'var(--gold)';
+
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s"
+        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
+        onclick="selectTmdbItem(${item.id},'${item._type}','${title.replace(/'/g,"\\'")}','${poster}','${year}')">
+        ${poster
+          ? `<img src="${poster}" alt="" style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">`
+          : `<div style="width:28px;height:42px;background:var(--bg3);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`
+        }
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${orgTitle}${year?` · ${year}`:''}</div>
+        </div>
+        <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;background:transparent;color:${typeColor};border:1px solid ${typeColor};flex-shrink:0">${typeLabel}</span>
+      </div>`;
+    }).join('');
+
+  } catch(e){
+    resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--red);font-size:13px">검색 실패: ${e.message}</div>`;
+  }
+}
+
+/* ── TMDB 작품 선택 ── */
+function selectTmdbItem(tmdbId, tmdbType, title, poster, year){
+  document.getElementById('ctTmdbId').value    = tmdbId;
+  document.getElementById('ctWorkTitle').value = title;
+
+  // 선택 표시
+  const selected = document.getElementById('ctTmdbSelected');
+  document.getElementById('ctTmdbPoster').src          = poster || '';
+  document.getElementById('ctTmdbPoster').style.display = poster ? 'block' : 'none';
+  document.getElementById('ctTmdbTitle').textContent   = title;
+  document.getElementById('ctTmdbMeta').textContent    = `TMDB:${tmdbId} · ${tmdbType==='tv'?'TV 시리즈':'영화'} ${year?`· ${year}`:''}`;
+  selected.style.display = 'flex';
+
+  // 검색 결과 닫기
+  document.getElementById('ctTmdbResults').style.display = 'none';
+  document.getElementById('ctTmdbQuery').value = title;
+}
+
+/* ── TMDB 선택 해제 ── */
+function clearTmdbSelection(){
+  document.getElementById('ctTmdbId').value    = '';
+  document.getElementById('ctWorkTitle').value = '';
+  document.getElementById('ctTmdbSelected').style.display = 'none';
+  document.getElementById('ctTmdbQuery').value = '';
+  document.getElementById('ctTmdbResults').style.display = 'none';
+}
+
 /* ── 수동 등록 제출 ── */
 async function submitContentAdd(){
   const btn = document.getElementById('btnAddContent');
@@ -3291,6 +3396,8 @@ async function submitContentAdd(){
   const title        = document.getElementById('ctTitle').value.trim();
   const thumbnail    = document.getElementById('ctThumbUrl').value.trim();
   const published_at = document.getElementById('ctPublishedAt').value;
+  const tmdb_id      = document.getElementById('ctTmdbId').value.trim();
+  const work_title   = document.getElementById('ctWorkTitle').value.trim();
 
   if(!youtube_id){ showToast('YouTube URL을 먼저 입력하고 "정보 가져오기"를 눌러주세요.','err'); return; }
   if(!platform)  { showToast('OTT 플랫폼을 선택해주세요.','err'); return; }
@@ -3304,7 +3411,9 @@ async function submitContentAdd(){
       headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
       body   : JSON.stringify({
         youtube_id, platform, type, title,
-        thumbnail : thumbnail || null,
+        work_title  : work_title  || null,
+        tmdb_id     : tmdb_id     ? parseInt(tmdb_id) : null,
+        thumbnail   : thumbnail   || null,
         published_at: new Date(published_at).toISOString(),
       }),
     });
@@ -3312,10 +3421,12 @@ async function submitContentAdd(){
     if(data.ok){
       showToast('✅ 등록 완료','ok');
       // 입력 초기화
-      ['ctYtUrl','ctYoutubeId','ctTitle','ctThumbUrl'].forEach(id=>{
+      ['ctYtUrl','ctYoutubeId','ctTitle','ctThumbUrl','ctTmdbQuery','ctTmdbId','ctWorkTitle'].forEach(id=>{
         const el=document.getElementById(id); if(el) el.value='';
       });
       document.getElementById('ctThumbPreview').style.display='none';
+      document.getElementById('ctTmdbSelected').style.display='none';
+      document.getElementById('ctTmdbResults').style.display='none';
       document.getElementById('ctPlatform').value='netflix';
       document.getElementById('ctType').value='trailer';
       await loadContentsTable();
@@ -3325,6 +3436,7 @@ async function submitContentAdd(){
   } catch(e){ showToast(e.message,'err'); }
   finally { btn.disabled=false; btn.textContent='등록'; }
 }
+
 
 </script>
 </body>
