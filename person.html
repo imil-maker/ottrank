@@ -54,16 +54,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .person-photo-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   font-size:56px;font-weight:700;color:var(--info);font-family:var(--font-mono)}
 
-/* 인스타 버튼 — 사진 바로 아래 */
-.person-instagram{display:inline-flex;align-items:center;gap:8px;margin-top:14px;
-  padding:8px 14px;border-radius:8px;
-  background:linear-gradient(135deg,rgba(253,29,29,.15),rgba(131,58,180,.15));
-  border:1px solid rgba(131,58,180,.35);
-  color:var(--text);font-size:13px;font-weight:500;
-  text-decoration:none;transition:all .15s;width:100%;justify-content:center}
-.person-instagram:hover{background:linear-gradient(135deg,rgba(253,29,29,.28),rgba(131,58,180,.28));
-  border-color:rgba(131,58,180,.6)}
-.person-instagram img{width:18px;height:18px;border-radius:4px;flex-shrink:0}
+/* 인스타 아이콘 — 이름 옆 인라인 */
+.person-insta-icon{display:inline-flex;align-items:center;margin-left:8px;
+  opacity:.75;transition:opacity .15s;vertical-align:middle;text-decoration:none;
+  position:relative;top:-3px}
+.person-insta-icon:hover{opacity:1}
+.person-insta-icon img{width:24px;height:24px;border-radius:6px;display:block}
 
 /* ── 인물 정보 ── */
 .person-info{flex:1;min-width:0}
@@ -146,7 +142,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .person-name{font-size:26px}
   .person-meta-row{justify-content:center}
   .works-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
-  .person-instagram{width:auto;margin:14px auto 0}
 }
 </style>
 </head>
@@ -190,14 +185,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="person-photo" id="personPhoto">
         <div class="person-photo-ph" id="personPhotoPh">?</div>
       </div>
-      <!-- 인스타 버튼 — 있을 때만 표시 -->
-      <a id="instaBtn" class="person-instagram" href="#" target="_blank" rel="noopener" style="display:none">
-        <img src="/instagram.png" alt="Instagram">
-        <span>Instagram</span>
-      </a>
     </div>
 
     <div class="person-info">
+      <!-- 이름 + 인스타 아이콘 (JS에서 instaId 있을 때 추가) -->
       <div class="person-name" id="personName">—</div>
       <div class="person-name-en" id="personNameEn"></div>
       <div class="person-meta-row" id="personMetaRow"></div>
@@ -430,17 +421,22 @@ async function initPage(){
     }
     document.getElementById('personMetaRow').innerHTML = chips.join('');
 
-    /* ⑤ 약력 */
-    const bio = data.biography || '';
+    /* ⑤ 약력 — ko-KR 없으면 영어 fallback */
+    let bio = data.biography || '';
+    if(!bio){
+      try{
+        // language 파라미터 없이 재호출 → 영어 약력
+        const enRes  = await fetch(`${TMDB_PROXY}/person/${personId}?language=en-US`);
+        const enData = await enRes.json();
+        bio = enData.biography || '';
+      }catch(e){}
+    }
     const bioEl = document.getElementById('bioText');
     if(bio){
       bioEl.textContent = bio;
-      // 4줄 초과 시 더보기 버튼 표시
-      // (렌더 후 라인 수 체크)
       requestAnimationFrame(()=>{
         const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
-        const maxH  = lineH * 4;
-        if(bioEl.scrollHeight > maxH + 4){
+        if(bioEl.scrollHeight > lineH * 4 + 4){
           document.getElementById('bioToggle').style.display = 'inline';
         }
       });
@@ -448,12 +444,18 @@ async function initPage(){
       bioEl.textContent = '약력 정보가 없습니다.';
     }
 
-    /* ⑥ 인스타그램 */
+    /* ⑥ 인스타그램 — 이름 옆 아이콘으로 표시 */
     const instaId = data.external_ids?.instagram_id;
     if(instaId){
-      const btn = document.getElementById('instaBtn');
-      btn.href = `https://www.instagram.com/${instaId}/`;
-      btn.style.display = 'flex';
+      const nameEl = document.getElementById('personName');
+      const iconHtml = `<a class="person-insta-icon"
+        href="https://www.instagram.com/${instaId}/"
+        target="_blank" rel="noopener"
+        title="Instagram @${instaId}"
+        onclick="event.stopPropagation()">
+        <img src="/img/instagram.png" alt="Instagram">
+      </a>`;
+      nameEl.innerHTML = nameEl.textContent + iconHtml;
     }
 
     /* ⑦ SEO */
