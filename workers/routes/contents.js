@@ -474,6 +474,15 @@ async function adminCreateContent(request, env, headers) {
       published_at
     ).run();
 
+    // TMDB 매칭된 작품이 있으면 works 테이블에도 자동 등록
+    // INSERT OR IGNORE → 이미 있으면 기존 데이터 보호, 없으면 신규 추가
+    if (tmdb_id && work_title) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO works (tmdb_id, category, title_ko, match_source)
+         VALUES (?, 'tv', ?, 'crawler')`
+      ).bind(tmdb_id, work_title).run();
+    }
+
     return json({ ok: true, id: result.meta?.last_row_id }, 200, headers);
 
   } catch (e) {
