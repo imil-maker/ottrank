@@ -814,25 +814,57 @@ async function init(){
 const CT_TYPE_LABEL = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
 const CT_PF_COLOR   = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3' };
 const CT_PF_NAME    = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브' };
+// 노출 순서 (고정 제외 후 나머지 채우는 순서 — 역순으로 가져와서 앞에 붙임)
+const CT_PF_ORDER   = ['netflix', 'tving', 'disney', 'coupang', 'wavve'];
 
 async function loadContentsPreview(){
   try {
-    // 메인 고정 먼저 시도, 없으면 전체 최신 5개
-    const [pinnedRes, latestRes] = await Promise.all([
-      fetch(`${API}/contents/pinned`),
-      fetch(`${API}/contents?limit=5`),
-    ]);
+    // ① 고정 영상 조회
+    const pinnedRes  = await fetch(`${API}/contents/pinned`);
     const pinnedData = await pinnedRes.json();
-    const latestData = await latestRes.json();
+    const pinned     = pinnedData.items || [];
+    const need       = 5 - pinned.length; // 나머지 슬롯 수
 
-    // 고정 영상 우선, 부족하면 최신으로 채움
-    const pinned = pinnedData.items || [];
-    const latest = latestData.items || [];
-    const seen   = new Set(pinned.map(i => i.id));
-    const fill   = latest.filter(i => !seen.has(i.id));
-    const items  = [...pinned, ...fill].slice(0, 5);
+    // ② 나머지 슬롯만큼 플랫폼별 최신 1개씩 채움
+    // 고정에 이미 포함된 플랫폼은 스킵
+    // 넷플→티빙→디즈니→쿠팡→웨이브 순서로 need개만큼
+    const pinnedPlatforms = new Set(pinned.map(i => i.platform));
+    const fillPlatforms   = CT_PF_ORDER
+      .filter(p => !pinnedPlatforms.has(p))
+      .slice(0, need); // 필요한 수만큼만
 
-    renderContentsPreview(items);
+    // 플랫폼별 최신 1개 병렬 조회
+    const fillItems = [];
+    if(fillPlatforms.length) {
+      const results = await Promise.all(
+        fillPlatforms.map(p =>
+          fetch(`${API}/contents?platform=${p}&limit=1`)
+            .then(r => r.json())
+            .catch(() => ({ items:[] }))
+        )
+      );
+      results.forEach(data => {
+        const item = (data.items || [])[0];
+        if(item) fillItems.push(item);
+      });
+    }
+
+    // ③ 최종 합산: 고정 + 플랫폼 최신
+    // 노출 순서: 넷플→티빙→디즈니→쿠팡→웨이브
+    // 고정 영상은 sort_order 순, 나머지는 플랫폼 순서대로
+    const allItems = [...pinned, ...fillItems];
+
+    // 넷플→티빙→디즈니→쿠팡→웨이브 순으로 정렬
+    allItems.sort((a, b) => {
+      // 고정 영상은 sort_order 기준
+      const aPin = a.is_pinned ? a.sort_order || 0 : 99;
+      const bPin = b.is_pinned ? b.sort_order || 0 : 99;
+      if(aPin !== bPin) return aPin - bPin;
+      // 비고정은 플랫폼 순서
+      return CT_PF_ORDER.indexOf(a.platform) - CT_PF_ORDER.indexOf(b.platform);
+    });
+
+    renderContentsPreview(allItems.slice(0, 5));
   } catch(e){
     renderContentsPreview([]);
   }
