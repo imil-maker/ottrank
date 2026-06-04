@@ -6,17 +6,8 @@ on:
     - cron: "0 23 * * *"   # 오전 8시 KST
     - cron: "0 11 * * *"   # 오후 8시 KST
 
-  # 수동 실행 (초기 실행 시 initial=true 로 설정)
+  # 수동 실행
   workflow_dispatch:
-    inputs:
-      initial:
-        description: "초기 실행 여부 (true = 채널당 10개, false = 5개)"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
 
 jobs:
   crawl:
@@ -36,10 +27,8 @@ jobs:
 
       - name: OTT 콘텐츠 크롤링 실행
         env:
-          YOUTUBE_API_KEY:    ${{ secrets.YOUTUBE_API_KEY }}
-          ADMIN_SECRET:       ${{ secrets.ADMIN_SECRET }}
-          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
-          TMDB_API_KEY:       ${{ secrets.TMDB_API_KEY }}
-          # 수동 실행 시 initial 입력값 사용, 스케줄 실행 시 false
-          CRAWL_INITIAL:      ${{ github.event.inputs.initial || 'false' }}
+          YOUTUBE_API_KEY:   ${{ secrets.YOUTUBE_API_KEY }}
+          ADMIN_SECRET:      ${{ secrets.ADMIN_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TMDB_API_KEY:      ${{ secrets.TMDB_API_KEY }}
         run: python crawlers/crawl_contents.py
