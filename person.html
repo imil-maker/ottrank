@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="seoTitle">인물 정보 | 오뜨랑</title>
+<meta id="seoDesc" name="description" content="배우 및 감독 상세 정보를 오뜨랑에서 확인하세요.">
+<meta property="og:type" content="profile">
+<meta property="og:site_name" content="오뜨랑">
+<meta id="seoOgTitle" property="og:title" content="인물 정보 | 오뜨랑">
+<meta id="seoOgDesc" property="og:description" content="배우 및 감독 상세 정보를 오뜨랑에서 확인하세요.">
+<meta id="seoOgImg" property="og:image" content="https://ottrank.kr/og-image.png">
+<meta id="seoOgUrl" property="og:url" content="https://ottrank.kr/person.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta id="seoTwTitle" name="twitter:title" content="인물 정보 | 오뜨랑">
+<meta id="seoTwDesc" name="twitter:description" content="배우 및 감독 상세 정보를 오뜨랑에서 확인하세요.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+/* ── 디자인 토큰 (_title_detail.html 동일) ── */
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;
+  --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
+  --font-sans:'Noto Sans KR',sans-serif;
+  --font-mono:'DM Mono',monospace;
+  --font-disp:'Bebas Neue',sans-serif;
+  --r:10px;--r-lg:14px;
+  --content-w:900px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+#ottrang-header{position:sticky;top:0;z-index:200}
+
+/* ── 페이지 래퍼 ── */
+.page-wrap{max-width:900px;margin:0 auto;padding:24px 20px 80px}
+
+/* ── 뒤로가기 ── */
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;
+  text-decoration:none;padding:7px 14px;border:1px solid var(--border);
+  border-radius:7px;transition:all .15s;font-family:var(--font-mono);margin-bottom:24px;cursor:pointer;background:transparent}
+.back-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
+
+/* ── 히어로 영역 ── */
+.person-hero{display:flex;gap:32px;margin-bottom:32px;align-items:flex-start}
+.person-photo-wrap{flex-shrink:0;width:200px}
+.person-photo{width:200px;aspect-ratio:2/3;border-radius:var(--r-lg);overflow:hidden;
+  border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 64px rgba(0,0,0,.6);
+  background:var(--bg3);position:relative}
+.person-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.person-photo-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  font-size:56px;font-weight:700;color:var(--info);font-family:var(--font-mono)}
+
+/* 인스타 버튼 — 사진 바로 아래 */
+.person-instagram{display:inline-flex;align-items:center;gap:8px;margin-top:14px;
+  padding:8px 14px;border-radius:8px;
+  background:linear-gradient(135deg,rgba(253,29,29,.15),rgba(131,58,180,.15));
+  border:1px solid rgba(131,58,180,.35);
+  color:var(--text);font-size:13px;font-weight:500;
+  text-decoration:none;transition:all .15s;width:100%;justify-content:center}
+.person-instagram:hover{background:linear-gradient(135deg,rgba(253,29,29,.28),rgba(131,58,180,.28));
+  border-color:rgba(131,58,180,.6)}
+.person-instagram img{width:18px;height:18px;border-radius:4px;flex-shrink:0}
+
+/* ── 인물 정보 ── */
+.person-info{flex:1;min-width:0}
+.person-name{font-size:34px;font-weight:900;line-height:1.1;letter-spacing:-.5px;margin-bottom:4px}
+.person-name-en{font-size:15px;color:var(--muted);font-family:var(--font-mono);margin-bottom:16px}
+.person-meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+.person-meta-chip{display:inline-flex;align-items:center;gap:5px;
+  padding:5px 12px;border-radius:20px;border:.5px solid var(--border);
+  background:var(--bg2);font-size:13px;color:var(--muted2);font-family:var(--font-mono)}
+.person-meta-chip .chip-label{color:var(--muted);font-size:12px;margin-right:2px}
+
+/* 약력 */
+.bio-section{margin-bottom:0}
+.bio-text{font-size:14px;color:var(--muted2);line-height:1.8;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+  transition:all .3s}
+.bio-text.expanded{-webkit-line-clamp:unset;overflow:visible}
+.bio-toggle{margin-top:8px;background:none;border:none;color:var(--info);
+  font-size:13px;cursor:pointer;font-family:var(--font-mono);padding:0;
+  display:none} /* JS로 필요시 표시 */
+.bio-toggle:hover{text-decoration:underline}
+
+/* ── 필모그래피 ── */
+.filmography-section{margin-top:32px}
+.section-title{font-size:17px;font-weight:700;margin-bottom:16px;
+  display:flex;align-items:center;gap:10px}
+.section-title small{font-size:13px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
+
+/* 탭 */
+.tab-row{display:flex;gap:6px;margin-bottom:20px}
+.tab-btn{padding:7px 18px;border-radius:20px;border:.5px solid var(--border);
+  font-size:14px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);
+  background:transparent;transition:all .15s}
+.tab-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.tab-btn:hover:not(.on){color:var(--muted2);border-color:var(--border)}
+
+/* 작품 그리드 */
+.works-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:16px}
+.work-card{cursor:pointer;text-decoration:none;display:block;transition:transform .2s ease}
+.work-card:hover{transform:translateY(-4px)}
+.work-poster{width:100%;aspect-ratio:2/3;border-radius:var(--r);overflow:hidden;
+  background:var(--bg3);border:.5px solid var(--border);position:relative;margin-bottom:8px}
+.work-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;
+  justify-content:center;font-size:28px}
+.work-year-badge{position:absolute;top:6px;right:6px;
+  background:rgba(0,0,0,.75);color:var(--muted2);
+  font-size:10px;font-family:var(--font-mono);
+  padding:2px 6px;border-radius:4px;backdrop-filter:blur(4px)}
+.work-title{font-size:13px;font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.work-role{font-size:12px;color:var(--muted);font-family:var(--font-mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work-type-dot{display:inline-block;width:5px;height:5px;border-radius:50%;
+  margin-right:4px;vertical-align:middle}
+.work-type-dot.tv{background:var(--info)}
+.work-type-dot.movie{background:var(--gold)}
+
+/* 더보기 버튼 */
+.load-more-btn{display:block;width:100%;margin-top:20px;padding:12px;
+  border-radius:var(--r);border:.5px solid var(--border);
+  background:transparent;color:var(--muted2);font-size:14px;
+  cursor:pointer;font-family:var(--font-sans);transition:all .15s;text-align:center}
+.load-more-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+
+/* ── 로딩 ── */
+.page-loading{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:80px;gap:16px}
+.page-loading p{font-size:14px;color:var(--muted);font-family:var(--font-mono)}
+.spin{width:28px;height:28px;border:2.5px solid var(--border2);border-top-color:var(--info);
+  border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── 반응형 ── */
+@media(max-width:640px){
+  .person-hero{flex-direction:column;gap:20px;align-items:center}
+  .person-photo-wrap{width:160px}
+  .person-photo{width:160px}
+  .person-info{width:100%;text-align:center}
+  .person-name{font-size:26px}
+  .person-meta-row{justify-content:center}
+  .works-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
+  .person-instagram{width:auto;margin:14px auto 0}
+}
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div id="ottrang-header"></div>
+<script>
+(function(){
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      const el=document.getElementById('ottrang-header');
+      el.innerHTML=h;
+      el.querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function') initHeader();
+    })
+    .catch(()=>{})
+    .finally(()=>{ initPage(); });
+})();
+</script>
+
+<!-- 본문 -->
+<div class="page-wrap">
+
+  <!-- 뒤로가기 -->
+  <button class="back-btn" onclick="history.back()">← 뒤로가기</button>
+
+  <!-- 로딩 -->
+  <div id="pageLoading" class="page-loading">
+    <div class="spin"></div>
+    <p>인물 정보를 불러오는 중...</p>
+  </div>
+
+  <!-- 인물 히어로 -->
+  <div id="personHero" class="person-hero" style="display:none">
+    <div class="person-photo-wrap">
+      <div class="person-photo" id="personPhoto">
+        <div class="person-photo-ph" id="personPhotoPh">?</div>
+      </div>
+      <!-- 인스타 버튼 — 있을 때만 표시 -->
+      <a id="instaBtn" class="person-instagram" href="#" target="_blank" rel="noopener" style="display:none">
+        <img src="/instagram.png" alt="Instagram">
+        <span>Instagram</span>
+      </a>
+    </div>
+
+    <div class="person-info">
+      <div class="person-name" id="personName">—</div>
+      <div class="person-name-en" id="personNameEn"></div>
+      <div class="person-meta-row" id="personMetaRow"></div>
+      <div class="bio-section">
+        <div class="bio-text" id="bioText"></div>
+        <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 필모그래피 -->
+  <div id="filmographySection" class="filmography-section" style="display:none">
+    <div class="section-title">
+      🎬 필모그래피 <small id="filmCount"></small>
+    </div>
+    <div class="tab-row">
+      <button class="tab-btn on" id="tabAll"   onclick="switchTab('all')">전체</button>
+      <button class="tab-btn"   id="tabAct"   onclick="switchTab('act')">출연</button>
+      <button class="tab-btn"   id="tabDirect" onclick="switchTab('direct')">연출</button>
+    </div>
+    <div class="works-grid" id="worksGrid"></div>
+    <button class="load-more-btn" id="loadMoreBtn" onclick="loadMore()" style="display:none">
+      더보기
+    </button>
+  </div>
+
+</div><!-- /page-wrap -->
+
+<script>
+/* ── 상수 ── */
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const IMG        = 'https://image.tmdb.org/t/p/w500';
+const IMG_PROFILE= 'https://image.tmdb.org/t/p/w342';
+
+/* ── URL 파라미터 ── */
+const personId = new URLSearchParams(location.search).get('id');
+
+/* ── 필모그래피 상태 ── */
+let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
+let actCredits   = [];   // 출연
+let directCredits= [];   // 연출
+let currentTab   = 'all';
+const PAGE_SIZE  = 20;
+let shownCount   = 0;
+
+/* ── 약력 펼치기 ── */
+let bioExpanded = false;
+function toggleBio(){
+  bioExpanded = !bioExpanded;
+  const el = document.getElementById('bioText');
+  const btn= document.getElementById('bioToggle');
+  el.classList.toggle('expanded', bioExpanded);
+  btn.textContent = bioExpanded ? '접기 ▴' : '더보기 ▾';
+}
+
+/* ── 탭 전환 ── */
+function switchTab(tab){
+  currentTab = tab;
+  ['all','act','direct'].forEach(t=>{
+    document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))
+      .classList.toggle('on', t===tab);
+  });
+  shownCount = 0;
+  renderWorks();
+}
+
+/* ── 현재 탭 데이터 ── */
+function currentList(){
+  if(currentTab==='act')    return actCredits;
+  if(currentTab==='direct') return directCredits;
+  return allCredits;
+}
+
+/* ── 작품 카드 HTML ── */
+function workCardHtml(item){
+  const title    = item.title || item.name || '제목 없음';
+  const year     = (item.release_date||item.first_air_date||'').slice(0,4);
+  const mediaType= item.media_type || 'tv';
+  const role     = item.character || item.job || '';
+  const poster   = item.poster_path
+    ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
+    : `<div class="work-poster-ph">🎬</div>`;
+  return `
+    <a class="work-card" data-tmdb="${item.id}" data-type="${mediaType}"
+       data-title="${title.replace(/"/g,'&quot;')}" onclick="goWork(this)">
+      <div class="work-poster">
+        ${poster}
+        ${year?`<span class="work-year-badge">${year}</span>`:''}
+      </div>
+      <div class="work-title">${title}</div>
+      <div class="work-role">
+        <span class="work-type-dot ${mediaType}"></span>${role}
+      </div>
+    </a>`;
+}
+
+/* ── 작품 렌더 ── */
+function renderWorks(){
+  const list   = currentList();
+  const grid   = document.getElementById('worksGrid');
+  const moreBtn= document.getElementById('loadMoreBtn');
+  const slice  = list.slice(0, shownCount + PAGE_SIZE);
+  shownCount   = slice.length;
+  grid.innerHTML = slice.map(workCardHtml).join('');
+  moreBtn.style.display = shownCount < list.length ? 'block' : 'none';
+}
+
+/* ── 더보기 ── */
+function loadMore(){
+  renderWorks();
+}
+
+/* ── 작품 상세 이동 ── */
+function goWork(el){
+  const tmdbId= parseInt(el.dataset.tmdb);
+  const type  = el.dataset.type || 'tv';
+  const title = el.dataset.title || '';
+  if(!tmdbId) return;
+  const y    = new Date().getFullYear();
+  const slug = `1-${y}${tmdbId}`;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id:tmdbId, type, title
+  }));
+  location.href = `/title/${slug}`;
+}
+
+/* ── 날짜 포맷 ── */
+function fmtBirth(dateStr){
+  if(!dateStr) return '';
+  const [y,m,d] = dateStr.split('-');
+  return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`;
+}
+
+/* ── 나이 계산 ── */
+function calcAge(birthday, deathday){
+  if(!birthday) return '';
+  const end = deathday ? new Date(deathday) : new Date();
+  const birth = new Date(birthday);
+  let age = end.getFullYear() - birth.getFullYear();
+  const m = end.getMonth() - birth.getMonth();
+  if(m < 0 || (m===0 && end.getDate() < birth.getDate())) age--;
+  return deathday ? `향년 ${age}세` : `${age}세`;
+}
+
+/* ── 성별 ── */
+function genderLabel(g){
+  if(g===1) return '여성';
+  if(g===2) return '남성';
+  return '';
+}
+
+/* ── SEO 업데이트 ── */
+function updateSEO(name, desc, imgUrl){
+  const t = `${name} | 오뜨랑`;
+  document.title = t;
+  document.getElementById('seoTitle').textContent = t;
+  document.getElementById('seoDesc')?.setAttribute('content', desc);
+  document.getElementById('seoOgTitle')?.setAttribute('content', t);
+  document.getElementById('seoOgDesc')?.setAttribute('content', desc);
+  document.getElementById('seoTwTitle')?.setAttribute('content', t);
+  document.getElementById('seoTwDesc')?.setAttribute('content', desc);
+  if(imgUrl){
+    document.getElementById('seoOgImg')?.setAttribute('content', imgUrl);
+  }
+}
+
+/* ── 메인 초기화 ── */
+async function initPage(){
+  if(!personId){
+    document.getElementById('pageLoading').innerHTML =
+      `<p>잘못된 접근입니다.</p>`;
+    return;
+  }
+
+  try{
+    /* ① TMDB Person + external_ids + combined_credits 한 번에 호출 */
+    const res  = await fetch(
+      `${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=external_ids,combined_credits`
+    );
+    const data = await res.json();
+
+    if(!data || !data.id){
+      document.getElementById('pageLoading').innerHTML =
+        `<p>인물 정보를 찾을 수 없습니다.</p>`;
+      return;
+    }
+
+    /* ── 로딩 숨김 / 콘텐츠 표시 ── */
+    document.getElementById('pageLoading').style.display = 'none';
+    document.getElementById('personHero').style.display = 'flex';
+
+    /* ② 이름 */
+    // also_known_as에서 한국어 이름 찾기
+    const alsoKnown = data.also_known_as || [];
+    const koName = alsoKnown.find(n => /[가-힣]/.test(n)) || '';
+    const displayName = koName || data.name || '';
+    const enName      = koName ? data.name : '';
+
+    document.getElementById('personName').textContent   = displayName;
+    document.getElementById('personNameEn').textContent = enName;
+
+    /* ③ 프로필 사진 */
+    if(data.profile_path){
+      document.getElementById('personPhoto').innerHTML =
+        `<img src="${IMG_PROFILE}${data.profile_path}" alt="${displayName}" loading="eager">`;
+    } else {
+      document.getElementById('personPhotoPh').textContent = (displayName||'?')[0];
+    }
+
+    /* ④ 메타 칩 (생년월일, 나이, 성별, 출생지) */
+    const chips = [];
+    if(data.birthday){
+      chips.push(`<span class="person-meta-chip">
+        <span class="chip-label">생년월일</span>${fmtBirth(data.birthday)}
+      </span>`);
+      const age = calcAge(data.birthday, data.deathday);
+      if(age) chips.push(`<span class="person-meta-chip">${age}</span>`);
+    }
+    if(data.deathday){
+      chips.push(`<span class="person-meta-chip">
+        <span class="chip-label">사망일</span>${fmtBirth(data.deathday)}
+      </span>`);
+    }
+    const gender = genderLabel(data.gender);
+    if(gender) chips.push(`<span class="person-meta-chip">${gender}</span>`);
+    if(data.place_of_birth){
+      chips.push(`<span class="person-meta-chip">
+        <span class="chip-label">출생지</span>${data.place_of_birth}
+      </span>`);
+    }
+    document.getElementById('personMetaRow').innerHTML = chips.join('');
+
+    /* ⑤ 약력 */
+    const bio = data.biography || '';
+    const bioEl = document.getElementById('bioText');
+    if(bio){
+      bioEl.textContent = bio;
+      // 4줄 초과 시 더보기 버튼 표시
+      // (렌더 후 라인 수 체크)
+      requestAnimationFrame(()=>{
+        const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
+        const maxH  = lineH * 4;
+        if(bioEl.scrollHeight > maxH + 4){
+          document.getElementById('bioToggle').style.display = 'inline';
+        }
+      });
+    } else {
+      bioEl.textContent = '약력 정보가 없습니다.';
+    }
+
+    /* ⑥ 인스타그램 */
+    const instaId = data.external_ids?.instagram_id;
+    if(instaId){
+      const btn = document.getElementById('instaBtn');
+      btn.href = `https://www.instagram.com/${instaId}/`;
+      btn.style.display = 'flex';
+    }
+
+    /* ⑦ SEO */
+    const profileImgUrl = data.profile_path
+      ? `https://image.tmdb.org/t/p/w342${data.profile_path}` : '';
+    const seoDesc = bio
+      ? bio.slice(0, 120).replace(/\n/g,' ') + '...'
+      : `${displayName} 필모그래피와 프로필을 오뜨랑에서 확인하세요.`;
+    updateSEO(displayName, seoDesc, profileImgUrl);
+
+    /* ⑧ 필모그래피 */
+    const credits = data.combined_credits || {};
+    const cast   = (credits.cast   || []).map(c=>({...c, media_type: c.media_type||'tv',  _kind:'act'}));
+    const crew   = (credits.crew   || []).map(c=>({...c, media_type: c.media_type||'movie',_kind:'direct'}));
+
+    // 중복 제거 (tmdb_id + media_type 기준)
+    const dedup = (arr) => {
+      const seen = new Set();
+      return arr.filter(item=>{
+        const key = `${item.id}_${item.media_type}`;
+        if(seen.has(key)) return false;
+        seen.add(key); return true;
+      });
+    };
+
+    // 최신순 정렬
+    const sortByDate = (arr) => [...arr].sort((a,b)=>{
+      const da = a.release_date||a.first_air_date||'0000';
+      const db = b.release_date||b.first_air_date||'0000';
+      return db.localeCompare(da);
+    });
+
+    actCredits    = sortByDate(dedup(cast));
+    directCredits = sortByDate(dedup(crew.filter(c=>
+      c.job==='Director'||c.job==='Creator'||c.department==='Directing'
+    )));
+    // 전체 = 출연 + 연출 합쳐서 중복 제거 후 정렬
+    allCredits = sortByDate(dedup([...cast, ...crew]));
+
+    const total = allCredits.length;
+    if(total > 0){
+      document.getElementById('filmographySection').style.display = 'block';
+      document.getElementById('filmCount').textContent =
+        `총 ${total}편`;
+      // 탭 카운트 표시
+      document.getElementById('tabAll').textContent    = `전체 (${allCredits.length})`;
+      document.getElementById('tabAct').textContent    = `출연 (${actCredits.length})`;
+      document.getElementById('tabDirect').textContent = `연출 (${directCredits.length})`;
+      renderWorks();
+    }
+
+  }catch(e){
+    console.error('[person.html]', e);
+    document.getElementById('pageLoading').innerHTML =
+      `<p>오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>`;
+  }
+}
+
+// 헤더 로드 전에 initPage가 호출되지 않도록 헤더 finally에서만 호출됨
+</script>
+</body>
+</html>
