@@ -298,6 +298,38 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     }
   }
 
+  // ── POST /works/register ─────────────────────────────────────
+  // 인물 페이지 등 크롤러 미수집 작품을 첫 방문 시 자동 등록
+  // INSERT OR IGNORE — 이미 있으면 무시 (Admin 수정값 보호)
+  // 인증 없음 (공개 API, 중복 등록 불가로 안전)
+  if (path === "/works/register" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      const { tmdb_id, title_ko, title_en, poster_path, media_type } = body;
+
+      // 필수값 검증
+      if (!tmdb_id || !title_ko) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id, title_ko required" }), { status: 400, headers });
+      }
+
+      // INSERT OR IGNORE — 이미 존재하면 건너뜀 (Admin 데이터 보호)
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO works (tmdb_id, title_ko, title_en, poster_path, media_type)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        parseInt(tmdb_id),
+        title_ko    || null,
+        title_en    || null,
+        poster_path || null,
+        media_type  || 'tv'
+      ).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /works/:tmdb_id ───────────────────────────────────
   if (path.startsWith("/works/") && request.method === "GET") {
     const tmdb_id = path.split("/works/")[1];
