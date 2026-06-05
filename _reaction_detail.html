@@ -5,11 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title id="seoTitle">해외반응 | 오뜨랑</title>
 <meta id="seoDesc" name="description" content="K-드라마·K-영화 해외반응 번역 댓글을 오뜨랑에서 확인하세요.">
+<meta id="seoKeywords" name="keywords" content="해외반응, K드라마 해외반응, 넷플릭스 해외반응, 오뜨랑">
 <meta id="seoOgTitle" property="og:title" content="해외반응 | 오뜨랑">
 <meta id="seoOgDesc" property="og:description" content="K-콘텐츠 해외반응 번역 댓글">
 <meta id="seoOgImg" property="og:image" content="">
+<meta id="seoOgUrl" property="og:url" content="https://ottrank.kr/reactions">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="오뜨랑">
+<meta name="twitter:card" content="summary_large_image">
+<meta id="seoTwTitle" name="twitter:title" content="해외반응 | 오뜨랑">
+<meta id="seoTwDesc" name="twitter:description" content="K-콘텐츠 해외반응 번역 댓글">
+<meta id="seoTwImg" name="twitter:image" content="">
+<script id="jsonLd" type="application/ld+json">{}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -36,10 +43,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .back:hover{background:var(--bg3)}
 
 /* ── 영상 플레이어 ── */
-.video-wrap{
-  width:100%;aspect-ratio:16/9;background:#000;
-  border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px;
-}
+.video-wrap{width:100%;aspect-ratio:16/9;background:#000;border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px}
 .video-wrap iframe{width:100%;height:100%;border:none;display:block}
 
 /* ── 영상 정보 ── */
@@ -49,25 +53,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .video-channel{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted2)}
 .video-date{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
 .video-actions{display:flex;gap:8px;flex-wrap:wrap}
-.btn-action{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:7px 16px;border-radius:20px;font-size:13px;cursor:pointer;
-  font-family:var(--font-sans);transition:all .15s;border:.5px solid var(--border2);
-  background:transparent;color:var(--muted2);
-}
+.btn-action{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:20px;font-size:13px;cursor:pointer;font-family:var(--font-sans);transition:all .15s;border:.5px solid var(--border2);background:transparent;color:var(--muted2)}
 .btn-action:hover{background:var(--bg3);color:var(--text)}
 .btn-action.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btn-action.primary:hover{background:#ff4d58}
 
 /* ── 광고 영역 ── */
-.ad-banner{
-  width:100%;min-height:90px;
-  background:var(--bg2);border:.5px solid var(--border);
-  border-radius:var(--r);margin-bottom:20px;
-  display:none;align-items:center;justify-content:center;
-  font-size:12px;color:var(--muted);font-family:var(--font-mono);
-  letter-spacing:.5px;
-}
+.ad-banner{width:100%;min-height:90px;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);margin-bottom:20px;display:none;align-items:center;justify-content:center;font-size:12px;color:var(--muted);font-family:var(--font-mono);letter-spacing:.5px}
 
 /* ── 섹션 헤더 ── */
 .sec-hd{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:.5px solid var(--border)}
@@ -86,27 +78,41 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .tc-orig.show{display:block}
 .empty-box{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;background:var(--bg2);border-radius:var(--r);border:.5px solid var(--border)}
 
-/* ── 오뜨랑 사용자 댓글 ── */
+/* ── 오뜨랑 사용자 댓글 입력 ── */
 .user-comment-wrap{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:16px;margin-bottom:16px}
-.comment-row{display:flex;gap:8px;margin-bottom:8px}
-.nick-inp{width:110px;background:var(--bg3);border:.5px solid var(--border);border-radius:var(--r);padding:8px 12px;color:var(--text);font-family:var(--font-sans);font-size:13px;outline:none;flex-shrink:0}
-.nick-inp:focus{border-color:var(--border2)}
-.content-inp{flex:1;background:var(--bg3);border:.5px solid var(--border);border-radius:var(--r);padding:8px 12px;color:var(--text);font-family:var(--font-sans);font-size:13px;outline:none;resize:none;height:64px}
+.cm-login-notice{padding:14px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--muted);text-align:center}
+.cm-login-notice a{color:var(--accent);text-decoration:none}
+.cm-login-notice a:hover{text-decoration:underline}
+.comment-row{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start}
+/* 로그인 유저 프로필 영역 */
+.cm-user-info{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:.5px solid var(--border)}
+.cm-user-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;background:var(--bg3);border:1px solid var(--border);flex-shrink:0}
+.cm-user-avatar-ph{width:28px;height:28px;border-radius:50%;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
+.cm-user-nick{font-size:13px;font-weight:600;color:var(--text)}
+.content-inp{flex:1;background:var(--bg3);border:.5px solid var(--border);border-radius:var(--r);padding:8px 12px;color:var(--text);font-family:var(--font-sans);font-size:13px;outline:none;resize:none;height:64px;width:100%}
 .content-inp:focus{border-color:var(--border2)}
 .submit-row{display:flex;align-items:center;justify-content:space-between}
 .spoiler-label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer}
 .btn-submit{padding:8px 20px;border-radius:var(--r);background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
 .btn-submit:hover{background:#ff4d58}
+.btn-submit:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── 댓글 목록 ── */
 .user-comment-list{display:flex;flex-direction:column;gap:8px}
 .uc-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px 14px}
 .uc-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.uc-nick{font-size:13px;font-weight:600}
+/* 프로필 이미지 */
+.uc-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--bg3);border:1px solid var(--border);flex-shrink:0}
+.uc-avatar-ph{width:26px;height:26px;border-radius:50%;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
+.uc-nick{font-size:13px;font-weight:600;color:var(--text)}
 .uc-time{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-left:auto}
-.uc-text{font-size:14px;color:var(--muted2);line-height:1.6}
+.uc-text{font-size:14px;color:var(--muted2);line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .uc-footer{display:flex;align-items:center;gap:8px;margin-top:8px}
 .btn-like{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:none;border:.5px solid var(--border);padding:3px 9px;border-radius:10px;transition:all .15s}
 .btn-like:hover{color:var(--accent);border-color:rgba(230,57,70,.4)}
 .sp-badge{font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(230,57,70,.1);color:var(--accent);font-family:var(--font-mono)}
+.btn-del{font-family:var(--font-mono);font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;padding:3px 8px;border-radius:5px;transition:all .15s;margin-left:auto}
+.btn-del:hover{color:var(--accent);background:rgba(230,57,70,.1)}
 
 /* ── 로딩 ── */
 .loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px;color:var(--muted);font-family:var(--font-mono)}
@@ -191,18 +197,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="sec-title">💬 오뜨랑 댓글</div>
       <small class="sec-count" id="userCount"></small>
     </div>
-    <div class="user-comment-wrap">
-      <div class="comment-row">
-        <input class="nick-inp" id="nickInp" type="text" placeholder="닉네임" maxlength="20" value="익명">
-        <textarea class="content-inp" id="contentInp" placeholder="이 영상 어떻게 보셨나요? (500자 이내)" maxlength="500"></textarea>
-      </div>
-      <div class="submit-row">
-        <label class="spoiler-label">
-          <input type="checkbox" id="spoilerChk"> 스포일러 포함
-        </label>
-        <button class="btn-submit" onclick="submitComment()">등록</button>
-      </div>
-    </div>
+
+    <!-- 댓글 입력 영역 (checkLogin 후 렌더) -->
+    <div id="commentInputArea"></div>
+
     <div class="user-comment-list" id="userCommentList">
       <div class="loading"><div class="spinner"></div></div>
     </div>
@@ -213,62 +211,87 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div class="toast" id="toast"></div>
 
 <script>
-/* ── 헤더 ── */
-fetch('/header.html').then(r=>r.ok?r.text():Promise.reject())
-  .then(h=>{
-    document.getElementById('ottrang-header').innerHTML=h;
-    document.getElementById('ottrang-header').querySelectorAll('script').forEach(s=>{
-      const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);
+/* ── 헤더 로드 → 완료 후 init 실행 ── */
+fetch('/header.html')
+  .then(r => r.ok ? r.text() : Promise.reject())
+  .then(h => {
+    document.getElementById('ottrang-header').innerHTML = h;
+    document.getElementById('ottrang-header').querySelectorAll('script').forEach(s => {
+      const ns = document.createElement('script');
+      ns.textContent = s.textContent;
+      document.body.appendChild(ns);
     });
-    if(typeof initHeader==='function')initHeader();
+    if (typeof initHeader === 'function') initHeader();
   })
-  .catch(()=>{});
+  .catch(() => {})
+  .finally(() => {
+    init(); // 헤더 로드 완료 후 실행 (auth Promise 준비 후)
+  });
 
 /* ── 상수 ── */
 const API  = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 
 /* ── 상태 ── */
-let reactionId = null;
+let reactionId   = null;
 let reactionData = null;
-let showOrig = false;
+let currentUser  = null;
+let showOrig     = false;
+
+/* ── 로그인 체크 — header.html auth Promise 재사용 ── */
+async function checkLogin() {
+  try {
+    if (window.__ottrangAuthReady__) {
+      const timeout = new Promise(res => setTimeout(() => res(null), 3000));
+      currentUser = await Promise.race([window.__ottrangAuthReady__, timeout]);
+    } else {
+      const sid  = localStorage.getItem('ottrang_sid');
+      const opts = sid
+        ? { credentials: 'include', headers: { Authorization: `Bearer ${sid}` } }
+        : { credentials: 'include' };
+      const res  = await fetch(`${API}/auth/me`, opts);
+      const data = await res.json();
+      if (data.ok && data.user) currentUser = data.user;
+    }
+  } catch(e) { currentUser = null; }
+}
 
 /* ── URL에서 reaction id 파싱 ── */
-function parseReactionId(){
-  /* /reaction/5 → 5 */
+function parseReactionId() {
   const m = location.pathname.match(/\/reaction\/(\d+)/);
-  if(m) return parseInt(m[1]);
-  /* F5 새로고침 시 /_reaction_detail → sessionStorage에서 복구 */
-  try{
+  if (m) return parseInt(m[1]);
+  try {
     const s = sessionStorage.getItem('ottrang_reaction');
-    if(s){
+    if (s) {
       const d = JSON.parse(s);
-      if(d && d.id){
-        /* 주소창을 올바른 URL로 복원 */
-        history.replaceState(null,'', `/reaction/${d.id}`);
+      if (d && d.id) {
+        history.replaceState(null, '', `/reaction/${d.id}`);
         return d.id;
       }
     }
-  }catch(e){}
+  } catch(e) {}
   return null;
 }
 
 /* ── 초기화 ── */
-async function init(){
+async function init() {
   reactionId = parseReactionId();
-  if(!reactionId){
+  if (!reactionId) {
     document.getElementById('pageLoading').innerHTML =
       '<div style="text-align:center;color:var(--muted)">잘못된 접근입니다. <a href="/reactions" style="color:var(--info)">목록으로</a></div>';
     return;
   }
 
-  try{
-    /* reactions 목록에서 해당 id 찾기 */
-    const res  = await fetch(`${API}/reactions`);
+  try {
+    // 로그인 체크 + 데이터 로드 병렬 실행
+    const [_, res] = await Promise.all([
+      checkLogin(),
+      fetch(`${API}/reactions`),
+    ]);
     const json = await res.json();
-    const data = (json.data||[]).find(r=>r.id===reactionId);
+    const data = (json.data || []).find(r => r.id === reactionId);
 
-    if(!data){
+    if (!data) {
       document.getElementById('pageLoading').innerHTML =
         '<div style="text-align:center;color:var(--muted)">영상을 찾을 수 없습니다. <a href="/reactions" style="color:var(--info)">목록으로</a></div>';
       return;
@@ -276,21 +299,22 @@ async function init(){
 
     reactionData = data;
     renderPage(data);
-    document.getElementById('pageLoading').style.display='none';
-    document.getElementById('pageContent').style.display='block';
+    renderCommentInput(); // 로그인 상태에 따라 댓글 입력창 렌더
+    document.getElementById('pageLoading').style.display = 'none';
+    document.getElementById('pageContent').style.display = 'block';
 
-    /* 댓글 병렬 로드 */
+    // 번역 댓글 + 사용자 댓글 병렬 로드
     loadTranslated(reactionId);
     loadUserComments(reactionId);
 
-  }catch(e){
+  } catch(e) {
     document.getElementById('pageLoading').innerHTML =
       `<div style="text-align:center;color:var(--muted)">오류: ${e.message}</div>`;
   }
 }
 
 /* ── 페이지 렌더 ── */
-function renderPage(r){
+function renderPage(r) {
   /* 유튜브 자동재생 */
   document.getElementById('ytFrame').src =
     `https://www.youtube.com/embed/${r.video_id}?autoplay=1&rel=0`;
@@ -307,173 +331,332 @@ function renderPage(r){
 
   /* 작품 상세 버튼 */
   const btnWork = document.getElementById('btnGotoWork');
-  if(r.tmdb_id){
+  if (r.tmdb_id) {
     btnWork.onclick = () => goToWork(r.tmdb_id, r.title_ko);
   } else {
     btnWork.style.display = 'none';
   }
 
-  /* SEO */
-  const seoT = `${title} | 오뜨랑 해외반응`;
-  const seoD = `${r.title_ko||''} 해외반응. 번역 댓글과 외국인들의 실제 반응을 오뜨랑에서 확인하세요.`;
-  document.title = seoT;
-  document.getElementById('seoTitle').textContent = seoT;
-  document.getElementById('seoDesc').setAttribute('content', seoD);
-  document.getElementById('seoOgTitle').setAttribute('content', seoT);
-  document.getElementById('seoOgDesc').setAttribute('content', seoD);
-  if(r.thumbnail) document.getElementById('seoOgImg').setAttribute('content', r.thumbnail);
+  /* ── SEO 메타태그 동적 업데이트 ── */
+  const workName  = r.title_ko || '';
+  const seoTitle  = workName
+    ? `${workName} 해외반응 번역 | ${r.channel_name || 'YouTube'} | 오뜨랑`
+    : `${title} | 오뜨랑`;
+  const seoDesc   = workName
+    ? `${workName} 해외반응. 외국인들의 실제 반응과 번역 댓글을 오뜨랑에서 확인하세요. ${r.channel_name || ''}`
+    : `K-드라마·K-영화 해외반응 번역 댓글을 오뜨랑에서 확인하세요.`;
+  const seoKw     = workName
+    ? `${workName} 해외반응, ${workName} 외국인 반응, ${workName} 번역, K드라마 해외반응, 오뜨랑`
+    : 'K드라마 해외반응, 해외반응 번역, 오뜨랑';
+  const seoImg    = r.thumbnail || '';
+  const seoUrl    = `https://ottrank.kr/reaction/${r.id}`;
 
-  /* 주소창 URL 정규화 + 새로고침 대비 저장 */
-  const targetUrl = `/reaction/${r.id}`;
-  if(location.pathname !== targetUrl){
-    history.replaceState(null,'', targetUrl);
+  document.title = seoTitle;
+  document.getElementById('seoTitle').textContent           = seoTitle;
+  document.getElementById('seoDesc').setAttribute('content',    seoDesc);
+  document.getElementById('seoKeywords').setAttribute('content', seoKw);
+  document.getElementById('seoOgTitle').setAttribute('content',  seoTitle);
+  document.getElementById('seoOgDesc').setAttribute('content',   seoDesc);
+  document.getElementById('seoOgUrl').setAttribute('content',    seoUrl);
+  document.getElementById('seoTwTitle').setAttribute('content',  seoTitle);
+  document.getElementById('seoTwDesc').setAttribute('content',   seoDesc);
+  if (seoImg) {
+    document.getElementById('seoOgImg').setAttribute('content',  seoImg);
+    document.getElementById('seoTwImg').setAttribute('content',  seoImg);
   }
-  /* 새로고침 시 id 복구용 */
-  sessionStorage.setItem('ottrang_reaction', JSON.stringify({id: r.id}));
+
+  /* JSON-LD 구조화 데이터 */
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    "name": seoTitle,
+    "description": seoDesc,
+    "thumbnailUrl": seoImg,
+    "url": seoUrl,
+    "embedUrl": `https://www.youtube.com/embed/${r.video_id}`,
+    "uploadDate": r.published_at || '',
+    "publisher": {
+      "@type": "Organization",
+      "name": "오뜨랑",
+      "url": "https://ottrank.kr"
+    }
+  };
+  if (workName) {
+    jsonLd["about"] = { "@type": "TVSeries", "name": workName };
+  }
+  document.getElementById('jsonLd').textContent = JSON.stringify(jsonLd);
+
+  /* 주소창 URL 정규화 */
+  if (location.pathname !== `/reaction/${r.id}`) {
+    history.replaceState(null, '', `/reaction/${r.id}`);
+  }
+  sessionStorage.setItem('ottrang_reaction', JSON.stringify({ id: r.id }));
+}
+
+/* ── 댓글 입력창 렌더 (로그인 상태에 따라 다르게) ── */
+function renderCommentInput() {
+  const el = document.getElementById('commentInputArea');
+  if (!el) return;
+
+  if (currentUser) {
+    /* 로그인 상태 — 닉네임 자동, 프로필 이미지 표시 */
+    const nick   = currentUser.nickname || '유저';
+    const avatar = currentUser.profile_image
+      ? `<img class="cm-user-avatar" src="${currentUser.profile_image}" alt="${nick}"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <div class="cm-user-avatar-ph" style="display:none">${nick.charAt(0)}</div>`
+      : `<div class="cm-user-avatar-ph">${nick.charAt(0)}</div>`;
+
+    el.innerHTML = `
+      <div class="user-comment-wrap">
+        <div class="cm-user-info">
+          ${avatar}
+          <span class="cm-user-nick">${nick}</span>
+        </div>
+        <textarea class="content-inp" id="contentInp"
+          placeholder="이 영상 어떻게 보셨나요? (500자 이내)"
+          maxlength="500"></textarea>
+        <div class="submit-row" style="margin-top:8px">
+          <label class="spoiler-label">
+            <input type="checkbox" id="spoilerChk"> 스포일러 포함
+          </label>
+          <button class="btn-submit" onclick="submitComment()">등록</button>
+        </div>
+      </div>`;
+  } else {
+    /* 비로그인 상태 */
+    el.innerHTML = `
+      <div class="user-comment-wrap">
+        <div class="cm-login-notice">
+          댓글을 작성하려면 <a href="/login.html">로그인</a>이 필요합니다.
+        </div>
+      </div>`;
+  }
 }
 
 /* ── 번역 댓글 ── */
-async function loadTranslated(id){
+async function loadTranslated(id) {
   const el = document.getElementById('translatedArea');
-  try{
+  try {
     const res  = await fetch(`${API}/reactions/${id}/comments`);
     const json = await res.json();
-    const data = json.data||[];
+    const data = json.data || [];
     document.getElementById('transCount').textContent = `${data.length}개`;
 
-    if(!data.length){
+    if (!data.length) {
       el.innerHTML = `<div class="empty-box">번역 댓글 준비 중입니다<br><small style="color:var(--muted)">관리자가 댓글 수집 후 자동으로 표시됩니다</small></div>`;
       return;
     }
-    el.innerHTML = `<div class="translated-comments">${data.map(c=>`
+    el.innerHTML = `<div class="translated-comments">${data.map(c => `
       <div class="tc-item">
         <div class="tc-header">
-          <span class="tc-author">@${(c.author||'').replace(/^@/,'')}</span>
-          <span class="tc-likes">👍 ${Number(c.like_count||0).toLocaleString()}</span>
+          <span class="tc-author">@${(c.author || '').replace(/^@/, '')}</span>
+          <span class="tc-likes">👍 ${Number(c.like_count || 0).toLocaleString()}</span>
         </div>
-        <div class="tc-text">${c.translated_text||c.original_text||''}</div>
-        ${c.original_text?`<div class="tc-orig" id="orig_${c.id}">${c.original_text}</div>`:''}
+        <div class="tc-text">${c.translated_text || c.original_text || ''}</div>
+        ${c.original_text ? `<div class="tc-orig" id="orig_${c.id}">${c.original_text}</div>` : ''}
       </div>`).join('')}</div>`;
-  }catch(e){
+  } catch(e) {
     el.innerHTML = `<div class="empty-box">댓글을 불러올 수 없습니다</div>`;
   }
 }
 
-function toggleOrig(){
-  showOrig=!showOrig;
-  document.querySelectorAll('.tc-orig').forEach(el=>el.classList.toggle('show',showOrig));
-  document.querySelector('.toggle-orig').textContent = showOrig?'번역 보기':'원문 보기';
+function toggleOrig() {
+  showOrig = !showOrig;
+  document.querySelectorAll('.tc-orig').forEach(el => el.classList.toggle('show', showOrig));
+  document.querySelector('.toggle-orig').textContent = showOrig ? '번역 보기' : '원문 보기';
 }
 
-/* ── 사용자 댓글 ── */
-async function loadUserComments(id){
+/* ── 사용자 댓글 목록 ── */
+async function loadUserComments(id) {
   const el = document.getElementById('userCommentList');
-  try{
+  try {
     const res  = await fetch(`${API}/reactions/${id}/posts`);
     const json = await res.json();
-    const data = json.data||[];
+    const data = json.data || [];
     document.getElementById('userCount').textContent = `${data.length}개`;
-    if(!data.length){
+
+    if (!data.length) {
       el.innerHTML = '<div class="empty-box" style="font-size:13px">첫 댓글을 남겨보세요!</div>';
       return;
     }
-    el.innerHTML = data.map(c=>`
-      <div class="uc-item">
+    el.innerHTML = data.map(c => {
+      const nick = c.nickname || '익명';
+      // 프로필 이미지: profile_image 컬럼이 reaction_posts에 없으므로 이니셜만
+      const avatar = `<div class="uc-avatar-ph">${nick.charAt(0)}</div>`;
+
+      // 본인 댓글에만 삭제 버튼
+      const isOwn  = currentUser && currentUser.id === c.user_id;
+      const delBtn = isOwn
+        ? `<button class="btn-del" onclick="deleteComment(${c.id})">삭제</button>`
+        : '';
+
+      return `
+      <div class="uc-item" id="uc-${c.id}">
         <div class="uc-header">
-          <span class="uc-nick">${c.nickname||'익명'}</span>
-          ${c.is_spoiler?'<span class="sp-badge">스포</span>':''}
+          ${avatar}
+          <span class="uc-nick">${nick}</span>
+          ${c.is_spoiler ? '<span class="sp-badge">스포</span>' : ''}
           <span class="uc-time">${fmtTime(c.created_at)}</span>
         </div>
-        <div class="uc-text">${c.content||''}</div>
+        <div class="uc-text">${(c.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
         <div class="uc-footer">
           <button class="btn-like" onclick="likePost(${c.id})">
-            ❤️ <span id="like_${c.id}">${c.like_count||0}</span>
+            ❤️ <span id="like_${c.id}">${c.like_count || 0}</span>
           </button>
+          ${delBtn}
         </div>
-      </div>`).join('');
-  }catch(e){
+      </div>`;
+    }).join('');
+  } catch(e) {
     el.innerHTML = '<div class="empty-box">댓글을 불러올 수 없습니다</div>';
   }
 }
 
-async function submitComment(){
-  const nick    = (document.getElementById('nickInp').value||'익명').trim();
-  const content = (document.getElementById('contentInp').value||'').trim();
-  const spoiler = document.getElementById('spoilerChk').checked;
-  if(!content){ showToast('댓글 내용을 입력해주세요'); return; }
-  try{
-    const res  = await fetch(`${API}/reactions/${reactionId}/posts`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({nickname:nick,content,is_spoiler:spoiler,tmdb_id:reactionData?.tmdb_id||0}),
+/* ── 댓글 등록 ── */
+async function submitComment() {
+  const contentEl = document.getElementById('contentInp');
+  const btn       = document.querySelector('.btn-submit');
+  const content   = (contentEl?.value || '').trim();
+  const spoiler   = document.getElementById('spoilerChk')?.checked || false;
+
+  if (!content) { showToast('댓글 내용을 입력해주세요'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '등록 중...';
+
+  try {
+    const sid     = localStorage.getItem('ottrang_sid');
+    const hdrs    = { 'Content-Type': 'application/json' };
+    if (sid) hdrs['Authorization'] = `Bearer ${sid}`;
+
+    const res  = await fetch(`${API}/reactions/${reactionId}/posts`, {
+      method     : 'POST',
+      headers    : hdrs,
+      credentials: 'include',
+      body       : JSON.stringify({
+        content,
+        is_spoiler : spoiler,
+        tmdb_id    : reactionData?.tmdb_id || 0,
+      }),
     });
     const json = await res.json();
-    if(json.ok){
-      document.getElementById('contentInp').value='';
+
+    if (json.ok) {
+      contentEl.value = '';
       showToast('댓글이 등록됐습니다! 🎉');
       loadUserComments(reactionId);
-    } else showToast('등록 실패: '+(json.message||''));
-  }catch(e){ showToast('오류: '+e.message); }
+    } else {
+      showToast('등록 실패: ' + (json.message || ''));
+    }
+  } catch(e) {
+    showToast('오류: ' + e.message);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '등록';
+  }
 }
 
-async function likePost(postId){
-  try{
-    await fetch(`${API}/reactions/posts/${postId}/like`,{method:'POST'});
-    const el=document.getElementById('like_'+postId);
-    if(el) el.textContent=parseInt(el.textContent)+1;
-  }catch(e){}
+/* ── 댓글 삭제 ── */
+async function deleteComment(postId) {
+  if (!confirm('댓글을 삭제할까요?')) return;
+  try {
+    const sid  = localStorage.getItem('ottrang_sid');
+    const hdrs = {};
+    if (sid) hdrs['Authorization'] = `Bearer ${sid}`;
+
+    const res  = await fetch(`${API}/reactions/posts/${postId}`, {
+      method     : 'DELETE',
+      headers    : hdrs,
+      credentials: 'include',
+    });
+    const json = await res.json();
+
+    if (json.ok) {
+      document.getElementById(`uc-${postId}`)?.remove();
+      const items = document.querySelectorAll('.uc-item');
+      document.getElementById('userCount').textContent = `${items.length}개`;
+      if (!items.length) {
+        document.getElementById('userCommentList').innerHTML =
+          '<div class="empty-box" style="font-size:13px">첫 댓글을 남겨보세요!</div>';
+      }
+    } else {
+      showToast(json.message || '삭제에 실패했습니다.');
+    }
+  } catch(e) {
+    showToast('삭제에 실패했습니다.');
+  }
+}
+
+/* ── 좋아요 ── */
+async function likePost(postId) {
+  try {
+    await fetch(`${API}/reactions/posts/${postId}/like`, { method: 'POST' });
+    const el = document.getElementById('like_' + postId);
+    if (el) el.textContent = parseInt(el.textContent) + 1;
+  } catch(e) {}
 }
 
 /* ── 작품 상세 이동 ── */
-async function goToWork(tmdbId, titleKo){
-  if(!tmdbId) return;
-  try{
-    let season=1,year=new Date().getFullYear(),type='tv';
-    try{
-      const r=await fetch(`${TMDB}/tv/${tmdbId}?language=ko-KR`);
-      const d=await r.json();
-      if(d.id){season=d.number_of_seasons||1;year=(d.first_air_date||'').slice(0,4)||year;}
-      else{const r2=await fetch(`${TMDB}/movie/${tmdbId}?language=ko-KR`);const d2=await r2.json();year=(d2.release_date||'').slice(0,4)||year;type='movie';}
-    }catch(e){}
-    const slug=(titleKo||'work').replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
-    const url=`/title/${slug}-${season}${year}${tmdbId}`;
-    sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:tmdbId,type,platform:'',rank:'—',title:titleKo,season,year}));
-    sessionStorage.setItem('ottrang_slug',url);
-    location.href=url;
-  }catch(e){ showToast('이동 오류: '+e.message); }
+async function goToWork(tmdbId, titleKo) {
+  if (!tmdbId) return;
+  try {
+    let season = 1, year = new Date().getFullYear(), type = 'tv';
+    try {
+      const r = await fetch(`${TMDB}/tv/${tmdbId}?language=ko-KR`);
+      const d = await r.json();
+      if (d.id) {
+        season = d.number_of_seasons || 1;
+        year   = (d.first_air_date || '').slice(0, 4) || year;
+      } else {
+        const r2 = await fetch(`${TMDB}/movie/${tmdbId}?language=ko-KR`);
+        const d2 = await r2.json();
+        year = (d2.release_date || '').slice(0, 4) || year;
+        type = 'movie';
+      }
+    } catch(e) {}
+    const slug = (titleKo || 'work')
+      .replace(/\s+/g, '-')
+      .replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g, '');
+    const url = `/title/${slug}-${season}${year}${tmdbId}`;
+    sessionStorage.setItem('ottrang_work', JSON.stringify({
+      tmdb_id: tmdbId, type, platform: '', rank: '—', title: titleKo, season, year
+    }));
+    sessionStorage.setItem('ottrang_slug', url);
+    location.href = url;
+  } catch(e) { showToast('이동 오류: ' + e.message); }
 }
 
 /* ── 공유 ── */
-function shareReaction(){
-  const url=`https://ottrank.kr/reaction/${reactionId}`;
-  const title=document.getElementById('videoTitle').textContent;
-  if(navigator.share){
-    navigator.share({title:`${title} | 오뜨랑`,text:'K-드라마 해외반응을 오뜨랑에서 확인하세요!',url}).catch(()=>{});
+function shareReaction() {
+  const url   = `https://ottrank.kr/reaction/${reactionId}`;
+  const title = document.getElementById('videoTitle').textContent;
+  if (navigator.share) {
+    navigator.share({ title: `${title} | 오뜨랑`, text: 'K-드라마 해외반응을 오뜨랑에서 확인하세요!', url }).catch(() => {});
   } else {
-    navigator.clipboard.writeText(url).then(()=>showToast('링크가 복사됐습니다!'));
+    navigator.clipboard.writeText(url).then(() => showToast('링크가 복사됐습니다!'));
   }
 }
 
 /* ── 유틸 ── */
-function fmtTime(t){
-  if(!t)return'';
-  const d=new Date(t),now=new Date();
-  const diff=Math.floor((now-d)/1000);
-  if(diff<60)return'방금';
-  if(diff<3600)return Math.floor(diff/60)+'분 전';
-  if(diff<86400)return Math.floor(diff/3600)+'시간 전';
+function fmtTime(t) {
+  if (!t) return '';
+  const d    = new Date(t), now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60)    return '방금';
+  if (diff < 3600)  return Math.floor(diff / 60) + '분 전';
+  if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
   return d.toLocaleDateString('ko-KR');
 }
-function showToast(msg){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2200);
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 /* ── ESC 뒤로가기 ── */
-document.addEventListener('keydown',e=>{if(e.key==='Escape')history.back();});
-
-init();
+document.addEventListener('keydown', e => { if (e.key === 'Escape') history.back(); });
 </script>
 </body>
 </html>
