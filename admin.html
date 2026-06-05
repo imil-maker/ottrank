@@ -2256,52 +2256,64 @@ async function searchTmdbForEdit() {
 
 /**
  * 검색 결과에서 작품 선택 시
- * - editTitleKo : 한글 제목 자동 입력
- * - editTmdbId  : TMDB ID 자동 입력 + 포스터 미리보기 갱신
- * - editTitleEn : 영어 원제 자동 입력 (비어있을 때만)
- * - 미디어 타입  : TV / 영화 자동 선택
+ * ① 우리 DB(works) 먼저 조회 → 있으면 DB 데이터 우선 적용
+ * ② DB에 없으면 TMDB 검색 결과 데이터 사용
  */
-function selectTmdbForEdit(tmdbId, tmdbType, title, posterPath, orgTitle, year) {
-  // ── 폼 필드 자동 채우기 ──
-  document.getElementById('editTitleKo').value = title;
+async function selectTmdbForEdit(tmdbId, tmdbType, title, posterPath, orgTitle, year) {
+  // TMDB ID / 제목 우선 채움 (DB 조회 중에도 화면에 즉시 표시)
   document.getElementById('editTmdbId').value  = tmdbId;
+  document.getElementById('editTitleKo').value = title;
 
-  // 영어 원제 — 이미 값이 있으면 덮어쓰지 않음 (flixpatrol 기준값 보호)
-  const titleEnEl = document.getElementById('editTitleEn');
-  if (titleEnEl && !titleEnEl.value.trim()) {
-    // 원제에 라틴 문자가 있고 한글이 없을 때만 저장
-    const hasKorean = /[\uAC00-\uD7A3]/.test(orgTitle);
-    const hasLatin  = /[a-zA-Z]/.test(orgTitle);
-    if (hasLatin && !hasKorean) titleEnEl.value = orgTitle;
-  }
+  // 포스터 미리보기 — 로딩 표시
+  const el = document.getElementById('posterPreview');
+  el.innerHTML = '<span style="font-size:12px;color:var(--muted)">DB 확인 중...</span>';
 
-  // 미디어 타입 라디오 자동 선택
-  const radioVal = tmdbType === 'tv' ? 'tv' : 'movie';
-  document.querySelectorAll('input[name="editMediaType"]').forEach(r => {
-    r.checked = (r.value === radioVal);
-  });
-  updateMediaTypeStyle(radioVal);
-
-  // 포스터 미리보기 갱신 (poster_path 바로 사용)
-  if (posterPath) {
-    updatePosterPreview(posterPath);
+  // ① 우리 DB 먼저 조회
+  const dbWork = await _fetchWorksData(tmdbId);
+  if (dbWork) {
+    // DB에 있으면 → DB 데이터로 폼 전체 채움
+    _applyWorksDataToForm(dbWork, '🗄️ DB에서 불러옴');
   } else {
-    // poster_path 없으면 TMDB ID로 재조회
-    previewPoster();
+    // ② DB에 없으면 → TMDB 검색 결과 데이터 사용
+    // 영어 원제 — 라틴 문자 있고 한글 없을 때만 저장
+    const titleEnEl = document.getElementById('editTitleEn');
+    if (titleEnEl && !titleEnEl.value.trim()) {
+      const hasKorean = /[\uAC00-\uD7A3]/.test(orgTitle);
+      const hasLatin  = /[a-zA-Z]/.test(orgTitle);
+      if (hasLatin && !hasKorean) titleEnEl.value = orgTitle;
+    }
+
+    // 미디어 타입 — TMDB 타입으로 자동 선택
+    const radioVal = tmdbType === 'tv' ? 'tv' : 'movie';
+    document.querySelectorAll('input[name="editMediaType"]').forEach(r => {
+      r.checked = (r.value === radioVal);
+    });
+    updateMediaTypeStyle(radioVal);
+
+    // 포스터 — TMDB poster_path 사용
+    if (posterPath) {
+      updatePosterPreview(posterPath);
+    } else {
+      previewPoster();
+    }
   }
 
-  // ── 선택된 작품 표시 ──
-  document.getElementById('editTmdbSelPoster').src         = posterPath ? `${IMG}${posterPath}` : '';
+  // ── 선택된 작품 표시 카드 ──
+  const dbBadge = dbWork
+    ? `<span style="font-size:10px;font-family:var(--mono);color:var(--green);margin-left:6px">🗄️ DB있음</span>`
+    : `<span style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-left:6px">TMDB전용</span>`;
+  const finalTitle = dbWork?.title_ko || title;
+
+  document.getElementById('editTmdbSelPoster').src          = posterPath ? `${IMG}${posterPath}` : '';
   document.getElementById('editTmdbSelPoster').style.display = posterPath ? 'block' : 'none';
-  document.getElementById('editTmdbSelTitle').textContent  = title;
-  document.getElementById('editTmdbSelMeta').textContent   =
+  document.getElementById('editTmdbSelTitle').innerHTML     = _esc(finalTitle) + dbBadge;
+  document.getElementById('editTmdbSelMeta').textContent    =
     `TMDB:${tmdbId} · ${tmdbType === 'tv' ? 'TV 시리즈' : '영화'}${year ? ` · ${year}` : ''}`;
   document.getElementById('editTmdbSelected').style.display = 'flex';
 
-  // 검색 결과 닫기
+  // 검색 결과 닫기 + 검색창에 제목 표시
   document.getElementById('editTmdbResults').style.display = 'none';
-  // 검색창에 선택한 제목 표시
-  document.getElementById('editTmdbSearchQuery').value = title;
+  document.getElementById('editTmdbSearchQuery').value     = finalTitle;
 }
 
 /**
@@ -2334,23 +2346,96 @@ document.addEventListener('click', e => {
   }
 });
 
+// ════════════════════════════════════════════════════
+// 우리 DB(works) 단건 조회 헬퍼
+// ════════════════════════════════════════════════════
+
+/**
+ * tmdb_id로 우리 works 테이블 단건 조회
+ * @returns {object|null} works 행 데이터 또는 null
+ */
+async function _fetchWorksData(tmdbId) {
+  if (!tmdbId || !token) return null;
+  try {
+    const res  = await fetch(`${API}/admin/works/${tmdbId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    // 단건 응답: { ok, data: {...} } 또는 목록 응답: { ok, data: [...] }
+    const row = json.data
+      ? (Array.isArray(json.data) ? json.data[0] : json.data)
+      : null;
+    return (row && row.tmdb_id) ? row : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+/**
+ * DB에서 불러온 데이터를 폼에 적용하는 공통 함수
+ * title_ko, title_en, media_type, 포스터를 한꺼번에 채움
+ * @param {object} w - works 테이블 row
+ * @param {string} [dbBadgeMsg] - 포스터 옆에 표시할 메시지 (기본: '🗄️ DB에서 불러옴')
+ */
+function _applyWorksDataToForm(w, dbBadgeMsg) {
+  const msg = dbBadgeMsg || '🗄️ DB에서 불러옴';
+
+  // 한글 제목
+  if (w.title_ko) document.getElementById('editTitleKo').value = w.title_ko;
+
+  // 영어 원제 — flixpatrol 기준값 우선, 비어있으면 DB값으로 채움
+  const titleEnEl = document.getElementById('editTitleEn');
+  if (titleEnEl && !titleEnEl.value.trim() && w.title_en) {
+    titleEnEl.value = w.title_en;
+  }
+
+  // 미디어 타입 — DB에 있으면 자동 선택
+  if (w.media_type) {
+    document.querySelectorAll('input[name="editMediaType"]').forEach(r => {
+      r.checked = (r.value === w.media_type);
+    });
+    updateMediaTypeStyle(w.media_type);
+  }
+
+  // 포스터 — DB poster_path 우선
+  const el = document.getElementById('posterPreview');
+  if (w.poster_path) {
+    el.innerHTML = `
+      <img src="${IMG}${w.poster_path}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
+      <span style="font-size:12px;color:var(--green);font-family:var(--mono)">${msg}</span>`;
+  }
+}
+
+// ────────────────────────────────────────────────────
+
 let previewTimer = null;
 function previewPoster() {
+  clearTimeout(previewTimer);
   previewTimer = setTimeout(async () => {
-    const tmdbId = document.getElementById('editTmdbId').value;
+    const tmdbId = document.getElementById('editTmdbId').value.trim();
     if (!tmdbId) { updatePosterPreview(null); return; }
+
     const el = document.getElementById('posterPreview');
     el.innerHTML = '<span style="font-size:12px;color:var(--muted)">조회 중...</span>';
-    // tv/movie 둘 다 시도
+
+    // ① 우리 DB 먼저 조회
+    const dbWork = await _fetchWorksData(tmdbId);
+    if (dbWork) {
+      _applyWorksDataToForm(dbWork, '🗄️ DB에서 불러옴');
+      return;
+    }
+
+    // ② DB에 없으면 TMDB API 조회 (tv → movie 순)
     for (const mtype of ['tv', 'movie']) {
       try {
         const resp = await fetch(`${TMDB_PROXY}/${mtype}/${tmdbId}?language=ko-KR`);
         const data = await resp.json();
         if (data.poster_path) {
           const title = data.name || data.title || '';
-          el.innerHTML = `<img src="${IMG}${data.poster_path}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
-            <span style="font-size:12px;color:var(--green)">${_esc ? _esc(title) : title}</span>`;
-          // 한국어 제목 입력란에 자동으로 채우기
+          el.innerHTML = `
+            <img src="${IMG}${data.poster_path}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
+            <span style="font-size:12px;color:var(--muted2)">TMDB에서 불러옴</span>`;
           if (title) document.getElementById('editTitleKo').value = title;
           return;
         }
