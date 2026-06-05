@@ -518,7 +518,7 @@ function W(o,a,e){if(!a.length)return o.slice(0,e).map((l,d)=>({...l,rank:d+1}))
             is_pinned, created_at
      FROM ott_contents
      WHERE id = ? AND is_hidden = 0`).bind(o).first();return m?(a.DB.prepare("UPDATE ott_contents SET view_count = view_count + 1 WHERE id = ?").bind(o).run(),R({ok:!0,item:m},200,e)):R({ok:!1,error:"\uC601\uC0C1\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."},404,e)}async function Q(o,a,e){let{results:m}=await a.DB.prepare(`SELECT c.id, c.body, c.created_at,
-            u.id   AS user_id,
+            u.id AS user_id,
             u.nickname,
             u.profile_image
      FROM ott_content_comments c
