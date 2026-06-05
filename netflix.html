@@ -50,7 +50,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   line-height:1;margin-bottom:10px;
 }
 .hero-title .nf{color:var(--accent)}
-.hero-sub{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.5px}
+.hero-sub{
+  font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.5px;
+  position:absolute;top:20px;right:0;text-align:right;
+}
 /* N 로고 */
 .hero-logo{
   position:absolute;right:0;top:50%;transform:translateY(-50%);
@@ -68,7 +71,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 }
 .sec-title{font-family:var(--disp);font-size:24px;letter-spacing:1.5px;color:var(--text)}
 .sec-subtitle{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:4px}
-.sec-count{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.sec-count{font-family:var(--disp);font-size:24px;letter-spacing:1.5px;color:var(--muted)}
 .sec-more{
   margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);
   text-decoration:none;padding:6px 14px;border:1px solid var(--border);
@@ -227,6 +230,15 @@ fetch('/header.html')
   <div id="sectionsWrap"></div>
 
 </div>
+
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+<script>
+fetch('/footer.html')
+  .then(r=>r.ok?r.text():Promise.reject())
+  .then(h=>{ document.getElementById('ottrang-footer').innerHTML=h; })
+  .catch(()=>{});
+</script>
 
 <script>
 const API       = 'https://ottrank-api.tdidream.workers.dev';
@@ -400,7 +412,7 @@ async function loadAll(){
       return;
     }
 
-    document.getElementById(`cnt-${i}`).textContent = `(${items.length})`;
+    document.getElementById(`cnt-${i}`).textContent = `TOP ${items.length}`;
     track.innerHTML = items.map((item, idx) => makeCard(item, idx)).join('');
     initSwipe(track);
   });
