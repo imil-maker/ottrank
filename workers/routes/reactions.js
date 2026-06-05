@@ -14,7 +14,7 @@
    DELETE /admin/reactions/:id
 ══════════════════════════════════════════════════════════════ */
 
-import { _checkAuth } from "../utils/authUtils.js";
+import { _checkAuth, _getSessionCookie } from "../utils/authUtils.js";
 import { collectAndTranslateComments } from "../utils/youtube.js";
 
 export async function handleReactions(path, request, env, ctx, headers) {
@@ -230,10 +230,35 @@ export async function handleReactions(path, request, env, ctx, headers) {
   if (path.match(/^\/reactions\/\d+\/posts$/) && request.method === "POST") {
     try {
       const reactionId = parseInt(path.split("/")[2]);
-      const body = await request.json();
-      const { nickname, content, is_spoiler, tmdb_id } = body;
 
-      if (!content || !content.trim()) {
+      // ── 유저 세션 인증 (게시판 개발 가이드 §2 표준 패턴) ──
+      const authHeader = request.headers.get("Authorization") || "";
+      const bearerSid  = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+      const cookieSid  = _getSessionCookie(request);
+      const sid        = bearerSid || cookieSid;
+
+      if (!sid) {
+        return new Response(JSON.stringify({ ok: false, message: "로그인이 필요합니다." }), { status: 401, headers });
+      }
+
+      // sessions 테이블에서 유효한 세션 + 유저 정보 조회
+      const user = await env.DB.prepare(
+        `SELECT s.user_id AS id, u.nickname
+         FROM sessions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.id = ?
+         LIMIT 1`
+      ).bind(sid).first();
+
+      if (!user) {
+        return new Response(JSON.stringify({ ok: false, message: "로그인이 필요합니다." }), { status: 401, headers });
+      }
+
+      const body = await request.json();
+      const { is_spoiler, tmdb_id } = body;
+      const content = (body.content || "").trim();
+
+      if (!content) {
         return new Response(JSON.stringify({ ok: false, message: "댓글 내용을 입력해주세요" }), { status: 400, headers });
       }
       if (content.length > 500) {
@@ -241,17 +266,64 @@ export async function handleReactions(path, request, env, ctx, headers) {
       }
 
       const result = await env.DB.prepare(`
-        INSERT INTO reaction_posts (reaction_id, tmdb_id, nickname, content, is_spoiler)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO reaction_posts (reaction_id, tmdb_id, user_id, nickname, content, is_spoiler)
+        VALUES (?, ?, ?, ?, ?, ?)
       `).bind(
         reactionId,
         tmdb_id || 0,
-        (nickname || "익명").slice(0, 20),
-        content.trim(),
+        user.id,
+        user.nickname,
+        content,
         is_spoiler ? 1 : 0
       ).run();
 
-      return new Response(JSON.stringify({ ok: true, id: result.meta?.last_row_id }), { headers });
+      return new Response(JSON.stringify({
+        ok: true,
+        id: result.meta?.last_row_id,
+        nickname: user.nickname,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /reactions/posts/:id — 본인 댓글 삭제 ──────────
+  if (path.match(/^\/reactions\/posts\/\d+$/) && request.method === "DELETE") {
+    try {
+      const postId = parseInt(path.split("/")[3]);
+
+      // 세션 인증
+      const authHeader = request.headers.get("Authorization") || "";
+      const bearerSid  = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+      const cookieSid  = _getSessionCookie(request);
+      const sid        = bearerSid || cookieSid;
+
+      if (!sid) {
+        return new Response(JSON.stringify({ ok: false, message: "로그인이 필요합니다." }), { status: 401, headers });
+      }
+
+      const user = await env.DB.prepare(
+        `SELECT s.user_id AS id FROM sessions s WHERE s.id = ? LIMIT 1`
+      ).bind(sid).first();
+
+      if (!user) {
+        return new Response(JSON.stringify({ ok: false, message: "로그인이 필요합니다." }), { status: 401, headers });
+      }
+
+      // 댓글 존재 여부 + 본인 확인
+      const post = await env.DB.prepare(
+        `SELECT id, user_id FROM reaction_posts WHERE id = ?`
+      ).bind(postId).first();
+
+      if (!post) {
+        return new Response(JSON.stringify({ ok: false, message: "댓글을 찾을 수 없습니다." }), { status: 404, headers });
+      }
+      if (post.user_id !== user.id) {
+        return new Response(JSON.stringify({ ok: false, message: "본인 댓글만 삭제할 수 있습니다." }), { status: 403, headers });
+      }
+
+      await env.DB.prepare(`DELETE FROM reaction_posts WHERE id = ?`).bind(postId).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
