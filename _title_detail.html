@@ -924,7 +924,7 @@ function parseSlug(pathname){
 }
 
 /* == WORK Init == */
-let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',season:1,year:null};
+let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',season:1,year:null,media_type:null};
 (function initWork(){
   try{
     const stored=sessionStorage.getItem('ottrang_work');
@@ -1110,10 +1110,10 @@ async function loadGallery(){
   }catch(e){}
 }
 
-/* == Watch Guide (boxoffice + movie 타입 전체) == */
+/* == Watch Guide (boxoffice + media_type=movie 전체) == */
 async function loadWatchGuide(){
-  // boxoffice이거나, media_type이 movie인 경우 모두 표시
-  const isMovie = WORK.platform==='boxoffice' || WORK.type==='movie';
+  // works DB의 media_type이 movie이거나 boxoffice 플랫폼인 경우 표시
+  const isMovie = WORK.platform==='boxoffice' || WORK.media_type==='movie';
   if(!isMovie||!WORK.tmdb_id||!WORK.title)return;
   try{
     const res=await fetch(`${OTTRANK_API}/kmrb/${WORK.tmdb_id}?title_ko=${encodeURIComponent(WORK.title)}`);
@@ -1181,7 +1181,10 @@ async function loadTmdb(){
     let worksData=null;
     if(worksRes.status==='fulfilled'&&worksRes.value?.ok){
       worksData=worksRes.value.data;
-      if(worksData?.media_type)WORK.type=worksData.media_type;
+      if(worksData?.media_type){
+        WORK.type=worksData.media_type;
+        WORK.media_type=worksData.media_type; // works DB 기준 media_type 별도 보존
+      }
     }
 
     // Select valid TV/Movie
