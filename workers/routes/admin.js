@@ -216,6 +216,10 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const body = await request.json();
       const { id, tmdb_id, title_ko, title_en, delete_duplicates, media_type } = body;
+      // 시즌 번호 + 프론트에서 직접 전송한 시즌 포스터 (rankings에만 저장, works 건드리지 않음)
+      const season          = body.season !== undefined ? body.season : undefined;
+      const frontPosterPath = body.poster_path || null; // 시즌 포스터 (프론트에서 전송)
+
       if (!id) return new Response(JSON.stringify({ ok: false, message: "id required" }), { status: 400, headers });
 
       let finalPoster  = null;
@@ -259,18 +263,30 @@ export async function handleAdmin(path, request, env, url, headers) {
         } catch (e) {}
       }
 
-      // ① rankings 업데이트
+      // 시즌 포스터가 프론트에서 전송된 경우 최우선 적용 (TMDB 기본 포스터 덮어쓰기)
+      if (frontPosterPath) finalPoster = frontPosterPath;
+
+      // ① rankings 업데이트 (season 컬럼 포함 — undefined면 기존값 유지)
+      const seasonBind = season !== undefined
+        ? (season !== null ? parseInt(season) : null)
+        : undefined; // undefined → COALESCE로 기존값 유지
+
       await env.DB.prepare(`
         UPDATE rankings
         SET tmdb_id     = COALESCE(?, tmdb_id),
             title_ko    = COALESCE(?, title_ko),
             title_en    = COALESCE(?, title_en),
             poster_path = COALESCE(?, poster_path),
+            season      = ${seasonBind !== undefined ? '?' : 'season'},
             is_manual   = 1
         WHERE id = ?
       `).bind(
-        tmdb_id ? parseInt(tmdb_id) : null,
-        finalTitleKo, finalTitleEn, finalPoster, parseInt(id)
+        ...[
+          tmdb_id ? parseInt(tmdb_id) : null,
+          finalTitleKo, finalTitleEn, finalPoster,
+          ...(seasonBind !== undefined ? [seasonBind] : []),
+          parseInt(id),
+        ]
       ).run();
 
       // ② works 테이블 upsert
@@ -294,6 +310,8 @@ export async function handleAdmin(path, request, env, url, headers) {
           ).run();
         }
         const mediaTypeVal = (media_type === "tv" || media_type === "movie") ? media_type : null;
+        // 시즌 포스터(frontPosterPath)는 rankings에만 저장 — works 포스터는 기본 포스터 유지
+        const worksPoserPath = frontPosterPath ? null : finalPoster;
         await env.DB.prepare(`
           INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type)
           VALUES (?, ?, ?, ?, ?)
@@ -304,8 +322,8 @@ export async function handleAdmin(path, request, env, url, headers) {
             media_type  = COALESCE(?, media_type),
             updated_at  = datetime('now')
         `).bind(
-          parseInt(tmdb_id), finalTitleKo || "", finalTitleEn || "", finalPoster, mediaTypeVal,
-          finalTitleKo || null, finalTitleEn || null, finalPoster, mediaTypeVal
+          parseInt(tmdb_id), finalTitleKo || "", finalTitleEn || "", worksPoserPath, mediaTypeVal,
+          finalTitleKo || null, finalTitleEn || null, worksPoserPath, mediaTypeVal
         ).run();
       }
 
@@ -763,7 +781,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
       const { results } = await env.DB.prepare(`
         SELECT id, rank, title_ko, title_en, tmdb_id, poster_path,
-               genre, overview, release_year, tmdb_rating, source_name, memo
+               genre, overview, release_year, tmdb_rating, source_name, memo, season
         FROM rankings
         WHERE date = 'manual' AND platform = ? AND category_slot = ?
         ORDER BY rank ASC
@@ -782,6 +800,7 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const body = await request.json();
       const { platform, category_slot, source_name, tmdb_id, rank, memo } = body;
+      const season = body.season !== undefined ? body.season : null; // 시즌 번호 (NULL 허용)
       if (!platform || !category_slot || !tmdb_id || !rank) {
         return new Response(JSON.stringify({ ok: false, message: "platform, category_slot, tmdb_id, rank required" }), { status: 400, headers });
       }
@@ -812,8 +831,8 @@ export async function handleAdmin(path, request, env, url, headers) {
         INSERT INTO rankings
           (date, platform, category, category_slot, source_name, rank,
            title_ko, title_en, tmdb_id, poster_path,
-           genre, overview, release_year, tmdb_rating, is_manual, memo)
-        VALUES ('manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+           genre, overview, release_year, tmdb_rating, is_manual, memo, season)
+        VALUES ('manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
         ON CONFLICT(date, platform, category, rank) DO UPDATE SET
           tmdb_id      = excluded.tmdb_id,
           title_ko     = excluded.title_ko,
@@ -826,11 +845,13 @@ export async function handleAdmin(path, request, env, url, headers) {
           source_name  = excluded.source_name,
           category_slot = excluded.category_slot,
           is_manual    = 1,
-          memo         = excluded.memo
+          memo         = excluded.memo,
+          season       = excluded.season
       `).bind(
         platform, category_slot, category_slot, source_name || "", parseInt(rank),
         title_ko, title_en, parseInt(tmdb_id), poster_path,
-        genre, overview, release_year, tmdb_rating, memo || null
+        genre, overview, release_year, tmdb_rating, memo || null,
+        season !== null ? parseInt(season) : null
       ).run();
 
       await env.DB.prepare(
@@ -864,8 +885,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       );
       await env.DB.batch(step1);
       const step2 = items.map(item =>
-        env.DB.prepare("UPDATE rankings SET rank = ?, memo = ? WHERE id = ? AND date = 'manual'")
-          .bind(parseInt(item.rank), item.memo ?? null, parseInt(item.id))
+        env.DB.prepare("UPDATE rankings SET rank = ?, memo = ?, season = ? WHERE id = ? AND date = 'manual'")
+          .bind(parseInt(item.rank), item.memo ?? null,
+                item.season !== undefined && item.season !== null ? parseInt(item.season) : null,
+                parseInt(item.id))
       );
       await env.DB.batch(step2);
       await env.DB.prepare(
