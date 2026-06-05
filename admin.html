@@ -1430,40 +1430,116 @@ function updateManualMemo(idx, value) {
   }
 }
 
-// 작품 검색 (works 테이블 기반)
+// 작품 검색 — 우리 DB + TMDB 동시 검색
 function searchManualWork(q) {
   clearTimeout(manualSearchTimer);
   const resultBox = document.getElementById('manualSearchResults');
   if (!q || q.length < 1) { resultBox.style.display = 'none'; return; }
 
+  // 로딩 표시
+  resultBox.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:var(--muted);font-family:var(--mono)">검색 중...</div>';
+  resultBox.style.display = 'block';
+
   manualSearchTimer = setTimeout(async () => {
     try {
-      const res  = await fetch(`${API}/admin/works?q=${encodeURIComponent(q)}&page=1`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const json = await res.json();
-      const list = (json.data || []).slice(0, 8);
+      // 우리 DB + TMDB TV + TMDB 영화 병렬 검색
+      const [dbRes, tvRes, mvRes] = await Promise.allSettled([
+        fetch(`${API}/admin/works?q=${encodeURIComponent(q)}&page=1`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+      ]);
 
-      if (!list.length) {
+      // 우리 DB 결과
+      let dbWorks = [];
+      if (dbRes.status === 'fulfilled' && dbRes.value.ok) {
+        const j = await dbRes.value.json();
+        dbWorks = (j.data || []).slice(0, 5);
+      }
+      const dbIds = new Set(dbWorks.map(w => w.tmdb_id));
+
+      // TMDB TV 결과 (DB 중복 제외)
+      let tmdbTv = [];
+      if (tvRes.status === 'fulfilled' && tvRes.value.ok) {
+        const j = await tvRes.value.json();
+        tmdbTv = (j.results || [])
+          .filter(r => !dbIds.has(r.id))
+          .slice(0, 5)
+          .map(r => ({
+            tmdb_id: r.id, title_ko: r.name || r.original_name || '',
+            title_en: r.original_name || '', poster_path: r.poster_path || '',
+            release_year: (r.first_air_date || '').slice(0, 4) || null,
+            genre: '', tmdb_rating: r.vote_average || null, _fromTmdb: true, _type: 'TV'
+          }));
+      }
+
+      // TMDB 영화 결과 (DB 중복 제외)
+      let tmdbMv = [];
+      if (mvRes.status === 'fulfilled' && mvRes.value.ok) {
+        const j = await mvRes.value.json();
+        tmdbMv = (j.results || [])
+          .filter(r => !dbIds.has(r.id))
+          .slice(0, 5)
+          .map(r => ({
+            tmdb_id: r.id, title_ko: r.title || r.original_title || '',
+            title_en: r.original_title || '', poster_path: r.poster_path || '',
+            release_year: (r.release_date || '').slice(0, 4) || null,
+            genre: '', tmdb_rating: r.vote_average || null, _fromTmdb: true, _type: '영화'
+          }));
+      }
+
+      const total = dbWorks.length + tmdbTv.length + tmdbMv.length;
+      if (!total) {
         resultBox.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과 없음</div>';
-        resultBox.style.display = 'block';
         return;
       }
 
-      resultBox.innerHTML = list.map(w => `
-        <div class="work-result-item" onclick="selectManualWork(${w.tmdb_id}, '${(w.title_ko||'').replace(/'/g,"\\'")}', '${(w.title_en||'').replace(/'/g,"\\'")}', '${w.poster_path||''}', ${w.release_year||null}, '${w.genre||''}', ${w.tmdb_rating||null})">
-          ${w.poster_path
-            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" class="work-result-poster">`
-            : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center">🎬</div>`}
-          <div>
-            <div style="font-size:13px;font-weight:500">${w.title_ko||''}</div>
-            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${w.title_en||''} · ${w.release_year||''}</div>
-          </div>
-        </div>
-      `).join('');
-      resultBox.style.display = 'block';
-    } catch(e) {}
-  }, 300);
+      // 결과 렌더링 헬퍼
+      function _itemHtml(w, badge) {
+        const safeKo = (w.title_ko||'').replace(/'/g,"\'").replace(/"/g,'&quot;');
+        const safeEn = (w.title_en||'').replace(/'/g,"\'").replace(/"/g,'&quot;');
+        const safePoster = (w.poster_path||'').replace(/'/g,"\'");
+        return `
+          <div class="work-result-item" onclick="selectManualWork(${w.tmdb_id}, '${safeKo}', '${safeEn}', '${safePoster}', ${w.release_year||null}, '${(w.genre||'').replace(/'/g,"\'")}', ${w.tmdb_rating||null})">
+            ${w.poster_path
+              ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" class="work-result-poster">`
+              : `<div class="work-result-poster" style="display:flex;align-items:center;justify-content:center">🎬</div>`}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:500;display:flex;align-items:center;gap:5px">
+                ${w.title_ko||''}
+                ${badge ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;${badge.style}">${badge.text}</span>` : ''}
+              </div>
+              <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${w.title_en||''} · ${w.release_year||''}</div>
+            </div>
+          </div>`;
+      }
+
+      let html = '';
+
+      // 우리 DB 결과 — 🗄️ DB 뱃지
+      if (dbWorks.length) {
+        html += '<div style="padding:4px 14px 2px;font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.5px;background:var(--bg3);border-bottom:1px solid var(--border)">🗄️ 우리 DB</div>';
+        html += dbWorks.map(w => _itemHtml(w, { text:'DB', style:'background:rgba(52,211,153,.15);color:#34d399;' })).join('');
+      }
+
+      // TMDB TV 결과
+      if (tmdbTv.length) {
+        html += '<div style="padding:4px 14px 2px;font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.5px;background:var(--bg3);border-bottom:1px solid var(--border)">📺 TMDB TV</div>';
+        html += tmdbTv.map(w => _itemHtml(w, { text:'TV', style:'background:rgba(55,138,221,.15);color:#378ADD;' })).join('');
+      }
+
+      // TMDB 영화 결과
+      if (tmdbMv.length) {
+        html += '<div style="padding:4px 14px 2px;font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.5px;background:var(--bg3);border-bottom:1px solid var(--border)">🎬 TMDB 영화</div>';
+        html += tmdbMv.map(w => _itemHtml(w, { text:'영화', style:'background:rgba(240,180,41,.15);color:var(--gold);' })).join('');
+      }
+
+      resultBox.innerHTML = html;
+    } catch(e) {
+      resultBox.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 오류</div>';
+    }
+  }, 350);
 }
 
 // 작품 선택
