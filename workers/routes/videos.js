@@ -8,7 +8,7 @@
    GET    /imdb/:imdbId             IMDb 평점 조회
    POST   /imdb/save                IMDb ID 저장
    GET    /youtube/trending         YouTube 한국 급상승 TOP50
-   GET    /works/search             작품 검색 (Admin)
+   GET    /works/search             작품 검색 (공개)
    GET    /works/:tmdb_id           작품 단건 조회
    GET    /kmrb/:tmdb_id            영상물등급위원회 시청가이드
 ══════════════════════════════════════════════════════════════ */
@@ -273,12 +273,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   }
 
   // ── GET /works/search ────────────────────────────────────────
+  // 공개 API — 인증 없이 works 검색 가능 (헤더 검색창 등에서 사용)
   if (path === "/works/search" && request.method === "GET") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
     const q     = url.searchParams.get("q") || "";
-    const limit = Math.min(parseInt(url.searchParams.get("limit") || "8"), 20);
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "10"), 20);
     if (!q.trim()) {
       return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
     }
