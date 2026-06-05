@@ -234,21 +234,29 @@ function goWork(tmdbId, tmdbType, workTitle){
   location.href = slugUrl;
 }
 
-/* ── 로그인 여부 확인 — 반드시 완료 후 렌더 ── */
+/* ── 로그인 여부 확인 ──
+   헤더(header.html)가 이미 /auth/me 를 호출하고 결과를
+   window.__ottrangAuthReady__ (Promise) + window.__ottrangUser__ 에 저장함.
+   이중 호출 없이 그 결과를 그대로 재사용 → 타이밍 버그 해결.
+   헤더 로드 전 호출되더라도 Promise가 resolve될 때까지 await로 대기함. ── */
 let currentUser = null;
 async function checkLogin(){
   try {
-    const sid = localStorage.getItem('ottrang_sid');
-    // credentials:'include'는 항상 전송 (쿠키 방식 보장)
-    // sid가 있으면 Authorization 헤더도 함께 전송 (Bearer 방식 병행)
-    const opts = {
-      credentials: 'include',
-      headers: sid ? { Authorization: `Bearer ${sid}` } : {}
-    };
-    const res  = await fetch(`${API}/auth/me`, opts);
-    const data = await res.json();
-    if(data.ok && data.user) currentUser = data.user;
-  } catch(e){}
+    if(window.__ottrangAuthReady__){
+      // 헤더의 /auth/me 완료를 기다린 후 결과 읽기 (타임아웃 3초)
+      const timeout = new Promise(res => setTimeout(() => res(null), 3000));
+      currentUser = await Promise.race([window.__ottrangAuthReady__, timeout]);
+    } else {
+      // 헤더 없이 직접 접근된 경우 fallback — 자체 호출
+      const sid  = localStorage.getItem('ottrang_sid');
+      const opts = sid
+        ? { credentials:'include', headers:{ Authorization:`Bearer ${sid}` } }
+        : { credentials:'include' };
+      const res  = await fetch(`${API}/auth/me`, opts);
+      const data = await res.json();
+      if(data.ok && data.user) currentUser = data.user;
+    }
+  } catch(e){ currentUser = null; }
 }
 
 /* ── 댓글 목록 렌더 ── */
@@ -376,10 +384,10 @@ async function loadContent(){
   const backUrl   = document.referrer.includes('contents_list')
     ? document.referrer : `/contents.html`;
 
-  // ③ 영상 플레이어 표시 (전체 너비 section)
+  // ③ 영상 플레이어 표시 (전체 너비 section) — autoplay=1&mute=1 (브라우저 자동재생 정책)
   const playerSection = document.getElementById('playerSection');
   const ytFrame       = document.getElementById('ytFrame');
-  ytFrame.src = `https://www.youtube.com/embed/${item.youtube_id}?autoplay=0&rel=0`;
+  ytFrame.src = `https://www.youtube.com/embed/${item.youtube_id}?autoplay=1&mute=1&rel=0`;
   playerSection.style.display = 'block';
 
   // ④ 메타태그 업데이트
