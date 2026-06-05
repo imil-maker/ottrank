@@ -133,6 +133,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .cm-nick{font-size:14px;font-weight:500;color:var(--text)}
 .cm-time{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
 .cm-body{font-size:14px;color:var(--muted2);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.cm-footer{display:flex;justify-content:flex-end;margin-top:8px}
+.cm-del{font-family:var(--mono);font-size:11px;color:var(--muted);background:none;border:none;
+  cursor:pointer;padding:3px 8px;border-radius:5px;transition:all .15s}
+.cm-del:hover{color:var(--accent);background:rgba(230,57,70,.1)}
 .cm-empty{padding:32px;text-align:center;font-size:14px;color:var(--muted)}
 
 /* ── 로딩 ── */
@@ -284,14 +288,22 @@ function renderComments(comments){
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
         + `<div class="cm-avatar-ph" style="display:none">${nick.charAt(0)}</div>`
       : `<div class="cm-avatar-ph">${nick.charAt(0)}</div>`;
+    // 본인 댓글에만 삭제 버튼 표시
+    const isOwn   = currentUser && currentUser.id === c.user_id;
+    const delBtn  = isOwn
+      ? `<div class="cm-footer">
+           <button class="cm-del" onclick="deleteComment(${c.id}, ${c.content_id || contentId})">삭제</button>
+         </div>`
+      : '';
     return `
-    <div class="cm-item">
+    <div class="cm-item" id="cm-${c.id}">
       <div class="cm-item-top">
         ${avatar}
         <span class="cm-nick">${nick}</span>
         <span class="cm-time">${relTime(c.created_at)}</span>
       </div>
       <div class="cm-body">${c.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      ${delBtn}
     </div>`;
   }).join('');
 }
@@ -345,6 +357,40 @@ async function submitComment(cid){
   } finally {
     btn.disabled = false;
     btn.textContent = '등록';
+  }
+}
+
+/* ── 댓글 삭제 ── */
+async function deleteComment(commentId, contentId){
+  if(!confirm('댓글을 삭제할까요?')) return;
+  try {
+    const sid     = localStorage.getItem('ottrang_sid');
+    const headers = {};
+    if(sid) headers['Authorization'] = `Bearer ${sid}`;
+
+    const res  = await fetch(`${API}/contents/comments/${commentId}`, {
+      method     : 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if(data.ok){
+      // DOM에서 즉시 제거 (재로드 없이)
+      const el = document.getElementById(`cm-${commentId}`);
+      if(el) el.remove();
+      // 댓글 수 업데이트
+      const count   = document.getElementById('cmCount');
+      const cmItems = document.querySelectorAll('.cm-item');
+      if(count) count.textContent = `(${cmItems.length})`;
+      if(cmItems.length === 0){
+        document.getElementById('cmList').innerHTML =
+          `<div class="cm-empty">첫 번째 댓글을 남겨보세요!</div>`;
+      }
+    } else {
+      alert(data.error || '삭제에 실패했습니다.');
+    }
+  } catch(e){
+    alert('삭제에 실패했습니다.');
   }
 }
 
