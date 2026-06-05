@@ -1848,6 +1848,9 @@ function renderTable() {
 
   Object.entries(groups).forEach(([key, items]) => {
     const [platform, slot] = key.split('__');
+
+    // rank 기준 오름차순 정렬 (API 응답 순서에 의존하지 않음)
+    items.sort((a, b) => (a.rank || 0) - (b.rank || 0));
     // 그룹 컨테이너
     const groupEl = document.createElement('div');
     groupEl.className = 'category-group';
