@@ -301,7 +301,35 @@ let myStars=0,hoverVal=0,selectedEval='',MY_REVIEW=null;
 
   // 기존 내 후기 불러오기
   loadMyReview();
+  // 기존 내 추천 선택 불러오기 (work_reactions)
+  loadMyReaction();
 })();
+
+/* ══ 기존 내 추천 선택 불러오기 (work_reactions) ══ */
+async function loadMyReaction(){
+  if(!RDATA?.tmdb_id) return;
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid) return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/reactions/work/${RDATA.tmdb_id}`,{
+      headers:{Authorization:'Bearer '+sid},
+      credentials:'include',
+    });
+    const data=await res.json();
+    if(!data.ok||!data.data?.my_reaction) return;
+    const myReaction=data.data.my_reaction;
+    // reaction 키 → 한글 레이블 변환
+    const reactionToLabel={great:'강추해요',good:'추천해요',meh:'평범해요',bad:'별로예요'};
+    const labelVal=reactionToLabel[myReaction];
+    if(!labelVal) return;
+    // 이미 eval(감정 버튼)이 선택된 경우 덮어쓰지 않음 (작품 페이지에서 클릭하고 온 경우 우선)
+    if(selectedEval) return;
+    document.querySelectorAll('.eval-btn').forEach(b=>{
+      b.classList.remove('on');
+      if(b.dataset.val===labelVal){b.classList.add('on');selectedEval=labelVal;}
+    });
+  }catch(e){}
+}
 
 /* ══ 기존 내 후기 ══ */
 async function loadMyReview(){
@@ -415,6 +443,21 @@ async function submitReview(){
     });
     const data=await res.json();
     if(!data.ok){showToast(data.message||'오류가 발생했어요');btn.disabled=false;btn.textContent='후기 등록';return;}
+
+    // 추천 버튼 선택값도 work_reactions에 저장 (selectedEval이 있는 경우)
+    if(selectedEval){
+      const labelToReaction={'강추해요':'great','추천해요':'good','평범해요':'meh','별로예요':'bad'};
+      const reactionKey=labelToReaction[selectedEval];
+      if(reactionKey){
+        fetch(`${OTTRANK_API}/reactions/work`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid},
+          credentials:'include',
+          body:JSON.stringify({tmdb_id:RDATA.tmdb_id,reaction:reactionKey}),
+        }).catch(()=>{});
+      }
+    }
+
     showToast('후기가 등록됐어요! 🎉');
     setTimeout(()=>{
       const backUrl=(RDATA?.back_url||'/')+'#myReviewBox';
