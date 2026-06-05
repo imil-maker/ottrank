@@ -631,7 +631,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <option value="disney">디즈니+</option>
           <option value="coupang">쿠팡플레이</option>
           <option value="wavve">웨이브</option>
-          <option value="">기타</option>
+          <option value="boxoffice">박스오피스</option>
+          <option value="etc">기타</option>
         </select>
       </div>
       <!-- 타입 -->
@@ -670,6 +671,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <option value="disney">디즈니+</option>
           <option value="coupang">쿠팡플레이</option>
           <option value="wavve">웨이브</option>
+          <option value="boxoffice">박스오피스</option>
+          <option value="etc">기타</option>
         </select>
         <select id="ctFilterType" class="inp" style="margin-bottom:0;padding:6px 12px;width:auto;cursor:pointer"
           onchange="contentsTypeFilter=this.value;contentsPage=1;loadContentsTable()">
@@ -818,7 +821,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
 <!-- 랭킹 수정 모달 -->
 <div class="overlay" id="editOverlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <h3>✏️ 수동 수정 <span class="sub" id="modalSub"></span></h3>
     <input type="hidden" id="editId">
 
@@ -1852,7 +1855,7 @@ function renderTable() {
     groupEl.dataset.platform = platform;
     groupEl.dataset.date     = items[0]?.date || '';
 
-    // 그룹 헤더 (타이틀 + 저장 버튼)
+    // 그룹 헤더 (타이틀 + 추가 버튼 + 저장 버튼)
     const groupId = `${platform}-${slot}`;
     groupEl.innerHTML = `
       <div class="category-group-header">
@@ -1860,7 +1863,12 @@ function renderTable() {
           <span class="platform-badge" style="background:${PC[platform]||'#888'};margin-right:6px">${platform}</span>
           ${slot}
         </span>
-        <button class="btn-reorder-save" onclick="saveReorder('${slot}','${platform}')" id="saveBtn-${groupId}">💾 순위 저장</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn-reorder-save"
+            style="background:rgba(240,180,41,.12);color:var(--gold);border-color:rgba(240,180,41,.35)"
+            onclick="openAddRankingModal('${slot}','${platform}','${items[0]?.date||''}')">➕ 추가</button>
+          <button class="btn-reorder-save" onclick="saveReorder('${slot}','${platform}')" id="saveBtn-${groupId}">💾 순위 저장</button>
+        </div>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <tbody id="dragBody-${groupId}"></tbody>
@@ -1974,6 +1982,126 @@ async function saveReorder(slot, platform) {
   }
 }
 
+// ════════════════════════════════════════════════════
+// 랭킹관리 — 카테고리 섹션 작품 추가
+// ════════════════════════════════════════════════════
+
+// 현재 추가 대상 슬롯 정보 (모달 열릴 때 저장)
+let _addRankingCtx = { slot: '', platform: '', date: '' };
+
+/**
+ * 카테고리 섹션 "➕ 추가" 버튼 클릭 시 호출
+ * 수정 모달(editOverlay)을 "추가 모드"로 열어줌
+ */
+function openAddRankingModal(slot, platform, date) {
+  _addRankingCtx = { slot, platform, date };
+
+  // 폼 초기화
+  document.getElementById('editId').value       = '';
+  document.getElementById('editTitleKo').value  = '';
+  document.getElementById('editTitleEn').value  = '';
+  document.getElementById('editTmdbId').value   = '';
+  document.getElementById('modalSub').textContent =
+    `➕ 작품 추가 — ${platform} · ${slot}`;
+
+  // TMDB 검색 블록 초기화
+  document.getElementById('editTmdbSearchQuery').value = '';
+  document.getElementById('editTmdbResults').innerHTML = '';
+  document.getElementById('editTmdbResults').style.display  = 'none';
+  document.getElementById('editTmdbSelected').style.display = 'none';
+
+  // 포스터 미리보기 초기화
+  updatePosterPreview(null);
+
+  // 미디어 타입 자동으로 리셋
+  const nullRadio = document.getElementById('editMt_null');
+  if (nullRadio) { nullRadio.checked = true; updateMediaTypeStyle(''); }
+
+  // 저장 버튼 → "추가" 모드
+  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  if (saveBtn) {
+    saveBtn.textContent = '➕ 추가';
+    saveBtn.onclick     = addRankingItem;
+  }
+
+  document.getElementById('editOverlay').classList.add('show');
+}
+
+/**
+ * 추가 모드에서 저장 버튼 클릭 시 호출
+ * POST /admin/rankings 로 새 항목 등록 → 해당 슬롯 맨 마지막 순위로 삽입
+ */
+async function addRankingItem() {
+  const { slot, platform, date } = _addRankingCtx;
+  const title_ko   = document.getElementById('editTitleKo').value.trim();
+  const title_en   = document.getElementById('editTitleEn').value.trim();
+  const tmdb_id    = parseInt(document.getElementById('editTmdbId').value) || null;
+  const mediaTypeEl = document.querySelector('input[name="editMediaType"]:checked');
+  const media_type  = mediaTypeEl?.value || null;
+
+  if (!title_ko) { showToast('한국어 제목을 입력하세요', 'err'); return; }
+  if (!tmdb_id)  { showToast('TMDB ID를 입력하거나 작품을 검색해서 선택하세요', 'err'); return; }
+
+  // 현재 해당 슬롯의 마지막 순위 계산 (로컬 DOM 기준)
+  const groupId  = `${platform}-${slot}`;
+  const dragBody = document.getElementById(`dragBody-${groupId}`);
+  const lastRank = dragBody ? dragBody.querySelectorAll('.drag-row').length + 1 : 1;
+
+  // TMDB에서 포스터/연도 자동 조회
+  let poster_path  = null;
+  let release_year = null;
+  let auto_title_en = title_en;
+
+  const mtypes = media_type ? [media_type] : ['tv', 'movie'];
+  for (const mtype of mtypes) {
+    try {
+      const resp = await fetch(`${TMDB_PROXY}/${mtype}/${tmdb_id}?language=ko-KR`);
+      const data = await resp.json();
+      if (data.poster_path) {
+        poster_path  = data.poster_path;
+        release_year = parseInt((data.first_air_date || data.release_date || '').slice(0, 4)) || null;
+        if (!auto_title_en) {
+          auto_title_en = data.original_name || data.original_title || '';
+        }
+        break;
+      }
+    } catch(e) {}
+  }
+
+  try {
+    const res  = await fetch(`${API}/admin/rankings`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        platform,
+        category_slot : slot,
+        date          : date || new Date().toISOString().slice(0, 10),
+        source_name   : slot,
+        tmdb_id,
+        rank          : lastRank,
+        title_ko,
+        title_en      : auto_title_en  || null,
+        poster_path   : poster_path    || null,
+        release_year  : release_year   || null,
+        media_type    : media_type     || null,
+        is_manual     : 1,
+      }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(`✅ "${title_ko}" 추가 완료! (${platform} ${slot} ${lastRank}위)`, 'ok');
+      closeModal();
+      // 해당 날짜 데이터 다시 로드
+      loadData();
+    } else {
+      showToast('추가 실패: ' + (json.message || '알 수 없는 오류'), 'err');
+    }
+  } catch(e) {
+    showToast('오류: ' + e.message, 'err');
+  }
+}
+
+
 // HTML 특수문자 이스케이프
 function _esc(str) {
   return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -2044,15 +2172,16 @@ function closeModal() {
   if (resultsEl) { resultsEl.innerHTML = ''; resultsEl.style.display = 'none'; }
   const selectedEl = document.getElementById('editTmdbSelected');
   if (selectedEl) selectedEl.style.display = 'none';
-  // works 모달에서 열었을 경우 저장 버튼 원복
-  if (typeof worksModalTmdbId !== 'undefined' && worksModalTmdbId !== null) {
-    worksModalTmdbId = null;
-    const saveBtn = document.querySelector('#editOverlay .btn-save');
-    if (saveBtn) {
-      saveBtn.textContent = '저장 (수동고정)';
-      saveBtn.onclick = saveEdit;
-    }
+  // 저장 버튼 항상 기본값(랭킹관리 수정)으로 원복
+  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  if (saveBtn) {
+    saveBtn.textContent = '저장 (수동고정)';
+    saveBtn.onclick     = saveEdit;
   }
+  // 추가 모드 컨텍스트 초기화
+  _addRankingCtx = { slot: '', platform: '', date: '' };
+  // works 모달 컨텍스트 초기화
+  if (typeof worksModalTmdbId !== 'undefined') worksModalTmdbId = null;
 }
 
 // ════════════════════════════════════════════════════
@@ -3882,7 +4011,6 @@ async function submitContentAdd(){
   const work_title   = document.getElementById('ctWorkTitle').value.trim();
 
   if(!youtube_id){ showToast('YouTube URL을 먼저 입력하고 "정보 가져오기"를 눌러주세요.','err'); return; }
-  if(!platform)  { showToast('OTT 플랫폼을 선택해주세요.','err'); return; }
   if(!title)     { showToast('제목을 입력해주세요.','err'); return; }
   if(!published_at){ showToast('업로드 날짜를 입력해주세요.','err'); return; }
 
@@ -3908,8 +4036,6 @@ async function submitContentAdd(){
       const lbl = document.getElementById('ctTmdbSelectedLabel');
       if(lbl) lbl.textContent = '선택 안 됨';
       document.getElementById('ctThumbPreview').style.display='none';
-      document.getElementById('ctPlatform').value='netflix';
-      document.getElementById('ctType').value='trailer';
       document.getElementById('ctPlatform').value='netflix';
       document.getElementById('ctType').value='trailer';
       await loadContentsTable();
