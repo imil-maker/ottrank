@@ -22,7 +22,7 @@ function W(o,r,e){if(!r.length)return o.slice(0,e).map((l,d)=>({...l,rank:d+1}))
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
           AND r.is_manual = 1
-          AND r.date != 'manual'
+          AND r.date = 'manual'
         ORDER BY oc.main_section, oc.main_order, r.rank
       `).all(),n={},l={},d={};for(let p of s){let g=`${p.platform}__${p.category_slot}`;n[g]||(n[g]=[]),d[g]||(d[g]=p),n[g].push(p)}for(let p of a){let g=`${p.platform}__${p.category_slot}`;l[g]||(l[g]=[]),d[g]||(d[g]=p),l[g].push(p)}let c={},_={},u=new Set([...Object.keys(n),...Object.keys(l)]);for(let p of u){let g=d[p];if(!g)continue;let k=g.main_limit||10,w=W((n[p]||[]).sort((S,O)=>S.rank-O.rank),(l[p]||[]).sort((S,O)=>S.rank-O.rank),k);for(let S of w){let O={rank:S.rank,title_ko:S.title_ko,title_en:S.title_en,tmdb_id:S.tmdb_id,poster_path:S.poster_path,genre:S.genre,tmdb_rating:S.tmdb_rating,release_year:S.release_year,memo:S.memo||null,display_name:g.display_name,platform:g.platform,category_slot:g.category_slot,main_order:g.main_order};g.main_section==="tv"?(c[p]||(c[p]={platform:g.platform,category_slot:g.category_slot,display_name:g.display_name,main_order:g.main_order,memo_label:g.memo_label||null,items:[]}),c[p].items.push(O)):g.main_section==="movie"&&(_[p]||(_[p]={platform:g.platform,category_slot:g.category_slot,display_name:g.display_name,main_order:g.main_order,memo_label:g.memo_label||null,items:[]}),_[p].items.push(O))}}let E=Object.values(c).sort((p,g)=>p.main_order-g.main_order),f=Object.values(_).sort((p,g)=>p.main_order-g.main_order);return new Response(JSON.stringify({ok:!0,tv:E,movie:f}),{headers:i})}catch(t){return new Response(JSON.stringify({ok:!1,message:t.message}),{status:500,headers:i})}if(o==="/rankings/platform"&&r.method==="GET")try{let t=m.searchParams.get("platform"),s=m.searchParams.get("date")||null;if(!t)return new Response(JSON.stringify({ok:!1,message:"platform required"}),{status:400,headers:i});let{results:a}=await e.DB.prepare(`
         SELECT
@@ -50,7 +50,7 @@ function W(o,r,e){if(!r.length)return o.slice(0,e).map((l,d)=>({...l,rank:d+1}))
           AND oc.platform_section IS NOT NULL
           AND oc.is_active = 1
           AND r.is_manual = 1
-          AND r.date != 'manual'
+          AND r.date = 'manual'
         ORDER BY oc.platform_order, r.rank
       `).bind(t).all(),l={},d={},c={};for(let f of a){let p=f.category_slot;l[p]||(l[p]=[]),c[p]||(c[p]=f),l[p].push(f)}for(let f of n){let p=f.category_slot;d[p]||(d[p]=[]),c[p]||(c[p]=f),d[p].push(f)}let _={},u=new Set([...Object.keys(l),...Object.keys(d)]);for(let f of u){let p=c[f];if(!p)continue;let g=p.platform_limit||20,k=W((l[f]||[]).sort((w,S)=>w.rank-S.rank),(d[f]||[]).sort((w,S)=>w.rank-S.rank),g);_[f]={platform:p.platform,category_slot:p.category_slot,display_name:p.display_name,platform_order:p.platform_order,memo_label:p.memo_label||null,items:k.map(w=>({rank:w.rank,title_ko:w.title_ko,title_en:w.title_en,tmdb_id:w.tmdb_id,poster_path:w.poster_path,genre:w.genre,tmdb_rating:w.tmdb_rating,release_year:w.release_year,memo:w.memo||null}))}}let E=Object.values(_).sort((f,p)=>f.platform_order-p.platform_order);return new Response(JSON.stringify({ok:!0,data:E}),{headers:i})}catch(t){return new Response(JSON.stringify({ok:!1,message:t.message}),{status:500,headers:i})}if(o==="/rankings/weekly"&&r.method==="GET")try{let{results:t}=await e.DB.prepare(`
         SELECT
