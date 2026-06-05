@@ -297,11 +297,19 @@ function initHeader(){
     history.replaceState({},'',_url.toString());
   }
 
+  // ── 인증 결과를 전역 Promise로 노출 ──
+  // 다른 페이지(contents_detail 등)에서 window.__ottrangAuthReady__ 를 await하면
+  // 헤더의 /auth/me 결과를 그대로 재사용할 수 있어 이중 호출 & 타이밍 버그 방지
+  let _authResolve;
+  window.__ottrangAuthReady__ = new Promise(res => { _authResolve = res; });
+  window.__ottrangUser__ = null;
+
   (async()=>{
     try {
       const sid=localStorage.getItem('ottrang_sid');
+      // sid 있으면 Bearer + credentials 둘 다 전송 (Worker가 어느 방식이든 인증 가능하도록)
       const fetchOpts = sid
-        ? { headers:{ Authorization:`Bearer ${sid}` } }
+        ? { credentials:'include', headers:{ Authorization:`Bearer ${sid}` } }
         : { credentials:'include' };
       const res=await fetch(`${API}/auth/me`, fetchOpts);
       const data=await res.json();
@@ -310,13 +318,15 @@ function initHeader(){
       const btnUser=document.getElementById('ottrangBtnUser');
       const nick=document.getElementById('ottrangNick');
       if(data.ok && data.user){
-        // 로그인 상태
+        // 로그인 상태 — 전역에 유저 저장
+        window.__ottrangUser__ = data.user;
         if(btnLogin) btnLogin.style.display='none';
         if(btnJoin)  btnJoin.style.display='none';
         if(btnUser){ btnUser.style.display='flex'; }
         if(nick) nick.textContent=data.user.nickname||'유저';
       } else {
         // 비로그인 상태 - localStorage 초기화
+        window.__ottrangUser__ = null;
         localStorage.removeItem('ottrang_sid');
         if(btnLogin){
           btnLogin.style.display='';
@@ -329,10 +339,15 @@ function initHeader(){
         if(btnUser) btnUser.style.display='none';
       }
     } catch(e) {
+      // 네트워크 오류 시에도 반드시 null로 resolve (무한 대기 방지)
+      window.__ottrangUser__ = null;
       const btnLogin=document.getElementById('ottrangBtnLogin');
       const btnJoin=document.getElementById('ottrangBtnJoin');
       if(btnLogin) btnLogin.onclick=()=>{ location.href='/login.html'; };
       if(btnJoin)  btnJoin.onclick=()=>{ location.href='/login.html'; };
+    } finally {
+      // 성공/실패 모두 Promise resolve → 대기 중인 페이지들에 알림
+      _authResolve(window.__ottrangUser__);
     }
   })();
 
