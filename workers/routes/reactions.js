@@ -1,6 +1,8 @@
 /* ══════════════════════════════════════════════════════════════
    반응(Reactions) 관련 API 라우트
    GET    /reactions
+   GET    /reactions/work/:tmdb_id   ← 작품 추천 비율 + 내 선택 조회
+   POST   /reactions/work            ← 작품 추천 선택/변경 (로그인 필요)
    GET    /reactions/:id/comments
    GET    /reactions/:id/posts
    POST   /reactions/:id/posts
@@ -42,6 +44,168 @@ export async function handleReactions(path, request, env, ctx, headers) {
       ? await env.DB.prepare(query).bind(...params).all()
       : await env.DB.prepare(query).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+  }
+
+  // ── GET /reactions/work/:tmdb_id ──────────────────────────
+  // 작품 추천 비율 집계 + 내 선택 반환 (비로그인도 비율은 볼 수 있음)
+  if (path.match(/^\/reactions\/work\/\d+$/) && request.method === "GET") {
+    try {
+      const tmdbId = parseInt(path.split("/")[3]);
+
+      // 유효한 reaction 값
+      const VALID = ["great", "good", "meh", "bad"];
+
+      // 전체 집계 (비율 계산용)
+      const { results: counts } = await env.DB.prepare(`
+        SELECT reaction, COUNT(*) as cnt
+        FROM work_reactions
+        WHERE tmdb_id = ?
+        GROUP BY reaction
+      `).bind(tmdbId).all();
+
+      // 총 투표 수
+      const total = counts.reduce((s, r) => s + r.cnt, 0);
+
+      // reaction별 카운트 맵
+      const cntMap = {};
+      VALID.forEach(k => cntMap[k] = 0);
+      counts.forEach(r => { if (VALID.includes(r.reaction)) cntMap[r.reaction] = r.cnt; });
+
+      // 비율 계산 (총합 100% 보정: 소수점 반올림 오차 방지)
+      let ratios = {};
+      if (total > 0) {
+        // 각 비율 계산 후 반올림
+        let sumRounded = 0;
+        const pairs = VALID.map(k => ({ k, raw: (cntMap[k] / total) * 100 }));
+        pairs.forEach((p, i) => {
+          if (i < pairs.length - 1) {
+            ratios[p.k] = Math.round(p.raw);
+            sumRounded += ratios[p.k];
+          } else {
+            // 마지막 항목은 100에서 나머지를 빼서 정확히 맞춤
+            ratios[p.k] = 100 - sumRounded;
+          }
+        });
+      } else {
+        VALID.forEach(k => ratios[k] = 0);
+      }
+
+      // 내 선택 조회 (로그인한 경우)
+      let myReaction = null;
+      const sid = request.headers.get("Authorization")?.replace("Bearer ", "") ||
+                  (() => {
+                    const cookie = request.headers.get("Cookie") || "";
+                    const m = cookie.match(/session=([^;]+)/);
+                    return m ? m[1] : null;
+                  })();
+
+      if (sid) {
+        const session = await env.DB.prepare(
+          "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now') LIMIT 1"
+        ).bind(sid).first();
+        if (session?.user_id) {
+          const myRow = await env.DB.prepare(
+            "SELECT reaction FROM work_reactions WHERE tmdb_id = ? AND user_id = ? LIMIT 1"
+          ).bind(tmdbId, session.user_id).first();
+          myReaction = myRow?.reaction || null;
+        }
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        data: {
+          total,
+          counts: cntMap,
+          ratios,
+          my_reaction: myReaction,
+        }
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /reactions/work ──────────────────────────────────
+  // 작품 추천 선택/변경 (로그인 필요, UPSERT)
+  if (path === "/reactions/work" && request.method === "POST") {
+    try {
+      // 세션 인증 (Bearer 토큰 또는 쿠키)
+      const sid = request.headers.get("Authorization")?.replace("Bearer ", "") ||
+                  (() => {
+                    const cookie = request.headers.get("Cookie") || "";
+                    const m = cookie.match(/session=([^;]+)/);
+                    return m ? m[1] : null;
+                  })();
+
+      if (!sid) {
+        return new Response(JSON.stringify({ ok: false, message: "로그인이 필요합니다" }), { status: 401, headers });
+      }
+
+      // 세션 → user_id 조회
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now') LIMIT 1"
+      ).bind(sid).first();
+
+      if (!session?.user_id) {
+        return new Response(JSON.stringify({ ok: false, message: "세션이 만료됐습니다" }), { status: 401, headers });
+      }
+
+      const body = await request.json();
+      const { tmdb_id, reaction } = body;
+
+      // 유효성 검사
+      const VALID = ["great", "good", "meh", "bad"];
+      if (!tmdb_id || !VALID.includes(reaction)) {
+        return new Response(JSON.stringify({ ok: false, message: "올바르지 않은 요청입니다" }), { status: 400, headers });
+      }
+
+      const userId = session.user_id;
+
+      // UPSERT: 이미 선택한 경우 교체, 없으면 삽입
+      await env.DB.prepare(`
+        INSERT INTO work_reactions (tmdb_id, user_id, reaction, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(tmdb_id, user_id)
+        DO UPDATE SET reaction = excluded.reaction, updated_at = datetime('now')
+      `).bind(parseInt(tmdb_id), userId, reaction).run();
+
+      // 업데이트 후 최신 비율 다시 집계해서 반환
+      const { results: counts } = await env.DB.prepare(`
+        SELECT reaction, COUNT(*) as cnt
+        FROM work_reactions
+        WHERE tmdb_id = ?
+        GROUP BY reaction
+      `).bind(parseInt(tmdb_id)).all();
+
+      const total = counts.reduce((s, r) => s + r.cnt, 0);
+      const cntMap = {};
+      VALID.forEach(k => cntMap[k] = 0);
+      counts.forEach(r => { if (VALID.includes(r.reaction)) cntMap[r.reaction] = r.cnt; });
+
+      let ratios = {};
+      let sumRounded = 0;
+      const pairs = VALID.map(k => ({ k, raw: (cntMap[k] / total) * 100 }));
+      pairs.forEach((p, i) => {
+        if (i < pairs.length - 1) {
+          ratios[p.k] = Math.round(p.raw);
+          sumRounded += ratios[p.k];
+        } else {
+          ratios[p.k] = 100 - sumRounded;
+        }
+      });
+
+      return new Response(JSON.stringify({
+        ok: true,
+        data: {
+          total,
+          counts: cntMap,
+          ratios,
+          my_reaction: reaction,
+        }
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
   }
 
   // ── GET /reactions/:id/comments ───────────────────────────
