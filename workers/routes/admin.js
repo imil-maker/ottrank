@@ -760,6 +760,155 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
+  // ── POST /admin/rankings ─────────────────────────────────────
+  // 랭킹 카테고리 섹션에 작품 신규 추가
+  // works 테이블 upsert → rankings INSERT → title_map upsert
+  if (path === "/admin/rankings" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json();
+      const { platform, category_slot, date, tmdb_id, rank,
+              title_ko, title_en, media_type, is_manual } = body;
+
+      // 필수값 검증
+      if (!platform || !category_slot || !date || !tmdb_id || !title_ko) {
+        return new Response(JSON.stringify({
+          ok: false, message: "platform, category_slot, date, tmdb_id, title_ko 필수"
+        }), { status: 400, headers });
+      }
+
+      let finalPoster   = null;
+      let finalTitleKo  = title_ko  || null;
+      let finalTitleEn  = title_en  || null;
+      let finalYear     = null;
+      let finalGenre    = null;
+      let finalRating   = null;
+      let finalMtype    = (media_type === "tv" || media_type === "movie") ? media_type : null;
+
+      // ① TMDB API로 포스터/연도/장르/평점 조회 (Workers 서버에서 직접)
+      try {
+        const mtypes = finalMtype ? [finalMtype] : ["tv", "movie"];
+        for (const mtype of mtypes) {
+          const tmdbResp = await fetch(
+            `https://api.themoviedb.org/3/${mtype}/${tmdb_id}?language=ko-KR&api_key=${env.TMDB_API_KEY}`
+          );
+          if (!tmdbResp.ok) continue;
+          const tmdbData = await tmdbResp.json();
+          if (!tmdbData.poster_path && !tmdbData.name && !tmdbData.title) continue;
+
+          finalPoster = tmdbData.poster_path || null;
+          finalYear   = parseInt((tmdbData.first_air_date || tmdbData.release_date || "").slice(0, 4)) || null;
+          finalRating = tmdbData.vote_average ? parseFloat(tmdbData.vote_average.toFixed(1)) : null;
+          finalGenre  = (tmdbData.genres || []).map(g => g.name).join(", ") || null;
+          if (!finalMtype) finalMtype = mtype;
+
+          // 한글 제목이 없으면 TMDB 한글 제목으로 채움
+          if (!finalTitleKo) finalTitleKo = tmdbData.name || tmdbData.title || null;
+
+          // 영어 원제 — 비어있을 때만 조회
+          if (!finalTitleEn) {
+            const enResp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${tmdb_id}?language=en-US&api_key=${env.TMDB_API_KEY}`
+            );
+            if (enResp.ok) {
+              const enData        = await enResp.json();
+              const originalTitle = enData.original_title || enData.original_name || "";
+              const enTitle       = enData.title || enData.name || "";
+              const isKorean      = /[\uAC00-\uD7A3]/.test(originalTitle);
+              finalTitleEn = isKorean ? enTitle : (originalTitle || enTitle);
+            }
+          }
+          break;
+        }
+      } catch (e) { /* TMDB 조회 실패 시 기존 값으로 진행 */ }
+
+      // ② works 테이블 upsert (마스터 데이터 보장)
+      await env.DB.prepare(`
+        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type, match_source, confidence_score)
+        VALUES (?, ?, ?, ?, ?, 'admin', 100)
+        ON CONFLICT(tmdb_id) DO UPDATE SET
+          title_ko         = COALESCE(?, title_ko),
+          title_en         = COALESCE(NULLIF(?, ''), title_en),
+          poster_path      = COALESCE(?, poster_path),
+          media_type       = COALESCE(?, media_type),
+          match_source     = 'admin',
+          confidence_score = 100,
+          updated_at       = datetime('now')
+      `).bind(
+        parseInt(tmdb_id), finalTitleKo || "", finalTitleEn || "", finalPoster, finalMtype,
+        finalTitleKo || null, finalTitleEn || null, finalPoster, finalMtype
+      ).run();
+
+      // ③ rankings 테이블 INSERT (해당 날짜/슬롯 맨 뒤 순위로 추가)
+      // 지정된 rank가 없으면 해당 슬롯의 마지막 순위 + 1 자동 계산
+      let finalRank = parseInt(rank) || null;
+      if (!finalRank) {
+        const lastRow = await env.DB.prepare(`
+          SELECT MAX(rank) as max_rank FROM rankings
+          WHERE platform = ? AND category_slot = ? AND date = ?
+        `).bind(platform, category_slot, date).first();
+        finalRank = (lastRow?.max_rank || 0) + 1;
+      }
+
+      // UNIQUE 충돌 방지: 음수 rank로 임시 삽입 후 양수 확정
+      await env.DB.prepare(`
+        INSERT INTO rankings
+          (platform, category_slot, category, date, rank, tmdb_id,
+           title_ko, title_en, poster_path, release_year, genre, tmdb_rating,
+           is_manual, source_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        platform, category_slot,
+        finalMtype || category_slot,
+        date,
+        -(finalRank),
+        parseInt(tmdb_id),
+        finalTitleKo || "", finalTitleEn || "", finalPoster,
+        finalYear, finalGenre, finalRating,
+        is_manual ? 1 : 0,
+        category_slot
+      ).run();
+
+      // 음수 → 양수 확정
+      await env.DB.prepare(`
+        UPDATE rankings SET rank = ?
+        WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?
+      `).bind(finalRank, platform, category_slot, date, -(finalRank)).run();
+
+      // ④ title_map upsert (자동 매칭용)
+      if (finalTitleEn && finalTitleKo) {
+        await env.DB.prepare(`
+          INSERT INTO title_map (title_en, title_ko, tmdb_id)
+          VALUES (?, ?, ?)
+          ON CONFLICT(title_en) DO UPDATE SET
+            title_ko = excluded.title_ko,
+            tmdb_id  = COALESCE(excluded.tmdb_id, tmdb_id)
+        `).bind(finalTitleEn.trim(), finalTitleKo.trim(), parseInt(tmdb_id)).run();
+      }
+
+      // ⑤ admin_logs 기록
+      await env.DB.prepare(
+        "INSERT INTO admin_logs (action, platform, category_slot, target_id, after_value) VALUES ('ranking_add', ?, ?, ?, ?)"
+      ).bind(
+        platform, category_slot, String(tmdb_id),
+        JSON.stringify({ rank: finalRank, title_ko: finalTitleKo, date })
+      ).run();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        rank: finalRank,
+        poster_path: finalPoster,
+        title_ko: finalTitleKo,
+        title_en: finalTitleEn,
+      }), { headers });
+
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── PATCH /admin/rankings/reorder ────────────────────────────
   if (path === "/admin/rankings/reorder" && request.method === "PATCH") {
     if (!_checkAuth(request, env)) {
