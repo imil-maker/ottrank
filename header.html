@@ -237,10 +237,13 @@
       <span style="display:none;font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#ededf0;line-height:1">오뜨랑<span style="color:#e63946">.</span></span>
     </a>
     <nav class="ottrang-nav" id="ottrangNav">
-      <a href="/#tv" id="navTV">TV 시리즈</a>
-      <a href="/#movie" id="navMovie">영화</a>
-      <a href="/#youtube" id="navYt">유튜브</a>
-      <a href="/#community" id="navComm">커뮤니티</a>
+      <a href="/netflix.html"     id="navNetflix">넷플릭스</a>
+      <a href="/boxoffice.html"   id="navBoxoffice">박스오피스</a>
+      <a href="/tving.html"       id="navTving">티빙</a>
+      <a href="/disneyplus.html"  id="navDisney">디즈니+</a>
+      <a href="/coupangplay.html" id="navCoupang">쿠팡플레이</a>
+      <a href="/wavve.html"       id="navWavve">웨이브</a>
+      <a href="/community.html"   id="navComm">커뮤니티</a>
     </nav>
     <div class="ottrang-search-wrap">
       <input class="ottrang-search-input" id="ottrangSearch" type="text"
@@ -275,8 +278,13 @@
 function initHeader(){
   /* 현재 페이지에 맞는 nav 활성화 */
   const path=location.pathname;
-  if(path==='/'||path==='/index.html') document.getElementById('navTV')?.classList.add('on');
-  else if(path.includes('title')) { /* 작품 상세 - 없음 */ }
+  if(path==='/netflix.html')         document.getElementById('navNetflix')?.classList.add('on');
+  else if(path==='/boxoffice.html')  document.getElementById('navBoxoffice')?.classList.add('on');
+  else if(path==='/tving.html')      document.getElementById('navTving')?.classList.add('on');
+  else if(path==='/disneyplus.html') document.getElementById('navDisney')?.classList.add('on');
+  else if(path==='/coupangplay.html')document.getElementById('navCoupang')?.classList.add('on');
+  else if(path==='/wavve.html')      document.getElementById('navWavve')?.classList.add('on');
+  else if(path==='/community.html')  document.getElementById('navComm')?.classList.add('on');
 
   /* 로그인 상태 확인 */
   const API='https://ottrank-api.tdidream.workers.dev';
