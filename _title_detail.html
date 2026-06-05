@@ -121,6 +121,36 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .feeling-btn.f-bad{border-color:rgba(230,57,70,.4);color:var(--accent)}
 .feeling-btn.f-bad:hover{background:rgba(230,57,70,.08)}
 
+/* 추천 버튼 MY 선택 상태 */
+.feeling-btn.selected{position:relative;}
+.feeling-btn.f-great.selected{background:rgba(240,180,41,.2);border-color:rgba(240,180,41,.7);box-shadow:0 0 10px rgba(240,180,41,.25)}
+.feeling-btn.f-good.selected{background:rgba(52,211,153,.2);border-color:rgba(52,211,153,.7);box-shadow:0 0 10px rgba(52,211,153,.2)}
+.feeling-btn.f-meh.selected{background:rgba(160,160,188,.15);border-color:rgba(160,160,188,.7);box-shadow:0 0 8px rgba(160,160,188,.2)}
+.feeling-btn.f-bad.selected{background:rgba(230,57,70,.2);border-color:rgba(230,57,70,.7);box-shadow:0 0 10px rgba(230,57,70,.2)}
+.feeling-btn .my-badge{
+  position:absolute;top:-8px;left:50%;transform:translateX(-50%);
+  background:var(--gold);color:#000;font-size:9px;font-weight:800;
+  padding:2px 5px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;
+  font-family:var(--font-mono);
+}
+
+/* 추천 비율 바 영역 */
+.feeling-ratios{
+  margin-top:10px;display:flex;flex-direction:column;gap:6px;
+  width:100%;max-width:340px;
+}
+.feeling-ratio-row{display:flex;align-items:center;gap:8px;font-size:12px;}
+.feeling-ratio-label{width:54px;font-weight:600;color:rgba(255,255,255,.7);flex-shrink:0;font-size:11px}
+.feeling-ratio-bar-wrap{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
+.feeling-ratio-bar{height:100%;border-radius:3px;transition:width .5s ease}
+.feeling-ratio-bar.rb-great{background:linear-gradient(90deg,#f0b429,#f59e0b)}
+.feeling-ratio-bar.rb-good{background:linear-gradient(90deg,#34d399,#10b981)}
+.feeling-ratio-bar.rb-meh{background:linear-gradient(90deg,#a0a0bc,#6b7280)}
+.feeling-ratio-bar.rb-bad{background:linear-gradient(90deg,#e63946,#dc2626)}
+.feeling-ratio-pct{width:32px;text-align:right;font-weight:700;color:rgba(255,255,255,.85);font-family:var(--font-mono);font-size:11px}
+.feeling-total{font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;text-align:left}
+
+
 /* TOP10 일수 + 찜 버튼 행 */
 .hero-action-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
 .top10-badge{
@@ -622,11 +652,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
       <!-- 감정 표현 4버튼 -->
       <div class="feeling-btns">
-        <button class="feeling-btn f-great" onclick="feelingClick('강추해요')"><span class="f-emoji">🔥</span>강추해요</button>
-        <button class="feeling-btn f-good" onclick="feelingClick('추천해요')"><span class="f-emoji">👍</span>추천해요</button>
-        <button class="feeling-btn f-meh" onclick="feelingClick('평범해요')"><span class="f-emoji">😐</span>평범해요</button>
-        <button class="feeling-btn f-bad" onclick="feelingClick('별로예요')"><span class="f-emoji">👎</span>별로예요</button>
+        <button class="feeling-btn f-great" id="fbtn-great" onclick="feelingClick('great')"><span class="f-emoji">🔥</span>강추해요</button>
+        <button class="feeling-btn f-good"  id="fbtn-good"  onclick="feelingClick('good')"><span class="f-emoji">👍</span>추천해요</button>
+        <button class="feeling-btn f-meh"   id="fbtn-meh"   onclick="feelingClick('meh')"><span class="f-emoji">😐</span>평범해요</button>
+        <button class="feeling-btn f-bad"   id="fbtn-bad"   onclick="feelingClick('bad')"><span class="f-emoji">👎</span>별로예요</button>
       </div>
+
+      <!-- 추천 비율 표시 영역 (데이터 로드 후 JS로 렌더링) -->
+      <div id="feelingRatios" class="feeling-ratios" style="display:none"></div>
 
       <!-- 랭킹 정보 행 -->
       <!-- 찜 + 공유 + 랭킹 칩 한 행 -->
@@ -1526,11 +1559,86 @@ function updateCastArrows(){
   if(right)right.disabled=el.scrollLeft+el.clientWidth>=el.scrollWidth-4;
 }
 
-function feelingClick(val){
-  const sid=localStorage.getItem('ottrang_sid');
-  if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
-  goReview(0,val);
+// 추천 키 → 한글 레이블 매핑
+const FEELING_LABEL = { great:'강추해요', good:'추천해요', meh:'평범해요', bad:'별로예요' };
+const FEELING_CLASS = { great:'f-great', good:'f-good', meh:'f-meh', bad:'f-bad' };
+
+// 페이지 로드 시 비율 + 내 선택 초기 조회
+async function loadFeelingData(){
+  if(!WORK?.tmdb_id) return;
+  try{
+    const sid=localStorage.getItem('ottrang_sid');
+    const opts=sid
+      ?{headers:{Authorization:'Bearer '+sid,credentials:'include'}}
+      :{credentials:'include'};
+    const res=await fetch(`${OTTRANK_API}/reactions/work/${WORK.tmdb_id}`,opts);
+    const data=await res.json();
+    if(data.ok) renderFeelingUI(data.data);
+  }catch(e){}
 }
+
+// 추천 버튼 클릭
+async function feelingClick(val){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){
+    // 비로그인: 로그인 페이지로
+    location.href='/login.html?redirect='+encodeURIComponent(location.pathname);
+    return;
+  }
+  try{
+    const res=await fetch(`${OTTRANK_API}/reactions/work`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid},
+      credentials:'include',
+      body:JSON.stringify({tmdb_id:WORK.tmdb_id,reaction:val}),
+    });
+    const data=await res.json();
+    if(!data.ok){showToast(data.message||'오류가 발생했어요');return;}
+    renderFeelingUI(data.data);
+    showToast(FEELING_LABEL[val]+' 선택됐어요!');
+  }catch(e){showToast('네트워크 오류');}
+}
+
+// 버튼 상태 + 비율 바 렌더링
+function renderFeelingUI(d){
+  if(!d) return;
+  const { total, ratios, my_reaction } = d;
+  const keys = ['great','good','meh','bad'];
+
+  // 버튼 선택 상태 업데이트
+  keys.forEach(k=>{
+    const btn=document.getElementById('fbtn-'+k);
+    if(!btn) return;
+    // MY 뱃지 제거 후 재삽입
+    const existBadge=btn.querySelector('.my-badge');
+    if(existBadge) existBadge.remove();
+    if(k===my_reaction){
+      btn.classList.add('selected');
+      const badge=document.createElement('span');
+      badge.className='my-badge';
+      badge.textContent='★ MY';
+      btn.appendChild(badge);
+    } else {
+      btn.classList.remove('selected');
+    }
+  });
+
+  // 비율 바 렌더링
+  const wrap=document.getElementById('feelingRatios');
+  if(!wrap) return;
+  if(total===0){wrap.style.display='none';return;}
+  wrap.style.display='flex';
+  wrap.innerHTML=keys.map(k=>`
+    <div class="feeling-ratio-row">
+      <span class="feeling-ratio-label">${FEELING_LABEL[k]}</span>
+      <div class="feeling-ratio-bar-wrap">
+        <div class="feeling-ratio-bar rb-${k}" style="width:${ratios[k]||0}%"></div>
+      </div>
+      <span class="feeling-ratio-pct">${ratios[k]||0}%</span>
+    </div>
+  `).join('')+`<div class="feeling-total">총 ${total.toLocaleString()}명 참여</div>`;
+}
+
 
 /* == Comments == */
 function setSort(t){curSort=t;document.getElementById('sortLatest').classList.toggle('on',t==='latest');document.getElementById('sortLikes').classList.toggle('on',t==='likes');curPage=1;renderComments();}
@@ -1836,6 +1944,7 @@ async function init(){
       loadReviews(WORK.tmdb_id),
       loadWatchGuide(),
       loadTitleVideos(),
+      loadFeelingData(),
     ]);
   }else{
     renderComments();
