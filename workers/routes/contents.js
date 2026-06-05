@@ -62,6 +62,12 @@ export async function handleContents(path, request, env, url, headers) {
       return postComment(request, env, headers);
     }
 
+    // DELETE /contents/comments/:id — 댓글 삭제 (본인만 가능)
+    const deleteCommentMatch = path.match(/^\/contents\/comments\/(\d+)$/);
+    if (method === "DELETE" && deleteCommentMatch) {
+      return deleteComment(deleteCommentMatch[1], request, env, headers);
+    }
+
     // ── Admin 라우트 ───────────────────────────────────────
 
     // PATCH /admin/contents/pinned/reorder — 고정 순서 변경
@@ -352,6 +358,48 @@ async function postComment(request, env, headers) {
   ).bind(content_id, user.id, commentBody.trim()).run();
 
   return json({ ok: true, id: result.meta?.last_row_id }, 200, headers);
+}
+
+// ─────────────────────────────────────────────
+// Public: 댓글 삭제 (본인만 가능)
+// DELETE /contents/comments/:id
+// ─────────────────────────────────────────────
+async function deleteComment(commentId, request, env, headers) {
+  // 세션 인증 (postComment 와 동일한 패턴)
+  const authHeader = request.headers.get("Authorization") || "";
+  const bearerSid  = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+  const cookieSid  = _getSessionCookie(request);
+  const sid        = bearerSid || cookieSid;
+
+  if (!sid) {
+    return json({ ok: false, error: "로그인이 필요합니다." }, 401, headers);
+  }
+
+  const user = await env.DB.prepare(
+    `SELECT s.user_id AS id FROM sessions s WHERE s.id = ? LIMIT 1`
+  ).bind(sid).first();
+
+  if (!user) {
+    return json({ ok: false, error: "로그인이 필요합니다." }, 401, headers);
+  }
+
+  // 댓글 존재 여부 + 본인 확인
+  const comment = await env.DB.prepare(
+    `SELECT id, user_id FROM ott_content_comments WHERE id = ?`
+  ).bind(commentId).first();
+
+  if (!comment) {
+    return json({ ok: false, error: "댓글을 찾을 수 없습니다." }, 404, headers);
+  }
+  if (comment.user_id !== user.id) {
+    return json({ ok: false, error: "본인 댓글만 삭제할 수 있습니다." }, 403, headers);
+  }
+
+  await env.DB.prepare(
+    `DELETE FROM ott_content_comments WHERE id = ?`
+  ).bind(commentId).run();
+
+  return json({ ok: true }, 200, headers);
 }
 
 // ─────────────────────────────────────────────
