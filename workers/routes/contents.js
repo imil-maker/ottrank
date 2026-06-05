@@ -273,7 +273,7 @@ async function getContentDetail(id, env, headers) {
 async function getComments(contentId, env, headers) {
   const { results } = await env.DB.prepare(
     `SELECT c.id, c.body, c.created_at,
-            u.id   AS user_id,
+            u.id AS user_id,
             u.nickname,
             u.profile_image
      FROM ott_content_comments c
