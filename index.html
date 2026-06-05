@@ -263,10 +263,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         document.body.appendChild(ns);
       });
       if(typeof initHeader==='function') initHeader();
-      /* index.html 전용: 검색을 로컬 SIDX로 연결 */
-      window.ottrangOnSearch=function(q){ onSearch(q); };
-      window.ottrangShowSR=function(){ showSR(); };
-      window.ottrangHideSR=function(){ hideSR(); };
+      /* index.html 전용: 헤더 통합 검색 사용 (ottrangSearchResults 기준) */
+      // onSearch, showSR, hideSR 모두 ottrangSearchResults를 바라보도록 교체
+      window.onSearch = function(q) {
+        window.ottrangOnSearch && window.ottrangOnSearch(q);
+      };
+      window.showSR = function() {
+        const el = document.getElementById('ottrangSearchResults');
+        const v  = document.getElementById('ottrangSearch')?.value?.trim();
+        if (el && v) window.ottrangOnSearch(v);
+      };
+      window.hideSR = function() {
+        document.getElementById('ottrangSearchResults')?.classList.remove('show');
+      };
     })
     .catch(()=>{ /* 헤더 fetch 실패 시 무시 (로컬 개발환경) */ });
 })();
@@ -608,13 +617,14 @@ async function enrichAll(data){
   }
 }
 
-/* 검색 */
+/* 검색 — 헤더 통합 검색 사용 */
 const SIDX=[];
-PLATFORMS.forEach(p=>{['tv','movie'].forEach(cat=>{(RANKINGS[cat][p.id]||[]).forEach((item,i)=>{SIDX.push({title:item.t,platform:p.name,platformId:p.id,color:p.color,rank:i+1,cat});});});});
-function onSearch(q){const val=q.trim();if(!val){hideSR();return;}const lower=val.toLowerCase();const hits=SIDX.filter(x=>x.title.includes(val)||x.title.toLowerCase().includes(lower)).slice(0,8);const el=document.getElementById('searchResults');if(!hits.length){el.innerHTML=`<div class="sr-empty">검색 결과가 없습니다</div>`;}else{const tv=hits.filter(x=>x.cat==='tv'),mv=hits.filter(x=>x.cat==='movie');let h='';if(tv.length){h+=`<div class="sr-section">TV 시리즈</div>`;h+=tv.map(x=>`<div class="sr-item" onclick="goDetail(${x.tmdb_id||'null'},'tv','${x.platformId}',${x.rank},'${x.title.replace(/'/g,'')}')"><span class="sr-pf" style="background:${x.color}">${x.platform}</span><span class="sr-title">${x.title}</span><span class="sr-rank">${x.rank}위</span></div>`).join('');}if(mv.length){h+=`<div class="sr-section">영화</div>`;h+=mv.map(x=>`<div class="sr-item" onclick="goDetail(${x.tmdb_id||'null'},'movie','${x.platformId}',${x.rank},'${x.title.replace(/'/g,'')}')"><span class="sr-pf" style="background:${x.color}">${x.platform}</span><span class="sr-title">${x.title}</span><span class="sr-rank">${x.rank}위</span></div>`).join('');}el.innerHTML=h;}el.classList.add('show');}
-function showSR(){const v=document.getElementById('searchInput').value.trim();if(v)onSearch(v);}
-function hideSR(){document.getElementById('searchResults').classList.remove('show');}
-document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))hideSR();});
+PLATFORMS.forEach(p=>{['tv','movie'].forEach(cat=>{(RANKINGS[cat][p.id]||[]).forEach((item,i)=>{SIDX.push({title:item.t,platform:p.name,platformId:p.id,color:p.color,rank:i+1,cat,tmdb_id:item.tmdb_id||null});});});});
+/* onSearch/showSR/hideSR 모두 헤더의 ottrangSearchResults 기준으로 동작 */
+function onSearch(q){ if(window.ottrangOnSearch) window.ottrangOnSearch(q); }
+function showSR(){ const v=document.getElementById('ottrangSearch')?.value?.trim(); if(v) onSearch(v); }
+function hideSR(){ document.getElementById('ottrangSearchResults')?.classList.remove('show'); }
+document.addEventListener('click',e=>{if(!e.target.closest('.ottrang-search-wrap'))hideSR();});
 
 /* ── 슬러그 생성 유틸 ──
  * 형식: /title/{작품명}-{시즌}{제작년도}{tmdb_id}
