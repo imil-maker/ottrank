@@ -246,11 +246,12 @@
       <input class="ottrang-search-input" id="ottrangSearch" type="text"
         placeholder="🔍 작품, 배우, 감독 검색"
         oninput="ottrangOnSearch(this.value)"
+        onkeydown="if(event.key==='Enter'){ottrangOnSearch(this.value,true);}"
         onfocus="ottrangShowSR()"
         onblur="setTimeout(ottrangHideSR,200)"
         autocomplete="off">
       <button class="ottrang-search-icon"
-        onclick="document.getElementById('ottrangSearch').focus()"
+        onclick="(function(){var v=document.getElementById('ottrangSearch').value;if(v.trim())ottrangOnSearch(v,true);else document.getElementById('ottrangSearch').focus();})()"
         aria-label="검색">⌕</button>
       <div class="ottrang-search-results" id="ottrangSearchResults"></div>
     </div>
@@ -347,7 +348,7 @@ function initHeader(){
   /* 검색 디바운스 타이머 */
   let _srTimer = null;
 
-  window.ottrangOnSearch = function(q) {
+  window.ottrangOnSearch = function(q, immediate) {
     clearTimeout(_srTimer);
     const el = document.getElementById('ottrangSearchResults');
     if (!el) return;
@@ -359,7 +360,12 @@ function initHeader(){
     // 로딩 표시
     el.innerHTML = '<div class="ottrang-sr-loading">검색 중...</div>';
     el.classList.add('show');
-    _srTimer = setTimeout(() => _runSearch(q), 350);
+    // 엔터/버튼 클릭이면 즉시, 타이핑이면 350ms 디바운스
+    if (immediate) {
+      _runSearch(q);
+    } else {
+      _srTimer = setTimeout(() => _runSearch(q), 350);
+    }
   };
 
   async function _runSearch(q) {
