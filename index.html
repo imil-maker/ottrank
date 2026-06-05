@@ -263,6 +263,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         document.body.appendChild(ns);
       });
       if(typeof initHeader==='function') initHeader();
+      // 메인페이지에서만 베타 배너 표시
+      document.getElementById('ottrangBanner')?.style.setProperty('display','block');
       /* index.html 전용: 헤더 통합 검색 사용 (ottrangSearchResults 기준) */
       // onSearch, showSR, hideSR 모두 ottrangSearchResults를 바라보도록 교체
       window.onSearch = function(q) {
