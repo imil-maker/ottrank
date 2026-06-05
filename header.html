@@ -84,20 +84,92 @@
   background:var(--bg2);border:1px solid var(--border2);
   border-radius:12px;overflow:hidden;z-index:300;
   box-shadow:0 8px 32px rgba(0,0,0,.5);
+  min-width:320px;
 }
 .ottrang-search-results.show { display:block; }
+
+/* 섹션 헤더 (DB결과 / TMDB결과 / 인물) */
+.ottrang-sr-section {
+  padding:6px 16px 4px;
+  font-size:10px;font-family:var(--mono);letter-spacing:.8px;font-weight:600;
+  color:var(--muted);background:var(--bg3);border-bottom:1px solid var(--border);
+  text-transform:uppercase;
+}
+
+/* 검색 결과 아이템 공통 */
 .ottrang-sr-item {
   display:flex;align-items:center;gap:10px;
-  padding:11px 16px;cursor:pointer;transition:background .12s;
+  padding:9px 16px;cursor:pointer;transition:background .12s;
+  text-decoration:none;
 }
 .ottrang-sr-item:hover { background:var(--bg3); }
+
+/* 포스터 썸네일 */
+.ottrang-sr-poster {
+  width:28px;height:42px;object-fit:cover;
+  border-radius:3px;flex-shrink:0;background:var(--bg3);
+}
+.ottrang-sr-poster-ph {
+  width:28px;height:42px;border-radius:3px;flex-shrink:0;
+  background:var(--bg3);display:flex;align-items:center;
+  justify-content:center;font-size:14px;
+}
+
+/* 인물 프로필 */
+.ottrang-sr-profile {
+  width:32px;height:32px;border-radius:50%;object-fit:cover;
+  flex-shrink:0;background:var(--bg3);
+}
+.ottrang-sr-profile-ph {
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  background:var(--bg3);display:flex;align-items:center;
+  justify-content:center;font-size:16px;
+}
+
+/* 텍스트 영역 */
+.ottrang-sr-info { flex:1;min-width:0; }
+.ottrang-sr-title {
+  font-size:13px;font-weight:500;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.ottrang-sr-meta {
+  font-size:11px;color:var(--muted);font-family:var(--mono);
+  margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* 뱃지 */
 .ottrang-sr-pf {
   font-size:10px;padding:2px 7px;border-radius:3px;
-  color:#fff;font-weight:600;flex-shrink:0;
+  color:#fff;font-weight:600;flex-shrink:0;font-family:var(--mono);
 }
-.ottrang-sr-title { font-size:14px;color:var(--text);flex:1; }
-.ottrang-sr-rank { font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0; }
+.ottrang-sr-db {
+  font-size:9px;padding:1px 5px;border-radius:3px;
+  background:rgba(52,211,153,.15);color:#34d399;
+  font-family:var(--mono);font-weight:600;flex-shrink:0;
+}
+.ottrang-sr-type {
+  font-size:9px;padding:1px 5px;border-radius:3px;
+  font-family:var(--mono);font-weight:600;flex-shrink:0;
+}
+
+/* 로딩 / 빈 결과 */
 .ottrang-sr-empty { padding:18px;text-align:center;font-size:14px;color:var(--muted); }
+.ottrang-sr-loading {
+  padding:14px 16px;text-align:center;font-size:12px;
+  color:var(--muted);font-family:var(--mono);
+}
+
+/* 전체 결과 보기 */
+.ottrang-sr-more {
+  display:block;padding:10px 16px;text-align:center;
+  font-size:12px;color:var(--accent);font-weight:500;
+  border-top:1px solid var(--border);
+  background:transparent;cursor:pointer;
+  text-decoration:none;transition:background .12s;
+}
+.ottrang-sr-more:hover { background:var(--bg3); }
+
+.ottrang-sr-rank { font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0; }
 
 /* 우측 버튼 */
 .ottrang-hright { display:flex;align-items:center;gap:10px;flex-shrink:0; }
@@ -263,47 +335,197 @@ function initHeader(){
     }
   })();
 
-  /* 간단 검색 (실제 API 연동은 각 페이지에서 override 가능) */
-  window.ottrangShowSR=function(){
-    const el=document.getElementById('ottrangSearchResults');
-    if(el&&el.innerHTML.trim()) el.classList.add('show');
+  /* ── 검색 드롭다운 ── */
+  window.ottrangShowSR = function() {
+    const el = document.getElementById('ottrangSearchResults');
+    if (el && el.innerHTML.trim()) el.classList.add('show');
   };
-  window.ottrangHideSR=function(){
+  window.ottrangHideSR = function() {
     document.getElementById('ottrangSearchResults')?.classList.remove('show');
   };
-  window.ottrangOnSearch=async function(q){
-    const el=document.getElementById('ottrangSearchResults');
-    if(!el) return;
-    if(!q||q.length<2){ el.innerHTML=''; el.classList.remove('show'); return; }
-    const API='https://ottrank-api.tdidream.workers.dev';
-    const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브'};
-    const C={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3'};
-    try{
-      const res=await fetch(`${API}/rankings`);
-      const json=await res.json();
-      if(!json.ok) return;
-      const rows=(json.data||[]).filter(r=>r.title_ko&&r.title_ko.includes(q)).slice(0,8);
-      if(!rows.length){
-        el.innerHTML=`<div class="ottrang-sr-empty">검색 결과 없음</div>`;
-      } else {
-        el.innerHTML=rows.map(r=>{
-          /* 새 URL 형식: /title/{시즌}-{연도}{tmdbId} (한글 없음) */
-          const s=1;
-          const y=new Date().getFullYear();
-          const tid=r.tmdb_id||'';
-          const slugUrl=tid ? `/title/${s}-${y}${tid}` : '#';
-          const onclick=`onclick="(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${r.tmdb_id||'null'},type:'${r.category||'tv'}',platform:'${r.platform||''}',rank:${r.rank||1},title:'${(r.title_ko||'').replace(/'/g,'')}',season:${s},year:${y}}));sessionStorage.setItem('ottrang_slug','${slugUrl}');location.href='${slugUrl}';})()"`;
-          return `<div class="ottrang-sr-item" ${onclick} style="cursor:pointer">
-            <span class="ottrang-sr-pf" style="background:${C[r.platform]||'#666'}">${PC[r.platform]||r.platform}</span>
-            <span class="ottrang-sr-title">${r.title_ko}</span>
-            <span class="ottrang-sr-rank">${r.rank}위</span>
-          </div>`;
-        }).join('');
-      }
-      el.classList.add('show');
-    } catch(e){ el.innerHTML=''; }
+
+  /* 검색 디바운스 타이머 */
+  let _srTimer = null;
+
+  window.ottrangOnSearch = function(q) {
+    clearTimeout(_srTimer);
+    const el = document.getElementById('ottrangSearchResults');
+    if (!el) return;
+    if (!q || q.length < 2) {
+      el.innerHTML = '';
+      el.classList.remove('show');
+      return;
+    }
+    // 로딩 표시
+    el.innerHTML = '<div class="ottrang-sr-loading">검색 중...</div>';
+    el.classList.add('show');
+    _srTimer = setTimeout(() => _runSearch(q), 350);
   };
-}
+
+  async function _runSearch(q) {
+    const el = document.getElementById('ottrangSearchResults');
+    if (!el) return;
+
+    const API        = 'https://ottrank-api.tdidream.workers.dev';
+    const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+    const IMG        = 'https://image.tmdb.org/t/p/w92';
+    const PC  = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브' };
+    const PCO = { netflix:'넷플', tving:'티빙', disney:'디즈니', coupang:'쿠팡', wavve:'웨이브' };
+    const CC  = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3' };
+
+    /* slug 생성 헬퍼 */
+    function _slug(tmdb_id) {
+      return `/title/1-${new Date().getFullYear()}${tmdb_id}`;
+    }
+
+    /* 작품 아이템 HTML */
+    function _workItem(w, isDB) {
+      const poster  = w.poster_path ? `<img class="ottrang-sr-poster" src="${IMG}${w.poster_path}" alt="" loading="lazy">` : `<div class="ottrang-sr-poster-ph">🎬</div>`;
+      const title   = w.title_ko || w.title || w.name || '';
+      const titleEn = w.title_en || w.original_title || w.original_name || '';
+      const year    = (w.release_year || (w.first_air_date || w.release_date || '').slice(0, 4)) || '';
+      const mtype   = w.media_type || w._type || '';
+      const typeLabel = mtype === 'movie' ? '영화' : 'TV';
+      const typeColor = mtype === 'movie' ? 'rgba(240,180,41,.8)' : 'rgba(55,138,221,.8)';
+      const dbBadge   = isDB ? '<span class="ottrang-sr-db">DB</span>' : '';
+      const slug      = w.tmdb_id ? _slug(w.tmdb_id) : '#';
+      // sessionStorage에 작품 정보 저장 후 이동 (기존 패턴 유지)
+      const goWork = w.tmdb_id
+        ? `(function(){` +
+            `sessionStorage.setItem('ottrang_work',JSON.stringify({` +
+              `tmdb_id:${w.tmdb_id},` +
+              `type:'${mtype || 'tv'}',` +
+              `platform:'',` +
+              `rank:1,` +
+              `title:'${title.replace(/'/g, '').replace(/"/g, '')}',` +
+              `season:1,year:${new Date().getFullYear()}` +
+            `}));` +
+            `location.href='${slug}';` +
+          `})()`
+        : `location.href='#'`;
+
+      return `<div class="ottrang-sr-item" onclick="${goWork}">
+        ${poster}
+        <div class="ottrang-sr-info">
+          <div class="ottrang-sr-title">${_hesc(title)}</div>
+          <div class="ottrang-sr-meta">${_hesc(titleEn)}${year ? ` · ${year}` : ''}</div>
+        </div>
+        <span class="ottrang-sr-type" style="background:${typeColor};color:#fff">${typeLabel}</span>
+        ${dbBadge}
+      </div>`;
+    }
+
+    /* 인물 아이템 HTML */
+    function _personItem(p, isDB) {
+      const profile   = p.profile_path ? `<img class="ottrang-sr-profile" src="${IMG}${p.profile_path}" alt="" loading="lazy">` : `<div class="ottrang-sr-profile-ph">👤</div>`;
+      const name      = p.name || '';
+      const knownFor  = (p.known_for || []).map(k => k.title || k.name).slice(0, 2).join(', ');
+      const dept      = p.known_for_department || '';
+      const dbBadge   = isDB ? '<span class="ottrang-sr-db">DB</span>' : '';
+      const personUrl = `/person.html?id=${p.id || p.tmdb_person_id}`;
+
+      return `<div class="ottrang-sr-item" onclick="location.href='${personUrl}'">
+        ${profile}
+        <div class="ottrang-sr-info">
+          <div class="ottrang-sr-title">${_hesc(name)}</div>
+          <div class="ottrang-sr-meta">${dept}${knownFor ? ` · ${knownFor}` : ''}</div>
+        </div>
+        ${dbBadge}
+      </div>`;
+    }
+
+    /* HTML 이스케이프 */
+    function _hesc(s) {
+      return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    try {
+      // ① 우리 DB works 검색 + TMDB 작품/인물 검색 병렬 실행
+      const [dbRes, tvRes, mvRes, personRes] = await Promise.allSettled([
+        fetch(`${API}/admin/works?q=${encodeURIComponent(q)}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('ottrang_sid') || ''}` }
+        }),
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
+      ]);
+
+      // DB 결과
+      let dbWorks = [];
+      if (dbRes.status === 'fulfilled' && dbRes.value.ok) {
+        const dbJson = await dbRes.value.json();
+        dbWorks = (dbJson.data || []).slice(0, 4);
+      }
+      const dbTmdbIds = new Set(dbWorks.map(w => w.tmdb_id));
+
+      // TMDB TV 결과
+      let tmdbTv = [];
+      if (tvRes.status === 'fulfilled' && tvRes.value.ok) {
+        const tvJson = await tvRes.value.json();
+        tmdbTv = (tvJson.results || [])
+          .filter(r => !dbTmdbIds.has(r.id))   // DB에 이미 있는 건 제외
+          .slice(0, 3)
+          .map(r => ({ ...r, _type: 'tv', tmdb_id: r.id }));
+      }
+
+      // TMDB 영화 결과
+      let tmdbMv = [];
+      if (mvRes.status === 'fulfilled' && mvRes.value.ok) {
+        const mvJson = await mvRes.value.json();
+        tmdbMv = (mvJson.results || [])
+          .filter(r => !dbTmdbIds.has(r.id))
+          .slice(0, 3)
+          .map(r => ({ ...r, _type: 'movie', tmdb_id: r.id }));
+      }
+
+      // TMDB 인물 결과
+      let tmdbPersons = [];
+      if (personRes.status === 'fulfilled' && personRes.value.ok) {
+        const pJson = await personRes.value.json();
+        tmdbPersons = (pJson.results || []).slice(0, 3);
+      }
+
+      // 결과가 아무것도 없으면
+      const totalCount = dbWorks.length + tmdbTv.length + tmdbMv.length + tmdbPersons.length;
+      if (totalCount === 0) {
+        el.innerHTML = `<div class="ottrang-sr-empty">검색 결과가 없습니다</div>`;
+        el.classList.add('show');
+        return;
+      }
+
+      // ── 렌더링 ──
+      let html = '';
+
+      // [우리 DB 작품]
+      if (dbWorks.length) {
+        html += `<div class="ottrang-sr-section">🗄️ 오뜨랑 DB</div>`;
+        html += dbWorks.map(w => _workItem(w, true)).join('');
+      }
+
+      // [TMDB 작품 — DB에 없는 것]
+      const tmdbWorks = [...tmdbTv, ...tmdbMv];
+      if (tmdbWorks.length) {
+        html += `<div class="ottrang-sr-section">🎬 작품</div>`;
+        html += tmdbWorks.map(w => _workItem(w, false)).join('');
+      }
+
+      // [인물]
+      if (tmdbPersons.length) {
+        html += `<div class="ottrang-sr-section">👤 인물</div>`;
+        html += tmdbPersons.map(p => _personItem(p, false)).join('');
+      }
+
+      // [전체 결과 보기]
+      html += `<a class="ottrang-sr-more" href="/search.html?q=${encodeURIComponent(q)}">전체 검색 결과 보기 →</a>`;
+
+      el.innerHTML = html;
+      el.classList.add('show');
+
+    } catch(e) {
+      el.innerHTML = `<div class="ottrang-sr-empty">검색 중 오류가 발생했습니다</div>`;
+    }
+  }
+} // initHeader 끝
 /* 헤더가 직접 삽입된 경우 자동 초기화 */
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded', initHeader);
