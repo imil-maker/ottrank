@@ -381,7 +381,9 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       if (cached) {
         const fetchedAt = new Date(cached.fetched_at || 0);
         const daysSince = (Date.now() - fetchedAt.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSince < 30) {
+        // watch_grade가 있고 30일 이내면 캐시 반환
+        // watch_grade가 비어있으면 재호출 (이전에 API 키 오류로 빈 값 저장된 경우 대비)
+        if (daysSince < 30 && cached.watch_grade) {
           return new Response(JSON.stringify({ ok: true, source: "cache", data: cached }), { headers });
         }
       }
@@ -389,7 +391,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // 영화진흥위원회 API 호출
       const kmrbUrl =
         `https://www.kmrb.or.kr/openapi/openApi.do` +
-        `?serviceKey=${env.KMRB_API_KEY}` +
+        `?serviceKey=${env.KMRB_MOVIE_API_KEY}` +
         `&searchType=MOVIE_NM` +
         `&searchNm=${encodeURIComponent(title_ko)}` +
         `&pageNo=1&numOfRows=5`;
