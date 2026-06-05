@@ -133,9 +133,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 /* 카드 본문 */
 .rk-body{padding:10px 12px 12px}
+/* 제목 + 시즌 뱃지 한 줄 */
+.rk-title-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;min-width:0}
 .rk-title{
   font-size:14px;font-weight:700;color:var(--text);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;
 }
 .rk-en{
   font-family:var(--mono);font-size:10px;color:var(--muted);
@@ -300,10 +302,13 @@ function makeCard(item, idx){
     </div>
     <span class="rk-num${isTop3?' top3':''}">${rank}</span>
     <div class="rk-body">
-      <div class="rk-title">${item.title_ko || item.title_en || '—'}</div>
+      <div class="rk-title-row">
+        <span class="rk-title">${item.title_ko || item.title_en || '—'}</span>
+        ${season}
+      </div>
       <div class="rk-en">${item.title_en || ''}</div>
       <div class="rk-meta">
-        ${year}${season}${memo}${rating}
+        ${year}${memo}${rating}
       </div>
     </div>
   </div>`;
@@ -360,16 +365,24 @@ function buildSections(){
 async function loadAll(){
   buildSections();
 
-  // 수동 랭킹 + 크롤링 최신 데이터 병렬 로드
-  let manualItems  = [];
-  let latestItems  = [];
+  let manualItems = [];  // 수동 랭킹 (category05, category06)
+  let mainItems   = [];  // 일간 랭킹 (category01, category02) — /rankings/main 사용
   try {
-    const [manualRes, latestRes] = await Promise.all([
-      fetch(`${API}/rankings?platform=netflix&date=manual`),   // 수동 랭킹
-      fetch(`${API}/rankings/platform?platform=netflix`),       // 크롤링 최신
+    const [manualRes, mainRes] = await Promise.all([
+      fetch(`${API}/rankings?platform=netflix&date=manual`), // 수동 랭킹
+      fetch(`${API}/rankings/main`),                          // 일간 랭킹 (index.html과 동일)
     ]);
     if(manualRes.ok){ const j = await manualRes.json(); manualItems = j.data || []; }
-    if(latestRes.ok){ const j = await latestRes.json(); latestItems = j.data || j.items || []; }
+    if(mainRes.ok){
+      const j = await mainRes.json();
+      // /rankings/main 응답 구조: { tv: [ { platform, category_slot, items } ], movie: [ ... ] }
+      // tv + movie 합쳐서 netflix만 추출 후 flat 배열로 변환
+      const tvGroups    = (j.tv    || []).filter(g => g.platform === 'netflix');
+      const movieGroups = (j.movie || []).filter(g => g.platform === 'netflix');
+      mainItems = [...tvGroups, ...movieGroups].flatMap(group =>
+        (group.items || []).map(row => ({ ...row, category_slot: group.category_slot }))
+      );
+    }
   } catch(e){
     console.error('랭킹 로드 실패:', e);
   }
@@ -377,10 +390,10 @@ async function loadAll(){
   // 섹션별 필터링해서 렌더
   SECTIONS.forEach((s, i) => {
     const track    = document.getElementById(`trk-${i}`);
-    const srcItems = s.isManual ? manualItems : latestItems;
+    const srcItems = s.isManual ? manualItems : mainItems;
     const items    = srcItems
       .filter(r => r.category_slot === s.slot)
-      .sort((a,b) => a.rank - b.rank);
+      .sort((a,b) => (a.rank || 0) - (b.rank || 0));
 
     if(!items.length){
       track.innerHTML = `<div class="sec-empty">아직 등록된 랭킹이 없습니다.</div>`;
