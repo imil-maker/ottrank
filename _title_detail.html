@@ -1110,9 +1110,11 @@ async function loadGallery(){
   }catch(e){}
 }
 
-/* == Watch Guide (boxoffice only) == */
+/* == Watch Guide (boxoffice + movie 타입 전체) == */
 async function loadWatchGuide(){
-  if(WORK.platform!=='boxoffice'||!WORK.tmdb_id||!WORK.title)return;
+  // boxoffice이거나, media_type이 movie인 경우 모두 표시
+  const isMovie = WORK.platform==='boxoffice' || WORK.type==='movie';
+  if(!isMovie||!WORK.tmdb_id||!WORK.title)return;
   try{
     const res=await fetch(`${OTTRANK_API}/kmrb/${WORK.tmdb_id}?title_ko=${encodeURIComponent(WORK.title)}`);
     const data=await res.json();
@@ -1146,7 +1148,7 @@ async function loadWatchGuide(){
     document.getElementById('watchGuideSection').style.display='block';
     document.getElementById('wgOuter').style.display='flex';
     // 극장 연결 - boxoffice category01 (주간 박스오피스 현재 상영중)일 때만
-    const isCategory01=WORK_CATEGORY_SLOT==='category01'||(WORK.rank&&WORK.rank!=='-'&&WORK.rank!=='0'&&WORK_CATEGORY_SLOT===null);
+    const isCategory01 = WORK.platform==='boxoffice' && WORK_CATEGORY_SLOT==='category01';
     if(isCategory01){
       const t=WORK.title;
       document.getElementById('watchNowBtns').innerHTML=[
@@ -1636,7 +1638,7 @@ function renderFeelingUI(d){
       </div>
       <span class="feeling-ratio-pct">${ratios[k]||0}%</span>
     </div>
-  `).join('')+`<div class="feeling-total">총 ${total.toLocaleString()}명 참여</div>`;
+  `).join('')+(total>=5?`<div class="feeling-total">총 ${total.toLocaleString()}명 참여</div>`:'');
 }
 
 
