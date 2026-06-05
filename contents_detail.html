@@ -123,6 +123,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .cm-list{display:flex;flex-direction:column;gap:12px}
 .cm-item{padding:14px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px}
 .cm-item-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+/* 프로필 이미지 */
+.cm-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;
+  background:var(--bg2);border:1px solid var(--border);flex-shrink:0}
+.cm-avatar-ph{width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  background:var(--bg2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;color:var(--muted)}
 .cm-nick{font-size:14px;font-weight:500;color:var(--text)}
 .cm-time{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
 .cm-body{font-size:14px;color:var(--muted2);line-height:1.6;white-space:pre-wrap;word-break:break-word}
@@ -269,14 +276,24 @@ function renderComments(comments){
     list.innerHTML = `<div class="cm-empty">첫 번째 댓글을 남겨보세요!</div>`;
     return;
   }
-  list.innerHTML = comments.map(c=>`
+  list.innerHTML = comments.map(c=>{
+    // 프로필 이미지: 있으면 img, 없으면 이니셜 placeholder
+    const nick   = c.nickname || '익명';
+    const avatar = c.profile_image
+      ? `<img class="cm-avatar" src="${c.profile_image}" alt="${nick}" loading="lazy"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        + `<div class="cm-avatar-ph" style="display:none">${nick.charAt(0)}</div>`
+      : `<div class="cm-avatar-ph">${nick.charAt(0)}</div>`;
+    return `
     <div class="cm-item">
       <div class="cm-item-top">
-        <span class="cm-nick">${c.nickname||'익명'}</span>
+        ${avatar}
+        <span class="cm-nick">${nick}</span>
         <span class="cm-time">${relTime(c.created_at)}</span>
       </div>
       <div class="cm-body">${c.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 /* ── 댓글 로드 ── */
