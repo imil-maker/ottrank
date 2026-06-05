@@ -18,7 +18,7 @@
      PATCH  /admin/contents/pinned/reorder   고정 순서 변경
 ══════════════════════════════════════════════════════════════ */
 
-import { _checkAuth } from "../utils/authUtils.js";
+import { _checkAuth, _getSessionCookie } from "../utils/authUtils.js";
 
 // ─────────────────────────────────────────────
 // 라우터 진입점 — index.js에서 호출
@@ -291,8 +291,30 @@ async function getComments(contentId, env, headers) {
 // body: { content_id, body }
 // ─────────────────────────────────────────────
 async function postComment(request, env, headers) {
-  // 로그인 세션 확인
-  const user = await _checkAuth(request, env);
+  // ── 유저 세션 인증 ──────────────────────────────────────────────────
+  // 인증 방식 1순위: Authorization: Bearer {sid}  (모바일/앱 환경)
+  // 인증 방식 2순위: Cookie: session={sid}         (웹 브라우저 환경)
+  // _checkAuth 는 ADMIN_SECRET 전용이므로 여기서 사용 불가
+  const authHeader = request.headers.get("Authorization") || "";
+  const bearerSid  = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : null;
+  const cookieSid  = _getSessionCookie(request);
+  const sid        = bearerSid || cookieSid;
+
+  if (!sid) {
+    return json({ ok: false, error: "로그인이 필요합니다." }, 401, headers);
+  }
+
+  // sessions 테이블에서 유효한 세션 + 유저 정보 조회
+  const user = await env.DB.prepare(
+    `SELECT s.user_id AS id, u.nickname
+     FROM sessions s
+     JOIN users u ON u.id = s.user_id
+     WHERE s.id = ?
+     LIMIT 1`
+  ).bind(sid).first();
+
   if (!user) {
     return json({ ok: false, error: "로그인이 필요합니다." }, 401, headers);
   }
