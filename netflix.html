@@ -237,25 +237,25 @@ const SECTIONS = [
     slot     : 'category05',
     title    : '넷플릭스 역대 TV 시리즈',
     subtitle : 'ALL TIME TOP 20',
-    memoLabel: '시청 시간',
+    isManual : true,   // date='manual' (수동 랭킹)
   },
   {
     slot     : 'category06',
     title    : '넷플릭스 역대 영화',
     subtitle : 'ALL TIME TOP 20',
-    memoLabel: '시청 시간',
+    isManual : true,
   },
   {
     slot     : 'category02',
     title    : '넷플릭스 일간 TV 시리즈',
     subtitle : 'DAILY TOP 10',
-    memoLabel: '',
+    isManual : false,  // 크롤링 최신 데이터
   },
   {
     slot     : 'category01',
     title    : '넷플릭스 일간 영화',
     subtitle : 'DAILY TOP 10',
-    memoLabel: '',
+    isManual : false,
   },
 ];
 
@@ -360,21 +360,25 @@ function buildSections(){
 async function loadAll(){
   buildSections();
 
-  // 넷플릭스 수동 랭킹 전체 1회 로드
-  let allItems = [];
+  // 수동 랭킹 + 크롤링 최신 데이터 병렬 로드
+  let manualItems  = [];
+  let latestItems  = [];
   try {
-    // 공개 rankings API — date=manual, platform=netflix
-    const res  = await fetch(`${API}/rankings?platform=netflix&date=manual`);
-    const json = await res.json();
-    allItems   = json.data || [];
-  } catch(e) {
+    const [manualRes, latestRes] = await Promise.all([
+      fetch(`${API}/rankings?platform=netflix&date=manual`),   // 수동 랭킹
+      fetch(`${API}/rankings/platform?platform=netflix`),       // 크롤링 최신
+    ]);
+    if(manualRes.ok){ const j = await manualRes.json(); manualItems = j.data || []; }
+    if(latestRes.ok){ const j = await latestRes.json(); latestItems = j.data || j.items || []; }
+  } catch(e){
     console.error('랭킹 로드 실패:', e);
   }
 
   // 섹션별 필터링해서 렌더
   SECTIONS.forEach((s, i) => {
-    const track = document.getElementById(`trk-${i}`);
-    const items = allItems
+    const track    = document.getElementById(`trk-${i}`);
+    const srcItems = s.isManual ? manualItems : latestItems;
+    const items    = srcItems
       .filter(r => r.category_slot === s.slot)
       .sort((a,b) => a.rank - b.rank);
 
