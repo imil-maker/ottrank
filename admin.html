@@ -459,13 +459,30 @@ tr:hover td{background:rgba(255,255,255,.02)}
           style="margin-bottom:0">
         <div id="manualSearchResults" style="display:none;position:absolute;top:68px;left:0;right:0;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;z-index:50;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
       </div>
-      <div id="manualSelectedWork" style="display:none;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;min-width:200px">
-        <img id="manualSelPoster" src="" style="width:32px;height:48px;object-fit:cover;border-radius:4px;background:var(--bg2)">
-        <div>
-          <div id="manualSelTitle" style="font-size:13px;font-weight:500"></div>
-          <div id="manualSelTmdbId" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+      <div id="manualSelectedWork" style="display:none;flex-direction:column;gap:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;min-width:260px;width:100%">
+        <!-- 선택된 작품 정보 -->
+        <div style="display:flex;align-items:center;gap:10px">
+          <img id="manualSelPoster" src="" style="width:32px;height:48px;object-fit:cover;border-radius:4px;background:var(--bg2)">
+          <div style="flex:1">
+            <div id="manualSelTitle" style="font-size:13px;font-weight:500"></div>
+            <div id="manualSelTmdbId" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+          </div>
+          <button onclick="clearManualSelected()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">✕</button>
         </div>
-        <button onclick="clearManualSelected()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;margin-left:auto">✕</button>
+        <!-- 시즌 입력 (TV 시리즈용) -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="font-size:12px;color:var(--muted2);font-family:var(--mono);white-space:nowrap">시즌 번호 (선택)</div>
+          <input class="inp" type="number" id="manualSeasonInp" min="1" max="99"
+            placeholder="예: 1"
+            oninput="onManualSeasonInput(this.value)"
+            style="width:70px;margin-bottom:0;padding:5px 8px;font-size:12px">
+          <div id="manualSeasonPosterWrap" style="display:none;align-items:center;gap:6px">
+            <img id="manualSeasonPoster" src="" style="width:24px;height:36px;object-fit:cover;border-radius:3px">
+            <span style="font-size:11px;color:var(--green);font-family:var(--mono)">시즌 포스터</span>
+            <button onclick="resetToBasePoster()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--mono)">기본으로</button>
+          </div>
+          <div id="manualSeasonLoading" style="display:none;font-size:11px;color:var(--muted);font-family:var(--mono)">조회 중...</div>
+        </div>
       </div>
       <button class="btn-save" onclick="addManualRanking()" style="padding:10px 20px;font-size:13px;white-space:nowrap">+ 목록에 추가</button>
     </div>
@@ -1430,16 +1447,27 @@ function searchManualWork(q) {
 
 // 작품 선택
 function selectManualWork(tmdb_id, title_ko, title_en, poster_path, release_year, genre, tmdb_rating) {
-  manualSelectedTmdb = { tmdb_id, title_ko, title_en, poster_path, release_year, genre, tmdb_rating };
+  manualSelectedTmdb = {
+    tmdb_id, title_ko, title_en,
+    poster_path,                   // 기본 포스터 (시즌 미선택 시 사용)
+    active_poster_path: poster_path, // 실제로 저장될 포스터 (시즌 선택 시 교체)
+    release_year, genre, tmdb_rating,
+    season: null,                  // 선택된 시즌 번호
+  };
 
   const selBox = document.getElementById('manualSelectedWork');
   document.getElementById('manualSelPoster').src =
     poster_path ? `https://image.tmdb.org/t/p/w92${poster_path}` : '';
-  document.getElementById('manualSelTitle').textContent   = title_ko || title_en;
-  document.getElementById('manualSelTmdbId').textContent  = `TMDB: ${tmdb_id}`;
+  document.getElementById('manualSelTitle').textContent  = title_ko || title_en;
+  document.getElementById('manualSelTmdbId').textContent = `TMDB: ${tmdb_id}`;
   selBox.style.display = 'flex';
 
-  document.getElementById('manualWorkSearch').value       = '';
+  // 시즌 입력창 초기화
+  document.getElementById('manualSeasonInp').value = '';
+  document.getElementById('manualSeasonPosterWrap').style.display = 'none';
+  document.getElementById('manualSeasonLoading').style.display    = 'none';
+
+  document.getElementById('manualWorkSearch').value = '';
   document.getElementById('manualSearchResults').style.display = 'none';
 }
 
@@ -1447,7 +1475,75 @@ function selectManualWork(tmdb_id, title_ko, title_en, poster_path, release_year
 function clearManualSelected() {
   manualSelectedTmdb = null;
   document.getElementById('manualSelectedWork').style.display = 'none';
-  document.getElementById('manualWorkSearch').value = '';
+  document.getElementById('manualWorkSearch').value           = '';
+  document.getElementById('manualSeasonInp').value            = '';
+  document.getElementById('manualSeasonPosterWrap').style.display = 'none';
+  document.getElementById('manualSeasonLoading').style.display    = 'none';
+}
+
+// 시즌 번호 입력 시 TMDB에서 시즌 포스터 조회
+let _seasonTimer = null;
+async function onManualSeasonInput(val) {
+  if (!manualSelectedTmdb) return;
+  const season = parseInt(val);
+  clearTimeout(_seasonTimer);
+
+  // 비어있거나 0 이하 → 기본 포스터로 복원
+  if (!val || isNaN(season) || season <= 0) {
+    manualSelectedTmdb.season        = null;
+    manualSelectedTmdb.active_poster_path = manualSelectedTmdb.poster_path;
+    document.getElementById('manualSelPoster').src =
+      manualSelectedTmdb.poster_path
+        ? `https://image.tmdb.org/t/p/w92${manualSelectedTmdb.poster_path}` : '';
+    document.getElementById('manualSeasonPosterWrap').style.display = 'none';
+    document.getElementById('manualSeasonLoading').style.display    = 'none';
+    return;
+  }
+
+  // 300ms 디바운스
+  _seasonTimer = setTimeout(async () => {
+    document.getElementById('manualSeasonLoading').style.display    = 'flex';
+    document.getElementById('manualSeasonPosterWrap').style.display = 'none';
+    try {
+      const res = await fetch(
+        `${TMDB_PROXY}/tv/${manualSelectedTmdb.tmdb_id}/season/${season}?language=ko-KR`
+      );
+      const data = await res.json();
+
+      if (data.poster_path) {
+        // 시즌 포스터 적용
+        manualSelectedTmdb.season             = season;
+        manualSelectedTmdb.active_poster_path = data.poster_path;
+        document.getElementById('manualSelPoster').src =
+          `https://image.tmdb.org/t/p/w92${data.poster_path}`;
+        document.getElementById('manualSeasonPoster').src =
+          `https://image.tmdb.org/t/p/w92${data.poster_path}`;
+        document.getElementById('manualSeasonPosterWrap').style.display = 'flex';
+      } else {
+        // 시즌 포스터 없음 → 기본 포스터 유지
+        manualSelectedTmdb.season             = season;
+        manualSelectedTmdb.active_poster_path = manualSelectedTmdb.poster_path;
+        showToast(`시즌 ${season} 포스터가 없어 기본 포스터를 사용합니다.`, 'ok');
+      }
+    } catch(e) {
+      manualSelectedTmdb.season = season; // 포스터 실패해도 시즌 번호는 저장
+      showToast(`시즌 포스터 조회 실패: ${e.message}`, 'err');
+    } finally {
+      document.getElementById('manualSeasonLoading').style.display = 'none';
+    }
+  }, 300);
+}
+
+// 시즌 포스터 → 기본 포스터로 복원
+function resetToBasePoster() {
+  if (!manualSelectedTmdb) return;
+  manualSelectedTmdb.active_poster_path = manualSelectedTmdb.poster_path;
+  manualSelectedTmdb.season             = null;
+  document.getElementById('manualSelPoster').src =
+    manualSelectedTmdb.poster_path
+      ? `https://image.tmdb.org/t/p/w92${manualSelectedTmdb.poster_path}` : '';
+  document.getElementById('manualSeasonPosterWrap').style.display = 'none';
+  document.getElementById('manualSeasonInp').value = '';
 }
 
 // 목록에 추가 (로컬 상태에만 추가, 저장은 💾 버튼으로)
@@ -1541,33 +1637,44 @@ async function addManualRanking() {
     }
   }
 
-  // 중복 체크
-  if (manualItems.some(item => item.tmdb_id === manualSelectedTmdb.tmdb_id)) {
-    showToast('이미 목록에 있는 작품입니다.', 'err');
+  // 같은 tmdb_id + 같은 시즌 중복만 체크 (시즌이 다르면 허용)
+  const incomingSeason = manualSelectedTmdb.season;
+  const isDup = manualItems.some(item =>
+    item.tmdb_id === manualSelectedTmdb.tmdb_id &&
+    (item.season ?? null) === (incomingSeason ?? null)
+  );
+  if (isDup) {
+    const seasonLabel = incomingSeason ? ` 시즌 ${incomingSeason}` : '';
+    showToast(`이미 목록에 있는 작품입니다.${seasonLabel}`, 'err');
     clearManualSelected();
     return;
   }
 
+  // 시즌 memo 자동 생성 (시즌 선택 시 "시즌 N" 자동, 없으면 null)
+  const autoMemo = incomingSeason ? `시즌 ${incomingSeason}` : null;
+
   // 목록 맨 끝에 추가
-  const newRank  = manualItems.length + 1;
+  const newRank    = manualItems.length + 1;
   const addedTitle = manualSelectedTmdb.title_ko || manualSelectedTmdb.title_en || '';
   manualItems.push({
-    id:           null,   // 신규 항목은 id 없음
+    id:           null,
     rank:         newRank,
     tmdb_id:      manualSelectedTmdb.tmdb_id,
     title_ko:     manualSelectedTmdb.title_ko,
     title_en:     manualSelectedTmdb.title_en,
-    poster_path:  manualSelectedTmdb.poster_path,
+    poster_path:  manualSelectedTmdb.active_poster_path, // 시즌 포스터 or 기본 포스터
     release_year: manualSelectedTmdb.release_year,
     genre:        manualSelectedTmdb.genre,
     tmdb_rating:  manualSelectedTmdb.tmdb_rating,
-    memo:         null,
-    _isNew:       true,   // 신규 항목 표시
+    season:       incomingSeason,  // 시즌 번호 저장 (참조용)
+    memo:         autoMemo,        // "시즌 N" 자동 입력
+    _isNew:       true,
   });
 
   clearManualSelected();
   renderManualTable();
-  showToast(`✅ '${addedTitle}' 추가됨. 💾 저장 버튼으로 반영하세요.`, 'ok');
+  const seasonLabel = incomingSeason ? ` (시즌 ${incomingSeason})` : '';
+  showToast(`✅ '${addedTitle}'${seasonLabel} 추가됨. 💾 저장 버튼으로 반영하세요.`, 'ok');
 }
 
 // 항목 삭제 (idx: 배열 인덱스, id: DB id, null이면 신규 미저장 항목)
