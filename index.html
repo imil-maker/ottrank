@@ -89,6 +89,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .p-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .p-name{font-size:15px;font-weight:700}
 .p-cat{font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:auto}
+.p-cat:hover{color:var(--text)}
 .p-hero{position:relative;aspect-ratio:2/3;background:var(--bg3);cursor:pointer;overflow:hidden}
 .p-hero img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
 .p-hero:hover img{transform:scale(1.04)}
@@ -431,19 +432,19 @@ const TMDB_API = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 
 /* OTT 순서: 넷플릭스→티빙→디즈니+→쿠팡플레이→웨이브 */
 const PLATFORMS = [
-  {id:'netflix', name:'넷플릭스',   color:'#e50914'},
-  {id:'tving',   name:'티빙',       color:'#ff153c'},
-  {id:'disney',  name:'디즈니+',   color:'#06b6d4'},
-  {id:'coupang', name:'쿠팡플레이', color:'#1ac44d'},
-  {id:'wavve',   name:'웨이브',     color:'#0070f3'},
+  {id:'netflix', name:'넷플릭스',   color:'#e50914', url:'/netflix.html'},
+  {id:'tving',   name:'티빙',       color:'#ff153c', url:'/tving.html'},
+  {id:'disney',  name:'디즈니+',   color:'#06b6d4', url:'/disneyplus.html'},
+  {id:'coupang', name:'쿠팡플레이', color:'#1ac44d', url:'/coupangplay.html'},
+  {id:'wavve',   name:'웨이브',     color:'#0070f3', url:'/wavve.html'},
 ];
 /* 영화 섹션: 티빙 자리에 박스오피스 */
 const MOVIE_PLATFORMS = [
-  {id:'netflix',   name:'넷플릭스',      color:'#e50914'},
-  {id:'boxoffice', name:'🎬 박스오피스', color:'#f0b429'},
-  {id:'disney',    name:'디즈니+',      color:'#06b6d4'},
-  {id:'coupang',   name:'쿠팡플레이',    color:'#1ac44d'},
-  {id:'wavve',     name:'웨이브',        color:'#0070f3'},
+  {id:'netflix',   name:'넷플릭스',      color:'#e50914', url:'/netflix.html'},
+  {id:'boxoffice', name:'🎬 박스오피스', color:'#f0b429', url:'/boxoffice.html'},
+  {id:'disney',    name:'디즈니+',      color:'#06b6d4', url:'/disneyplus.html'},
+  {id:'coupang',   name:'쿠팡플레이',    color:'#1ac44d', url:'/coupangplay.html'},
+  {id:'wavve',     name:'웨이브',        color:'#0070f3', url:'/wavve.html'},
 ];
 const PC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
 
@@ -677,7 +678,9 @@ function renderCard(p,items){
   const f=items[0],rest=items.slice(1);
   const posterEl=f._poster?`<img src="${f._poster}" alt="${f._ko||f.t}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:`<div class="p-hero-ph"><span class="ph-emoji">🎬</span><span class="ph-title">${f._ko||f.t}</span></div>`;
   const fClick=f.tmdb_id?`onclick="goDetail(${f.tmdb_id},'${f.type||'tv'}','${p.id}',1,'${(f._ko||f.t).replace(/'/g,'')}',${f._season||1},'${f._year||''}')" style="cursor:pointer"`:'' ;
-  const card=`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><span class="p-name" style="color:${p.color}">${p.name}</span><span class="p-cat">TOP 10</span></div><div class="p-hero" ${fClick}>${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${fmtScore(f.r)}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${fmtScore(f.r)}</span>`:''}</div></div></div><div class="p-list">`;
+  // 플랫폼명: OTT 페이지 링크 / 더보기: 동일 링크
+  const pUrl = p.url || '#';
+  const card=`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><a class="p-name" href="${pUrl}" style="color:${p.color};text-decoration:none">${p.name}</a><a class="p-cat" href="${pUrl}" style="color:var(--muted);text-decoration:none;margin-left:auto">더보기</a></div><div class="p-hero" ${fClick}>${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${fmtScore(f.r)}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${fmtScore(f.r)}</span>`:''}</div></div></div><div class="p-list">`;
   const rows=rest.map((item,i)=>{
     const rClick=item.tmdb_id?`onclick="goDetail(${item.tmdb_id},'${item.type||'tv'}','${p.id}',${i+2},'${(item._ko||item.t).replace(/'/g,'')}',${item._season||1},'${item._year||''}')" style="cursor:pointer"`:'' ;
     const score=fmtScore(item.r);
