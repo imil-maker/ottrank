@@ -837,8 +837,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
           type="text"
           placeholder="작품명 입력 후 검색 (예: 오징어게임)"
           onkeydown="if(event.key==='Enter')searchTmdbForEdit()">
-        <button class="btn-save"
-          style="white-space:nowrap;padding:0 16px;background:var(--info);font-size:13px"
+        <button id="editTmdbSearchBtn"
+          style="white-space:nowrap;padding:0 16px;background:var(--info);color:#fff;border:none;border-radius:8px;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;height:42px"
           onclick="searchTmdbForEdit()">검색</button>
       </div>
       <!-- 검색 결과 목록 -->
@@ -915,7 +915,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">취소</button>
-      <button class="btn-save" onclick="saveEdit()">저장 (수동고정)</button>
+      <button id="editSaveBtn" class="btn-save" onclick="saveEdit()">저장 (수동고정)</button>
     </div>
   </div>
 </div>
@@ -2018,7 +2018,7 @@ function openAddRankingModal(slot, platform, date) {
   if (nullRadio) { nullRadio.checked = true; updateMediaTypeStyle(''); }
 
   // 저장 버튼 → "추가" 모드
-  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  const saveBtn = document.getElementById('editSaveBtn');
   if (saveBtn) {
     saveBtn.textContent = '➕ 추가';
     saveBtn.onclick     = addRankingItem;
@@ -2173,7 +2173,7 @@ function closeModal() {
   const selectedEl = document.getElementById('editTmdbSelected');
   if (selectedEl) selectedEl.style.display = 'none';
   // 저장 버튼 항상 기본값(랭킹관리 수정)으로 원복
-  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  const saveBtn = document.getElementById('editSaveBtn');
   if (saveBtn) {
     saveBtn.textContent = '저장 (수동고정)';
     saveBtn.onclick     = saveEdit;
@@ -3222,7 +3222,7 @@ function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
   updateMediaTypeStyle(mt);
 
   // 저장 버튼 텍스트 변경 + 핸들러 교체
-  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  const saveBtn = document.getElementById('editSaveBtn');
   if (saveBtn) {
     saveBtn.textContent = '저장';
     saveBtn.onclick = saveWorkFromModal;
@@ -3294,7 +3294,7 @@ async function saveWorkFromModal() {
 function closeWorksModal() {
   worksModalTmdbId = null;
   // 저장 버튼 원복 (랭킹관리용으로)
-  const saveBtn = document.querySelector('#editOverlay .btn-save');
+  const saveBtn = document.getElementById('editSaveBtn');
   if (saveBtn) {
     saveBtn.textContent = '저장 (수동고정)';
     saveBtn.onclick = saveEdit;
