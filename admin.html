@@ -821,6 +821,44 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="modal">
     <h3>✏️ 수동 수정 <span class="sub" id="modalSub"></span></h3>
     <input type="hidden" id="editId">
+
+    <!-- ══ TMDB 작품 검색 블록 ══ -->
+    <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:18px">
+      <div style="font-size:12px;font-family:var(--mono);color:var(--info);margin-bottom:10px;letter-spacing:.3px">
+        🔍 TMDB 작품 검색 <span style="color:var(--muted);font-weight:400">— 한글 제목으로 검색해서 선택하면 자동 입력</span>
+      </div>
+      <!-- 검색 입력 -->
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="editTmdbSearchQuery" class="inp"
+          style="margin-bottom:0;flex:1;font-size:13px"
+          type="text"
+          placeholder="작품명 입력 후 검색 (예: 오징어게임)"
+          onkeydown="if(event.key==='Enter')searchTmdbForEdit()">
+        <button class="btn-save"
+          style="white-space:nowrap;padding:0 16px;background:var(--info);font-size:13px"
+          onclick="searchTmdbForEdit()">검색</button>
+      </div>
+      <!-- 검색 결과 목록 -->
+      <div id="editTmdbResults"
+        style="display:none;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;overflow:hidden;max-height:210px;overflow-y:auto;margin-bottom:8px"></div>
+      <!-- 선택된 작품 표시 -->
+      <div id="editTmdbSelected"
+        style="display:none;align-items:center;gap:10px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:8px;padding:10px 14px">
+        <img id="editTmdbSelPoster" src="" alt=""
+          style="width:32px;height:48px;object-fit:cover;border-radius:3px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div id="editTmdbSelTitle"
+            style="font-size:14px;font-weight:500;color:var(--green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          <div id="editTmdbSelMeta"
+            style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px"></div>
+        </div>
+        <button class="btn-sm"
+          style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0;font-size:11px"
+          onclick="clearEditTmdbSelection()">✕ 해제</button>
+      </div>
+    </div>
+    <!-- ── 검색 블록 끝 ── -->
+
     <div class="form-row">
       <label>한국어 제목 <span style="color:var(--muted);font-size:10px">(메인페이지에 표시될 제목)</span></label>
       <input class="inp" type="text" id="editTitleKo" placeholder="예: 사랑을 처방해 드립니다">
@@ -831,9 +869,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="form-hint">영어 원제를 저장하면 다음 크롤링 시 자동으로 한글 제목과 매칭됩니다</div>
     </div>
     <div class="form-row">
-      <label>TMDB ID</label>
+      <label>TMDB ID <span style="color:var(--muted);font-size:10px">(검색 선택 또는 직접 입력)</span></label>
       <input class="inp" type="number" id="editTmdbId" placeholder="예: 1411577" oninput="previewPoster()">
-      <div class="form-hint">themoviedb.org/movie/[ID] 또는 /tv/[ID] 에서 확인</div>
+      <div class="form-hint">themoviedb.org/movie/[ID] 또는 /tv/[ID] 에서 직접 확인 후 입력도 가능</div>
       <div class="poster-preview" id="posterPreview">
         <div class="no-poster">🎬</div>
         <span style="font-size:12px;color:var(--muted)">TMDB ID 입력 시 포스터 미리보기</span>
@@ -851,7 +889,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="border-top:1px solid var(--border);margin:16px 0 14px;padding-top:14px">
       <div style="font-size:11px;font-family:var(--mono);color:var(--info);margin-bottom:8px;letter-spacing:.5px">
         ⚠️ TMDB ID 충돌 방지용 미디어 타입
-        <span style="color:var(--muted);font-weight:400"> — movie/tv가 같은 ID를 공유할 때만 지정</span>
+        <span style="color:var(--muted);font-weight:400"> — movie/tv가 같은 ID를 공유할 때만 지정 (검색 선택 시 자동 설정됨)</span>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-family:var(--mono)">
         예) movie/321564=Reborn, tv/321564=스타워즈 특별편 → 📺 TV 선택
@@ -1963,6 +2001,11 @@ function openModal(r) {
   document.getElementById('editTitleEn').value = r.title_en || '';
   document.getElementById('editTmdbId').value = r.tmdb_id || '';
   document.getElementById('modalSub').textContent = `${r.platform} · ${r.category} · ${r.rank}위`;
+  // TMDB 검색 블록 초기화
+  document.getElementById('editTmdbSearchQuery').value = '';
+  document.getElementById('editTmdbResults').innerHTML = '';
+  document.getElementById('editTmdbResults').style.display = 'none';
+  document.getElementById('editTmdbSelected').style.display = 'none';
   updatePosterPreview(r.poster_path);
   // media_type 라디오 버튼 초기값 세팅
   const mt = r.media_type || '';
@@ -1994,6 +2037,13 @@ function closeModal() {
   if (cb) cb.checked = false;
   const nullRadio = document.getElementById('editMt_null');
   if (nullRadio) { nullRadio.checked = true; updateMediaTypeStyle(''); }
+  // TMDB 검색 블록 초기화
+  const searchQuery = document.getElementById('editTmdbSearchQuery');
+  if (searchQuery) searchQuery.value = '';
+  const resultsEl = document.getElementById('editTmdbResults');
+  if (resultsEl) { resultsEl.innerHTML = ''; resultsEl.style.display = 'none'; }
+  const selectedEl = document.getElementById('editTmdbSelected');
+  if (selectedEl) selectedEl.style.display = 'none';
   // works 모달에서 열었을 경우 저장 버튼 원복
   if (typeof worksModalTmdbId !== 'undefined' && worksModalTmdbId !== null) {
     worksModalTmdbId = null;
@@ -2005,9 +2055,158 @@ function closeModal() {
   }
 }
 
+// ════════════════════════════════════════════════════
+// 랭킹/works 수정 모달 — TMDB 작품 검색
+// ════════════════════════════════════════════════════
+
+/**
+ * 한글 제목으로 TMDB를 검색하여 결과 목록을 모달 내에 표시
+ * TV 4개 + 영화 3개를 합쳐서 보여줌
+ */
+async function searchTmdbForEdit() {
+  const q         = (document.getElementById('editTmdbSearchQuery')?.value || '').trim();
+  const resultsEl = document.getElementById('editTmdbResults');
+  if (!q) { showToast('작품명을 입력하세요', 'err'); return; }
+
+  resultsEl.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--muted);font-family:var(--mono)">검색 중...</div>';
+  resultsEl.style.display = 'block';
+  // 이전 선택 초기화
+  document.getElementById('editTmdbSelected').style.display = 'none';
+
+  try {
+    // TV와 영화 동시 검색
+    const [tvRes, mvRes] = await Promise.all([
+      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+    ]);
+    const tvData = await tvRes.json();
+    const mvData = await mvRes.json();
+
+    // TV 상위 4개, 영화 상위 3개
+    const tvItems = (tvData.results  || []).slice(0, 4).map(r => ({ ...r, _type: 'tv' }));
+    const mvItems = (mvData.results  || []).slice(0, 3).map(r => ({ ...r, _type: 'movie' }));
+    const items   = [...tvItems, ...mvItems];
+
+    if (!items.length) {
+      resultsEl.innerHTML = '<div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">검색 결과가 없습니다</div>';
+      return;
+    }
+
+    // 결과 목록 렌더링
+    resultsEl.innerHTML = items.map(item => {
+      const title    = item.name    || item.title    || '';
+      const orgTitle = item.original_name || item.original_title || '';
+      const year     = (item.first_air_date || item.release_date || '').slice(0, 4);
+      const poster   = item.poster_path ? `${IMG2}${item.poster_path}` : '';
+      const typeLabel = item._type === 'tv' ? 'TV' : '영화';
+      const typeColor = item._type === 'tv' ? 'var(--info)' : 'var(--gold)';
+      // 포스터 경로 (w500 기준, 저장용)
+      const posterFull = item.poster_path || '';
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;
+          border-bottom:1px solid var(--border);transition:background .12s"
+          onmouseover="this.style.background='var(--bg3)'"
+          onmouseout="this.style.background=''"
+          onclick="selectTmdbForEdit(${item.id},'${item._type}','${title.replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${posterFull}','${orgTitle.replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${year}')">
+          ${poster
+            ? `<img src="${poster}" alt="" style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">`
+            : `<div style="width:28px;height:42px;background:var(--bg3);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`
+          }
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${orgTitle}${year ? ` · ${year}` : ''}</div>
+          </div>
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;
+            background:transparent;color:${typeColor};border:1px solid ${typeColor};flex-shrink:0">${typeLabel}</span>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--red);font-size:13px">검색 실패: ${e.message}</div>`;
+  }
+}
+
+/**
+ * 검색 결과에서 작품 선택 시
+ * - editTitleKo : 한글 제목 자동 입력
+ * - editTmdbId  : TMDB ID 자동 입력 + 포스터 미리보기 갱신
+ * - editTitleEn : 영어 원제 자동 입력 (비어있을 때만)
+ * - 미디어 타입  : TV / 영화 자동 선택
+ */
+function selectTmdbForEdit(tmdbId, tmdbType, title, posterPath, orgTitle, year) {
+  // ── 폼 필드 자동 채우기 ──
+  document.getElementById('editTitleKo').value = title;
+  document.getElementById('editTmdbId').value  = tmdbId;
+
+  // 영어 원제 — 이미 값이 있으면 덮어쓰지 않음 (flixpatrol 기준값 보호)
+  const titleEnEl = document.getElementById('editTitleEn');
+  if (titleEnEl && !titleEnEl.value.trim()) {
+    // 원제에 라틴 문자가 있고 한글이 없을 때만 저장
+    const hasKorean = /[\uAC00-\uD7A3]/.test(orgTitle);
+    const hasLatin  = /[a-zA-Z]/.test(orgTitle);
+    if (hasLatin && !hasKorean) titleEnEl.value = orgTitle;
+  }
+
+  // 미디어 타입 라디오 자동 선택
+  const radioVal = tmdbType === 'tv' ? 'tv' : 'movie';
+  document.querySelectorAll('input[name="editMediaType"]').forEach(r => {
+    r.checked = (r.value === radioVal);
+  });
+  updateMediaTypeStyle(radioVal);
+
+  // 포스터 미리보기 갱신 (poster_path 바로 사용)
+  if (posterPath) {
+    updatePosterPreview(posterPath);
+  } else {
+    // poster_path 없으면 TMDB ID로 재조회
+    previewPoster();
+  }
+
+  // ── 선택된 작품 표시 ──
+  document.getElementById('editTmdbSelPoster').src         = posterPath ? `${IMG}${posterPath}` : '';
+  document.getElementById('editTmdbSelPoster').style.display = posterPath ? 'block' : 'none';
+  document.getElementById('editTmdbSelTitle').textContent  = title;
+  document.getElementById('editTmdbSelMeta').textContent   =
+    `TMDB:${tmdbId} · ${tmdbType === 'tv' ? 'TV 시리즈' : '영화'}${year ? ` · ${year}` : ''}`;
+  document.getElementById('editTmdbSelected').style.display = 'flex';
+
+  // 검색 결과 닫기
+  document.getElementById('editTmdbResults').style.display = 'none';
+  // 검색창에 선택한 제목 표시
+  document.getElementById('editTmdbSearchQuery').value = title;
+}
+
+/**
+ * 선택된 작품 해제 — 관련 필드 초기화
+ */
+function clearEditTmdbSelection() {
+  document.getElementById('editTmdbSelected').style.display = 'none';
+  document.getElementById('editTmdbSearchQuery').value = '';
+  document.getElementById('editTmdbResults').innerHTML = '';
+  document.getElementById('editTmdbResults').style.display = 'none';
+  // 폼 필드 초기화
+  document.getElementById('editTitleKo').value = '';
+  document.getElementById('editTitleEn').value = '';
+  document.getElementById('editTmdbId').value  = '';
+  // 미디어 타입 자동으로 리셋
+  const nullRadio = document.getElementById('editMt_null');
+  if (nullRadio) { nullRadio.checked = true; updateMediaTypeStyle(''); }
+  // 포스터 미리보기 초기화
+  updatePosterPreview(null);
+}
+
+// 모달 외부(overlay) 클릭 시 검색 결과 드롭다운 닫기
+document.addEventListener('click', e => {
+  // 기존 workSearchResults 처리와 공존
+  if (!e.target.closest('#editOverlay .ct-tmdb-modal') &&
+      !e.target.closest('#editTmdbSearchQuery') &&
+      !e.target.closest('#editTmdbResults')) {
+    const el = document.getElementById('editTmdbResults');
+    if (el && el.style.display !== 'none') el.style.display = 'none';
+  }
+});
+
 let previewTimer = null;
 function previewPoster() {
-  clearTimeout(previewTimer);
   previewTimer = setTimeout(async () => {
     const tmdbId = document.getElementById('editTmdbId').value;
     if (!tmdbId) { updatePosterPreview(null); return; }
@@ -2868,6 +3067,12 @@ function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
   document.getElementById('editTitleEn').value  = titleEn;
   document.getElementById('editTmdbId').value   = tmdbId;
   document.getElementById('modalSub').textContent = `works 테이블 · tmdb_id: ${tmdbId}`;
+
+  // TMDB 검색 블록 초기화
+  document.getElementById('editTmdbSearchQuery').value = '';
+  document.getElementById('editTmdbResults').innerHTML = '';
+  document.getElementById('editTmdbResults').style.display = 'none';
+  document.getElementById('editTmdbSelected').style.display = 'none';
 
   // poster_path 있으면 바로 표시, 없으면 TMDB에서 자동 조회
   if (posterPath) {
