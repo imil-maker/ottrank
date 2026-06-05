@@ -1939,9 +1939,10 @@ async function init(){
 
   // Parallel load remaining
   if(WORK.tmdb_id){
+    // loadTop10Days 먼저 완료 (WORK_CATEGORY_SLOT 설정) → loadWatchGuide에서 참조
+    await loadTop10Days();
     await Promise.all([
       loadPlatforms(),
-      loadTop10Days(),
       loadManualBadges(),
       loadReviews(WORK.tmdb_id),
       loadWatchGuide(),
