@@ -133,7 +133,7 @@ export async function handleRankings(path, request, env, url, headers) {
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
           AND r.is_manual = 1
-          AND r.date != 'manual'
+          AND r.date = 'manual'
         ORDER BY oc.main_section, oc.main_order, r.rank
       `).all();
 
@@ -244,7 +244,7 @@ export async function handleRankings(path, request, env, url, headers) {
           AND oc.platform_section IS NOT NULL
           AND oc.is_active = 1
           AND r.is_manual = 1
-          AND r.date != 'manual'
+          AND r.date = 'manual'
         ORDER BY oc.platform_order, r.rank
       `).bind(platform).all();
 
