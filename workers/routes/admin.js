@@ -188,12 +188,22 @@ export async function handleAdmin(path, request, env, url, headers) {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
     }
-    const date  = url.searchParams.get("date");
-    const query = date
-      ? "SELECT * FROM rankings WHERE date = ? ORDER BY platform, category, rank"
-      : "SELECT * FROM rankings WHERE date = (SELECT MAX(date) FROM rankings) ORDER BY platform, category, rank";
-    const { results } = date
-      ? await env.DB.prepare(query).bind(date).all()
+    const date   = url.searchParams.get("date");
+    const manual = url.searchParams.get("manual");
+    let query, bindVal;
+    if (manual === "true") {
+      // 수동 데이터 전용
+      query    = "SELECT * FROM rankings WHERE date = 'manual' ORDER BY platform, category_slot, rank";
+      bindVal  = null;
+    } else if (date) {
+      query    = "SELECT * FROM rankings WHERE date = ? ORDER BY platform, category_slot, rank";
+      bindVal  = date;
+    } else {
+      query    = "SELECT * FROM rankings WHERE date = (SELECT MAX(date) FROM rankings WHERE date != 'manual') ORDER BY platform, category_slot, rank";
+      bindVal  = null;
+    }
+    const { results } = bindVal
+      ? await env.DB.prepare(query).bind(bindVal).all()
       : await env.DB.prepare(query).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
   }
@@ -902,14 +912,15 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (!date || !platform || !category_slot || !Array.isArray(items)) {
         return new Response(JSON.stringify({ ok: false, message: "date, platform, category_slot, items required" }), { status: 400, headers });
       }
+      // category_slot 조건 추가 — 같은 platform의 다른 슬롯 rank 오염 방지
       const step1 = items.map(item =>
-        env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ?")
-          .bind(-parseInt(item.rank), parseInt(item.id), date, platform)
+        env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
+          .bind(-parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
       );
       await env.DB.batch(step1);
       const step2 = items.map(item =>
-        env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ?")
-          .bind(parseInt(item.rank), parseInt(item.id), date, platform)
+        env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
+          .bind(parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
       );
       await env.DB.batch(step2);
       await env.DB.prepare(
