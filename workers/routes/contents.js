@@ -448,7 +448,7 @@ async function adminCreateContent(request, env, headers) {
   }
 
   // 플랫폼 유효성 검증
-  const validPlatforms = ["netflix", "tving", "disney", "coupang", "wavve"];
+  const validPlatforms = ["netflix", "tving", "disney", "coupang", "wavve", "boxoffice", "etc"];
   if (!validPlatforms.includes(platform)) {
     return json({ ok: false, error: "유효하지 않은 플랫폼입니다." }, 400, headers);
   }
