@@ -1569,7 +1569,7 @@ async function loadFeelingData(){
   try{
     const sid=localStorage.getItem('ottrang_sid');
     const opts=sid
-      ?{headers:{Authorization:'Bearer '+sid,credentials:'include'}}
+      ?{headers:{Authorization:'Bearer '+sid},credentials:'include'}
       :{credentials:'include'};
     const res=await fetch(`${OTTRANK_API}/reactions/work/${WORK.tmdb_id}`,opts);
     const data=await res.json();
