@@ -360,6 +360,53 @@ export async function handleAdmin(path, request, env, url, headers) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
+  // ── PATCH /admin/rankings/:id ─────────────────────────────
+  // 체크박스 크롤링 고정(is_manual=2) / 해제(is_manual=0) 전용
+  // POST /admin/fix(is_manual=1) 와 완전히 별도 — works/title_map 수정 없음
+  const crawlLockMatch = path.match(/^\/admin\/rankings\/(\d+)$/);
+  if (crawlLockMatch && request.method === "PATCH") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const rankingId = parseInt(crawlLockMatch[1]);
+      const { is_manual } = await request.json();
+
+      // is_manual 값 검증: 0(해제) 또는 2(크롤링 고정)만 허용
+      if (is_manual !== 0 && is_manual !== 2) {
+        return new Response(JSON.stringify({
+          ok: false, message: "is_manual 값은 0(해제) 또는 2(크롤링고정)만 허용됩니다."
+        }), { status: 400, headers });
+      }
+
+      // 대상 행 존재 여부 확인
+      const row = await env.DB.prepare(
+        "SELECT id, platform, category_slot, title_ko FROM rankings WHERE id = ?"
+      ).bind(rankingId).first();
+
+      if (!row) {
+        return new Response(JSON.stringify({ ok: false, message: "해당 랭킹을 찾을 수 없습니다." }), { status: 404, headers });
+      }
+
+      // is_manual 업데이트 (1=수동고정은 건드리지 않음 — PATCH 전용이라 명시적 값만 세팅)
+      await env.DB.prepare(
+        "UPDATE rankings SET is_manual = ? WHERE id = ?"
+      ).bind(is_manual, rankingId).run();
+
+      // 관리자 로그 기록
+      await env.DB.prepare(
+        "INSERT INTO admin_logs (action, platform, category_slot, target_id, after_value) VALUES ('crawl_lock', ?, ?, ?, ?)"
+      ).bind(
+        row.platform, row.category_slot, String(rankingId),
+        JSON.stringify({ is_manual, title_ko: row.title_ko })
+      ).run();
+
+      return new Response(JSON.stringify({ ok: true, is_manual }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /admin/categories ────────────────────────────────────
   if (path === "/admin/categories" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
