@@ -22,9 +22,40 @@ CATEGORY_SLOT = "category01"
 SOURCE_NAME   = "TOP 10 Overall"
 
 
-def _save_tving(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: dict | None):
-    """티빙 랭킹 rankings 테이블에 저장"""
+def _is_crawl_locked(conn: sqlite3.Connection, rank: int) -> bool:
+    """해당 순위에 is_manual=2(날짜고정) 행이 오늘 날짜로 이미 존재하는지 확인.
+    존재하면 크롤러가 덮어쓰지 않고 건너뜀.
+    rank 기준으로 체크 — 같은 슬롯에서 순위 위치 보호.
+    """
     today = get_today()
+    row = conn.execute("""
+        SELECT id FROM rankings
+        WHERE date = ? AND platform = ? AND category_slot = ?
+          AND rank = ? AND is_manual = 2
+        LIMIT 1
+    """, (today, PLATFORM, CATEGORY_SLOT, rank)).fetchone()
+    return row is not None
+
+
+def _save_tving(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: dict | None):
+    """티빙 랭킹 rankings 테이블에 저장.
+    is_manual=2(날짜고정) 행이 해당 순위에 있으면 INSERT를 건너뜀.
+    """
+    # ── 날짜고정 체크 ────────────────────────────────────────────
+    # 같은 날짜·플랫폼·슬롯·순위에 is_manual=2 행이 있으면 보호 대상
+    today = get_today()
+    locked_row = conn.execute("""
+        SELECT id, title_ko FROM rankings
+        WHERE date = ? AND platform = ? AND category_slot = ?
+          AND rank = ? AND is_manual = 2
+        LIMIT 1
+    """, (today, PLATFORM, CATEGORY_SLOT, rank)).fetchone()
+
+    if locked_row:
+        print(f"  📌 [티빙] {rank:2d}. '{locked_row[1]}' → 날짜고정(is_manual=2) — 건너뜀")
+        return
+    # ──────────────────────────────────────────────────────────────
+
     if tmdb_data:
         conn.execute("""
             INSERT OR REPLACE INTO rankings
