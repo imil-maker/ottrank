@@ -865,7 +865,7 @@ const IMG_BACKDROP='https://image.tmdb.org/t/p/w1280';
 const IMG_PROFILE='https://image.tmdb.org/t/p/w185';
 const IMG_STILL='https://image.tmdb.org/t/p/w780';
 const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'};
-const CC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#888'};
+const CC={netflix:'#e50914',tving:'#ff1a6e',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#888'};
 const OTT_SEARCH_URL={
   netflix :(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
   tving   :(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
@@ -1038,11 +1038,15 @@ function renderRankRow(platforms){
     const rankVal=WORK.rank&&WORK.rank!=='-'&&WORK.rank!=='0'?WORK.rank:null;
     if(rankVal&&WORK.platform){
       const color=CC[WORK.platform]||'#888';
-      const chip=document.createElement('span');
+      const OTT_PAGE={netflix:'/netflix.html',tving:'/tving.html',disney:'/disneyplus.html',coupang:'/coupangplay.html',wavve:'/wavve.html',boxoffice:'/boxoffice.html'};
+      const chip=document.createElement('a');
       chip.className='rank-info-chip chip-rank';
       chip.style.background=`${color}22`;
       chip.style.borderColor=`${color}66`;
       chip.style.color=color;
+      chip.style.textDecoration='none';
+      chip.style.cursor='pointer';
+      if(OTT_PAGE[WORK.platform]) chip.href=OTT_PAGE[WORK.platform];
       chip.innerHTML=`<i class="ti ti-flame" style="font-size:11px"></i>${PC[WORK.platform]||WORK.platform} ${rankVal}위`;
       row.appendChild(chip);
     }
