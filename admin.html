@@ -2133,6 +2133,10 @@ function renderTable() {
       tr.dataset.id   = r.id;
       tr.dataset.rank = r.rank;
       tr.draggable    = true;
+
+      // is_manual=2 이면 크롤링 고정 체크박스 ON
+      const isCrawlLocked = r.is_manual === 2;
+
       tr.innerHTML = `
         <td style="width:30px"><span class="drag-handle">⠿</span></td>
         <td><span class="rank-num">${r.rank}</span></td>
@@ -2146,10 +2150,24 @@ function renderTable() {
         <td>${r.tmdb_id
           ? `<span class="tmdb-id"><a href="https://www.themoviedb.org/${r.category==='tv'?'tv':'movie'}/${r.tmdb_id}" target="_blank">${r.tmdb_id}</a></span>`
           : `<span class="no-tmdb">미등록</span>`}</td>
-        <td>${r.is_manual ? '<span class="manual-badge">🔒 수동고정</span>' : ''}</td>
+        <td>
+          ${r.is_manual === 1 ? '<span class="manual-badge">🔒 수동고정</span>' : ''}
+          ${isCrawlLocked    ? '<span class="manual-badge" style="background:rgba(100,160,255,.15);color:#7ec8e3;border:1px solid rgba(100,160,255,.35)">📌 날짜고정</span>' : ''}
+        </td>
         <td style="white-space:nowrap">
+          <!-- 크롤링 날짜 고정 체크박스 -->
+          <label title="체크 시 날짜가 바뀌거나 크롤링해도 이 항목은 변경되지 않습니다"
+            style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;
+              font-size:11px;color:${isCrawlLocked?'#7ec8e3':'var(--muted2)'};
+              font-family:var(--mono);margin-right:6px;user-select:none">
+            <input type="checkbox" id="crawlLock-${r.id}"
+              ${isCrawlLocked ? 'checked' : ''}
+              onchange="toggleCrawlLock(${r.id}, this.checked)"
+              style="cursor:pointer;width:14px;height:14px;accent-color:#7ec8e3">
+            날짜고정
+          </label>
           <button class="btn-sm btn-fix" onclick="openModalByRowId(${r.id})">수정</button>
-          ${r.is_manual ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
+          ${r.is_manual === 1 ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
         </td>`;
 
       // 드래그 이벤트
@@ -2880,6 +2898,56 @@ async function unfix(id) {
     const json = await res.json();
     if (json.ok) { showToast('고정 해제됨', 'ok'); loadData(); }
   } catch(e) { showToast('오류', 'err'); }
+}
+
+// ════════════════════════════════════════════════════
+// 크롤링 날짜 고정 체크박스 토글
+// is_manual=2: 날짜가 바뀌거나 크롤링해도 이 행을 보존
+// is_manual=0: 크롤러 데이터로 자연 갱신
+// is_manual=1(수동고정)과 완전히 별개 — 이 함수로 1은 건드리지 않음
+// ════════════════════════════════════════════════════
+async function toggleCrawlLock(id, checked) {
+  const is_manual = checked ? 2 : 0;
+  const label     = checked ? '📌 날짜고정 설정' : '날짜고정 해제';
+  const checkbox  = document.getElementById(`crawlLock-${id}`);
+
+  // 낙관적 UI: 즉시 체크 상태 반영, 실패 시 원복
+  try {
+    const res  = await fetch(`${API}/admin/rankings/${id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ is_manual }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(`✅ ${label} 완료`, 'ok');
+      // 뱃지 업데이트 — 리로드 없이 현재 행에서 직접 처리
+      const tr         = checkbox.closest('tr');
+      const badgeCell  = tr.querySelector('td:nth-child(6)'); // 상태 칸
+      const labelEl    = checkbox.closest('label');
+      if (checked) {
+        // 날짜고정 뱃지 추가
+        if (badgeCell && !badgeCell.querySelector('.crawl-lock-badge')) {
+          badgeCell.insertAdjacentHTML('beforeend',
+            `<span class="manual-badge crawl-lock-badge"
+              style="background:rgba(100,160,255,.15);color:#7ec8e3;border:1px solid rgba(100,160,255,.35);margin-left:4px">
+              📌 날짜고정</span>`);
+        }
+        if (labelEl) labelEl.style.color = '#7ec8e3';
+      } else {
+        // 날짜고정 뱃지 제거
+        badgeCell?.querySelector('.crawl-lock-badge')?.remove();
+        if (labelEl) labelEl.style.color = 'var(--muted2)';
+      }
+    } else {
+      // 실패 시 체크박스 원복
+      if (checkbox) checkbox.checked = !checked;
+      showToast('설정 실패: ' + (json.message || '알 수 없는 오류'), 'err');
+    }
+  } catch(e) {
+    if (checkbox) checkbox.checked = !checked;
+    showToast('네트워크 오류', 'err');
+  }
 }
 
 // ════════════════════════════════════════════════════
