@@ -1903,7 +1903,13 @@ async function loadPlatforms(){
   try{
     const res=await fetch(`${OTTRANK_API}/rankings/platforms/${WORK.tmdb_id}`);
     const data=await res.json();
-    if(!data.ok||!data.data||!data.data.length)return;
+    if(!data.ok||!data.data||!data.data.length){
+      // 크롤링 랭킹에 없는 작품 — sessionStorage에서 넘어온 rank/platform 값이
+      // 수동 카테고리 데이터일 수 있으므로 rank 리셋 + 기존 순위 칩 제거
+      WORK.rank='-';
+      renderRankRow([]); // chip-rank 칩만 제거 (chip-top10/chip-manual 유지)
+      return;
+    }
     const platforms=data.data; // [{platform, rank}, ...]
 
     // 1순위 플랫폼으로 WORK 업데이트
