@@ -865,7 +865,7 @@ const IMG_BACKDROP='https://image.tmdb.org/t/p/w1280';
 const IMG_PROFILE='https://image.tmdb.org/t/p/w185';
 const IMG_STILL='https://image.tmdb.org/t/p/w780';
 const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'};
-const CC={netflix:'#e50914',tving:'#ff1a6e',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#888'};
+const CC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#888'};
 const OTT_SEARCH_URL={
   netflix :(t)=>`https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
   tving   :(t)=>`https://www.tving.com/search?keyword=${encodeURIComponent(t)}`,
@@ -1898,8 +1898,6 @@ function showDetail(){document.getElementById('profilePage').style.display='none
 /* == Platform Load — 외부 URL 직접 접근 시 OTT 플랫폼 정보 조회 == */
 async function loadPlatforms(){
   if(!WORK.tmdb_id)return;
-  // 박스오피스는 기존 시청가이드+극장링크 유지, 스킵
-  if(WORK.platform==='boxoffice')return;
   try{
     const res=await fetch(`${OTTRANK_API}/rankings/platforms/${WORK.tmdb_id}`);
     const data=await res.json();
@@ -1916,24 +1914,32 @@ async function loadPlatforms(){
     WORK.platform=platforms[0].platform;
     WORK.rank=platforms[0].rank||'-';
 
-    // 포스터 위 OTT pill — 1순위 1개만 표시
+    // 포스터 위 OTT pill — 박스오피스는 기존 방식 유지, 나머지는 1순위 1개 표시
     const pillsContainer=document.getElementById('platformPills');
     if(pillsContainer){
-      const p=platforms[0];
-      const fn=OTT_SEARCH_URL[p.platform];
-      const url=fn?fn(WORK.title):'#';
-      const color=CC[p.platform]||'#888';
-      pillsContainer.innerHTML=`<a class="platform-pill" href="${url}" target="_blank" rel="noopener"
-        style="display:inline-block;white-space:nowrap;background:${color};text-decoration:none;color:#fff;
-        font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;
-        font-family:var(--font-mono);letter-spacing:.5px;
-        box-shadow:0 1px 4px rgba(0,0,0,.5)">
-        ${PC[p.platform]||p.platform}
-      </a>`;
+      if(WORK.platform==='boxoffice'){
+        pillsContainer.innerHTML=`<span class="platform-pill" style="display:block;background:#888;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;font-family:var(--font-mono)">박스오피스</span>`;
+      }else{
+        const p=platforms[0];
+        const fn=OTT_SEARCH_URL[p.platform];
+        const url=fn?fn(WORK.title):'#';
+        const color=CC[p.platform]||'#888';
+        pillsContainer.innerHTML=`<a class="platform-pill" href="${url}" target="_blank" rel="noopener"
+          style="display:inline-block;white-space:nowrap;background:${color};text-decoration:none;color:#fff;
+          font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;
+          font-family:var(--font-mono);letter-spacing:.5px;
+          box-shadow:0 1px 4px rgba(0,0,0,.5)">
+          ${PC[p.platform]||p.platform}
+        </a>`;
+      }
     }
 
-    // 히어로 하단 랭킹 칩 — 모든 OTT 순위 표시
-    renderRankRow(platforms);
+    // 히어로 하단 랭킹 칩 — 박스오피스는 순위 칩 표시 안 함, 나머지는 모든 OTT 순위 표시
+    if(WORK.platform==='boxoffice'){
+      renderRankRow([]); // 박스오피스는 순위 칩 없음 (시청가이드+극장링크로 대체)
+    }else{
+      renderRankRow(platforms);
+    }
 
   }catch(e){}
 }
