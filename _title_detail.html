@@ -1028,9 +1028,9 @@ function renderRankRow(platforms){
       chip.style.color=color;
       chip.style.textDecoration='none';
       chip.style.cursor='pointer';
-      chip.target='_blank';chip.rel='noopener';
-      const fn=OTT_SEARCH_URL[p.platform];
-      if(fn)chip.href=fn(WORK.title);
+      // 랭킹 칩 클릭 → 우리 OTT 페이지로 이동 (외부 OTT 사이트 아님)
+      const OTT_PAGE={netflix:'/netflix.html',tving:'/tving.html',disney:'/disneyplus.html',coupang:'/coupangplay.html',wavve:'/wavve.html',boxoffice:'/boxoffice.html'};
+      if(OTT_PAGE[p.platform]) chip.href=OTT_PAGE[p.platform];
       chip.innerHTML=`<i class="ti ti-flame" style="font-size:11px"></i>${PC[p.platform]||p.platform}${rankVal?' '+rankVal+'위':''}`;
       row.appendChild(chip);
     });
