@@ -185,6 +185,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .skel-line{height:12px;border-radius:4px;margin:10px 12px 6px;background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite}
 .skel-line.short{width:55%;height:10px;margin-top:0}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .sec-empty{padding:40px;text-align:center;font-size:14px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:var(--r)}
 
 /* ── 모바일 ── */
@@ -364,6 +365,11 @@ function buildSections(){
         <span class="sec-num">${s.subtitle}</span>
         <span class="sec-title">${s.title}</span>
         <span class="sec-count" id="cnt-${i}"></span>
+        ${!s.isManual ? `
+        <div style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite"></div>
+          <span id="updateTxt-${i}">업데이트 중...</span>
+        </div>` : ''}
       </div>
       <div class="swipe-wrap">
         <button class="swipe-btn prev" onclick="scrollTrack('trk-${i}',-1)">‹</button>
@@ -399,6 +405,10 @@ async function loadAll(){
     console.error('랭킹 로드 실패:', e);
   }
 
+  // 날짜 텍스트 생성 (index.html과 동일 방식)
+  const today   = new Date();
+  const dateStr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 09:00 업데이트`;
+
   // 섹션별 필터링해서 렌더
   SECTIONS.forEach((s, i) => {
     const track    = document.getElementById(`trk-${i}`);
@@ -406,6 +416,12 @@ async function loadAll(){
     const items    = srcItems
       .filter(r => r.category_slot === s.slot)
       .sort((a,b) => (a.rank || 0) - (b.rank || 0));
+
+    // 크롤링 섹션(isManual=false)에만 날짜 업데이트 표시
+    if(!s.isManual){
+      const txtEl = document.getElementById(`updateTxt-${i}`);
+      if(txtEl) txtEl.textContent = dateStr;
+    }
 
     if(!items.length){
       track.innerHTML = `<div class="sec-empty">아직 등록된 랭킹이 없습니다.</div>`;
