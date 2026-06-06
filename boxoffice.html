@@ -352,5 +352,14 @@ function escAttr(str) {
   return String(str||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
 }
 </script>
+
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+<script>
+fetch('/footer.html')
+  .then(r=>r.ok?r.text():Promise.reject())
+  .then(h=>{ document.getElementById('ottrang-footer').innerHTML=h; })
+  .catch(()=>{});
+</script>
 </body>
 </html>
