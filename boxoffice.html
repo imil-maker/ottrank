@@ -80,7 +80,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .main-outer{max-width:var(--max-w);margin:0 auto;padding:0 24px 80px}
 
 /* ══ 섹션 헤더 ══ */
-.sec-hd{display:flex;align-items:center;gap:12px;padding:28px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.sec-hd{display:flex;align-items:center;gap:12px;padding:0 0 14px;margin-bottom:20px;border-bottom:1px solid var(--border)}
 /* sec-num 뱃지 — 넷플릭스와 동일 구조, gold 컬러 */
 .sec-num{
   font-family:var(--disp);font-size:13px;color:var(--gold);
@@ -302,7 +302,7 @@ async function loadManualRankings() {
           <span class="sec-num">${topNum}</span>
           <span class="sec-title">${escHtml(group.display_name || group.category_slot)}</span>
           <span class="sec-count">${topNum}</span>
-          ${memoLabel ? `<span class="week-label">📌 ${escHtml(memoLabel)}</span>` : ''}
+          ${memoLabel ? `<span class="week-label"></span>` : ''}
         </div>
         <div class="rank-grid">${gridHtml}</div>`;
     }).join('');
