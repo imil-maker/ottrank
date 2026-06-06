@@ -26,6 +26,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 #ottrang-header{position:sticky;top:0;z-index:200}
 
 /* ══ 히어로 배너 (넷플릭스 스타일, gold 컬러) ══ */
+/* ══ 히어로 배너 — 넷플릭스와 동일한 패딩/마진 ══ */
 .hero{
   position:relative;padding:48px 0 40px;margin-bottom:40px;
   border-bottom:1px solid var(--border);overflow:hidden;
@@ -37,7 +38,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   background:radial-gradient(circle,rgba(240,180,41,.16) 0%,transparent 70%);
   pointer-events:none;
 }
-/* — OTT RANKING 아이브로우 */
+/* OTT RANKING 아이브로우 */
 .hero-eyebrow{
   font-family:var(--mono);font-size:11px;color:var(--gold);
   letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;
@@ -50,22 +51,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   line-height:1;margin-bottom:10px;
 }
 .hero-title .bo{color:var(--gold)}
-/* 우측 하단 부제 */
+/* 부제 + 날짜 — 넷플릭스 hero-sub와 동일하게 absolute 우측, 단 날짜는 바로 아래에 */
 .hero-sub{
   font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.5px;
-  position:absolute;bottom:54px;right:0;text-align:right;
+  position:absolute;bottom:40px;right:0;text-align:right;
 }
-/* 날짜 — hero-sub 아래, 우측 하단 고정 (원본 updateTxt 위치 대체) */
+/* 날짜 — hero-sub 바로 아래 (bottom: 40px - 1줄높이 20px = 20px) */
 .hero-date{
   font-family:var(--mono);font-size:12px;color:rgba(240,180,41,.6);
-  letter-spacing:1px;position:absolute;bottom:34px;right:0;text-align:right;
+  letter-spacing:1px;position:absolute;bottom:20px;right:0;
   display:flex;align-items:center;gap:6px;
 }
 .hero-date::before{
   content:'';display:block;width:6px;height:6px;border-radius:50%;
   background:rgba(240,180,41,.6);flex-shrink:0;
 }
-/* 대형 배경 글자 BO — 독립 absolute (날짜와 분리) */
+/* 대형 배경 글자 BO */
 .hero-right{
   position:absolute;right:0;top:50%;transform:translateY(-50%);
   pointer-events:none;user-select:none;
@@ -97,7 +98,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .hero{padding:32px 0 28px}
   .hero-title{font-size:38px}
   .hero-logo{font-size:120px;opacity:.5}
-  .hero-sub{display:none}
+  .hero-sub,.hero-date{display:none}
 }
 
 /* ══ 랭킹 카드 그리드 ══ */
