@@ -75,11 +75,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   color:var(--muted);
   display:flex;align-items:center;gap:7px;
 }
-.sec-date::before{
-  content:'';display:block;width:6px;height:6px;border-radius:50%;
-  background:var(--green);flex-shrink:0;
-  animation:pulse 2s infinite;
-}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .week-label{font-family:var(--mono);font-size:12px;color:var(--muted2);margin-left:4px}
 
@@ -164,7 +159,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <span class="sec-num">TOP 20</span>
     <span class="sec-title">티빙 일간 랭킹</span>
     <span class="sec-count">TOP 20</span>
-    <span class="sec-date" id="weeklyDate"></span>
+    <div class="sec-date">
+      <div style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2s infinite"></div>
+      <span id="weeklyDate">업데이트 중...</span>
+    </div>
   </div>
   <div class="rank-grid" id="weeklyGrid">
     <div class="loading-msg" style="grid-column:1/-1">
