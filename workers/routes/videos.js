@@ -82,15 +82,26 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "유효하지 않은 유튜브 URL" }), { status: 400, headers });
       }
       const youtube_id = ytMatch[1];
+
+      // ── 중복 체크: 같은 작품에 동일 youtube_id가 이미 등록되어 있는지 확인
+      const existing = await env.DB.prepare(
+        "SELECT id, title FROM title_videos WHERE tmdb_id = ? AND youtube_id = ? LIMIT 1"
+      ).bind(tmdb_id, youtube_id).first();
+
+      if (existing) {
+        return new Response(JSON.stringify({
+          ok: false,
+          message: `이미 등록된 영상입니다. (제목: "${existing.title || youtube_id}")`
+        }), { status: 409, headers });
+      }
+
       // title 빈칸이면 oEmbed API로 유튜브 제목 자동 조회
       if (!title) {
         try {
           const oembedRes  = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${youtube_id}&format=json`);
           const oembedData = await oembedRes.json();
           title = oembedData.title || "";
-        } catch (e) {
-          title = "";
-        }
+        } catch (e) { title = ""; }
       }
       await env.DB.prepare(
         "INSERT INTO title_videos (tmdb_id, youtube_url, youtube_id, title, is_main) VALUES (?, ?, ?, ?, 0)"
