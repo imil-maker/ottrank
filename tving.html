@@ -72,13 +72,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .sec-count{font-family:var(--disp);font-size:24px;letter-spacing:1.5px;color:var(--muted)}
 .sec-date{
   margin-left:auto;font-family:var(--mono);font-size:12px;
-  color:rgba(255,26,110,.6);letter-spacing:1px;
-  display:flex;align-items:center;gap:6px;
+  color:var(--muted);
+  display:flex;align-items:center;gap:7px;
 }
 .sec-date::before{
   content:'';display:block;width:6px;height:6px;border-radius:50%;
-  background:rgba(255,26,110,.6);flex-shrink:0;
+  background:var(--green);flex-shrink:0;
+  animation:pulse 2s infinite;
 }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .week-label{font-family:var(--mono);font-size:12px;color:var(--muted2);margin-left:4px}
 
 /* ══ 모바일 ══ */
@@ -234,9 +236,13 @@ async function loadWeeklyRankings() {
       return;
     }
 
-    // 섹션 헤더 우측 날짜 표시
+    // 섹션 헤더 우측 날짜 표시 (index.html / netflix.html과 동일 방식)
     const dateEl = document.getElementById('weeklyDate');
-    if (dateEl) dateEl.textContent = getWeekLabel(cat01.items[0]?.date || null);
+    if (dateEl) {
+      const today   = new Date();
+      const dateStr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 09:00 업데이트`;
+      dateEl.textContent = dateStr;
+    }
 
     // 20개 카드 (5열 4줄)
     grid.innerHTML = cat01.items.slice(0, 20).map((item, i) => posterCard(item, i + 1, false, null)).join('');
