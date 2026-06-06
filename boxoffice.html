@@ -55,20 +55,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.5px;
   position:absolute;bottom:54px;right:0;text-align:right;
 }
-/* 대형 배경 글자 BO + 날짜 — 우측에 함께 쌓이는 컨테이너 */
+/* 날짜 — hero-sub 아래, 우측 하단 고정 (원본 updateTxt 위치 대체) */
+.hero-date{
+  font-family:var(--mono);font-size:12px;color:rgba(240,180,41,.6);
+  letter-spacing:1px;position:absolute;bottom:34px;right:0;text-align:right;
+  display:flex;align-items:center;gap:6px;
+}
+.hero-date::before{
+  content:'';display:block;width:6px;height:6px;border-radius:50%;
+  background:rgba(240,180,41,.6);flex-shrink:0;
+}
+/* 대형 배경 글자 BO — 독립 absolute (날짜와 분리) */
 .hero-right{
   position:absolute;right:0;top:50%;transform:translateY(-50%);
-  display:flex;flex-direction:column;align-items:flex-end;gap:0;
   pointer-events:none;user-select:none;
 }
 .hero-logo{
   font-family:var(--disp);font-size:200px;color:rgba(240,180,41,.05);
   line-height:1;letter-spacing:-8px;display:block;
-}
-/* BO 아래에 날짜 — gold 반투명으로 자연스럽게 */
-.hero-date{
-  font-family:var(--mono);font-size:12px;color:rgba(240,180,41,.45);
-  letter-spacing:1px;text-align:right;margin-top:-6px;padding-right:4px;
 }
 
 /* ══ 메인 ══ */
@@ -161,9 +165,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="hero-eyebrow">OTT RANKING</div>
     <div class="hero-title"><span class="bo">BOXOFFICE</span> 랭킹</div>
     <div class="hero-sub">박스오피스 주간 순위 · 역대 한국 영화 · 오뜨랑 집계</div>
+    <span class="hero-date" id="heroDate"></span>
     <div class="hero-right">
       <span class="hero-logo">BO</span>
-      <span class="hero-date" id="heroDate"></span>
     </div>
   </div>
 
@@ -246,10 +250,10 @@ async function loadWeeklyRankings() {
       return;
     }
 
-    // (weekLabel / updateTxt 제거 — 히어로 배너로 대체)
-    // 히어로 배너 우측 BO 하단에 주차 날짜 표시
-    const dateEl = document.getElementById('heroDate');
-    if (dateEl) dateEl.textContent = getWeekLabel(cat01.items[0]?.date || null);
+    // 히어로 배너 우측 BO 하단에 주차 날짜 표시 (원본 updateTxt 로직 이전)
+    const weekStr = getWeekLabel(cat01.items[0]?.date || null);
+    const dateEl  = document.getElementById('heroDate');
+    if (dateEl) dateEl.textContent = weekStr;
 
     // 10개 전부 카드 (5열 2줄)
     grid.innerHTML = cat01.items.slice(0, 10).map((item, i) => posterCard(item, i + 1, false, null)).join('');
