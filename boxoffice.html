@@ -51,20 +51,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   line-height:1;margin-bottom:10px;
 }
 .hero-title .bo{color:var(--gold)}
-/* 부제 + 날짜 — 넷플릭스 hero-sub와 동일하게 absolute 우측, 단 날짜는 바로 아래에 */
+/* 부제 — 우측 하단 */
 .hero-sub{
   font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.5px;
-  position:absolute;bottom:40px;right:0;text-align:right;
-}
-/* 날짜 — hero-sub 바로 아래 (bottom: 40px - 1줄높이 20px = 20px) */
-.hero-date{
-  font-family:var(--mono);font-size:12px;color:rgba(240,180,41,.6);
-  letter-spacing:1px;position:absolute;bottom:20px;right:0;
-  display:flex;align-items:center;gap:6px;
-}
-.hero-date::before{
-  content:'';display:block;width:6px;height:6px;border-radius:50%;
-  background:rgba(240,180,41,.6);flex-shrink:0;
+  position:absolute;bottom:20px;right:0;text-align:right;
 }
 /* 대형 배경 글자 BO */
 .hero-right{
@@ -90,6 +80,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .sec-title{font-family:var(--disp);font-size:26px;letter-spacing:1px}
 /* sec-count — 넷플릭스와 동일: 제목 오른쪽 흰색 큰 글씨 TOP N */
 .sec-count{font-family:var(--disp);font-size:24px;letter-spacing:1.5px;color:var(--muted)}
+/* 섹션 헤더 우측 날짜 */
+.sec-date{
+  margin-left:auto;font-family:var(--mono);font-size:12px;
+  color:rgba(240,180,41,.6);letter-spacing:1px;
+  display:flex;align-items:center;gap:6px;
+}
+.sec-date::before{
+  content:'';display:block;width:6px;height:6px;border-radius:50%;
+  background:rgba(240,180,41,.6);flex-shrink:0;
+}
 .week-label{font-family:var(--mono);font-size:12px;color:var(--muted2);margin-left:4px}
 
 /* ══ 모바일 ══ */
@@ -98,7 +98,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .hero{padding:32px 0 28px}
   .hero-title{font-size:38px}
   .hero-logo{font-size:120px;opacity:.5}
-  .hero-sub,.hero-date{display:none}
+  .hero-sub,.hero-date,.sec-date{display:none}
 }
 
 /* ══ 랭킹 카드 그리드 ══ */
@@ -166,7 +166,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="hero-eyebrow">OTT RANKING</div>
     <div class="hero-title"><span class="bo">BOXOFFICE</span> 랭킹</div>
     <div class="hero-sub">박스오피스 주간 순위 · 역대 한국 영화 · 오뜨랑 집계</div>
-    <span class="hero-date" id="heroDate"></span>
     <div class="hero-right">
       <span class="hero-logo">BOX</span>
     </div>
@@ -177,6 +176,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <span class="sec-num">TOP 10</span>
     <span class="sec-title">주간 박스오피스</span>
     <span class="sec-count">TOP 10</span>
+    <span class="sec-date" id="weeklyDate"></span>
   </div>
   <div class="rank-grid" id="weeklyGrid">
     <div class="loading-msg" style="grid-column:1/-1">
@@ -251,9 +251,9 @@ async function loadWeeklyRankings() {
       return;
     }
 
-    // 히어로 배너 우측 BO 하단에 주차 날짜 표시 (원본 updateTxt 로직 이전)
-    const weekStr = getWeekLabel(cat01.items[0]?.date || null);
-    const dateEl  = document.getElementById('heroDate');
+    // 섹션 헤더 우측에 주차 날짜 표시
+    const weekStr  = getWeekLabel(cat01.items[0]?.date || null);
+    const dateEl   = document.getElementById('weeklyDate');
     if (dateEl) dateEl.textContent = weekStr;
 
     // 10개 전부 카드 (5열 2줄)
