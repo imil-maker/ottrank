@@ -145,7 +145,7 @@ export async function handleAdmin(path, request, env, url, headers) {
            is_manual, source_name)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        platform, category_slot, finalMtype || category_slot, date,
+        platform, category_slot, category_slot, date,
         -(finalRank), parseInt(tmdb_id),
         finalTitleKo || "", finalTitleEn || "", finalPoster,
         finalYear, finalGenre, finalRating,
