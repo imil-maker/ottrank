@@ -5,9 +5,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import asyncio
 import random
 import sqlite3
-import requests
 from playwright.async_api import async_playwright
-from db import init_db, get_today, lookup_works, search_tmdb_korean, translate_titles_to_korean, insert_work
+from db import init_db, get_today, search_tmdb_korean, insert_work
 
 RANKING_URL = "https://m.kinolights.com/ranking/tving?category=series"
 
@@ -22,112 +21,13 @@ PLATFORM      = "tving"
 CATEGORY_SLOT = "category01"
 SOURCE_NAME   = "TOP 10 Overall"
 
-# Worker API 설정 (D1 날짜고정 데이터 조회용)
-API_BASE     = "https://ottrank-api.tdidream.workers.dev"
-ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
-
-
-def _get_pinned_info_from_api() -> tuple[set, set]:
-    """D1에서 오늘 날짜고정(is_manual=2) 목록을 Worker API로 조회.
-
-    로컬 SQLite에는 is_manual=2 데이터가 없으므로
-    반드시 Worker API(D1)에서 직접 가져와야 함.
-
-    반환:
-        pinned_tmdb_ids : 날짜고정된 tmdb_id set → 크롤링 결과 저장 skip용
-        pinned_ranks    : 날짜고정된 rank set    → 빈 슬롯 계산용
-    """
-    today = get_today()
-    try:
-        resp = requests.get(
-            f"{API_BASE}/admin/rankings",
-            params={"date": today},
-            headers={"Authorization": f"Bearer {ADMIN_SECRET}"},
-            timeout=10,
-        )
-        if not resp.ok:
-            print(f"  ⚠️ [티빙] API 조회 실패 (status={resp.status_code}) — 날짜고정 skip")
-            return set(), set()
-
-        data = resp.json()
-        rows = data.get("data", [])
-
-        # tving / category01 / is_manual=1,2 필터링
-        # is_manual=1(수동고정) + is_manual=2(날짜고정) 모두 보호
-        pinned = [
-            r for r in rows
-            if r.get("platform") == PLATFORM
-            and r.get("category_slot") == CATEGORY_SLOT
-            and r.get("is_manual") in (1, 2)
-        ]
-
-        pinned_ranks    = {r["rank"] for r in pinned}
-        pinned_tmdb_ids = {r["tmdb_id"] for r in pinned if r.get("tmdb_id")}
-
-        if pinned:
-            print(f"  📌 [티빙] 고정 작품 {len(pinned)}개 조회 완료 — rank: {sorted(pinned_ranks)}")
-        else:
-            print("  📌 [티빙] 고정 작품 없음")
-
-        return pinned_tmdb_ids, pinned_ranks
-
-    except Exception as e:
-        print(f"  ⚠️ [티빙] API 조회 오류: {e} — 날짜고정 skip")
-        return set(), set()
-
-
-def _save_tving(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: dict | None,
-                pinned_ranks: set):
-    """티빙 랭킹을 로컬 SQLite rankings 테이블에 저장.
-
-    - 해당 rank에 이미 is_manual=1,2 데이터가 있으면 절대 덮어쓰지 않음
-    - 크롤링 결과(is_manual=0)만 저장
-    """
-    today = get_today()
-
-    # ── 날짜고정/수동고정 rank 보호 ───────────────────────────────
-    # API에서 가져온 pinned_ranks에 포함된 rank는 저장 skip
-    if rank in pinned_ranks:
-        print(f"  📌 [티빙] {rank:2d}위 → 고정 슬롯 — 저장 skip")
-        return
-
-    if tmdb_data:
-        conn.execute("""
-            INSERT OR REPLACE INTO rankings
-                (date, platform, category, category_slot, source_name, rank,
-                 title_ko, title_en, tmdb_id, poster_path,
-                 genre, overview, release_year, tmdb_rating, is_manual)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-        """, (
-            today, PLATFORM, CATEGORY_SLOT, CATEGORY_SLOT, SOURCE_NAME, rank,
-            tmdb_data.get("title_ko") or title_ko,
-            tmdb_data.get("title_en") or title_ko,
-            tmdb_data.get("tmdb_id"),
-            tmdb_data.get("poster_path"),
-            tmdb_data.get("genre"),
-            tmdb_data.get("overview"),
-            tmdb_data.get("release_year"),
-            tmdb_data.get("tmdb_rating"),
-        ))
-    else:
-        conn.execute("""
-            INSERT OR REPLACE INTO rankings
-                (date, platform, category, category_slot, source_name,
-                 rank, title_ko, title_en, is_manual)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-        """, (today, PLATFORM, CATEGORY_SLOT, CATEGORY_SLOT, SOURCE_NAME, rank, title_ko, title_ko))
-    conn.commit()
-
 
 async def run(conn):
     print("\n[티빙] 랭킹 수집 중...")
 
-    # ── STEP 1. D1에서 고정 작품 목록 조회 (Worker API) ───────────
-    # is_manual=1(수동고정) + is_manual=2(날짜고정) 모두 보호
-    # 로컬 SQLite에는 이 데이터가 없으므로 반드시 API로 조회
-    pinned_tmdb_ids, pinned_ranks = _get_pinned_info_from_api()
-
-    # ── STEP 2. 크롤링 실행 ────────────────────────────────────────
+    # ── STEP 1. 크롤링 실행 ────────────────────────────────────────
+    # is_manual=2 보호 로직은 upload_to_d1.py 에서만 처리
+    # tving.py 는 크롤링 + TMDB 매칭 + 로컬 저장만 담당
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -147,7 +47,7 @@ async def run(conn):
         print("  [티빙] 데이터 없음")
         return
 
-    # ── STEP 3. 그룹별 랜덤 배치 ──────────────────────────────────
+    # ── STEP 2. 그룹별 랜덤 배치 ──────────────────────────────────
     # 1~10위: 3개 그룹으로 나눠 각각 랜덤 셔플
     # 11위~ : 나머지 전체 랜덤 셔플
     top10 = titles[:10]
@@ -160,9 +60,9 @@ async def run(conn):
 
     crawled_titles = g1 + g2 + g3 + rest   # 크롤링 순위 목록
 
-    # ── STEP 4. TMDB 매칭 (저장 전 tmdb_id 확보) ──────────────────
-    # 고정 tmdb_id와 비교하려면 저장 전에 tmdb_id를 먼저 확보해야 함
-    resolved = []   # [(title_ko, tmdb_data or None), ...]
+    # ── STEP 3. TMDB 매칭 ─────────────────────────────────────────
+    today    = get_today()
+    resolved = []  # [(title_ko, tmdb_data or None), ...]
 
     for title_ko in crawled_titles:
         # ① works 테이블 우선 조회 (한글 제목으로)
@@ -188,46 +88,59 @@ async def run(conn):
             insert_work(conn, tmdb_data, match_source="auto_claude")
             resolved.append((title_ko, tmdb_data))
         else:
-            # 매칭 실패 → tmdb_data None
             resolved.append((title_ko, None))
 
-    # ── STEP 5. 고정 작품 skip ────────────────────────────────────
-    # tmdb_id가 고정 목록에 있는 작품은 오늘 rankings에 저장하지 않음
-    # (작품 자체 데이터는 절대 건드리지 않음 — rankings 저장 여부만 제어)
-    filtered = []
-    for title_ko, tmdb_data in resolved:
-        tmdb_id = tmdb_data.get("tmdb_id") if tmdb_data else None
-        if tmdb_id and tmdb_id in pinned_tmdb_ids:
-            print(f"  📌 [티빙] '{title_ko}' (tmdb_id={tmdb_id}) → 고정 작품 — 저장 skip")
-            continue
-        filtered.append((title_ko, tmdb_data))
+    # ── STEP 4. 로컬 SQLite에 rank 1~N 순서대로 저장 ─────────────
+    # ⚠️ is_manual=2 보호는 여기서 하지 않음
+    # → upload_to_d1.py 에서 D1 업로드 시 처리
+    # ⚠️ 저장 전 오늘 날짜 tving 크롤링 데이터 초기화 (is_manual=0만)
+    # → 이전 크롤링 결과가 남아서 중복되는 것 방지
+    conn.execute("""
+        DELETE FROM rankings
+        WHERE date = ? AND platform = ? AND category_slot = ? AND is_manual = 0
+    """, (today, PLATFORM, CATEGORY_SLOT))
+    conn.commit()
 
-    # ── STEP 6. 빈 슬롯 계산 ──────────────────────────────────────
-    # 고정 rank 자리를 제외한 나머지 슬롯에 순서대로 배치
-    # 예) 고정: {3, 15} → 빈 슬롯: [1,2,4,5,...,14,16,17,18,19,20]
-    total_slots = max(len(filtered) + len(pinned_ranks), 20)
-    empty_slots = [r for r in range(1, total_slots + 1) if r not in pinned_ranks]
-
-    # ── STEP 7. 빈 슬롯에 크롤링 결과 저장 ───────────────────────
     saved_count = 0
-    for slot, (title_ko, tmdb_data) in zip(empty_slots, filtered):
+    for rank, (title_ko, tmdb_data) in enumerate(resolved, start=1):
         if tmdb_data:
-            print(f"  ✅ [티빙] {slot:2d}. '{title_ko}' → tmdb_id={tmdb_data.get('tmdb_id')}")
+            print(f"  ✅ [티빙] {rank:2d}. '{title_ko}' → tmdb_id={tmdb_data.get('tmdb_id')}")
+            conn.execute("""
+                INSERT OR REPLACE INTO rankings
+                    (date, platform, category, category_slot, source_name, rank,
+                     title_ko, title_en, tmdb_id, poster_path,
+                     genre, overview, release_year, tmdb_rating, is_manual)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            """, (
+                today, PLATFORM, CATEGORY_SLOT, CATEGORY_SLOT, SOURCE_NAME, rank,
+                tmdb_data.get("title_ko") or title_ko,
+                tmdb_data.get("title_en") or title_ko,
+                tmdb_data.get("tmdb_id"),
+                tmdb_data.get("poster_path"),
+                tmdb_data.get("genre"),
+                tmdb_data.get("overview"),
+                tmdb_data.get("release_year"),
+                tmdb_data.get("tmdb_rating"),
+            ))
         else:
-            # 매칭 실패 → 검토 큐 저장
-            print(f"  ⚠️ [티빙] {slot:2d}. '{title_ko}' → 매칭 실패, 검토 큐 저장")
+            # 매칭 실패 → 검토 큐 저장 + title_ko 만 저장
+            print(f"  ⚠️ [티빙] {rank:2d}. '{title_ko}' → 매칭 실패, 검토 큐 저장")
             conn.execute("""
                 INSERT OR IGNORE INTO review_queue
                     (platform, category_slot, rank, title_en, title_ko_guess, fail_reason, crawled_date)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (PLATFORM, CATEGORY_SLOT, slot, title_ko, title_ko, "tmdb_not_found", get_today()))
-            conn.commit()
+            """, (PLATFORM, CATEGORY_SLOT, rank, title_ko, title_ko, "tmdb_not_found", today))
+            conn.execute("""
+                INSERT OR REPLACE INTO rankings
+                    (date, platform, category, category_slot, source_name,
+                     rank, title_ko, title_en, is_manual)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+            """, (today, PLATFORM, CATEGORY_SLOT, CATEGORY_SLOT, SOURCE_NAME, rank, title_ko, title_ko))
 
-        # _save_tving에 pinned_ranks 전달 → 고정 슬롯 보호
-        _save_tving(conn, slot, title_ko, tmdb_data, pinned_ranks)
+        conn.commit()
         saved_count += 1
 
-    print(f"  [티빙] 크롤링 {saved_count}개 저장 완료 / 고정 {len(pinned_ranks)}개 유지")
+    print(f"  [티빙] 크롤링 {saved_count}개 로컬 저장 완료 (is_manual=2 보호는 upload_to_d1.py 에서 처리)")
 
 
 async def _crawl(page) -> list[str]:
