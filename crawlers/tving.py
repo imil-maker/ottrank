@@ -21,6 +21,9 @@ PLATFORM      = "tving"
 CATEGORY_SLOT = "category01"
 SOURCE_NAME   = "TOP 10 Overall"
 
+# 크롤링 최대 수집 개수 (is_manual=2 수동 작품이 많으므로 15개로 제한)
+CRAWL_LIMIT = 15
+
 
 async def run(conn):
     print("\n[티빙] 랭킹 수집 중...")
@@ -50,6 +53,9 @@ async def run(conn):
     # ── STEP 2. 그룹별 랜덤 배치 ──────────────────────────────────
     # 1~10위: 3개 그룹으로 나눠 각각 랜덤 셔플
     # 11위~ : 나머지 전체 랜덤 셔플
+    # 크롤링 결과 최대 CRAWL_LIMIT 개로 제한
+    titles = titles[:CRAWL_LIMIT]
+
     top10 = titles[:10]
     rest  = titles[10:]
 
