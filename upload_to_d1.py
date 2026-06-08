@@ -89,10 +89,117 @@ def esc(v) -> str:
     return "'" + str(v).replace("'", "''") + "'"
 
 
+def _get_pinned_from_d1() -> dict:
+    """
+    D1에서 is_manual=2 (날짜고정) 목록 조회 — 날짜 무관 전체 조회
+    반환: { (platform, tmdb_id): row_dict, ... }
+
+    ⚠️ 핵심 용도:
+      1. 크롤링 결과 업로드 시 is_manual=2 작품 덮어쓰기 방지 (skip)
+      2. 오늘 날짜로 is_manual=2 복사 시 중복 방지
+    """
+    try:
+        data = d1_execute("""
+            SELECT date, platform, category, category_slot, source_name, rank,
+                   title_ko, title_en, score, tmdb_id, poster_path,
+                   genre, overview, release_year, tmdb_rating, is_manual
+            FROM rankings
+            WHERE is_manual = 2
+            ORDER BY platform, category_slot, rank
+        """)
+        rows = data["result"][0].get("results", [])
+
+        # (platform, tmdb_id) 를 키로 딕셔너리 생성
+        # tmdb_id 가 없는 행은 제외 (보호 대상 아님)
+        pinned = {}
+        for r in rows:
+            if r.get("tmdb_id"):
+                key = (r["platform"], r["tmdb_id"])
+                # 같은 작품이 여러 날짜에 있으면 가장 최신 날짜 것으로 유지
+                if key not in pinned or r["date"] > pinned[key]["date"]:
+                    pinned[key] = r
+
+        print(f"  📌 D1 날짜고정(is_manual=2) 조회: {len(pinned)}개")
+        return pinned
+
+    except Exception as e:
+        print(f"  ⚠️ is_manual=2 조회 실패: {e} — 날짜고정 보호 스킵")
+        return {}
+
+
+def _copy_pinned_to_today(pinned: dict) -> int:
+    """
+    is_manual=2 작품을 오늘 날짜로 복사
+    → 오늘 날짜로 이미 있으면 skip (중복 방지)
+    → 없으면 오늘 날짜로 INSERT (rank, is_manual=2 유지)
+    → "며칠간 TOP10" 집계에 오늘 날짜 데이터가 필요하기 때문
+    """
+    if not pinned:
+        return 0
+
+    # 오늘 날짜로 이미 존재하는 is_manual=2 tmdb_id 세트 조회
+    try:
+        data = d1_execute(f"""
+            SELECT platform, tmdb_id
+            FROM rankings
+            WHERE is_manual = 2
+            AND date = '{TODAY}'
+        """)
+        already_today = {
+            (r["platform"], r["tmdb_id"])
+            for r in data["result"][0].get("results", [])
+            if r.get("tmdb_id")
+        }
+    except Exception as e:
+        print(f"  ⚠️ 오늘 날짜 is_manual=2 조회 실패: {e}")
+        already_today = set()
+
+    sql_list = []
+    for (platform, tmdb_id), r in pinned.items():
+        # 오늘 날짜로 이미 있으면 skip
+        if (platform, tmdb_id) in already_today:
+            continue
+
+        sql_list.append(
+            f"INSERT INTO rankings "
+            f"(date, platform, category, category_slot, source_name, rank, "
+            f"title_ko, title_en, score, tmdb_id, poster_path, "
+            f"genre, overview, release_year, tmdb_rating, is_manual) "
+            f"VALUES ({esc(TODAY)}, {esc(r['platform'])}, {esc(r['category'])}, "
+            f"{esc(r['category_slot'])}, {esc(r.get('source_name'))}, {r['rank']}, "
+            f"{esc(r['title_ko'])}, {esc(r.get('title_en', ''))}, {r.get('score') or 0}, "
+            f"{r['tmdb_id']}, "
+            f"{esc(r['poster_path']) if r.get('poster_path') else 'NULL'}, "
+            f"{esc(r['genre']) if r.get('genre') else 'NULL'}, "
+            f"{esc(r['overview']) if r.get('overview') else 'NULL'}, "
+            f"{r['release_year'] if r.get('release_year') else 'NULL'}, "
+            f"{r['tmdb_rating'] if r.get('tmdb_rating') else 'NULL'}, "
+            f"2);"  # is_manual=2 유지
+        )
+
+    if not sql_list:
+        print(f"  📌 날짜고정 복사: 0개 (오늘 날짜로 이미 모두 존재)")
+        return 0
+
+    success = d1_batch(sql_list)
+    print(f"  ✅ 날짜고정 복사: {success}/{len(sql_list)}개 → 오늘({TODAY}) 날짜로 복사")
+    return success
+
+
 def upload_rankings(conn: sqlite3.Connection) -> int:
     """rankings 오늘 날짜 데이터 D1 업로드
     ⚠️ is_active=0 인 카테고리는 업로드 제외
+    ⚠️ is_manual=2 (날짜고정) 작품은 크롤링 결과로 덮어쓰기 금지
     """
+    # ── STEP 1. D1에서 is_manual=2 목록 조회 ──────────────────
+    # 크롤링 결과 업로드 전에 반드시 먼저 조회해야 함
+    pinned = _get_pinned_from_d1()
+
+    # ── STEP 2. is_manual=2 오늘 날짜로 복사 ──────────────────
+    # 오늘 날짜로 없는 것만 복사 (며칠간 TOP10 집계용)
+    _copy_pinned_to_today(pinned)
+
+    # ── STEP 3. 로컬 크롤링 결과 조회 ─────────────────────────
     rows = conn.execute("""
         SELECT r.date, r.platform, r.category, r.category_slot, r.source_name, r.rank,
                r.title_ko, r.title_en, r.score, r.tmdb_id, r.poster_path,
@@ -106,10 +213,19 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
     """, (TODAY,)).fetchall()
 
     sql_list = []
+    skip_count = 0
     for row in rows:
         (date, platform, category, category_slot, source_name, rank,
          title_ko, title_en, score, tmdb_id, poster_path,
          genre, overview, release_year, tmdb_rating, is_manual) = row
+
+        # ── STEP 4. is_manual=2 작품 skip ─────────────────────
+        # D1에 같은 platform + tmdb_id 로 is_manual=2 가 있으면
+        # 크롤링 결과로 덮어쓰지 않고 건너뜀
+        if tmdb_id and (platform, tmdb_id) in pinned:
+            skip_count += 1
+            continue
+
         sql_list.append(
             f"INSERT OR REPLACE INTO rankings "
             f"(date, platform, category, category_slot, source_name, rank, "
@@ -126,6 +242,9 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
             f"{tmdb_rating if tmdb_rating else 'NULL'}, "
             f"{is_manual or 0});"
         )
+
+    if skip_count:
+        print(f"  📌 날짜고정 skip: {skip_count}개 (is_manual=2 보호)")
 
     if not sql_list:
         print(f"  rankings: 0개 (오늘 날짜 데이터 없음)")
