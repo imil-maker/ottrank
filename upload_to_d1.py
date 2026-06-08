@@ -110,8 +110,15 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
         (date, platform, category, category_slot, source_name, rank,
          title_ko, title_en, score, tmdb_id, poster_path,
          genre, overview, release_year, tmdb_rating, is_manual) = row
+
+        # ── is_manual=2(날짜고정) 데이터는 D1 업로드 제외 ──────────
+        # 날짜고정은 D1에서 직접 관리 — 크롤링 데이터가 덮어쓰면 안됨
+        # is_manual=0(크롤링), is_manual=1(수동추가)는 정상 업로드
+        if (is_manual or 0) == 2:
+            continue
+
         sql_list.append(
-            f"INSERT OR REPLACE INTO rankings "
+            f"INSERT INTO rankings "
             f"(date, platform, category, category_slot, source_name, rank, "
             f"title_ko, title_en, score, tmdb_id, poster_path, "
             f"genre, overview, release_year, tmdb_rating, is_manual) "
@@ -124,7 +131,18 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
             f"{esc(overview) if overview else 'NULL'}, "
             f"{release_year if release_year else 'NULL'}, "
             f"{tmdb_rating if tmdb_rating else 'NULL'}, "
-            f"{is_manual or 0});"
+            f"{is_manual or 0}) "
+            f"ON CONFLICT(date, platform, category, rank) DO UPDATE SET "
+            f"title_ko={esc(title_ko)}, title_en={esc(title_en)}, "
+            f"score={score or 0}, "
+            f"tmdb_id={tmdb_id if tmdb_id else 'NULL'}, "
+            f"poster_path={esc(poster_path) if poster_path else 'NULL'}, "
+            f"genre={esc(genre) if genre else 'NULL'}, "
+            f"overview={esc(overview) if overview else 'NULL'}, "
+            f"release_year={release_year if release_year else 'NULL'}, "
+            f"tmdb_rating={tmdb_rating if tmdb_rating else 'NULL'}, "
+            f"is_manual={is_manual or 0} "
+            f"WHERE rankings.is_manual != 2;"
         )
 
     if not sql_list:
