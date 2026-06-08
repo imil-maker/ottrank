@@ -254,9 +254,12 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
             filtered.append(row)
 
         # ── STEP 6. 빈 rank 자리 계산 ─────────────────────────
-        # is_manual=2 고정 rank 자리를 제외한 나머지에 순서대로 배치
-        total_slots = max(len(filtered) + len(fixed_ranks), 20)
-        empty_slots = [r for r in range(1, total_slots + 1) if r not in fixed_ranks]
+        # skip 후 실제 배치할 수 + 고정 rank 수 기준으로 total_slots 계산
+        # fixed_ranks 최대값도 고려 (고정 rank가 높은 번호면 그 이상이어야 함)
+        actual_count   = len(filtered)  # skip 후 실제 배치할 크롤링 수
+        max_fixed_rank = max(fixed_ranks) if fixed_ranks else 0
+        total_slots    = max(actual_count + len(fixed_ranks), 20, max_fixed_rank)
+        empty_slots    = [r for r in range(1, total_slots + 1) if r not in fixed_ranks]
 
         # ── STEP 7. 빈 rank 자리에 순서대로 배치 ──────────────
         for slot, row in zip(empty_slots, filtered):
