@@ -360,7 +360,7 @@ function F(l,a,e){if(!a.length)return l.slice(0,e).map((o,d)=>({...o,rank:d+1}))
            title_ko, title_en, poster_path, release_year, genre, tmdb_rating,
            is_manual, source_name)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(i,n,b||n,o,-D,parseInt(d),g||"",k||"",p,w,y,O,f?1:0,n).run(),await e.DB.prepare("UPDATE rankings SET rank = ? WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?").bind(D,i,n,o,-D).run(),k&&g&&await e.DB.prepare(`
+      `).bind(i,n,n,o,-D,parseInt(d),g||"",k||"",p,w,y,O,f?1:0,n).run(),await e.DB.prepare("UPDATE rankings SET rank = ? WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?").bind(D,i,n,o,-D).run(),k&&g&&await e.DB.prepare(`
           INSERT INTO title_map (title_en, title_ko, tmdb_id)
           VALUES (?, ?, ?)
           ON CONFLICT(title_en) DO UPDATE SET
