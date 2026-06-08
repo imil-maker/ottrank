@@ -189,11 +189,24 @@ def _copy_pinned_to_today(pinned: dict) -> int:
 def upload_rankings(conn: sqlite3.Connection) -> int:
     """rankings 오늘 날짜 데이터 D1 업로드
     ⚠️ is_active=0 인 카테고리는 업로드 제외
-    ⚠️ is_manual=2 (날짜고정) 작품은 크롤링 결과로 덮어쓰기 금지
+    ⚠️ is_manual=2 (날짜고정) 작품 보호 로직:
+       1. 같은 platform + tmdb_id 로 is_manual=2 있으면 작품 자체 skip
+       2. is_manual=2 없는 빈 rank 자리에 순서대로 배치
+       3. is_manual=2 오늘 날짜로 복사 (며칠간 TOP10 집계용)
     """
+    from collections import defaultdict
+
     # ── STEP 1. D1에서 is_manual=2 목록 조회 ──────────────────
-    # 크롤링 결과 업로드 전에 반드시 먼저 조회해야 함
     pinned = _get_pinned_from_d1()
+
+    # pinned_tmdb_ids: 작품 skip용 { (platform, tmdb_id) }
+    # pinned_ranks_by_slot: 고정된 rank 자리 { (platform, category_slot): {rank, ...} }
+    pinned_tmdb_ids      = set()
+    pinned_ranks_by_slot = defaultdict(set)
+
+    for (platform, tmdb_id), r in pinned.items():
+        pinned_tmdb_ids.add((platform, tmdb_id))
+        pinned_ranks_by_slot[(r["platform"], r["category_slot"])].add(r["rank"])
 
     # ── STEP 2. is_manual=2 오늘 날짜로 복사 ──────────────────
     # 오늘 날짜로 없는 것만 복사 (며칠간 TOP10 집계용)
@@ -212,39 +225,64 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
         ORDER BY r.platform, r.category_slot, r.rank
     """, (TODAY,)).fetchall()
 
-    sql_list = []
-    skip_count = 0
+    # ── STEP 4. 플랫폼+카테고리별로 그룹화 ───────────────────
+    slot_rows = defaultdict(list)
     for row in rows:
-        (date, platform, category, category_slot, source_name, rank,
-         title_ko, title_en, score, tmdb_id, poster_path,
-         genre, overview, release_year, tmdb_rating, is_manual) = row
+        platform_     = row[1]
+        category_slot_ = row[3]
+        slot_rows[(platform_, category_slot_)].append(row)
 
-        # ── STEP 4. is_manual=2 작품 skip ─────────────────────
-        # D1에 같은 platform + tmdb_id 로 is_manual=2 가 있으면
-        # 크롤링 결과로 덮어쓰지 않고 건너뜀
-        if tmdb_id and (platform, tmdb_id) in pinned:
-            skip_count += 1
-            continue
+    sql_list   = []
+    skip_count = 0
 
-        sql_list.append(
-            f"INSERT OR REPLACE INTO rankings "
-            f"(date, platform, category, category_slot, source_name, rank, "
-            f"title_ko, title_en, score, tmdb_id, poster_path, "
-            f"genre, overview, release_year, tmdb_rating, is_manual) "
-            f"VALUES ({esc(date)}, {esc(platform)}, {esc(category)}, "
-            f"{esc(category_slot)}, {esc(source_name)}, {rank}, "
-            f"{esc(title_ko)}, {esc(title_en)}, {score or 0}, "
-            f"{tmdb_id if tmdb_id else 'NULL'}, "
-            f"{esc(poster_path) if poster_path else 'NULL'}, "
-            f"{esc(genre) if genre else 'NULL'}, "
-            f"{esc(overview) if overview else 'NULL'}, "
-            f"{release_year if release_year else 'NULL'}, "
-            f"{tmdb_rating if tmdb_rating else 'NULL'}, "
-            f"{is_manual or 0});"
-        )
+    for (platform, category_slot), slot_data in slot_rows.items():
+        # 이 슬롯의 고정된 rank 자리
+        fixed_ranks = pinned_ranks_by_slot.get((platform, category_slot), set())
+
+        # ── STEP 5. is_manual=2 tmdb_id 인 작품 skip ──────────
+        # 고정 작품은 이미 _copy_pinned_to_today() 에서 D1에 저장됨
+        filtered = []
+        for row in slot_data:
+            (date, platform_, category, category_slot_, source_name, rank,
+             title_ko, title_en, score, tmdb_id, poster_path,
+             genre, overview, release_year, tmdb_rating, is_manual) = row
+
+            if tmdb_id and (platform_, tmdb_id) in pinned_tmdb_ids:
+                skip_count += 1
+                print(f"  📌 skip: [{platform_}] '{title_ko}' (tmdb_id={tmdb_id}) → is_manual=2 보호")
+                continue
+            filtered.append(row)
+
+        # ── STEP 6. 빈 rank 자리 계산 ─────────────────────────
+        # is_manual=2 고정 rank 자리를 제외한 나머지에 순서대로 배치
+        total_slots = max(len(filtered) + len(fixed_ranks), 20)
+        empty_slots = [r for r in range(1, total_slots + 1) if r not in fixed_ranks]
+
+        # ── STEP 7. 빈 rank 자리에 순서대로 배치 ──────────────
+        for slot, row in zip(empty_slots, filtered):
+            (date, platform_, category, category_slot_, source_name, rank,
+             title_ko, title_en, score, tmdb_id, poster_path,
+             genre, overview, release_year, tmdb_rating, is_manual) = row
+
+            sql_list.append(
+                f"INSERT OR REPLACE INTO rankings "
+                f"(date, platform, category, category_slot, source_name, rank, "
+                f"title_ko, title_en, score, tmdb_id, poster_path, "
+                f"genre, overview, release_year, tmdb_rating, is_manual) "
+                f"VALUES ({esc(date)}, {esc(platform_)}, {esc(category)}, "
+                f"{esc(category_slot_)}, {esc(source_name)}, {slot}, "
+                f"{esc(title_ko)}, {esc(title_en)}, {score or 0}, "
+                f"{tmdb_id if tmdb_id else 'NULL'}, "
+                f"{esc(poster_path) if poster_path else 'NULL'}, "
+                f"{esc(genre) if genre else 'NULL'}, "
+                f"{esc(overview) if overview else 'NULL'}, "
+                f"{release_year if release_year else 'NULL'}, "
+                f"{tmdb_rating if tmdb_rating else 'NULL'}, "
+                f"{is_manual or 0});"
+            )
 
     if skip_count:
-        print(f"  📌 날짜고정 skip: {skip_count}개 (is_manual=2 보호)")
+        print(f"  📌 날짜고정 skip 총: {skip_count}개")
 
     if not sql_list:
         print(f"  rankings: 0개 (오늘 날짜 데이터 없음)")
