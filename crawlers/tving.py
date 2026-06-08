@@ -52,21 +52,22 @@ def _get_pinned_info_from_api() -> tuple[set, set]:
         data = resp.json()
         rows = data.get("data", [])
 
-        # tving / category01 / is_manual=2 필터링
+        # tving / category01 / is_manual=1,2 필터링
+        # is_manual=1(수동고정) + is_manual=2(날짜고정) 모두 보호
         pinned = [
             r for r in rows
             if r.get("platform") == PLATFORM
             and r.get("category_slot") == CATEGORY_SLOT
-            and r.get("is_manual") == 2
+            and r.get("is_manual") in (1, 2)
         ]
 
         pinned_ranks    = {r["rank"] for r in pinned}
         pinned_tmdb_ids = {r["tmdb_id"] for r in pinned if r.get("tmdb_id")}
 
         if pinned:
-            print(f"  📌 [티빙] 날짜고정 {len(pinned)}개 조회 완료 — rank: {sorted(pinned_ranks)}")
+            print(f"  📌 [티빙] 고정 작품 {len(pinned)}개 조회 완료 — rank: {sorted(pinned_ranks)}")
         else:
-            print("  📌 [티빙] 날짜고정 데이터 없음")
+            print("  📌 [티빙] 고정 작품 없음")
 
         return pinned_tmdb_ids, pinned_ranks
 
@@ -75,13 +76,20 @@ def _get_pinned_info_from_api() -> tuple[set, set]:
         return set(), set()
 
 
-def _save_tving(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: dict | None):
+def _save_tving(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: dict | None,
+                pinned_ranks: set):
     """티빙 랭킹을 로컬 SQLite rankings 테이블에 저장.
 
+    - 해당 rank에 이미 is_manual=1,2 데이터가 있으면 절대 덮어쓰지 않음
     - 크롤링 결과(is_manual=0)만 저장
-    - INSERT OR REPLACE: 같은 날짜+플랫폼+category_slot+rank 중복 시 교체
     """
     today = get_today()
+
+    # ── 날짜고정/수동고정 rank 보호 ───────────────────────────────
+    # API에서 가져온 pinned_ranks에 포함된 rank는 저장 skip
+    if rank in pinned_ranks:
+        print(f"  📌 [티빙] {rank:2d}위 → 고정 슬롯 — 저장 skip")
+        return
 
     if tmdb_data:
         conn.execute("""
@@ -114,8 +122,9 @@ def _save_tving(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: d
 async def run(conn):
     print("\n[티빙] 랭킹 수집 중...")
 
-    # ── STEP 1. D1에서 날짜고정 목록 조회 (Worker API) ────────────
-    # 로컬 SQLite에는 is_manual=2 데이터가 없으므로 반드시 API로 조회
+    # ── STEP 1. D1에서 고정 작품 목록 조회 (Worker API) ───────────
+    # is_manual=1(수동고정) + is_manual=2(날짜고정) 모두 보호
+    # 로컬 SQLite에는 이 데이터가 없으므로 반드시 API로 조회
     pinned_tmdb_ids, pinned_ranks = _get_pinned_info_from_api()
 
     # ── STEP 2. 크롤링 실행 ────────────────────────────────────────
@@ -152,7 +161,7 @@ async def run(conn):
     crawled_titles = g1 + g2 + g3 + rest   # 크롤링 순위 목록
 
     # ── STEP 4. TMDB 매칭 (저장 전 tmdb_id 확보) ──────────────────
-    # 날짜고정 tmdb_id와 비교하려면 저장 전에 tmdb_id를 먼저 확보해야 함
+    # 고정 tmdb_id와 비교하려면 저장 전에 tmdb_id를 먼저 확보해야 함
     resolved = []   # [(title_ko, tmdb_data or None), ...]
 
     for title_ko in crawled_titles:
@@ -182,19 +191,19 @@ async def run(conn):
             # 매칭 실패 → tmdb_data None
             resolved.append((title_ko, None))
 
-    # ── STEP 5. 날짜고정 작품 skip ────────────────────────────────
-    # 크롤링 결과 중 날짜고정된 tmdb_id와 일치하는 작품은 저장하지 않음
+    # ── STEP 5. 고정 작품 skip ────────────────────────────────────
+    # tmdb_id가 고정 목록에 있는 작품은 오늘 rankings에 저장하지 않음
     # (작품 자체 데이터는 절대 건드리지 않음 — rankings 저장 여부만 제어)
     filtered = []
     for title_ko, tmdb_data in resolved:
         tmdb_id = tmdb_data.get("tmdb_id") if tmdb_data else None
         if tmdb_id and tmdb_id in pinned_tmdb_ids:
-            print(f"  📌 [티빙] '{title_ko}' (tmdb_id={tmdb_id}) → 날짜고정 작품 — 저장 skip")
+            print(f"  📌 [티빙] '{title_ko}' (tmdb_id={tmdb_id}) → 고정 작품 — 저장 skip")
             continue
         filtered.append((title_ko, tmdb_data))
 
     # ── STEP 6. 빈 슬롯 계산 ──────────────────────────────────────
-    # 날짜고정 rank 자리를 제외한 나머지 슬롯에 순서대로 배치
+    # 고정 rank 자리를 제외한 나머지 슬롯에 순서대로 배치
     # 예) 고정: {3, 15} → 빈 슬롯: [1,2,4,5,...,14,16,17,18,19,20]
     total_slots = max(len(filtered) + len(pinned_ranks), 20)
     empty_slots = [r for r in range(1, total_slots + 1) if r not in pinned_ranks]
@@ -214,10 +223,11 @@ async def run(conn):
             """, (PLATFORM, CATEGORY_SLOT, slot, title_ko, title_ko, "tmdb_not_found", get_today()))
             conn.commit()
 
-        _save_tving(conn, slot, title_ko, tmdb_data)
+        # _save_tving에 pinned_ranks 전달 → 고정 슬롯 보호
+        _save_tving(conn, slot, title_ko, tmdb_data, pinned_ranks)
         saved_count += 1
 
-    print(f"  [티빙] 크롤링 {saved_count}개 저장 완료 / 날짜고정 {len(pinned_ranks)}개 유지")
+    print(f"  [티빙] 크롤링 {saved_count}개 저장 완료 / 고정 {len(pinned_ranks)}개 유지")
 
 
 async def _crawl(page) -> list[str]:
