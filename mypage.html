@@ -64,6 +64,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .progress-bar-fill.done{background:var(--green)}
 .progress-val{font-size:11px;color:var(--muted2);font-family:var(--font-mono);min-width:60px;text-align:right}
 .progress-val.done{color:var(--green)}
+/* 더보기 버튼 */
+.sec-more-btn{margin-left:auto;font-size:12px;color:var(--muted2);font-family:var(--font-mono);text-decoration:none;padding:3px 10px;border-radius:6px;border:.5px solid var(--border);transition:all .15s;white-space:nowrap}
+.sec-more-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
 /* 섹션 */
 .sec-wrap{margin-bottom:28px}
 .sec-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
@@ -222,9 +225,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <i class="ti ti-star" style="font-size:16px;color:var(--gold)"></i>
         <span class="sec-title">평점·후기</span>
         <span class="sec-count" id="reviewCount">0개</span>
+        <a class="sec-more-btn" id="reviewMoreBtn" href="/review.html" style="display:none">&gt;&gt; 더보기</a>
       </div>
       <div id="reviewArea"></div>
-      <div class="pagination" id="reviewPager"></div>
+    </div>
+    <!-- 인생작품 -->
+    <div class="sec-wrap">
+      <div class="sec-header">
+        <i class="ti ti-crown" style="font-size:16px;color:var(--gold)"></i>
+        <span class="sec-title">인생작품</span>
+        <span class="sec-count" id="lifeCount">0개</span>
+      </div>
+      <div id="lifeArea"><div class="sec-empty"><i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요</div></div>
+    </div>
+    <!-- 픽리스트 -->
+    <div class="sec-wrap">
+      <div class="sec-header">
+        <i class="ti ti-playlist" style="font-size:16px;color:var(--info)"></i>
+        <span class="sec-title">픽리스트</span>
+        <span class="sec-count" id="pickCount">0개</span>
+      </div>
+      <div id="pickArea"><div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 픽리스트를 만들어보세요</div></div>
     </div>
     <!-- 게시글 -->
     <div class="sec-wrap">
@@ -259,8 +280,8 @@ const IMG='https://image.tmdb.org/t/p/w300';
 let ALL_WISH=[],ALL_REVIEWS=[],ALL_POSTS=[],ALL_GRADES=[];
 let IS_OWN=false,WISH_PUBLIC=true;
 let curPostTab='all';
-let wishPage=1,reviewPage=1,postPage=1;
-const WISH_PER=12,REVIEW_PER=10,POST_PER=10;
+let wishPage=1,postPage=1;
+const WISH_PER=12,POST_PER=10;
 
 fetch('/header.html').then(r=>r.text()).then(html=>{
   document.getElementById('headerArea').innerHTML=html;
@@ -281,7 +302,7 @@ async function init(){
       ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];ALL_POSTS=json.posts||[];
       renderProfile(json.user,json.stats,false);
       renderWishlist(1,false,json.wishlist_hidden);
-      renderReviews(1);renderPosts('all',1);
+      renderReviews();renderPosts('all',1);
     }else{
       if(!sid){show('loadingWrap','none');show('loginPrompt','flex');return;}
       IS_OWN=true;
@@ -292,7 +313,7 @@ async function init(){
       renderProfile(json.user,json.stats,true);
       renderNextGrade(json.user,json.stats);
       renderWishlist(1,true,false);
-      renderReviews(1);renderPosts('all',1);
+      renderReviews();renderPosts('all',1);
       document.getElementById('nicknameEditBtn').style.display='inline-flex';
       document.getElementById('profileActions').style.display='block';
       document.getElementById('providerItem').style.display='flex';
@@ -404,18 +425,34 @@ async function delWish(tmdb_id,btn){
   }catch(e){showToast('오류: '+e.message);}
 }
 
-/* ══ 평점·후기 ══ */
-function renderReviews(page){
-  reviewPage=page;
+/* ══ 평점·후기 — 최신 3개만 표시 ══ */
+function renderReviews(){
+  const PREVIEW=3;
   document.getElementById('reviewCount').textContent=`${ALL_REVIEWS.length}개`;
   const el=document.getElementById('reviewArea');
-  if(!ALL_REVIEWS.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;document.getElementById('reviewPager').innerHTML='';return;}
-  const total=ALL_REVIEWS.length,pages=Math.ceil(total/REVIEW_PER);
-  const slice=ALL_REVIEWS.slice((page-1)*REVIEW_PER,page*REVIEW_PER);
+  const moreBtn=document.getElementById('reviewMoreBtn');
+  if(!ALL_REVIEWS.length){
+    el.innerHTML=`<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;
+    if(moreBtn) moreBtn.style.display='none';
+    return;
+  }
+  // 최신 3개만 슬라이스
+  const slice=ALL_REVIEWS.slice(0,PREVIEW);
+  // 3개 초과 시 더보기 버튼 노출
+  if(moreBtn){
+    if(ALL_REVIEWS.length>PREVIEW){
+      moreBtn.style.display='inline-flex';
+      const uid=new URLSearchParams(location.search).get('uid');
+      moreBtn.href=uid?`/review.html?uid=${uid}`:'/review.html';
+    } else {
+      moreBtn.style.display='none';
+    }
+  }
   el.innerHTML=`<div class="review-list">${slice.map(r=>{
-    const score=parseFloat(r.score)||0;
+    // API가 score를 절반값(5점 기준)으로 내려보내므로 × 2 보정
+    const score=Math.round((parseFloat(r.score)||0) * 2 * 10) / 10;
     const emotions=_json(r.emotions,[]);
-    // 10점 만점 별점 (별 1개 = 2점, 0.5개 = 1점)
+    // 10점 만점 별점 (별 1개 = 2점, 별 반개 = 1점)
     const stars=renderStars(score);
     const _goAttr=`data-tmdb-id="${r.tmdb_id}" data-title-ko="${(r.title_ko||'').replace(/"/g,'&quot;')}" data-category="${r.category||'tv'}" data-release-year="${r.release_year||''}" onclick="goTitle(this)" style="cursor:pointer"`;
     return `<div class="review-item">
@@ -437,7 +474,6 @@ function renderReviews(page){
       </div>
     </div>`;
   }).join('')}</div>`;
-  renderPager('reviewPager',page,pages,p=>renderReviews(p));
 }
 
 function renderStars(score){
@@ -466,7 +502,7 @@ async function delReview(tmdb_id,review_id){
     const json=await res.json();
     if(json.ok){
       ALL_REVIEWS=ALL_REVIEWS.filter(r=>r.id!==review_id);
-      renderReviews(reviewPage);
+      renderReviews();
       showToast('후기가 삭제됐어요');
     }else showToast(json.message||'삭제 실패');
   }catch(e){showToast('오류: '+e.message);}
