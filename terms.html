@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이용약관 — 오뜨랑</title>
+  <meta name="description" content="오뜨랑 서비스 이용약관">
+  <meta name="robots" content="noindex"><!-- 약관 페이지는 검색 노출 불필요 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── CSS 변수 (header.html과 동일) ── */
+    :root {
+      --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24;
+      --card:#16161f;
+      --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+      --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+      --accent:#e63946;
+      --mono:'DM Mono',monospace;
+      --sans:'Noto Sans KR',sans-serif;
+      --disp:'Bebas Neue',sans-serif;
+      --r:10px; --max-w:1440px;
+    }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html { scroll-behavior:smooth; }
+    body {
+      background:var(--bg);
+      color:var(--text);
+      font-family:var(--sans);
+      font-size:15px;
+      line-height:1.8;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* ── 헤더 자리 ── */
+    #ottrang-header { position:sticky; top:0; z-index:200; }
+
+    /* ── 본문 래퍼 ── */
+    .doc-outer {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 60px 28px 80px;
+    }
+
+    /* ── 문서 헤더 ── */
+    .doc-title {
+      font-family: var(--disp);
+      font-size: 36px;
+      letter-spacing: 2px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .doc-meta {
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      margin-bottom: 48px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── 섹션 ── */
+    .doc-section { margin-bottom: 40px; }
+    .doc-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 12px;
+      padding-left: 12px;
+      border-left: 3px solid var(--accent);
+    }
+    .doc-section p {
+      color: var(--muted2);
+      margin-bottom: 10px;
+    }
+    .doc-section ul, .doc-section ol {
+      padding-left: 20px;
+      color: var(--muted2);
+    }
+    .doc-section li { margin-bottom: 6px; }
+    .doc-section strong { color: var(--text); font-weight: 500; }
+
+    /* ── 모바일 ── */
+    @media (max-width:768px) {
+      .doc-outer { padding: 40px 16px 60px; }
+      .doc-title { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div id="ottrang-header"></div>
+
+<!-- 본문 -->
+<main class="doc-outer">
+
+  <h1 class="doc-title">이용약관</h1>
+  <p class="doc-meta">시행일: 2026년 7월 1일 &nbsp;·&nbsp; 최종 수정: 2026년 7월 1일</p>
+
+  <div class="doc-section">
+    <h2>제1조 (목적)</h2>
+    <p>
+      이 약관은 오뜨랑(OTTRANK, 이하 "서비스")이 제공하는 OTT 랭킹 정보 및 커뮤니티 서비스의 이용과 관련하여
+      서비스와 이용자 간의 권리·의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.
+    </p>
+  </div>
+
+  <div class="doc-section">
+    <h2>제2조 (정의)</h2>
+    <ul>
+      <li><strong>서비스</strong>: 오뜨랑(ottrank.kr)이 운영하는 웹 기반 OTT 랭킹 집계 및 커뮤니티 플랫폼</li>
+      <li><strong>이용자</strong>: 서비스에 접속하여 이 약관에 따라 서비스를 이용하는 모든 자</li>
+      <li><strong>회원</strong>: 서비스에 개인정보를 제공하고 회원 가입을 한 자로, 지속적으로 서비스를 이용할 수 있는 자</li>
+      <li><strong>콘텐츠</strong>: 이용자가 서비스 내에 게시한 글, 댓글, 평점 등 일체의 정보</li>
+    </ul>
+  </div>
+
+  <div class="doc-section">
+    <h2>제3조 (약관의 게시 및 개정)</h2>
+    <ol>
+      <li>서비스는 이 약관의 내용을 서비스 하단(푸터)에 게시합니다.</li>
+      <li>서비스는 「약관의 규제에 관한 법률」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관련 법령을 위반하지 않는 범위에서 약관을 개정할 수 있습니다.</li>
+      <li>약관을 개정할 경우 적용일자 및 개정사유를 명시하여 현행 약관과 함께 서비스 공지사항에 7일 전부터 공지합니다. 단, 이용자에게 불리한 변경의 경우 30일 전에 공지합니다.</li>
+      <li>개정 약관은 공지된 적용일자 이후 서비스를 계속 이용하는 경우 동의한 것으로 간주합니다.</li>
+    </ol>
+  </div>
+
+  <div class="doc-section">
+    <h2>제4조 (서비스의 내용)</h2>
+    <p>서비스는 다음과 같은 기능을 제공합니다.</p>
+    <ul>
+      <li>넷플릭스, 티빙, 디즈니+, 쿠팡플레이, 웨이브 등 국내 OTT 플랫폼 랭킹 집계 및 제공</li>
+      <li>박스오피스 순위 정보 제공</li>
+      <li>작품별 상세 정보 및 OTT 서비스 탑재 현황 안내</li>
+      <li>회원 간 커뮤니티 기능 (게시글, 댓글, 평점 등)</li>
+      <li>서비스가 필요하다고 판단하는 기타 기능</li>
+    </ul>
+  </div>
+
+  <div class="doc-section">
+    <h2>제5조 (서비스 이용 시간 및 중단)</h2>
+    <ol>
+      <li>서비스는 연중무휴, 1일 24시간 제공을 원칙으로 합니다.</li>
+      <li>서비스는 시스템 점검, 장애 복구, 서비스 개선 등의 이유로 서비스 제공이 일시 중단될 수 있으며, 이 경우 사전 또는 사후에 공지합니다.</li>
+      <li>서비스는 긴급한 시스템 장애 등 불가피한 경우 사전 공지 없이 서비스를 중단할 수 있습니다.</li>
+    </ol>
+  </div>
+
+  <div class="doc-section">
+    <h2>제6조 (회원 가입 및 탈퇴)</h2>
+    <ol>
+      <li>이용자는 서비스가 정한 양식에 따라 회원 정보를 기입하고, 이 약관에 동의함으로써 회원 가입을 신청합니다.</li>
+      <li>서비스는 다음에 해당하는 경우 회원 가입을 거부하거나 사후에 이용계약을 해지할 수 있습니다.
+        <ul>
+          <li>타인의 정보를 도용하여 가입한 경우</li>
+          <li>허위 정보를 기재한 경우</li>
+          <li>서비스의 운영을 방해하거나 서비스 이용 질서를 해친 이력이 있는 경우</li>
+        </ul>
+      </li>
+      <li>회원은 언제든지 서비스 내 탈퇴 기능을 통해 이용계약을 해지할 수 있습니다.</li>
+      <li>회원 탈퇴 시 관련 법령에 따른 보존 기간을 제외한 개인정보는 즉시 파기됩니다.</li>
+    </ol>
+  </div>
+
+  <div class="doc-section">
+    <h2>제7조 (이용자의 의무)</h2>
+    <p>이용자는 다음 행위를 하여서는 안 됩니다.</p>
+    <ul>
+      <li>타인의 개인정보를 무단으로 수집·도용하는 행위</li>
+      <li>서비스의 운영을 방해하거나 서버에 과부하를 유발하는 행위</li>
+      <li>허위 정보를 게시하거나 타인을 사칭하는 행위</li>
+      <li>음란·폭력적이거나 타인의 명예를 훼손하는 콘텐츠를 게시하는 행위</li>
+      <li>서비스의 지식재산권을 침해하는 행위</li>
+      <li>관련 법령 또는 이 약관에서 금지하는 행위</li>
+    </ul>
+  </div>
+
+  <div class="doc-section">
+    <h2>제8조 (콘텐츠의 관리)</h2>
+    <ol>
+      <li>이용자가 서비스에 게시한 콘텐츠의 저작권은 해당 이용자에게 귀속됩니다.</li>
+      <li>서비스는 이용자가 게시한 콘텐츠가 다음에 해당하는 경우 사전 통보 없이 삭제하거나 숨길 수 있습니다.
+        <ul>
+          <li>타인의 명예를 훼손하거나 권리를 침해하는 경우</li>
+          <li>음란·폭력적이거나 청소년에게 유해한 내용인 경우</li>
+          <li>관련 법령에 위반되는 경우</li>
+          <li>서비스의 운영 방침에 위반되는 경우</li>
+        </ul>
+      </li>
+      <li>이용자는 서비스가 서비스 운영, 홍보, 개선 등의 목적으로 이용자의 콘텐츠를 무상으로 사용할 수 있도록 비독점적 라이선스를 부여합니다.</li>
+    </ol>
+  </div>
+
+  <div class="doc-section">
+    <h2>제9조 (서비스 정보의 정확성)</h2>
+    <ol>
+      <li>서비스에서 제공하는 OTT 랭킹 정보는 외부 공개 데이터를 자동 수집한 결과로, 실제 OTT 플랫폼의 공식 순위와 일부 차이가 있을 수 있습니다.</li>
+      <li>서비스는 정보의 정확성을 위해 노력하나, 수집 과정의 오류·지연으로 인한 정보 불일치에 대해 법적 책임을 지지 않습니다.</li>
+      <li>작품 관련 정보(포스터, 설명 등)는 TMDB(The Movie Database) API를 통해 제공되며, 해당 정보의 저작권은 각 원저작자에게 귀속됩니다.</li>
+    </ol>
+  </div>
+
+  <div class="doc-section">
+    <h2>제10조 (면책조항)</h2>
+    <ol>
+      <li>서비스는 천재지변, 전쟁, 테러, 해킹 등 불가항력적 사유로 서비스를 제공할 수 없는 경우 책임이 면제됩니다.</li>
+      <li>서비스는 이용자의 귀책사유로 인한 서비스 이용 장애에 대해 책임을 지지 않습니다.</li>
+      <li>서비스는 이용자 간 또는 이용자와 제3자 사이에 발생한 분쟁에 대해 개입하거나 책임을 지지 않습니다.</li>
+    </ol>
+  </div>
+
+  <div class="doc-section">
+    <h2>제11조 (분쟁 해결)</h2>
+    <ol>
+      <li>서비스와 이용자 간 발생한 분쟁은 상호 협의를 통해 해결하는 것을 원칙으로 합니다.</li>
+      <li>협의가 이루어지지 않는 경우 「콘텐츠산업 진흥법」에 따른 콘텐츠분쟁조정위원회에 조정을 신청할 수 있습니다.</li>
+      <li>이 약관과 관련한 소송의 관할법원은 서울중앙지방법원으로 합니다.</li>
+    </ol>
+  </div>
+
+  <div class="doc-section">
+    <h2>제12조 (문의)</h2>
+    <p>이용약관에 관한 문의는 아래로 연락해 주세요.</p>
+    <ul>
+      <li><strong>이메일</strong>: ottrank@naver.com</li>
+      <li><strong>서비스명</strong>: 오뜨랑(OTTRANK)</li>
+      <li><strong>사이트</strong>: ottrank.kr</li>
+    </ul>
+  </div>
+
+</main>
+
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+
+<script>
+  const API = 'https://ottrank-api.tdidream.workers.dev';
+
+  /* 헤더 삽입 */
+  fetch('/header.html')
+    .then(r => r.text())
+    .then(h => {
+      document.getElementById('ottrang-header').innerHTML = h;
+      document.getElementById('ottrang-header').querySelectorAll('script').forEach(s => {
+        const ns = document.createElement('script');
+        ns.textContent = s.textContent;
+        document.body.appendChild(ns);
+      });
+      if (typeof initHeader === 'function') initHeader();
+    })
+    .catch(() => {})
+    .finally(() => {
+      /* 푸터 삽입 */
+      fetch('/footer.html')
+        .then(r => r.ok ? r.text() : Promise.reject())
+        .then(h => { document.getElementById('ottrang-footer').innerHTML = h; })
+        .catch(() => {});
+    });
+</script>
+
+</body>
+</html>
