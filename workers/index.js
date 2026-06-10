@@ -9,7 +9,7 @@
    videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*, /kmrb/*
    reactions.js : /reactions/*, /admin/reactions*
    auth.js      : /auth/*
-   user.js      : /wishlist/*, /reviews/*, /mypage/*, /user/*, /grade-settings
+   user.js      : /wishlist/*, /reviews/*, /mypage/*, /user/*, /grade-settings, /life-works/*, /pick-lists/*
    posts.js     : /posts/*
    admin.js     : /admin/* (reactions, videos, contents 제외)
    contents.js  : /contents/*, /admin/contents*
@@ -100,13 +100,15 @@ export default {
       res = await handleReactions(path, request, env, ctx, headers);
     }
 
-    // 6. 유저 활동 (찜/후기/마이페이지/등급)
+    // 6. 유저 활동 (찜/후기/마이페이지/등급/인생작품/추천작품)
     if (!res && (
       path.startsWith("/wishlist") ||
       path.startsWith("/reviews") ||
       path.startsWith("/mypage") ||
       path.startsWith("/user/") ||
-      path === "/grade-settings"
+      path === "/grade-settings" ||
+      path.startsWith("/life-works") ||
+      path.startsWith("/pick-lists")
     )) {
       res = await handleUser(path, request, env, ctx, headers);
     }
