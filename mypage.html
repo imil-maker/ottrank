@@ -703,7 +703,16 @@ function renderPickLists(){
     const shown=thumbs.slice(0,6);
     const extra=thumbs.length-shown.length;
     const thumbHtml=shown.map(w=>
-      `<div class="pick-thumb">${w.poster_path
+      `<div class="pick-thumb"
+        data-tmdb-id="${w.tmdb_id}"
+        data-title-ko="${(w.title_ko||'').replace(/"/g,'&quot;')}"
+        data-category="${w.media_type||'tv'}"
+        data-release-year=""
+        onclick="goTitle(this)"
+        style="cursor:pointer;transition:opacity .15s"
+        onmouseover="this.style.opacity='.75'"
+        onmouseout="this.style.opacity='1'"
+        title="${(w.title_ko||'').replace(/"/g,'&quot;')}">${w.poster_path
         ?`<img src="${IMG}${w.poster_path}" alt="" loading="lazy">`
         :`<div class="pick-thumb-ph">🎬</div>`}</div>`
     ).join('')+(extra>0?`<div class="pick-thumb-more">+${extra}</div>`:'');
