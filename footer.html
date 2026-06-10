@@ -21,23 +21,43 @@
 .ottrang-footer-inner {
   max-width: var(--max-w, 1440px);
   margin: 0 auto;
-  padding: 28px 28px 32px;
+  padding: 20px 28px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
 }
 
-/* 로고 텍스트 */
-.ottrang-footer-logo {
-  font-family: var(--disp, 'Bebas Neue', sans-serif);
-  font-size: 20px;
-  letter-spacing: 2px;
-  color: var(--muted, #7a7a96);
-  text-decoration: none;
-  line-height: 1;
+/* ── 1행: 로고 + 링크 + TMDB ── */
+.ottrang-footer-row1 {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: wrap;
 }
-.ottrang-footer-logo span { color: var(--accent, #e63946); }
+
+/* 오뜨랑 로고 이미지 */
+.ottrang-footer-logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+  padding-right: 16px;
+  /* 구분선 우측 */
+  border-right: 1px solid var(--border, rgba(255,255,255,0.07));
+  margin-right: 4px;
+}
+.ottrang-footer-logo-img {
+  height: 22px;
+  width: auto;
+  /* mix-blend-mode로 다크 배경에 자연스럽게 합성 */
+  mix-blend-mode: lighten;
+  opacity: .6;
+  transition: opacity .15s;
+}
+.ottrang-footer-logo:hover .ottrang-footer-logo-img { opacity: .9; }
 
 /* 링크 목록 */
 .ottrang-footer-links {
@@ -53,63 +73,70 @@
   text-decoration: none;
   padding: 3px 12px;
   transition: color .15s;
-  /* 구분선: 첫 항목 제외 좌측 border */
   border-left: 1px solid var(--border, rgba(255,255,255,0.07));
   white-space: nowrap;
 }
-.ottrang-footer-links a:first-child {
-  border-left: none;
-}
-.ottrang-footer-links a:hover {
-  color: var(--muted2, #a0a0bc);
-}
-/* 개인정보처리방침만 강조 */
+.ottrang-footer-links a:hover { color: var(--muted2, #a0a0bc); }
+/* 개인정보처리방침 강조 */
 .ottrang-footer-links a.ft-privacy {
   color: var(--muted2, #a0a0bc);
   font-weight: 500;
 }
-.ottrang-footer-links a.ft-privacy:hover {
-  color: var(--text, #ededf0);
-}
+.ottrang-footer-links a.ft-privacy:hover { color: var(--text, #ededf0); }
 
 /* TMDB attribution */
 .ottrang-footer-tmdb {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-top: 4px;
+  gap: 8px;
+  padding-left: 16px;
+  /* 구분선 좌측 */
+  border-left: 1px solid var(--border, rgba(255,255,255,0.07));
+  margin-left: 4px;
+  text-decoration: none;
+  flex-shrink: 0;
 }
 .ottrang-footer-tmdb-logo {
-  height: 14px;
+  height: 13px;
   width: auto;
-  opacity: .5;
-  filter: brightness(0) invert(1); /* 다크 배경에서 흰색으로 */
+  opacity: .45;
+  filter: brightness(0) invert(1);
   transition: opacity .15s;
 }
-.ottrang-footer-tmdb:hover .ottrang-footer-tmdb-logo {
-  opacity: .75;
-}
+.ottrang-footer-tmdb:hover .ottrang-footer-tmdb-logo { opacity: .7; }
 .ottrang-footer-tmdb-text {
   font-size: 11px;
   color: var(--muted, #7a7a96);
   opacity: .7;
-  line-height: 1.4;
+  white-space: nowrap;
 }
 
-/* 카피라이트 */
+/* ── 2행: 카피라이트 ── */
 .ottrang-footer-copy {
   font-size: 11px;
   color: var(--muted, #7a7a96);
   letter-spacing: .3px;
-  opacity: .7;
+  opacity: .5;
 }
 
 /* 모바일 */
 @media (max-width: 768px) {
   .ottrang-footer { margin-top: 60px; }
-  .ottrang-footer-inner { padding: 24px 16px 28px; gap: 12px; }
+  .ottrang-footer-inner { padding: 20px 16px 24px; gap: 12px; }
+  /* 모바일: 로고·링크·TMDB 세로 정렬 */
+  .ottrang-footer-row1 { flex-direction: column; gap: 10px; }
+  .ottrang-footer-logo {
+    border-right: none;
+    padding-right: 0;
+    margin-right: 0;
+  }
+  .ottrang-footer-tmdb {
+    border-left: none;
+    padding-left: 0;
+    margin-left: 0;
+  }
+  .ottrang-footer-tmdb-text { white-space: normal; text-align: center; }
   .ottrang-footer-links a { font-size: 11px; padding: 3px 10px; }
-  .ottrang-footer-tmdb { flex-direction: column; gap: 6px; text-align: center; }
 }
 </style>
 
@@ -117,31 +144,41 @@
 <footer class="ottrang-footer" role="contentinfo">
   <div class="ottrang-footer-inner">
 
-    <!-- 로고 -->
-    <a class="ottrang-footer-logo" href="/" aria-label="오뜨랑 홈">
-      오뜨랑<span>.</span>
-    </a>
+    <!-- 1행: 오뜨랑 로고 | 링크 4개 | TMDB -->
+    <div class="ottrang-footer-row1">
 
-    <!-- 링크 -->
-    <nav class="ottrang-footer-links" aria-label="푸터 링크">
-      <a href="/terms.html">이용약관</a>
-      <a href="/privacy.html" class="ft-privacy">개인정보처리방침</a>
-      <a href="#">광고문의</a>
-      <a href="#">오류신고</a>
-    </nav>
+      <!-- 오뜨랑 로고 -->
+      <a class="ottrang-footer-logo" href="/" aria-label="오뜨랑 홈">
+        <img
+          class="ottrang-footer-logo-img"
+          src="/img/logo.png"
+          alt="오뜨랑 OTTRANK"
+          loading="lazy"
+        >
+      </a>
 
-    <!-- TMDB Attribution (API 이용 약관 필수 표기) -->
-    <a class="ottrang-footer-tmdb" href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" aria-label="The Movie Database (TMDB)">
-      <img
-        class="ottrang-footer-tmdb-logo"
-        src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg"
-        alt="TMDB"
-        loading="lazy"
-      >
-      <span class="ottrang-footer-tmdb-text">This product uses the TMDb API but is not endorsed or certified by TMDb.</span>
-    </a>
+      <!-- 링크 -->
+      <nav class="ottrang-footer-links" aria-label="푸터 링크">
+        <a href="/terms.html">이용약관</a>
+        <a href="/privacy.html" class="ft-privacy">개인정보처리방침</a>
+        <a href="#">광고문의</a>
+        <a href="#">오류신고</a>
+      </nav>
 
-    <!-- 카피라이트 -->
+      <!-- TMDB Attribution (API 이용 약관 필수 표기) -->
+      <a class="ottrang-footer-tmdb" href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" aria-label="The Movie Database (TMDB)">
+        <img
+          class="ottrang-footer-tmdb-logo"
+          src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg"
+          alt="TMDB"
+          loading="lazy"
+        >
+        <span class="ottrang-footer-tmdb-text">This product uses the TMDb API but is not endorsed or certified by TMDb.</span>
+      </a>
+
+    </div>
+
+    <!-- 2행: 카피라이트 -->
     <p class="ottrang-footer-copy">© 2026 오뜨랑(OTTRANK). All rights reserved.</p>
 
   </div>
