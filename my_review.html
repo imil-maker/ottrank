@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>평점·후기 | 오뜨랑</title>
+<link rel="icon" href="/img/icon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;
+  --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
+  --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
+  --r:10px;--r-lg:14px;--content-w:860px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
+#ottrang-header{position:sticky;top:0;z-index:200}
+
+/* ── 본문 ── */
+.page-wrap{max-width:var(--content-w);margin:0 auto;padding:32px 20px 80px}
+
+/* 페이지 헤더 */
+.page-header{display:flex;align-items:center;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+.page-back{display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--muted2);font-size:13px;font-family:var(--font-mono);padding:6px 12px;border-radius:8px;border:.5px solid var(--border);transition:all .15s}
+.page-back:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
+.page-title{font-size:20px;font-weight:700}
+.page-count{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
+
+/* 로딩 */
+.loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:14px}
+.loading-spinner{width:32px;height:32px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-wrap p{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
+
+/* 빈 상태 */
+.sec-empty{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:48px 20px;text-align:center;font-size:13px;color:var(--muted)}
+.sec-empty i{font-size:32px;opacity:.3;display:block;margin-bottom:10px}
+
+/* 후기 리스트 */
+.review-list{display:flex;flex-direction:column;gap:10px}
+.review-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;transition:border-color .15s;display:flex;gap:14px;align-items:flex-start}
+.review-item:hover{border-color:var(--border2)}
+.review-poster-link{text-decoration:none;flex-shrink:0}
+.review-poster{width:48px;height:72px;border-radius:6px;background:var(--bg3);overflow:hidden}
+.review-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.review-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px}
+.review-body{flex:1;min-width:0}
+.review-title-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.review-work-title{font-size:14px;font-weight:600;color:var(--text);cursor:pointer}
+.review-work-title:hover{color:var(--accent)}
+
+/* 10점 만점 별점 */
+.stars-wrap{display:flex;align-items:center;gap:1px;margin-left:auto;flex-shrink:0}
+.star{font-size:13px;color:var(--gold);line-height:1}
+.star.half{position:relative;color:var(--border2)}
+.star.half::before{content:'★';position:absolute;left:0;top:0;width:50%;overflow:hidden;color:var(--gold)}
+.star.off{color:var(--border2)}
+.score-num{font-size:12px;color:var(--gold);font-family:var(--font-mono);margin-left:4px}
+
+.review-text{font-size:13px;color:var(--muted2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.review-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
+.review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.review-likes{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
+.del-btn{margin-left:auto;background:none;border:.5px solid rgba(230,57,70,.3);color:var(--accent);font-size:11px;font-family:var(--font-mono);padding:2px 10px;border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0}
+.del-btn:hover{background:rgba(230,57,70,.1)}
+
+/* 페이지네이션 */
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:20px;flex-wrap:wrap}
+.page-btn{width:34px;height:34px;border-radius:8px;border:.5px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;font-family:var(--font-mono);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.page-btn:hover{border-color:var(--border2);color:var(--text)}
+.page-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.page-btn.arrow{font-size:16px}
+
+/* 토스트 */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
+.toast.show{opacity:1}
+
+@media(max-width:600px){
+  .page-wrap{padding:24px 16px 60px}
+}
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div id="ottrang-header"></div>
+
+<div class="page-wrap">
+
+  <!-- 페이지 헤더 -->
+  <div class="page-header">
+    <a class="page-back" id="backBtn" href="/mypage.html">
+      <i class="ti ti-arrow-left" style="font-size:13px"></i> 마이페이지
+    </a>
+    <span class="page-title">⭐ 평점·후기</span>
+    <span class="page-count" id="totalCount"></span>
+  </div>
+
+  <!-- 로딩 -->
+  <div class="loading-wrap" id="loadingWrap">
+    <div class="loading-spinner"></div>
+    <p>불러오는 중...</p>
+  </div>
+
+  <!-- 후기 목록 -->
+  <div id="reviewArea" style="display:none"></div>
+  <div class="pagination" id="reviewPager"></div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+
+<script>
+const API  = 'https://ottrank-api.tdidream.workers.dev';
+const IMG  = 'https://image.tmdb.org/t/p/w300';
+const PER  = 20; // 한 페이지당 후기 수
+
+let ALL_REVIEWS = [];
+let IS_OWN      = false;
+let curPage     = 1;
+
+/* ── 헤더 삽입 ── */
+fetch('/header.html')
+  .then(r => r.text())
+  .then(h => {
+    document.getElementById('ottrang-header').innerHTML = h;
+    document.querySelectorAll('#ottrang-header script').forEach(s => {
+      const ns = document.createElement('script');
+      ns.textContent = s.textContent;
+      document.body.appendChild(ns);
+    });
+    if (typeof initHeader === 'function') initHeader();
+  })
+  .catch(() => {})
+  .finally(() => {
+    init();
+    /* 푸터 삽입 */
+    fetch('/footer.html')
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(h => { document.getElementById('ottrang-footer').innerHTML = h; })
+      .catch(() => {});
+  });
+
+async function init() {
+  const params    = new URLSearchParams(location.search);
+  const targetUid = params.get('uid');
+  const sid       = localStorage.getItem('ottrang_sid');
+
+  try {
+    if (targetUid) {
+      /* ── 타인 프로필 조회 ── */
+      IS_OWN = false;
+      const json = await (await fetch(`${API}/user/${targetUid}`)).json();
+      if (!json.ok) { showError('유저를 찾을 수 없어요'); return; }
+      ALL_REVIEWS = json.reviews || [];
+      // 뒤로가기 → 해당 유저 마이페이지
+      document.getElementById('backBtn').href = `/mypage.html?uid=${targetUid}`;
+      const nick = json.user?.nickname || '유저';
+      document.title = `${nick}의 평점·후기 | 오뜨랑`;
+    } else {
+      /* ── 내 마이페이지 ── */
+      IS_OWN = true;
+      if (!sid) { showError('로그인이 필요해요'); return; }
+      const json = await (await fetch(`${API}/mypage`, { headers: { Authorization: 'Bearer ' + sid } })).json();
+      if (!json.ok) { showError('로그인이 필요해요'); return; }
+      ALL_REVIEWS = json.reviews || [];
+    }
+
+    document.getElementById('totalCount').textContent = `전체 ${ALL_REVIEWS.length}개`;
+    document.getElementById('loadingWrap').style.display = 'none';
+    document.getElementById('reviewArea').style.display  = 'block';
+    renderReviews(1);
+
+  } catch(e) {
+    showError('데이터를 불러오지 못했어요: ' + e.message);
+  }
+}
+
+/* ── 후기 렌더링 ── */
+function renderReviews(page) {
+  curPage = page;
+  const el = document.getElementById('reviewArea');
+  if (!ALL_REVIEWS.length) {
+    el.innerHTML = `<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;
+    document.getElementById('reviewPager').innerHTML = '';
+    return;
+  }
+  const total = ALL_REVIEWS.length;
+  const pages = Math.ceil(total / PER);
+  const slice = ALL_REVIEWS.slice((page - 1) * PER, page * PER);
+
+  el.innerHTML = `<div class="review-list">${slice.map(r => {
+    // API가 score를 절반값(5점 기준)으로 내려보내므로 × 2 보정 → 10점 만점
+    const score    = Math.round((parseFloat(r.score) || 0) * 2 * 10) / 10;
+    const emotions = _json(r.emotions, []);
+    const stars    = renderStars(score);
+    const _goAttr  = `data-tmdb-id="${r.tmdb_id}" data-title-ko="${(r.title_ko||'').replace(/"/g,'&quot;')}" data-category="${r.category||'tv'}" data-release-year="${r.release_year||''}" onclick="goTitle(this)" style="cursor:pointer"`;
+    return `<div class="review-item">
+      <div class="review-poster-link" ${_goAttr}>
+        <div class="review-poster">${r.poster_path
+          ? `<img src="${IMG}${r.poster_path}" alt="" loading="lazy">`
+          : `<div class="review-poster-ph">🎬</div>`}</div>
+      </div>
+      <div class="review-body">
+        <div class="review-title-row">
+          <span class="review-work-title" ${_goAttr}>${r.title_ko || '작품 #' + r.tmdb_id}</span>
+          <div class="stars-wrap">${stars}<span class="score-num">${score}</span></div>
+        </div>
+        ${r.text ? `<div class="review-text">${r.text}</div>` : ''}
+        <div class="review-footer">
+          ${emotions.slice(0, 3).map(e => `<span class="review-badge">${e}</span>`).join('')}
+          <span class="review-likes"><i class="ti ti-heart" style="font-size:11px"></i>${r.likes || 0}</span>
+          <span class="review-time">${_date(r.created_at)}</span>
+          ${IS_OWN ? `<button class="del-btn" onclick="delReview(${r.tmdb_id},${r.id})">삭제</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+
+  renderPager(page, pages);
+  // 페이지 이동 시 상단으로 스크롤
+  if (page > 1) window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── 별점 렌더링 (10점 만점 → 별 5개) ── */
+function renderStars(score) {
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    const threshold = i * 2; // 별 1개 = 2점, 반개 = 1점
+    if (score >= threshold)        html += `<span class="star">★</span>`;
+    else if (score >= threshold-1) html += `<span class="star half">★</span>`;
+    else                           html += `<span class="star off">★</span>`;
+  }
+  return html;
+}
+
+/* ── 작품 페이지 이동 ── */
+function goTitle(el) {
+  const tmdb_id     = parseInt(el.dataset.tmdbId);
+  const title_ko    = el.dataset.titleKo || '';
+  const category    = el.dataset.category || 'tv';
+  const release_year= el.dataset.releaseYear || null;
+  if (!tmdb_id) return;
+  const y   = release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
+  const url = '/title/1-' + y + tmdb_id;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id, type: category, platform: '', rank: '—',
+    title: title_ko, season: 1, year: parseInt(y)
+  }));
+  location.href = url;
+}
+
+/* ── 후기 삭제 ── */
+async function delReview(tmdb_id, review_id) {
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!confirm('후기를 삭제할까요?')) return;
+  try {
+    const res  = await fetch(`${API}/reviews/${tmdb_id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + sid } });
+    const json = await res.json();
+    if (json.ok) {
+      ALL_REVIEWS = ALL_REVIEWS.filter(r => r.id !== review_id);
+      document.getElementById('totalCount').textContent = `전체 ${ALL_REVIEWS.length}개`;
+      renderReviews(curPage > Math.ceil(ALL_REVIEWS.length / PER) ? 1 : curPage);
+      showToast('후기가 삭제됐어요');
+    } else showToast(json.message || '삭제 실패');
+  } catch(e) { showToast('오류: ' + e.message); }
+}
+
+/* ── 페이지네이션 ── */
+function renderPager(cur, total) {
+  const el = document.getElementById('reviewPager');
+  if (total <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  if (cur > 1) html += `<button class="page-btn arrow" onclick="renderReviews(${cur-1})">‹</button>`;
+  for (let i = 1; i <= total; i++) {
+    html += `<button class="page-btn ${i===cur?'on':''}" onclick="renderReviews(${i})">${i}</button>`;
+  }
+  if (cur < total) html += `<button class="page-btn arrow" onclick="renderReviews(${cur+1})">›</button>`;
+  el.innerHTML = html;
+}
+
+/* ── 유틸 ── */
+function _json(str, fb) { try { return JSON.parse(str); } catch(e) { return fb; } }
+function _date(d) {
+  if (!d) return '';
+  const k = new Date(new Date(d).getTime() + 9*60*60*1000);
+  return `${k.getFullYear()}.${String(k.getMonth()+1).padStart(2,'0')}.${String(k.getDate()).padStart(2,'0')}`;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function showError(msg) {
+  document.getElementById('loadingWrap').innerHTML = `<p style="color:var(--accent);font-family:var(--font-mono)">${msg}</p>`;
+}
+</script>
+</body>
+</html>
