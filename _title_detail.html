@@ -399,6 +399,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   background:var(--info-bg);color:var(--info);
   border:.5px solid var(--info-border);font-family:var(--font-mono);
 }
+/* 강추해요/추천해요/평범해요/별로예요 — 평가 태그만 노란색 */
+.c-ebadge.eval{
+  background:var(--warn-bg);color:var(--gold);
+  border-color:var(--warn-border);
+}
 .c-cbadge{font-size:12px;padding:3px 8px;border-radius:20px;background:var(--warn-bg);color:#c89a10;font-family:var(--font-mono)}
 .sp-badge{
   display:inline-flex;align-items:center;gap:4px;
@@ -1680,7 +1685,7 @@ function renderComments(){
             <span class="c-name">${c.user}</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-            <div class="c-stars">${renderHalfStars(c.score)}</div>
+            <div class="c-stars">${renderHalfStars(c.score/2)}</div>
             <span style="font-size:12px;color:var(--gold);font-family:var(--font-mono);font-weight:600">${(c.score*2).toFixed(1)}</span>
           </div>
         </div>
@@ -1696,7 +1701,7 @@ function renderComments(){
         <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">
           🔗 공유
         </button>
-        ${c.emotions.map(e=>`<span class="c-ebadge">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}
+        ${c.emotions.map(e=>`<span class="c-ebadge${['강추해요','추천해요','평범해요','별로예요'].includes(e)?' eval':''}">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}
         ${c.isMe?`<button class="c-delete-btn" onclick="deleteMyReview(${c.id})">삭제</button>`:''}
       </div>
     </div>`).join('')}</div>`;
@@ -1841,10 +1846,11 @@ function updateUserRatingCard(){
     document.getElementById('userRatingFilled').style.display='none';return;
   }
   const avg5=ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
-  const avg10=fmtScore(avg5*2);const stars=Math.round(avg5);
+  const avg10=fmtScore(avg5*2);
   document.getElementById('userScore').textContent=avg10;
   document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명 평가`;
-  document.getElementById('userStarDisplay').textContent='★'.repeat(stars)+'☆'.repeat(5-stars);
+  // avg5 기준으로 반별까지 정확히 표시 (Math.round 제거 → renderHalfStars 사용)
+  document.getElementById('userStarDisplay').innerHTML=renderHalfStars(avg5);
   document.getElementById('userRatingEmpty').style.display='none';
   document.getElementById('userRatingFilled').style.display='flex';
 }
@@ -1890,7 +1896,7 @@ function showProfile(username){
   document.getElementById('distBars').innerHTML=[5,4,3,2,1].map(s=>`<div class="dist-row"><span class="dist-label">${s}★</span><div class="dist-bar-bg"><div class="dist-bar-fill" style="width:${Math.round((dist[s]/maxCnt)*100)}%"></div></div><span class="dist-count">${dist[s]}</span></div>`).join('');
   document.getElementById('profileReviewCount').textContent=`${reviews.length}개`;
   document.getElementById('userReviews').innerHTML=reviews.length
-    ?reviews.map(r=>`<div class="review-card" onclick="showDetail()"><div class="review-poster"><div class="review-poster-ph">🎬</div></div><div class="review-body"><div class="review-title-row"><span class="review-title">${WORK.title||''}</span><div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${i<=r.score?'':' off'}">★</span>`).join('')}<span class="review-score-num">${r.score*2}</span></div></div><div class="review-text">${r.text}</div><div class="review-footer"><span class="review-time">${r.time}</span>${r.emotions.map(e=>`<span class="c-ebadge">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}</div></div></div>`).join('')
+    ?reviews.map(r=>`<div class="review-card" onclick="showDetail()"><div class="review-poster"><div class="review-poster-ph">🎬</div></div><div class="review-body"><div class="review-title-row"><span class="review-title">${WORK.title||''}</span><div class="review-stars">${[1,2,3,4,5].map(i=>`<span class="review-star${i<=r.score?'':' off'}">★</span>`).join('')}<span class="review-score-num">${r.score*2}</span></div></div><div class="review-text">${r.text}</div><div class="review-footer"><span class="review-time">${r.time}</span>${r.emotions.map(e=>`<span class="c-ebadge${['강추해요','추천해요','평범해요','별로예요'].includes(e)?' eval':''}">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}</div></div></div>`).join('')
     :`<div style="padding:32px;text-align:center;font-size:14px;color:var(--muted)">아직 남긴 평점이 없어요</div>`;
   document.getElementById('detailPage').style.display='none';
   document.getElementById('profilePage').style.display='block';
