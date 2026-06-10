@@ -998,7 +998,7 @@ function parseSlug(pathname){
 }
 
 /* == WORK Init == */
-let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',season:1,year:null,media_type:null};
+let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
 (function initWork(){
   try{
     const stored=sessionStorage.getItem('ottrang_work');
@@ -1079,7 +1079,7 @@ function updateSEO(title,overview,posterUrl,platform,rank){
     const targetUrl=`/title/${slug}`;
     if(location.pathname!==targetUrl)history.replaceState(null,'',targetUrl);
     sessionStorage.setItem('ottrang_slug',targetUrl);
-    sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year}));
+    sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year,poster_path:WORK.poster_path||''}));
   }
   if(posterUrl){const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;setMeta('seoOgImg','content',ogImg);setMeta('seoTwImg','content',ogImg);}
   const ld={'@context':'https://schema.org','@type':'TVSeries','name':t,'description':overview||seoD,'url':canonical};
@@ -1295,6 +1295,7 @@ async function loadTmdb(){
     WORK.title=title;WORK.season=season;
     WORK.year=year||WORK.year||new Date().getFullYear();
     WORK.type=WORK.type||(det.number_of_seasons?'tv':'movie');
+    WORK.poster_path=det.poster_path||'';
 
     // works 테이블 미등록 작품 또는 title_en 교정 필요한 경우 → 백그라운드 자동 등록/업데이트
     // - worksData 없음: 신규 등록
@@ -1822,7 +1823,7 @@ function goReview(starVal,score){
     back_url:getShareUrl().replace('https://ottrank.kr',''),
   };
   sessionStorage.setItem('ottrang_review_data',JSON.stringify(reviewData));
-  sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year}));
+  sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year,poster_path:WORK.poster_path||''}));
   sessionStorage.setItem('ottrang_slug',reviewData.back_url);
   location.href='/review.html';
 }
@@ -2149,10 +2150,10 @@ async function createPickList(){
       body:JSON.stringify({title}),
     });
     const data=await res.json();
-    if(data.ok){
+    if(data.ok&&data.id){
       inp.value='';
       // 새 컬렉션에 현재 작품 바로 추가
-      await fetch(`${OTTRANK_API}/pick-lists/${data.id}/works`,{
+      const addRes=await fetch(`${OTTRANK_API}/pick-lists/${data.id}/works`,{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
         body:JSON.stringify({
@@ -2162,6 +2163,8 @@ async function createPickList(){
           media_type:WORK.type||'tv',
         }),
       });
+      const addData=await addRes.json();
+      if(!addData.ok)showToast(addData.message||'작품 추가 실패');
       // 목록 새로고침
       const res2=await fetch(`${OTTRANK_API}/pick-lists/check/${WORK.tmdb_id}`,{headers:{Authorization:'Bearer '+sid}});
       const data2=await res2.json();
