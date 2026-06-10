@@ -167,6 +167,51 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-share-btn{display:flex;align-items:center;gap:5px;padding:9px 14px;border-radius:var(--r);background:transparent;border:.5px solid rgba(255,255,255,.15);color:rgba(255,255,255,.65);font-size:15px;cursor:pointer;font-family:var(--font-sans);transition:all .15s}
 .hero-share-btn:hover{background:rgba(255,255,255,.08);color:#fff}
 
+/* ── 저장하기 드롭다운 ── */
+.save-dropdown-wrap{position:relative;flex-shrink:0}
+.save-main-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 18px;border-radius:var(--r);
+  background:rgba(255,255,255,.1);border:.5px solid rgba(255,255,255,.2);
+  color:#fff;font-size:15px;font-weight:600;
+  cursor:pointer;font-family:var(--font-sans);
+  transition:all .15s;backdrop-filter:blur(8px);
+}
+.save-main-btn:hover{background:rgba(255,255,255,.18)}
+.save-main-btn.active{background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.5);color:var(--gold)}
+.save-chevron{font-size:11px;transition:transform .2s;display:inline-block}
+.save-main-btn.open .save-chevron{transform:rotate(180deg)}
+/* 드롭다운 패널 */
+.save-dropdown{
+  display:none;position:absolute;top:calc(100% + 8px);left:0;
+  min-width:210px;
+  background:rgba(22,22,31,.97);
+  border:.5px solid rgba(255,255,255,.16);
+  border-radius:var(--r-lg);
+  backdrop-filter:blur(20px);
+  box-shadow:0 8px 32px rgba(0,0,0,.6);
+  z-index:100;overflow:hidden;
+}
+.save-dropdown.show{display:block}
+.save-dropdown-item{
+  display:flex;align-items:center;gap:10px;
+  width:100%;padding:12px 16px;
+  background:transparent;border:none;
+  color:rgba(255,255,255,.8);font-size:14px;font-weight:500;
+  font-family:var(--font-sans);cursor:pointer;
+  transition:background .12s;text-align:left;
+}
+.save-dropdown-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.save-dropdown-item + .save-dropdown-item{border-top:.5px solid rgba(255,255,255,.06)}
+.save-dropdown-item .item-icon{font-size:17px;flex-shrink:0;width:20px;text-align:center}
+.save-dropdown-item .item-label{flex:1}
+.save-dropdown-item .item-check{
+  font-size:12px;color:var(--gold);font-weight:700;
+  opacity:0;transition:opacity .15s;
+}
+.save-dropdown-item.saved .item-check{opacity:1}
+.save-dropdown-item.saved .item-label{color:var(--gold)}
+
 /* ══ 본문 ══ */
 .page-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
 
@@ -666,10 +711,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <!-- 추천 비율 표시 영역 (데이터 로드 후 JS로 렌더링) -->
       <div id="feelingRatios" class="feeling-ratios" style="display:none"></div>
 
-      <!-- 랭킹 정보 행 -->
       <!-- 찜 + 공유 + 랭킹 칩 한 행 -->
       <div class="hero-action-row">
-        <button class="hero-wish-btn" id="wishBtn" onclick="toggleWish()">♡ 찜하기</button>
+        <!-- 저장하기 드롭다운 -->
+        <div class="save-dropdown-wrap" id="saveDropdownWrap">
+          <button class="save-main-btn" id="saveMainBtn" onclick="toggleSaveDropdown(event)">
+            <span id="saveMainIcon">♡</span> 저장하기 <span class="save-chevron">▾</span>
+          </button>
+          <div class="save-dropdown" id="saveDropdown">
+            <!-- ♡ 찜하기 -->
+            <button class="save-dropdown-item" id="wishItem" onclick="handleSaveWish()">
+              <span class="item-icon">♡</span>
+              <span class="item-label">찜하기</span>
+              <span class="item-check">✓</span>
+            </button>
+            <!-- 👑 인생작품 -->
+            <button class="save-dropdown-item" id="lifeItem" onclick="handleSaveLife()">
+              <span class="item-icon">👑</span>
+              <span class="item-label">인생작품으로 저장</span>
+              <span class="item-check">✓</span>
+            </button>
+            <!-- 📋 추천작품 -->
+            <button class="save-dropdown-item" id="pickItem" onclick="handleSavePick()">
+              <span class="item-icon">📋</span>
+              <span class="item-label">추천작품에 추가</span>
+              <span class="item-check">✓</span>
+            </button>
+          </div>
+        </div>
         <button class="hero-share-btn" onclick="shareNative()">
           <i class="ti ti-share" style="font-size:18px"></i> 공유
         </button>
@@ -990,6 +1059,8 @@ let ALL_COMMENTS=[],MY_REVIEW=null;
 let allYtVideos=[],ytPage=0;
 const YT_PER_PAGE=3;
 let _wishlisted=false;
+let _lifeSaved=false;        // 인생작품 저장 여부
+let _saveDropdownOpen=false; // 드롭다운 열림 여부
 
 /* == SEO == */
 function updateSEO(title,overview,posterUrl,platform,rank){
@@ -1176,7 +1247,7 @@ async function loadTmdb(){
     document.getElementById('heroLoading').style.display='none';
     document.getElementById('heroContent').classList.add('visible');
     updateSEO(WORK.title,'',null,WORK.platform,WORK.rank);
-    initWish(WORK.tmdb_id);return;
+    initWish(WORK.tmdb_id);initLifeSave(WORK.tmdb_id);return;
   }
   try{
     // ① works + TMDB 기본정보 병렬 조회
@@ -1316,7 +1387,7 @@ async function loadTmdb(){
 
     // SEO + wish + rank row
     updateSEO(title,det.overview||'',det.poster_path,WORK.platform,WORK.rank);
-    initWish(WORK.tmdb_id);
+    initWish(WORK.tmdb_id);initLifeSave(WORK.tmdb_id);
     renderRankRow();
 
     // Show hero immediately
@@ -1854,28 +1925,257 @@ function updateUserRatingCard(){
 }
 
 /* == Wishlist == */
+/* == 저장하기 드롭다운 == */
+function toggleSaveDropdown(e){
+  e.stopPropagation();
+  _saveDropdownOpen=!_saveDropdownOpen;
+  const btn=document.getElementById('saveMainBtn');
+  const dd=document.getElementById('saveDropdown');
+  if(!btn||!dd)return;
+  if(_saveDropdownOpen){
+    dd.classList.add('show');
+    btn.classList.add('open');
+  }else{
+    dd.classList.remove('show');
+    btn.classList.remove('open');
+  }
+}
+// 외부 클릭 시 드롭다운 닫기
+document.addEventListener('click',function(e){
+  if(!document.getElementById('saveDropdownWrap')?.contains(e.target)){
+    _saveDropdownOpen=false;
+    document.getElementById('saveDropdown')?.classList.remove('show');
+    document.getElementById('saveMainBtn')?.classList.remove('open');
+  }
+});
+
+/* 메인 버튼 아이콘 업데이트 — 하나라도 저장되면 강조 */
+function updateSaveMainBtn(){
+  const btn=document.getElementById('saveMainBtn');
+  const icon=document.getElementById('saveMainIcon');
+  if(!btn||!icon)return;
+  const anySaved=_wishlisted||_lifeSaved;
+  if(anySaved){btn.classList.add('active');icon.textContent='♥';}
+  else{btn.classList.remove('active');icon.textContent='♡';}
+}
+
+/* == 찜하기 == */
 async function initWish(tmdbId){
   if(!tmdbId)return;
   const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
   try{
     const res=await fetch(`${OTTRANK_API}/wishlist/check/${tmdbId}`,{headers:{Authorization:'Bearer '+sid}});
-    const data=await res.json();_wishlisted=data.wishlisted;updateWishBtn();
+    const data=await res.json();
+    _wishlisted=data.wishlisted;
+    updateWishItem();
+    updateSaveMainBtn();
   }catch(e){}
 }
-function updateWishBtn(){
-  const btn=document.getElementById('wishBtn');if(!btn)return;
-  if(_wishlisted){btn.textContent='♥ 찜한 작품';btn.classList.add('wished');}
-  else{btn.textContent='♡ 찜하기';btn.classList.remove('wished');}
+function updateWishItem(){
+  const item=document.getElementById('wishItem');if(!item)return;
+  if(_wishlisted){
+    item.classList.add('saved');
+    item.querySelector('.item-label').textContent='찜한 작품';
+  }else{
+    item.classList.remove('saved');
+    item.querySelector('.item-label').textContent='찜하기';
+  }
 }
-async function toggleWish(){
+async function handleSaveWish(){
   const sid=localStorage.getItem('ottrang_sid');
   if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
   if(!WORK.tmdb_id)return;
   try{
-    const res=await fetch(`${OTTRANK_API}/wishlist`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({tmdb_id:WORK.tmdb_id,title_ko:WORK.title,poster_path:''})});
-    const data=await res.json();if(data.ok){_wishlisted=data.wishlisted;updateWishBtn();}
+    const res=await fetch(`${OTTRANK_API}/wishlist`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+      body:JSON.stringify({tmdb_id:WORK.tmdb_id,title_ko:WORK.title,poster_path:WORK.poster_path||''}),
+    });
+    const data=await res.json();
+    if(data.ok){
+      _wishlisted=data.wishlisted;
+      updateWishItem();
+      updateSaveMainBtn();
+      showToast(_wishlisted?'♥ 찜 목록에 추가됐어요':'찜 목록에서 제거됐어요');
+    }
   }catch(e){}
 }
+
+/* == 인생작품 == */
+async function initLifeSave(tmdbId){
+  if(!tmdbId)return;
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/life-works/check/${tmdbId}`,{headers:{Authorization:'Bearer '+sid}});
+    const data=await res.json();
+    _lifeSaved=data.saved;
+    updateLifeItem();
+    updateSaveMainBtn();
+  }catch(e){}
+}
+function updateLifeItem(){
+  const item=document.getElementById('lifeItem');if(!item)return;
+  if(_lifeSaved){
+    item.classList.add('saved');
+    item.querySelector('.item-label').textContent='인생작품 저장됨';
+  }else{
+    item.classList.remove('saved');
+    item.querySelector('.item-label').textContent='인생작품으로 저장';
+  }
+}
+async function handleSaveLife(){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
+  if(!WORK.tmdb_id)return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/life-works`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+      body:JSON.stringify({
+        tmdb_id:WORK.tmdb_id,
+        title_ko:WORK.title,
+        poster_path:WORK.poster_path||'',
+        media_type:WORK.type||'tv',
+      }),
+    });
+    const data=await res.json();
+    if(data.ok){
+      _lifeSaved=data.saved;
+      updateLifeItem();
+      updateSaveMainBtn();
+      showToast(_lifeSaved?'👑 인생작품으로 저장됐어요':'인생작품에서 제거됐어요');
+    }
+  }catch(e){}
+}
+
+/* == 추천작품 — 모달 방식 == */
+let _pickLists=[];  // 내 컬렉션 목록 캐시
+
+async function handleSavePick(){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
+  if(!WORK.tmdb_id)return;
+  // 드롭다운 닫기
+  _saveDropdownOpen=false;
+  document.getElementById('saveDropdown')?.classList.remove('show');
+  document.getElementById('saveMainBtn')?.classList.remove('open');
+  // 모달 열기
+  await openPickModal();
+}
+
+async function openPickModal(){
+  const sid=localStorage.getItem('ottrang_sid');
+  const modal=document.getElementById('pickModal');
+  if(!modal)return;
+  // 작품 제목 표시
+  const titleEl=document.getElementById('pickModalWorkTitle');
+  if(titleEl)titleEl.textContent=WORK.title||'';
+  modal.style.display='flex';
+  document.getElementById('pickModalList').innerHTML=
+    '<div style="text-align:center;padding:24px;font-size:13px;color:var(--muted)">불러오는 중...</div>';
+  try{
+    const res=await fetch(`${OTTRANK_API}/pick-lists/check/${WORK.tmdb_id}`,{
+      headers:{Authorization:'Bearer '+sid},
+    });
+    const data=await res.json();
+    _pickLists=data.lists||[];
+    renderPickModalList();
+  }catch(e){
+    document.getElementById('pickModalList').innerHTML=
+      '<div style="text-align:center;padding:24px;font-size:13px;color:var(--accent)">불러오기 실패</div>';
+  }
+}
+
+function renderPickModalList(){
+  const el=document.getElementById('pickModalList');if(!el)return;
+  if(!_pickLists.length){
+    el.innerHTML=`<div class="pick-modal-empty">아직 만든 추천작품이 없어요<br><span style="font-size:12px;color:var(--muted)">아래에서 새로 만들어보세요</span></div>`;
+    return;
+  }
+  el.innerHTML=_pickLists.map(list=>`
+    <div class="pick-modal-item ${list.has_work?'in-list':''}" onclick="togglePickWork(${list.id},this)">
+      <span class="pick-modal-check">${list.has_work?'✓':''}</span>
+      <div class="pick-modal-info">
+        <span class="pick-modal-title">${_hesc(list.title)}</span>
+        <span class="pick-modal-count">${list.work_count}개</span>
+      </div>
+    </div>`).join('');
+}
+
+async function togglePickWork(listId, el){
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/pick-lists/${listId}/works`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+      body:JSON.stringify({
+        tmdb_id:WORK.tmdb_id,
+        title_ko:WORK.title,
+        poster_path:WORK.poster_path||'',
+        media_type:WORK.type||'tv',
+      }),
+    });
+    const data=await res.json();
+    if(data.ok){
+      // 캐시 업데이트
+      const list=_pickLists.find(l=>l.id===listId);
+      if(list){
+        list.has_work=data.added;
+        list.work_count=data.added?list.work_count+1:Math.max(0,list.work_count-1);
+      }
+      renderPickModalList();
+      showToast(data.added?'📋 추천작품에 추가됐어요':'추천작품에서 제거됐어요');
+    }
+  }catch(e){}
+}
+
+async function createPickList(){
+  const inp=document.getElementById('pickNewTitle');
+  const title=(inp?.value||'').trim();
+  if(!title){showToast('컬렉션 제목을 입력해주세요');return;}
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/pick-lists`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+      body:JSON.stringify({title}),
+    });
+    const data=await res.json();
+    if(data.ok){
+      inp.value='';
+      // 새 컬렉션에 현재 작품 바로 추가
+      await fetch(`${OTTRANK_API}/pick-lists/${data.id}/works`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+        body:JSON.stringify({
+          tmdb_id:WORK.tmdb_id,
+          title_ko:WORK.title,
+          poster_path:WORK.poster_path||'',
+          media_type:WORK.type||'tv',
+        }),
+      });
+      // 목록 새로고침
+      const res2=await fetch(`${OTTRANK_API}/pick-lists/check/${WORK.tmdb_id}`,{headers:{Authorization:'Bearer '+sid}});
+      const data2=await res2.json();
+      _pickLists=data2.lists||[];
+      renderPickModalList();
+      showToast(`📋 "${title}" 컬렉션을 만들고 추가했어요`);
+    }else{
+      showToast(data.message||'생성 실패');
+    }
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+function closePickModal(){
+  document.getElementById('pickModal').style.display='none';
+}
+
+// HTML 이스케이프 (기존 함수 없을 경우 대비)
+function _hesc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* == Wishlist (구버전 호환 — updateWishBtn, toggleWish 는 아래로 대체) == */
+function updateWishBtn(){updateWishItem();updateSaveMainBtn();}
+async function toggleWish(){await handleSaveWish();}
 
 /* == Profile == */
 function showProfile(username){
@@ -1986,6 +2286,74 @@ async function init(){
 }
 init();
 </script>
+<!-- 추천작품 모달 -->
+<div id="pickModal" style="display:none;position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border:.5px solid var(--border2);
+    border-radius:var(--r-lg);width:100%;max-width:400px;
+    box-shadow:0 16px 48px rgba(0,0,0,.7);overflow:hidden">
+    <!-- 모달 헤더 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:16px 20px;border-bottom:.5px solid var(--border)">
+      <div>
+        <div style="font-size:15px;font-weight:700">📋 추천작품에 추가</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;font-family:var(--font-mono)"
+          id="pickModalWorkTitle"></div>
+      </div>
+      <button onclick="closePickModal()" style="background:none;border:none;
+        color:var(--muted);font-size:20px;cursor:pointer;line-height:1;padding:4px">✕</button>
+    </div>
+    <!-- 컬렉션 목록 -->
+    <div id="pickModalList" style="max-height:280px;overflow-y:auto;padding:8px 0"></div>
+    <!-- 새 컬렉션 만들기 -->
+    <div style="padding:14px 20px;border-top:.5px solid var(--border)">
+      <div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px">+ 새 추천작품 만들기</div>
+      <div style="display:flex;gap:8px">
+        <input id="pickNewTitle" type="text" placeholder="컬렉션 제목 입력" maxlength="50"
+          onkeydown="if(event.key==='Enter')createPickList()"
+          style="flex:1;background:var(--bg3);border:.5px solid var(--border);
+            border-radius:var(--r);color:var(--text);font-size:13px;
+            padding:8px 12px;outline:none;font-family:var(--font-sans)">
+        <button onclick="createPickList()"
+          style="padding:8px 16px;border-radius:var(--r);border:none;
+            background:var(--accent);color:#fff;font-size:13px;
+            font-weight:600;cursor:pointer;white-space:nowrap;
+            font-family:var(--font-sans)">만들기</button>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+.pick-modal-item{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 20px;cursor:pointer;transition:background .12s;
+}
+.pick-modal-item:hover{background:var(--bg3)}
+.pick-modal-item.in-list{background:rgba(240,180,41,.06)}
+.pick-modal-check{
+  width:20px;height:20px;border-radius:50%;
+  border:.5px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--gold);font-weight:700;flex-shrink:0;
+  background:transparent;transition:all .15s;
+}
+.pick-modal-item.in-list .pick-modal-check{
+  background:var(--gold);color:#000;border-color:var(--gold);
+}
+.pick-modal-info{flex:1;min-width:0}
+.pick-modal-title{
+  display:block;font-size:14px;font-weight:500;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pick-modal-item.in-list .pick-modal-title{color:var(--gold)}
+.pick-modal-count{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.pick-modal-empty{
+  padding:32px 20px;text-align:center;
+  font-size:13px;color:var(--muted);line-height:1.8;
+}
+</style>
+
 <!-- 푸터 -->
 <div id="ottrang-footer"></div>
 <script>
