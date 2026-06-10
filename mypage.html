@@ -148,6 +148,41 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .wish-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
   .wish-privacy-row{margin-left:0;width:100%}
 }
+/* 헤더 검색 드롭다운이 페이지 콘텐츠 위에 뜨도록 */
+#headerArea{position:relative;z-index:200}
+.page-wrap{position:relative;z-index:1}
+/* + 추가 버튼 */
+.sec-add-btn{font-size:12px;color:var(--info);font-family:var(--font-mono);padding:3px 10px;border-radius:6px;border:.5px solid var(--info-border);background:var(--info-bg);cursor:pointer;transition:all .15s;white-space:nowrap;margin-left:auto}
+.sec-add-btn:hover{background:rgba(55,138,221,.2);color:#fff}
+/* 추천작품 새 컬렉션 인풋 행 */
+.pick-new-row{display:flex;gap:8px;margin-bottom:14px}
+.pick-new-inp{flex:1;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 12px;outline:none;font-family:var(--font-sans)}
+.pick-new-inp:focus{border-color:var(--info)}
+.pick-new-btn{padding:8px 16px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)}
+/* 컬렉션 카드 내 작품 추가 버튼 */
+.pick-card-add{font-size:11px;color:var(--info);font-family:var(--font-mono);padding:3px 10px;border-radius:4px;border:.5px solid var(--info-border);background:transparent;cursor:pointer;transition:all .15s;flex-shrink:0}
+.pick-card-add:hover{background:var(--info-bg)}
+/* 작품 검색 모달 */
+.work-search-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
+.work-search-modal.show{display:flex}
+.work-search-box{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r-lg);width:100%;max-width:420px;box-shadow:0 16px 48px rgba(0,0,0,.7);overflow:hidden}
+.work-search-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:.5px solid var(--border)}
+.work-search-inp{flex:1;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:14px;padding:8px 12px;outline:none;font-family:var(--font-sans)}
+.work-search-inp:focus{border-color:var(--info)}
+.work-search-close{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;padding:4px;flex-shrink:0}
+.work-search-results{max-height:320px;overflow-y:auto}
+.work-search-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;transition:background .12s;border-bottom:.5px solid var(--border)}
+.work-search-item:hover{background:var(--bg3)}
+.work-search-item:last-child{border-bottom:none}
+.work-search-poster{width:32px;height:48px;border-radius:4px;background:var(--bg3);overflow:hidden;flex-shrink:0}
+.work-search-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.work-search-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:14px}
+.work-search-info{flex:1;min-width:0}
+.work-search-title{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work-search-meta{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.work-search-type{font-size:10px;padding:2px 6px;border-radius:3px;font-family:var(--font-mono);font-weight:600;flex-shrink:0}
+.work-search-empty{padding:32px;text-align:center;font-size:13px;color:var(--muted)}
+.work-search-loading{padding:20px;text-align:center;font-size:12px;color:var(--muted);font-family:var(--font-mono)}
 </style>
 </head>
 <body>
@@ -234,6 +269,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <i class="ti ti-crown" style="font-size:16px;color:var(--gold)"></i>
         <span class="sec-title">인생작품</span>
         <span class="sec-count" id="lifeCount">0개</span>
+        <button class="sec-add-btn" id="lifeAddBtn" style="display:none" onclick="openWorkSearchModal('life',null)">+ 추가</button>
       </div>
       <div id="lifeArea"><div class="sec-empty"><i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요</div></div>
     </div>
@@ -243,6 +279,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <i class="ti ti-playlist" style="font-size:16px;color:var(--info)"></i>
         <span class="sec-title">추천작품</span>
         <span class="sec-count" id="pickCount">0개</span>
+      </div>
+      <!-- 새 컬렉션 만들기 인풋 (본인만) -->
+      <div class="pick-new-row" id="pickNewRow" style="display:none">
+        <input class="pick-new-inp" type="text" id="pickNewTitle" placeholder="새 컬렉션 제목 입력" maxlength="50"
+          onkeydown="if(event.key==='Enter')createPickListFromMypage()">
+        <button class="pick-new-btn" onclick="createPickListFromMypage()">만들기</button>
       </div>
       <div id="pickArea"><div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 추천작품을 만들어보세요</div></div>
     </div>
@@ -306,6 +348,8 @@ async function init(){
       document.getElementById('providerItem').style.display='flex';
       document.getElementById('wishPrivacyRow').style.display='flex';
       document.getElementById('withdrawArea').style.display='block';
+      document.getElementById('lifeAddBtn').style.display='inline-flex';
+      document.getElementById('pickNewRow').style.display='flex';
       updateWishToggleUI(WISH_PUBLIC);
     }
     show('loadingWrap','none');show('mypageContent','block');
@@ -506,7 +550,146 @@ async function delLifeWork(tmdb_id){
   }catch(e){showToast('오류: '+e.message);}
 }
 
-/* ══ 추천작품 ══ */
+/* ══ 추천작품 새 컬렉션 만들기 (마이페이지) ══ */
+async function createPickListFromMypage(){
+  const inp=document.getElementById('pickNewTitle');
+  const title=(inp?.value||'').trim();
+  if(!title){showToast('컬렉션 제목을 입력해주세요');return;}
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{
+    const res=await fetch(`${API}/pick-lists`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+      body:JSON.stringify({title}),
+    });
+    const data=await res.json();
+    if(data.ok){
+      inp.value='';
+      // 새 컬렉션을 목록에 즉시 추가
+      ALL_PICK_LISTS.unshift({id:data.id,title,work_count:0,works:[],is_public:1});
+      renderPickLists();
+      showToast(`📋 "${title}" 컬렉션이 만들어졌어요`);
+    }else showToast(data.message||'생성 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+/* ══ 작품 검색 모달 ══ */
+let _workSearchMode='life';   // 'life' | 'pick'
+let _workSearchListId=null;   // pick 모드일 때 컬렉션 id
+let _workSearchTimer=null;
+const IMG_SEARCH='https://image.tmdb.org/t/p/w92';
+const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
+
+function openWorkSearchModal(mode, listId){
+  _workSearchMode=mode;
+  _workSearchListId=listId;
+  const modal=document.getElementById('workSearchModal');
+  const inp=document.getElementById('workSearchInp');
+  document.getElementById('workSearchResults').innerHTML='<div class="work-search-empty">작품명을 입력해주세요</div>';
+  inp.value='';
+  modal.classList.add('show');
+  setTimeout(()=>inp.focus(),100);
+}
+function closeWorkSearchModal(){
+  document.getElementById('workSearchModal').classList.remove('show');
+  clearTimeout(_workSearchTimer);
+}
+// 모달 배경 클릭 시 닫기
+document.getElementById('workSearchModal')?.addEventListener('click',function(e){
+  if(e.target===this)closeWorkSearchModal();
+});
+
+function onWorkSearch(q){
+  clearTimeout(_workSearchTimer);
+  const el=document.getElementById('workSearchResults');
+  if(!q||q.length<2){
+    el.innerHTML='<div class="work-search-empty">작품명을 입력해주세요</div>';
+    return;
+  }
+  el.innerHTML='<div class="work-search-loading">검색 중...</div>';
+  _workSearchTimer=setTimeout(()=>_runWorkSearch(q),350);
+}
+
+async function _runWorkSearch(q){
+  const el=document.getElementById('workSearchResults');
+  try{
+    const [dbRes,tvRes,mvRes]=await Promise.allSettled([
+      fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=5`).then(r=>r.json()),
+      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`).then(r=>r.json()),
+      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`).then(r=>r.json()),
+    ]);
+    const dbWorks=(dbRes.status==='fulfilled'?dbRes.value.data||[]:[]).slice(0,5);
+    const dbIds=new Set(dbWorks.map(w=>w.tmdb_id));
+    const tvWorks=(tvRes.status==='fulfilled'?(tvRes.value.results||[]):[])
+      .filter(r=>!dbIds.has(r.id)).slice(0,4)
+      .map(r=>({tmdb_id:r.id,title_ko:r.name||r.title||'',title_en:r.original_name||'',poster_path:r.poster_path||'',media_type:'tv',release_year:(r.first_air_date||'').slice(0,4)}));
+    const mvWorks=(mvRes.status==='fulfilled'?(mvRes.value.results||[]):[])
+      .filter(r=>!dbIds.has(r.id)).slice(0,3)
+      .map(r=>({tmdb_id:r.id,title_ko:r.title||r.name||'',title_en:r.original_title||'',poster_path:r.poster_path||'',media_type:'movie',release_year:(r.release_date||'').slice(0,4)}));
+    const all=[...dbWorks,...tvWorks,...mvWorks];
+    if(!all.length){el.innerHTML='<div class="work-search-empty">검색 결과가 없어요</div>';return;}
+    el.innerHTML=all.map(w=>{
+      const poster=w.poster_path
+        ?`<img src="${IMG_SEARCH}${w.poster_path}" alt="" loading="lazy">`
+        :`<div class="work-search-poster-ph">🎬</div>`;
+      const typeColor=w.media_type==='movie'?'rgba(240,180,41,.8)':'rgba(55,138,221,.8)';
+      const typeLabel=w.media_type==='movie'?'영화':'TV';
+      return `<div class="work-search-item" onclick="selectWork(${w.tmdb_id},'${_esc(w.title_ko)}','${w.poster_path||''}','${w.media_type||'tv'}')">
+        <div class="work-search-poster">${poster}</div>
+        <div class="work-search-info">
+          <div class="work-search-title">${_esc(w.title_ko)}</div>
+          <div class="work-search-meta">${_esc(w.title_en||'')}${w.release_year?' · '+w.release_year:''}</div>
+        </div>
+        <span class="work-search-type" style="background:${typeColor};color:#fff">${typeLabel}</span>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML='<div class="work-search-empty">검색 중 오류가 발생했어요</div>';}
+}
+
+async function selectWork(tmdb_id, title_ko, poster_path, media_type){
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  closeWorkSearchModal();
+  try{
+    if(_workSearchMode==='life'){
+      // 인생작품 추가
+      const res=await fetch(`${API}/life-works`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+        body:JSON.stringify({tmdb_id,title_ko,poster_path,media_type}),
+      });
+      const data=await res.json();
+      if(data.ok&&data.saved){
+        ALL_LIFE_WORKS.unshift({tmdb_id,title_ko,poster_path,media_type});
+        renderLifeWorks();
+        showToast('👑 인생작품으로 저장됐어요');
+      }else if(data.ok&&!data.saved){
+        showToast('이미 등록된 인생작품이에요');
+      }else showToast(data.message||'저장 실패');
+    }else if(_workSearchMode==='pick'&&_workSearchListId){
+      // 추천작품 컬렉션에 추가
+      const res=await fetch(`${API}/pick-lists/${_workSearchListId}/works`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+        body:JSON.stringify({tmdb_id,title_ko,poster_path,media_type}),
+      });
+      const data=await res.json();
+      if(data.ok&&data.added){
+        // 해당 컬렉션에 작품 추가 후 재렌더
+        const list=ALL_PICK_LISTS.find(l=>l.id===_workSearchListId);
+        if(list){
+          list.works.push({tmdb_id,title_ko,poster_path,media_type});
+          list.work_count=(list.work_count||0)+1;
+        }
+        renderPickLists();
+        showToast('📋 추천작품에 추가됐어요');
+      }else if(data.ok&&!data.added){
+        showToast('이미 추가된 작품이에요');
+      }else showToast(data.message||'추가 실패');
+    }
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+
 function renderPickLists(){
   document.getElementById('pickCount').textContent=`${ALL_PICK_LISTS.length}개`;
   const el=document.getElementById('pickArea');
@@ -529,6 +712,7 @@ function renderPickLists(){
       <div class="pick-card-header">
         <span class="pick-card-title">📋 ${_esc(list.title)}</span>
         <span class="pick-card-count">${list.work_count||0}개</span>
+        ${IS_OWN?`<button class="pick-card-add" onclick="openWorkSearchModal('pick',${list.id})">+ 작품 추가</button>`:''}
         ${IS_OWN?`<button class="pick-card-del" onclick="delPickList(${list.id})">삭제</button>`:''}
       </div>
       <div class="pick-thumb-row">${thumbHtml||'<span style="font-size:12px;color:var(--muted)">작품이 없어요</span>'}</div>
@@ -666,6 +850,21 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 
 init();
 </script>
+<!-- 작품 검색 모달 (인생작품/추천작품 추가용) -->
+<div class="work-search-modal" id="workSearchModal">
+  <div class="work-search-box">
+    <div class="work-search-head">
+      <input class="work-search-inp" id="workSearchInp" type="text"
+        placeholder="작품명 검색..." autocomplete="off"
+        oninput="onWorkSearch(this.value)">
+      <button class="work-search-close" onclick="closeWorkSearchModal()">✕</button>
+    </div>
+    <div class="work-search-results" id="workSearchResults">
+      <div class="work-search-empty">작품명을 입력해주세요</div>
+    </div>
+  </div>
+</div>
+
 <!-- 푸터 -->
 <div id="ottrang-footer"></div>
 <script>
