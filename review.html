@@ -4,12 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>후기 작성 | 오뜨랑</title>
+<link rel="icon" href="/img/icon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
+/* ── CSS 변수 (header.html / mypage.html 완전 동일) ── */
 :root{
-  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
   --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
   --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
   --accent:#e63946;--gold:#f0b429;--green:#34d399;
@@ -19,141 +21,185 @@
   --font-sans:'Noto Sans KR',sans-serif;
   --font-mono:'DM Mono',monospace;
   --r:10px;--r-lg:14px;
-  --content-w:600px;
+  --content-w:640px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:16px;line-height:1.6;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased}
 
-/* ══ 헤더 ══ */
+/* ── 헤더 ── */
 #ottrang-header{position:sticky;top:0;z-index:200}
 .ottrang-banner{display:none!important}
 
-/* ══ 레이아웃 ══ */
-.review-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
+/* ── 레이아웃 ── */
+.review-wrap{max-width:var(--content-w);margin:0 auto;padding:32px 20px 80px}
 
-/* ══ 뒤로가기 ══ */
+/* ── 뒤로가기 (mypage page-back 동일 패턴) ── */
 .back-btn{
   display:inline-flex;align-items:center;gap:6px;
-  font-size:14px;color:var(--muted2);cursor:pointer;
-  margin-bottom:20px;padding:7px 14px;border-radius:var(--r);
+  font-size:13px;color:var(--muted2);cursor:pointer;
+  margin-bottom:24px;padding:6px 12px;border-radius:8px;
   border:.5px solid var(--border);background:transparent;
-  transition:background .15s;text-decoration:none;font-family:var(--font-sans);
+  transition:all .15s;text-decoration:none;font-family:var(--font-mono);
 }
-.back-btn:hover{background:var(--bg3);color:var(--text)}
+.back-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
 
-/* ══ 작품 헤더 ══ */
+/* ── 페이지 타이틀 ── */
+.page-title{font-size:20px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:8px}
+
+/* ── 작품 헤더 카드 (mypage profile-card 톤) ── */
 .work-header{
   display:flex;gap:16px;align-items:flex-start;
-  background:var(--bg2);border:.5px solid var(--border);
-  border-radius:var(--r-lg);padding:16px;margin-bottom:24px;
+  background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%);
+  border:.5px solid var(--border2);border-radius:var(--r-lg);
+  padding:18px;margin-bottom:28px;position:relative;overflow:hidden;
+}
+.work-header::before{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:160px;height:160px;border-radius:50%;
+  background:radial-gradient(circle,rgba(230,57,70,.07),transparent 70%);
+  pointer-events:none;
 }
 .work-poster{
-  width:64px;height:96px;border-radius:8px;
+  width:68px;height:102px;border-radius:8px;
   overflow:hidden;background:var(--bg3);flex-shrink:0;
+  border:.5px solid var(--border);
 }
 .work-poster img{width:100%;height:100%;object-fit:cover;display:block}
-.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px}
-.work-info{flex:1;min-width:0}
-.work-title{font-size:18px;font-weight:700;margin-bottom:4px}
+.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26px}
+.work-info{flex:1;min-width:0;padding-top:2px}
+.work-title{font-size:18px;font-weight:700;margin-bottom:6px;line-height:1.3}
 .work-sub{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
 
-/* ══ 별점 ══ */
-.section-label{font-size:13px;color:var(--muted);margin-bottom:10px;font-family:var(--font-mono)}
-.star-row{display:flex;gap:4px;margin-bottom:6px}
-.star-wrap{position:relative;width:44px;height:44px;cursor:pointer;flex-shrink:0}
-.star-wrap .s-full,.star-wrap .s-half{position:absolute;top:0;left:0;font-size:40px;line-height:1;color:var(--border);transition:color .1s;user-select:none}
-.star-wrap .s-full{z-index:1}.star-wrap .s-half{width:50%;overflow:hidden;z-index:2}
-.star-wrap.half .s-half{color:var(--gold)}.star-wrap.half .s-full{color:var(--border)}
-.star-wrap.full .s-full{color:var(--gold)}.star-wrap.full .s-half{color:var(--gold)}
-.star-label{font-size:14px;color:var(--muted);margin-left:10px;line-height:44px}
+/* ── 섹션 공통 (mypage sec-wrap 동일) ── */
+.review-section{
+  background:var(--bg2);border:.5px solid var(--border);
+  border-radius:var(--r-lg);padding:18px 20px;margin-bottom:14px;
+}
+.review-section-title{
+  font-size:14px;font-weight:600;margin-bottom:14px;
+  display:flex;align-items:center;gap:7px;color:var(--text);
+}
+.review-section-title .title-sub{
+  font-size:11px;color:var(--muted);font-weight:400;
+  font-family:var(--font-mono);margin-left:2px;
+}
 
-/* ══ 평가 4버튼 ══ */
-.eval-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+/* ── 별점 ── */
+.star-row{display:flex;gap:6px;margin-bottom:8px}
+.star-wrap{position:relative;width:46px;height:46px;cursor:pointer;flex-shrink:0}
+.star-wrap .s-full,.star-wrap .s-half{
+  position:absolute;top:0;left:0;font-size:42px;line-height:1;
+  color:var(--border2);transition:color .1s;user-select:none;
+}
+.star-wrap .s-full{z-index:1}
+.star-wrap .s-half{width:50%;overflow:hidden;z-index:2}
+.star-wrap.half .s-half{color:var(--gold)}
+.star-wrap.half .s-full{color:var(--border2)}
+.star-wrap.full .s-full{color:var(--gold)}
+.star-wrap.full .s-half{color:var(--gold)}
+.star-label{
+  font-size:13px;font-family:var(--font-mono);
+  color:var(--muted);margin-left:8px;line-height:46px;
+}
+.star-label.active{color:var(--gold);font-weight:500}
+
+/* ── 평가 4버튼 ── */
+.eval-btns{display:flex;gap:8px;flex-wrap:wrap}
 .eval-btn{
   display:flex;align-items:center;gap:6px;
-  padding:10px 18px;border-radius:30px;
+  padding:9px 18px;border-radius:24px;
   border:.5px solid var(--border);
-  background:var(--bg2);color:var(--muted2);
-  font-size:14px;font-weight:600;cursor:pointer;
-  font-family:var(--font-sans);transition:all .2s ease;
+  background:var(--bg3);color:var(--muted2);
+  font-size:13px;font-weight:500;cursor:pointer;
+  font-family:var(--font-sans);transition:all .2s;
 }
 .eval-btn:hover{border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
-.eval-btn.on{box-shadow:0 2px 12px rgba(55,138,221,.15);transform:translateY(-1px)}
-.eval-btn[data-val="강추해요"].on{background:rgba(240,180,41,.12);color:var(--gold);border-color:rgba(240,180,41,.4)}
-.eval-btn[data-val="추천해요"].on{background:rgba(52,211,153,.1);color:#34d399;border-color:rgba(52,211,153,.4)}
+.eval-btn.on{transform:translateY(-1px);box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.eval-btn[data-val="강추해요"].on{background:var(--warn-bg);color:var(--gold);border-color:rgba(240,180,41,.4)}
+.eval-btn[data-val="추천해요"].on{background:rgba(52,211,153,.1);color:var(--green);border-color:rgba(52,211,153,.4)}
 .eval-btn[data-val="평범해요"].on{background:rgba(160,160,188,.08);color:var(--muted2);border-color:rgba(160,160,188,.4)}
-.eval-btn[data-val="별로예요"].on{background:rgba(230,57,70,.1);color:var(--accent);border-color:rgba(230,57,70,.4)}
+.eval-btn[data-val="별로예요"].on{background:var(--danger-bg);color:var(--accent);border-color:rgba(230,57,70,.4)}
 
-/* ══ 감정 태그 ══ */
-.etag-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px}
-.etag-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+/* ── 감정 태그 ── */
+.etag-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:10px}
+.etag-grid{display:flex;flex-wrap:wrap;gap:8px}
 .etag{
-  display:flex;align-items:center;gap:6px;
-  padding:8px 16px;border-radius:30px;
-  border:.5px solid var(--border);font-size:13px;
-  color:var(--muted2);cursor:pointer;background:var(--bg2);
-  transition:all .2s ease;font-family:var(--font-sans);user-select:none;
+  display:flex;align-items:center;gap:5px;
+  padding:7px 14px;border-radius:24px;
+  border:.5px solid var(--border);font-size:12px;
+  color:var(--muted2);cursor:pointer;background:var(--bg3);
+  transition:all .2s;font-family:var(--font-sans);user-select:none;
 }
 .etag:hover{border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
-.etag.on{background:linear-gradient(135deg,var(--info-bg),rgba(55,138,221,.06));color:var(--info);border-color:var(--info-border);box-shadow:0 2px 12px rgba(55,138,221,.15);transform:translateY(-1px)}
+.etag.on{
+  background:var(--info-bg);color:var(--info);
+  border-color:var(--info-border);
+  box-shadow:0 2px 10px rgba(55,138,221,.12);
+  transform:translateY(-1px);
+}
 .etag.disabled{opacity:.3;cursor:default;transform:none}
-.etag-emoji{font-size:16px;line-height:1}
+.etag-emoji{font-size:14px;line-height:1}
 
-/* ══ 텍스트 입력 ══ */
+/* ── 텍스트 입력 ── */
 .review-textarea{
-  width:100%;min-height:120px;resize:none;
-  background:var(--bg2);border:.5px solid var(--border);
-  border-radius:var(--r);padding:14px;
-  color:var(--text);font-size:15px;font-family:var(--font-sans);
+  width:100%;min-height:110px;resize:none;
+  background:var(--bg3);border:.5px solid var(--border);
+  border-radius:var(--r);padding:12px 14px;
+  color:var(--text);font-size:14px;font-family:var(--font-sans);
   outline:none;line-height:1.6;transition:border-color .15s;
   margin-bottom:6px;
 }
-.review-textarea:focus{border-color:var(--border2)}
-.char-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);text-align:right;margin-bottom:14px}
+.review-textarea:focus{border-color:var(--border2);background:var(--bg2)}
+.review-textarea::placeholder{color:var(--muted)}
+.char-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);text-align:right;margin-bottom:12px}
 .char-count.warn{color:var(--accent)}
-.spoiler-row{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;margin-bottom:24px}
+.spoiler-row{
+  display:flex;align-items:center;gap:7px;
+  font-size:12px;color:var(--muted);cursor:pointer;
+  font-family:var(--font-mono);
+}
+.spoiler-row input{accent-color:var(--accent);width:14px;height:14px}
 
-/* ══ 제출 버튼 ══ */
-.submit-row{display:flex;gap:10px}
+/* ── 제출 버튼 영역 ── */
+.submit-row{display:flex;gap:10px;margin-top:6px}
 .submit-btn{
-  flex:1;padding:14px;border-radius:var(--r);border:none;
-  background:var(--accent);color:#fff;font-size:16px;font-weight:700;
+  flex:1;padding:13px;border-radius:var(--r);border:none;
+  background:var(--accent);color:#fff;font-size:15px;font-weight:700;
   cursor:pointer;font-family:var(--font-sans);transition:background .15s;
 }
 .submit-btn:hover{background:#ff4d58}
 .submit-btn:disabled{opacity:.5;cursor:default}
 .cancel-btn{
-  padding:14px 24px;border-radius:var(--r);
+  padding:13px 22px;border-radius:var(--r);
   border:.5px solid var(--border);background:transparent;
-  color:var(--muted2);font-size:15px;cursor:pointer;
-  font-family:var(--font-sans);transition:all .15s;
+  color:var(--muted2);font-size:14px;cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;white-space:nowrap;
 }
-.cancel-btn:hover{background:var(--bg3);color:var(--text)}
+.cancel-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
 
-/* ══ 삭제 버튼 ══ */
+/* ── 삭제 버튼 ── */
 .delete-btn{
-  width:100%;margin-top:12px;padding:12px;border-radius:var(--r);
+  width:100%;margin-top:10px;padding:11px;border-radius:var(--r);
   border:.5px solid var(--danger-border);background:var(--danger-bg);
-  color:var(--accent);font-size:14px;cursor:pointer;
+  color:var(--accent);font-size:13px;cursor:pointer;
   font-family:var(--font-sans);transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:6px;
 }
-.delete-btn:hover{background:rgba(230,57,70,.2)}
+.delete-btn:hover{background:rgba(230,57,70,.2);border-color:var(--accent)}
 
-/* ══ 섹션 구분 ══ */
-.review-section{margin-bottom:24px}
-.review-section-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
-
-/* ══ 토스트 ══ */
+/* ── 토스트 ── */
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
 .toast.show{opacity:1}
 
-/* ══ 모바일 ══ */
+/* ── 모바일 ── */
 @media(max-width:640px){
+  .review-wrap{padding:24px 16px 60px}
   .eval-btns{gap:6px}
-  .eval-btn{padding:8px 12px;font-size:13px}
-  .star-wrap{width:38px;height:38px}
-  .star-wrap .s-full,.star-wrap .s-half{font-size:34px}
+  .eval-btn{padding:8px 12px;font-size:12px}
+  .star-wrap{width:40px;height:40px}
+  .star-wrap .s-full,.star-wrap .s-half{font-size:36px}
+  .star-label{line-height:40px}
 }
 </style>
 </head>
@@ -181,7 +227,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   <!-- 별점 -->
   <div class="review-section">
-    <div class="review-section-title"><i class="ti ti-star" style="font-size:15px"></i>별점 <span style="font-size:12px;color:var(--muted);font-weight:400">(0.5점 단위 / 10점 만점)</span></div>
+    <div class="review-section-title"><i class="ti ti-star" style="font-size:15px;color:var(--gold)"></i>별점 <span class="title-sub">(0.5점 단위 / 10점 만점)</span></div>
     <div style="display:flex;align-items:center">
       <div class="star-row">
         <div class="star-wrap" data-v="1" onmousemove="hoverStar(event,1)" onmouseleave="leaveStar()" onclick="setStar(this)"><span class="s-full">★</span><span class="s-half">★</span></div>
@@ -196,7 +242,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   <!-- 평가 4버튼 -->
   <div class="review-section">
-    <div class="review-section-title"><i class="ti ti-mood-smile" style="font-size:15px"></i>이 작품을 한마디로?</div>
+    <div class="review-section-title"><i class="ti ti-mood-smile" style="font-size:15px;color:var(--green)"></i>이 작품을 한마디로?</div>
     <div class="eval-btns">
       <button class="eval-btn" data-val="강추해요" onclick="toggleEval(this)">🔥 강추해요</button>
       <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)">👍 추천해요</button>
@@ -207,7 +253,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   <!-- 감정 태그 -->
   <div class="review-section">
-    <div class="review-section-title"><i class="ti ti-tags" style="font-size:15px"></i>감정 태그 <span style="font-size:12px;color:var(--muted);font-weight:400">(최대 3개)</span></div>
+    <div class="review-section-title"><i class="ti ti-tags" style="font-size:15px;color:var(--info)"></i>감정 태그 <span class="title-sub">(최대 3개)</span></div>
     <div class="etag-count" id="etagCount">0 / 3 태그 선택</div>
     <div class="etag-grid">
       <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😰</span>긴장감 넘침</button>
@@ -227,7 +273,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   <!-- 한줄 감상 -->
   <div class="review-section">
-    <div class="review-section-title"><i class="ti ti-message-circle" style="font-size:15px"></i>한줄 감상</div>
+    <div class="review-section-title"><i class="ti ti-message-circle" style="font-size:15px;color:var(--info)"></i>한줄 감상</div>
     <textarea class="review-textarea" id="reviewText" placeholder="한줄 감상을 남겨보세요 (140자 이내)" maxlength="140" oninput="updateCharCount(this)"></textarea>
     <div class="char-count" id="charCount">0 / 140</div>
     <label class="spoiler-row">
@@ -250,8 +296,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <div class="toast" id="toast"></div>
 
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+
 <script>
-/* ══ 헤더 삽입 ══ */
+/* ══ 헤더 + 푸터 삽입 ══ */
 (function(){
   const el=document.getElementById('ottrang-header');
   if(!el)return;
@@ -259,7 +308,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     el.innerHTML=h;
     el.querySelectorAll('script').forEach(s=>{const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);});
     if(typeof initHeader==='function')initHeader();
-  }).catch(()=>{});
+  }).catch(()=>{}).finally(()=>{
+    fetch('/footer.html').then(r=>r.ok?r.text():Promise.reject()).then(h=>{document.getElementById('ottrang-footer').innerHTML=h;}).catch(()=>{});
+  });
 })();
 
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
