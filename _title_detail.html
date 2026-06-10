@@ -1685,7 +1685,7 @@ function renderComments(){
             <span class="c-name">${c.user}</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-            <div class="c-stars">${renderHalfStars(c.score/2)}</div>
+            <div class="c-stars">${renderHalfStars(c.score)}</div>
             <span style="font-size:12px;color:var(--gold);font-family:var(--font-mono);font-weight:600">${(c.score*2).toFixed(1)}</span>
           </div>
         </div>
@@ -1778,13 +1778,11 @@ function renderMyReview(){
   if(filledEl){filledEl.style.display='flex';}
   // 점수: score는 별 개수(0.5~5), *2 하면 1~10점
   const score10=fmtScore(MY_REVIEW.score*2);
-  const starsCount=Math.round(MY_REVIEW.score);
-  const stars='★'.repeat(starsCount)+'☆'.repeat(5-starsCount);
-  // 내 평점 카드: 점수 → 별 순서 (오뜨랑과 동일)
+  // Math.round 제거 → renderHalfStars로 반별까지 정확히 표시
   const scoreEl=document.getElementById('myRatingScore');
   const starEl=document.getElementById('myRatingStarDisplay');
   if(scoreEl)scoreEl.textContent=score10;
-  if(starEl)starEl.textContent=stars;
+  if(starEl)starEl.innerHTML=renderHalfStars(MY_REVIEW.score);
 }
 
 /* == Load Reviews == */
@@ -1987,6 +1985,14 @@ async function init(){
   }
 }
 init();
+</script>
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+<script>
+fetch('/footer.html')
+  .then(r=>r.ok?r.text():Promise.reject())
+  .then(h=>{document.getElementById('ottrang-footer').innerHTML=h;})
+  .catch(()=>{});
 </script>
 </body>
 </html>
