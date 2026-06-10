@@ -12,6 +12,13 @@
    PATCH  /mypage/wishlist-public
    GET    /user/:uid
    GET    /grade-settings
+   POST   /life-works                  인생작품 토글 (추가/해제)
+   GET    /life-works/check/:tmdb_id   인생작품 저장 여부 확인
+   GET    /pick-lists                  내 추천작품 컬렉션 목록
+   POST   /pick-lists                  새 추천작품 컬렉션 생성
+   DELETE /pick-lists/:id              추천작품 컬렉션 삭제
+   POST   /pick-lists/:id/works        컬렉션에 작품 추가/제거 토글
+   GET    /pick-lists/check/:tmdb_id   작품이 담긴 컬렉션 목록 확인
 ══════════════════════════════════════════════════════════════ */
 
 import { _getSessionCookie, _recalcGrade } from "../utils/authUtils.js";
@@ -293,13 +300,38 @@ export async function handleUser(path, request, env, ctx, headers) {
         ORDER BY created_at DESC
       `).bind(uid).all();
 
+      // 인생작품 조회
+      const { results: life_works } = await env.DB.prepare(`
+        SELECT lw.*,
+          COALESCE(wk.poster_path, lw.poster_path) as poster_path,
+          COALESCE(wk.title_ko, lw.title_ko) as title_ko
+        FROM life_works lw
+        LEFT JOIN works wk ON wk.tmdb_id = lw.tmdb_id
+        WHERE lw.user_id = ?
+        ORDER BY lw.created_at DESC
+      `).bind(uid).all();
+
+      // 추천작품 컬렉션 조회 (작품 목록 포함)
+      const { results: pickListRows } = await env.DB.prepare(
+        "SELECT * FROM pick_lists WHERE user_id = ? ORDER BY created_at DESC"
+      ).bind(uid).all();
+      const pick_lists = await Promise.all(pickListRows.map(async (list) => {
+        const { results: works } = await env.DB.prepare(
+          "SELECT * FROM pick_list_works WHERE pick_list_id = ? ORDER BY sort_order ASC, created_at DESC"
+        ).bind(list.id).all();
+        return { ...list, works, work_count: works.length };
+      }));
+
       return new Response(JSON.stringify({
         ok: true, is_own: true, user, reviews, wishlist, posts,
+        life_works, pick_lists,
         stats: {
-          review_count:   reviews.length,
-          wishlist_count: wishlist.length,
-          likes_received: user?.total_likes_received || 0,
-          post_count:     posts.length,
+          review_count:    reviews.length,
+          wishlist_count:  wishlist.length,
+          likes_received:  user?.total_likes_received || 0,
+          post_count:      posts.length,
+          life_work_count: life_works.length,
+          pick_list_count: pick_lists.length,
         },
       }), { headers });
     } catch (e) {
@@ -388,18 +420,265 @@ export async function handleUser(path, request, env, ctx, headers) {
         FROM posts WHERE user_id = ? AND is_hidden = 0 ORDER BY created_at DESC
       `).bind(targetUid).all();
 
+      // 인생작품 조회
+      const { results: life_works } = await env.DB.prepare(`
+        SELECT lw.*,
+          COALESCE(wk.poster_path, lw.poster_path) as poster_path,
+          COALESCE(wk.title_ko, lw.title_ko) as title_ko
+        FROM life_works lw
+        LEFT JOIN works wk ON wk.tmdb_id = lw.tmdb_id
+        WHERE lw.user_id = ?
+        ORDER BY lw.created_at DESC
+      `).bind(targetUid).all();
+
+      // 추천작품 컬렉션 조회 (공개 컬렉션만)
+      const { results: pickListRows } = await env.DB.prepare(
+        "SELECT * FROM pick_lists WHERE user_id = ? AND is_public = 1 ORDER BY created_at DESC"
+      ).bind(targetUid).all();
+      const pick_lists = await Promise.all(pickListRows.map(async (list) => {
+        const { results: works } = await env.DB.prepare(
+          "SELECT * FROM pick_list_works WHERE pick_list_id = ? ORDER BY sort_order ASC, created_at DESC"
+        ).bind(list.id).all();
+        return { ...list, works, work_count: works.length };
+      }));
+
       return new Response(JSON.stringify({
         ok: true, is_own: false, user, reviews, wishlist,
         wishlist_hidden: !user.wishlist_public, posts,
+        life_works, pick_lists,
         stats: {
-          review_count:   reviews.length,
-          wishlist_count: user.wishlist_public ? wishlist.length : null,
-          likes_received: user.total_likes_received || 0,
-          post_count:     posts.length,
+          review_count:    reviews.length,
+          wishlist_count:  user.wishlist_public ? wishlist.length : null,
+          likes_received:  user.total_likes_received || 0,
+          post_count:      posts.length,
+          life_work_count: life_works.length,
+          pick_list_count: pick_lists.length,
         },
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // 인생작품 (Life Works)
+  // ════════════════════════════════════════════════════════════
+
+  // ── POST /life-works — 인생작품 토글 (추가/해제) ──────────
+  if (path === "/life-works" && request.method === "POST") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      const { tmdb_id, title_ko, poster_path, media_type } = await request.json();
+      if (!tmdb_id) return new Response(JSON.stringify({ ok: false, message: "tmdb_id 필요" }), { status: 400, headers });
+
+      const existing = await env.DB.prepare(
+        "SELECT id FROM life_works WHERE user_id = ? AND tmdb_id = ?"
+      ).bind(session.user_id, parseInt(tmdb_id)).first();
+
+      if (existing) {
+        // 이미 있으면 제거
+        await env.DB.prepare(
+          "DELETE FROM life_works WHERE user_id = ? AND tmdb_id = ?"
+        ).bind(session.user_id, parseInt(tmdb_id)).run();
+        return new Response(JSON.stringify({ ok: true, saved: false }), { headers });
+      } else {
+        // 없으면 추가
+        await env.DB.prepare(
+          "INSERT INTO life_works (user_id, tmdb_id, title_ko, poster_path, media_type) VALUES (?, ?, ?, ?, ?)"
+        ).bind(session.user_id, parseInt(tmdb_id), title_ko || "", poster_path || "", media_type || "tv").run();
+        return new Response(JSON.stringify({ ok: true, saved: true }), { headers });
+      }
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /life-works/check/:tmdb_id — 인생작품 저장 여부 ──
+  if (path.match(/^\/life-works\/check\/\d+$/) && request.method === "GET") {
+    try {
+      const tmdb_id   = parseInt(path.split("/")[3]);
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: true, saved: false }), { headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: true, saved: false }), { headers });
+      const existing = await env.DB.prepare(
+        "SELECT id FROM life_works WHERE user_id = ? AND tmdb_id = ?"
+      ).bind(session.user_id, tmdb_id).first();
+      return new Response(JSON.stringify({ ok: true, saved: !!existing }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: true, saved: false }), { headers });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // 추천작품 컬렉션 (Pick Lists)
+  // ════════════════════════════════════════════════════════════
+
+  // ── GET /pick-lists — 내 추천작품 컬렉션 목록 ────────────
+  if (path === "/pick-lists" && request.method === "GET") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      // 컬렉션 목록 + 각 컬렉션의 작품 수 + 작품 목록 함께 조회
+      const { results: lists } = await env.DB.prepare(
+        "SELECT * FROM pick_lists WHERE user_id = ? ORDER BY created_at DESC"
+      ).bind(session.user_id).all();
+
+      // 각 컬렉션의 작품 목록 병렬 조회
+      const listsWithWorks = await Promise.all(lists.map(async (list) => {
+        const { results: works } = await env.DB.prepare(
+          "SELECT * FROM pick_list_works WHERE pick_list_id = ? ORDER BY sort_order ASC, created_at DESC"
+        ).bind(list.id).all();
+        return { ...list, works, work_count: works.length };
+      }));
+
+      return new Response(JSON.stringify({ ok: true, data: listsWithWorks }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /pick-lists — 새 컬렉션 생성 ────────────────────
+  if (path === "/pick-lists" && request.method === "POST") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      const { title, description, is_public } = await request.json();
+      if (!title || !title.trim()) {
+        return new Response(JSON.stringify({ ok: false, message: "컬렉션 제목을 입력해주세요" }), { status: 400, headers });
+      }
+
+      const result = await env.DB.prepare(
+        "INSERT INTO pick_lists (user_id, title, description, is_public) VALUES (?, ?, ?, ?) RETURNING id"
+      ).bind(session.user_id, title.trim().slice(0, 50), (description || "").slice(0, 200), is_public !== false ? 1 : 0).first();
+
+      return new Response(JSON.stringify({ ok: true, id: result?.id }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /pick-lists/:id — 컬렉션 삭제 ─────────────────
+  if (path.match(/^\/pick-lists\/\d+$/) && request.method === "DELETE") {
+    try {
+      const list_id   = parseInt(path.split("/")[2]);
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      // 본인 컬렉션인지 확인
+      const list = await env.DB.prepare(
+        "SELECT id FROM pick_lists WHERE id = ? AND user_id = ?"
+      ).bind(list_id, session.user_id).first();
+      if (!list) return new Response(JSON.stringify({ ok: false, message: "컬렉션을 찾을 수 없어요" }), { status: 404, headers });
+
+      // ON DELETE CASCADE로 pick_list_works도 자동 삭제
+      await env.DB.prepare("DELETE FROM pick_lists WHERE id = ?").bind(list_id).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /pick-lists/:id/works — 컬렉션에 작품 추가/제거 토글
+  if (path.match(/^\/pick-lists\/\d+\/works$/) && request.method === "POST") {
+    try {
+      const list_id   = parseInt(path.split("/")[2]);
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      // 본인 컬렉션인지 확인
+      const list = await env.DB.prepare(
+        "SELECT id FROM pick_lists WHERE id = ? AND user_id = ?"
+      ).bind(list_id, session.user_id).first();
+      if (!list) return new Response(JSON.stringify({ ok: false, message: "컬렉션을 찾을 수 없어요" }), { status: 404, headers });
+
+      const { tmdb_id, title_ko, poster_path, media_type } = await request.json();
+      if (!tmdb_id) return new Response(JSON.stringify({ ok: false, message: "tmdb_id 필요" }), { status: 400, headers });
+
+      const existing = await env.DB.prepare(
+        "SELECT id FROM pick_list_works WHERE pick_list_id = ? AND tmdb_id = ?"
+      ).bind(list_id, parseInt(tmdb_id)).first();
+
+      if (existing) {
+        // 이미 있으면 제거
+        await env.DB.prepare(
+          "DELETE FROM pick_list_works WHERE pick_list_id = ? AND tmdb_id = ?"
+        ).bind(list_id, parseInt(tmdb_id)).run();
+        return new Response(JSON.stringify({ ok: true, added: false }), { headers });
+      } else {
+        // 없으면 추가
+        await env.DB.prepare(
+          "INSERT INTO pick_list_works (pick_list_id, tmdb_id, title_ko, poster_path, media_type) VALUES (?, ?, ?, ?, ?)"
+        ).bind(list_id, parseInt(tmdb_id), title_ko || "", poster_path || "", media_type || "tv").run();
+        return new Response(JSON.stringify({ ok: true, added: true }), { headers });
+      }
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /pick-lists/check/:tmdb_id — 작품이 담긴 컬렉션 목록
+  if (path.match(/^\/pick-lists\/check\/\d+$/) && request.method === "GET") {
+    try {
+      const tmdb_id   = parseInt(path.split("/")[3]);
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: true, lists: [] }), { headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: true, lists: [] }), { headers });
+
+      // 내 컬렉션 전체 + 각 컬렉션에 해당 작품 포함 여부
+      const { results: lists } = await env.DB.prepare(
+        "SELECT * FROM pick_lists WHERE user_id = ? ORDER BY created_at DESC"
+      ).bind(session.user_id).all();
+
+      const listsWithCheck = await Promise.all(lists.map(async (list) => {
+        const inList = await env.DB.prepare(
+          "SELECT id FROM pick_list_works WHERE pick_list_id = ? AND tmdb_id = ?"
+        ).bind(list.id, tmdb_id).first();
+        const { results: works } = await env.DB.prepare(
+          "SELECT COUNT(*) as cnt FROM pick_list_works WHERE pick_list_id = ?"
+        ).bind(list.id).all();
+        return { ...list, has_work: !!inList, work_count: works[0]?.cnt || 0 };
+      }));
+
+      return new Response(JSON.stringify({ ok: true, lists: listsWithCheck }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: true, lists: [] }), { headers });
     }
   }
 
