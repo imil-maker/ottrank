@@ -571,10 +571,15 @@ export async function handleUser(path, request, env, ctx, headers) {
       }
 
       const result = await env.DB.prepare(
-        "INSERT INTO pick_lists (user_id, title, description, is_public) VALUES (?, ?, ?, ?) RETURNING id"
-      ).bind(session.user_id, title.trim().slice(0, 50), (description || "").slice(0, 200), is_public !== false ? 1 : 0).first();
+        "INSERT INTO pick_lists (user_id, title, description, is_public) VALUES (?, ?, ?, ?)"
+      ).bind(session.user_id, title.trim().slice(0, 50), (description || "").slice(0, 200), is_public !== false ? 1 : 0).run();
 
-      return new Response(JSON.stringify({ ok: true, id: result?.id }), { headers });
+      // D1에서 마지막 삽입 row id 가져오기
+      const newRow = await env.DB.prepare(
+        "SELECT id FROM pick_lists WHERE user_id = ? ORDER BY id DESC LIMIT 1"
+      ).bind(session.user_id).first();
+
+      return new Response(JSON.stringify({ ok: true, id: newRow?.id || null }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
