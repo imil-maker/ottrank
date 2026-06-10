@@ -120,21 +120,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .review-likes{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
 .del-btn{margin-left:auto;background:none;border:.5px solid rgba(230,57,70,.3);color:var(--accent);font-size:11px;font-family:var(--font-mono);padding:2px 10px;border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0}
 .del-btn:hover{background:rgba(230,57,70,.1)}
-/* 게시글 */
-.post-tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
-.post-tab{padding:5px 16px;border-radius:20px;border:.5px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
-.post-tab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
-.post-list{display:flex;flex-direction:column;gap:8px}
-.post-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;transition:border-color .15s}
-.post-item:hover{border-color:var(--border2)}
-.post-item-link{text-decoration:none;flex:1;min-width:0;display:flex;align-items:center;gap:10px}
-.post-board-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-family:var(--font-mono);white-space:nowrap;flex-shrink:0}
-.post-board-badge.recommend{background:rgba(240,180,41,.12);color:#c89a10;border:.5px solid rgba(240,180,41,.3)}
-.post-board-badge.free{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-border)}
-.post-board-badge.community{background:rgba(52,211,153,.12);color:var(--green);border:.5px solid rgba(52,211,153,.3)}
-.post-title{font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.post-meta{display:flex;align-items:center;gap:8px;flex-shrink:0}
-.post-meta-item{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
 /* 페이지네이션 */
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap}
 .page-btn{width:34px;height:34px;border-radius:8px;border:.5px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;font-family:var(--font-mono);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
@@ -225,7 +210,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <i class="ti ti-star" style="font-size:16px;color:var(--gold)"></i>
         <span class="sec-title">평점·후기</span>
         <span class="sec-count" id="reviewCount">0개</span>
-        <a class="sec-more-btn" id="reviewMoreBtn" href="/review.html" style="display:none">&gt;&gt; 더보기</a>
+        <a class="sec-more-btn" id="reviewMoreBtn" href="/my_review.html" style="display:none">&gt;&gt; 더보기</a>
       </div>
       <div id="reviewArea"></div>
     </div>
@@ -247,23 +232,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       </div>
       <div id="pickArea"><div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 픽리스트를 만들어보세요</div></div>
     </div>
-    <!-- 게시글 -->
-    <div class="sec-wrap">
-      <div class="sec-header">
-        <i class="ti ti-message-circle" style="font-size:16px;color:var(--info)"></i>
-        <span class="sec-title">게시글</span>
-        <span class="sec-count" id="postCount">0개</span>
-      </div>
-      <div class="post-tabs">
-        <button class="post-tab on" onclick="switchPostTab('all',this)">전체</button>
-        <button class="post-tab" onclick="switchPostTab('recommend',this)">추천게시판</button>
-        <button class="post-tab" onclick="switchPostTab('free',this)">자유게시판</button>
-        <button class="post-tab" onclick="switchPostTab('community',this)">커뮤니티</button>
-      </div>
-      <div id="postArea"></div>
-      <div class="pagination" id="postPager"></div>
-    </div>
-
     <!-- 회원탈퇴 (내 페이지 전용, 맨 아래 아주 작게) -->
     <div id="withdrawArea" style="display:none;text-align:right;padding:8px 4px 0;margin-top:8px">
       <button onclick="doWithdraw()" style="background:none;border:none;color:var(--muted);font-size:12px;font-family:var(--font-mono);cursor:pointer;text-decoration:underline;opacity:.5">
@@ -277,11 +245,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <script>
 const API='https://ottrank-api.tdidream.workers.dev';
 const IMG='https://image.tmdb.org/t/p/w300';
-let ALL_WISH=[],ALL_REVIEWS=[],ALL_POSTS=[],ALL_GRADES=[];
+let ALL_WISH=[],ALL_REVIEWS=[],ALL_GRADES=[];
 let IS_OWN=false,WISH_PUBLIC=true;
-let curPostTab='all';
-let wishPage=1,postPage=1;
-const WISH_PER=12,POST_PER=10;
+let wishPage=1;
+const WISH_PER=12;
 
 fetch('/header.html').then(r=>r.text()).then(html=>{
   document.getElementById('headerArea').innerHTML=html;
@@ -299,21 +266,21 @@ async function init(){
       IS_OWN=false;
       const json=await(await fetch(`${API}/user/${targetUid}`)).json();
       if(!json.ok){show('loadingWrap','none');show('notFoundPrompt','flex');return;}
-      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];ALL_POSTS=json.posts||[];
+      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];
       renderProfile(json.user,json.stats,false);
       renderWishlist(1,false,json.wishlist_hidden);
-      renderReviews();renderPosts('all',1);
+      renderReviews();
     }else{
       if(!sid){show('loadingWrap','none');show('loginPrompt','flex');return;}
       IS_OWN=true;
       const json=await(await fetch(`${API}/mypage`,{headers:{Authorization:'Bearer '+sid}})).json();
       if(!json.ok){localStorage.removeItem('ottrang_sid');show('loadingWrap','none');show('loginPrompt','flex');return;}
-      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];ALL_POSTS=json.posts||[];
+      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];
       WISH_PUBLIC=json.user?.wishlist_public!==0;
       renderProfile(json.user,json.stats,true);
       renderNextGrade(json.user,json.stats);
       renderWishlist(1,true,false);
-      renderReviews();renderPosts('all',1);
+      renderReviews();
       document.getElementById('nicknameEditBtn').style.display='inline-flex';
       document.getElementById('profileActions').style.display='block';
       document.getElementById('providerItem').style.display='flex';
@@ -443,7 +410,7 @@ function renderReviews(){
     if(ALL_REVIEWS.length>PREVIEW){
       moreBtn.style.display='inline-flex';
       const uid=new URLSearchParams(location.search).get('uid');
-      moreBtn.href=uid?`/review.html?uid=${uid}`:'/review.html';
+      moreBtn.href=uid?`/my_review.html?uid=${uid}`:'/my_review.html';
     } else {
       moreBtn.style.display='none';
     }
@@ -508,51 +475,6 @@ async function delReview(tmdb_id,review_id){
   }catch(e){showToast('오류: '+e.message);}
 }
 
-/* ══ 게시글 ══ */
-const BLABEL={recommend:'추천게시판',free:'자유게시판',community:'커뮤니티'};
-function switchPostTab(tab,btn){
-  curPostTab=tab;
-  document.querySelectorAll('.post-tab').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  renderPosts(tab,1);
-}
-function renderPosts(tab,page){
-  postPage=page;
-  const list=tab==='all'?ALL_POSTS:ALL_POSTS.filter(p=>p.board_type===tab);
-  document.getElementById('postCount').textContent=`${ALL_POSTS.length}개`;
-  const el=document.getElementById('postArea');
-  if(!list.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-pencil"></i>${tab==='all'?'아직 쓴 게시글이 없어요':`${BLABEL[tab]||tab}에 쓴 글이 없어요`}</div>`;document.getElementById('postPager').innerHTML='';return;}
-  const total=list.length,pages=Math.ceil(total/POST_PER);
-  const slice=list.slice((page-1)*POST_PER,page*POST_PER);
-  el.innerHTML=`<div class="post-list">${slice.map(p=>`
-    <div class="post-item">
-      <a class="post-item-link" href="/board.html?type=${p.board_type}&id=${p.id}">
-        <span class="post-board-badge ${p.board_type}">${BLABEL[p.board_type]||p.board_type}</span>
-        <span class="post-title">${p.title}</span>
-        <div class="post-meta">
-          <span class="post-meta-item"><i class="ti ti-heart" style="font-size:11px;color:var(--accent)"></i>${p.like_count||0}</span>
-          <span class="post-meta-item"><i class="ti ti-eye" style="font-size:11px"></i>${p.view_count||0}</span>
-          <span class="post-meta-item">${_date(p.created_at)}</span>
-        </div>
-      </a>
-      ${IS_OWN?`<button class="del-btn" onclick="delPost(${p.id})">삭제</button>`:''}
-    </div>`).join('')}</div>`;
-  renderPager('postPager',page,pages,p=>renderPosts(curPostTab,p));
-}
-
-async function delPost(post_id){
-  const sid=localStorage.getItem('ottrang_sid');
-  if(!confirm('게시글을 삭제할까요?'))return;
-  try{
-    const res=await fetch(`${API}/posts/${post_id}`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
-    const json=await res.json();
-    if(json.ok){
-      ALL_POSTS=ALL_POSTS.filter(p=>p.id!==post_id);
-      renderPosts(curPostTab,postPage);
-      showToast('게시글이 삭제됐어요');
-    }else showToast(json.message||'삭제 실패');
-  }catch(e){showToast('오류: '+e.message);}
-}
 
 /* ══ 페이지네이션 ══ */
 function renderPager(elId,cur,total,cb){
@@ -631,6 +553,14 @@ function _date(d){if(!d)return'';const k=new Date(new Date(d).getTime()+9*60*60*
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 init();
+</script>
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+<script>
+fetch('/footer.html')
+  .then(r=>r.ok?r.text():Promise.reject())
+  .then(h=>{ document.getElementById('ottrang-footer').innerHTML=h; })
+  .catch(()=>{});
 </script>
 </body>
 </html>
