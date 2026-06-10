@@ -745,10 +745,13 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const tmdb_id = parseInt(path.split("/")[3]);
       const body    = await request.json();
-      const { title_ko, title_en, poster_path, delete_duplicates } = body;
+      const { title_ko, title_en, poster_path, delete_duplicates, media_type } = body;
+
+      // media_type 유효값만 허용 (tv / movie / null)
+      const finalMediaType = (media_type === 'tv' || media_type === 'movie') ? media_type : null;
 
       const before = await env.DB.prepare(
-        "SELECT title_ko, title_en, poster_path FROM works WHERE tmdb_id = ?"
+        "SELECT title_ko, title_en, poster_path, media_type FROM works WHERE tmdb_id = ?"
       ).bind(tmdb_id).first();
 
       if (delete_duplicates && (title_en || before?.title_en)) {
@@ -765,11 +768,12 @@ export async function handleAdmin(path, request, env, url, headers) {
           title_ko         = COALESCE(?, title_ko),
           title_en         = COALESCE(?, title_en),
           poster_path      = COALESCE(?, poster_path),
+          media_type       = ?,
           match_source     = 'admin',
           confidence_score = 100,
           updated_at       = datetime('now')
         WHERE tmdb_id = ?
-      `).bind(title_ko || null, title_en || null, poster_path || null, tmdb_id).run();
+      `).bind(title_ko || null, title_en || null, poster_path || null, finalMediaType, tmdb_id).run();
 
       await env.DB.prepare(
         "INSERT INTO admin_logs (action, target_id, before_value, after_value) VALUES ('works_update', ?, ?, ?)"
