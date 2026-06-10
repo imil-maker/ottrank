@@ -129,6 +129,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* 토스트 */
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
 .toast.show{opacity:1}
+/* 추천작품 컬렉션 카드 */
+.pick-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px;transition:border-color .15s}
+.pick-card:hover{border-color:var(--border2)}
+.pick-card-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.pick-card-title{font-size:15px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick-card-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0}
+.pick-card-del{background:none;border:.5px solid rgba(230,57,70,.3);color:var(--accent);font-size:11px;font-family:var(--font-mono);padding:3px 10px;border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0}
+.pick-card-del:hover{background:rgba(230,57,70,.1)}
+/* 추천작품 포스터 썸네일 행 */
+.pick-thumb-row{display:flex;gap:6px;flex-wrap:wrap}
+.pick-thumb{width:52px;height:78px;border-radius:5px;background:var(--bg3);overflow:hidden;flex-shrink:0;border:.5px solid var(--border)}
+.pick-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pick-thumb-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px}
+.pick-thumb-more{width:52px;height:78px;border-radius:5px;background:var(--bg3);border:.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0}
 @media(max-width:600px){
   .profile-card{flex-direction:column;align-items:flex-start}
   .wish-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
@@ -223,14 +237,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       </div>
       <div id="lifeArea"><div class="sec-empty"><i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요</div></div>
     </div>
-    <!-- 픽리스트 -->
+    <!-- 추천작품 -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-playlist" style="font-size:16px;color:var(--info)"></i>
-        <span class="sec-title">픽리스트</span>
+        <span class="sec-title">추천작품</span>
         <span class="sec-count" id="pickCount">0개</span>
       </div>
-      <div id="pickArea"><div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 픽리스트를 만들어보세요</div></div>
+      <div id="pickArea"><div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 추천작품을 만들어보세요</div></div>
     </div>
     <!-- 회원탈퇴 (내 페이지 전용, 맨 아래 아주 작게) -->
     <div id="withdrawArea" style="display:none;text-align:right;padding:8px 4px 0;margin-top:8px">
@@ -245,7 +259,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <script>
 const API='https://ottrank-api.tdidream.workers.dev';
 const IMG='https://image.tmdb.org/t/p/w300';
-let ALL_WISH=[],ALL_REVIEWS=[],ALL_GRADES=[];
+let ALL_WISH=[],ALL_REVIEWS=[],ALL_GRADES=[],ALL_LIFE_WORKS=[],ALL_PICK_LISTS=[];
 let IS_OWN=false,WISH_PUBLIC=true;
 let wishPage=1;
 const WISH_PER=12;
@@ -267,20 +281,26 @@ async function init(){
       const json=await(await fetch(`${API}/user/${targetUid}`)).json();
       if(!json.ok){show('loadingWrap','none');show('notFoundPrompt','flex');return;}
       ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];
+      ALL_LIFE_WORKS=json.life_works||[];ALL_PICK_LISTS=json.pick_lists||[];
       renderProfile(json.user,json.stats,false);
       renderWishlist(1,false,json.wishlist_hidden);
       renderReviews();
+      renderLifeWorks();
+      renderPickLists();
     }else{
       if(!sid){show('loadingWrap','none');show('loginPrompt','flex');return;}
       IS_OWN=true;
       const json=await(await fetch(`${API}/mypage`,{headers:{Authorization:'Bearer '+sid}})).json();
       if(!json.ok){localStorage.removeItem('ottrang_sid');show('loadingWrap','none');show('loginPrompt','flex');return;}
       ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];
+      ALL_LIFE_WORKS=json.life_works||[];ALL_PICK_LISTS=json.pick_lists||[];
       WISH_PUBLIC=json.user?.wishlist_public!==0;
       renderProfile(json.user,json.stats,true);
       renderNextGrade(json.user,json.stats);
       renderWishlist(1,true,false);
       renderReviews();
+      renderLifeWorks();
+      renderPickLists();
       document.getElementById('nicknameEditBtn').style.display='inline-flex';
       document.getElementById('profileActions').style.display='block';
       document.getElementById('providerItem').style.display='flex';
@@ -442,6 +462,98 @@ function renderReviews(){
     </div>`;
   }).join('')}</div>`;
 }
+
+/* ══ 인생작품 ══ */
+function renderLifeWorks(){
+  document.getElementById('lifeCount').textContent=`${ALL_LIFE_WORKS.length}개`;
+  const el=document.getElementById('lifeArea');
+  if(!ALL_LIFE_WORKS.length){
+    el.innerHTML=`<div class="sec-empty"><i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요</div>`;
+    return;
+  }
+  el.innerHTML=`<div class="wish-grid">${ALL_LIFE_WORKS.map(w=>`
+    <div class="wish-card">
+      <div class="wish-card-link"
+        data-tmdb-id="${w.tmdb_id}"
+        data-title-ko="${(w.title_ko||'').replace(/"/g,'&quot;')}"
+        data-category="${w.media_type||'tv'}"
+        data-release-year=""
+        onclick="goTitle(this)" style="cursor:pointer">
+        <div class="wish-poster">${w.poster_path
+          ?`<img src="${IMG}${w.poster_path}" alt="${(w.title_ko||'').replace(/"/g,'')}" loading="lazy">`
+          :`<div class="wish-poster-ph">🎬</div>`}</div>
+        <div class="wish-title">${w.title_ko||'제목 없음'}</div>
+      </div>
+      ${IS_OWN?`<button class="wish-del-btn" onclick="delLifeWork(${w.tmdb_id})">해제</button>`:''}
+    </div>`).join('')}</div>`;
+}
+
+async function delLifeWork(tmdb_id){
+  if(!confirm('인생작품에서 제거할까요?'))return;
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{
+    const res=await fetch(`${API}/life-works`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+      body:JSON.stringify({tmdb_id}),
+    });
+    const json=await res.json();
+    if(json.ok&&!json.saved){
+      ALL_LIFE_WORKS=ALL_LIFE_WORKS.filter(w=>w.tmdb_id!==tmdb_id);
+      renderLifeWorks();
+      showToast('인생작품에서 제거됐어요');
+    }
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+/* ══ 추천작품 ══ */
+function renderPickLists(){
+  document.getElementById('pickCount').textContent=`${ALL_PICK_LISTS.length}개`;
+  const el=document.getElementById('pickArea');
+  if(!ALL_PICK_LISTS.length){
+    el.innerHTML=`<div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 추천작품을 만들어보세요</div>`;
+    return;
+  }
+  el.innerHTML=ALL_PICK_LISTS.map(list=>{
+    // 포스터 썸네일 최대 6개 + 나머지 수
+    const thumbs=list.works||[];
+    const shown=thumbs.slice(0,6);
+    const extra=thumbs.length-shown.length;
+    const thumbHtml=shown.map(w=>
+      `<div class="pick-thumb">${w.poster_path
+        ?`<img src="${IMG}${w.poster_path}" alt="" loading="lazy">`
+        :`<div class="pick-thumb-ph">🎬</div>`}</div>`
+    ).join('')+(extra>0?`<div class="pick-thumb-more">+${extra}</div>`:'');
+
+    return `<div class="pick-card">
+      <div class="pick-card-header">
+        <span class="pick-card-title">📋 ${_esc(list.title)}</span>
+        <span class="pick-card-count">${list.work_count||0}개</span>
+        ${IS_OWN?`<button class="pick-card-del" onclick="delPickList(${list.id})">삭제</button>`:''}
+      </div>
+      <div class="pick-thumb-row">${thumbHtml||'<span style="font-size:12px;color:var(--muted)">작품이 없어요</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function delPickList(list_id){
+  if(!confirm('이 추천작품 컬렉션을 삭제할까요?\n컬렉션 안의 작품 목록도 모두 삭제됩니다.'))return;
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{
+    const res=await fetch(`${API}/pick-lists/${list_id}`,{
+      method:'DELETE',
+      headers:{Authorization:'Bearer '+sid},
+    });
+    const json=await res.json();
+    if(json.ok){
+      ALL_PICK_LISTS=ALL_PICK_LISTS.filter(l=>l.id!==list_id);
+      renderPickLists();
+      showToast('추천작품이 삭제됐어요');
+    }else showToast(json.message||'삭제 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+function _esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 function renderStars(score){
   // 10점 만점 → 별 5개 표현
