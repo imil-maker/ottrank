@@ -496,6 +496,45 @@ export async function handleAuth(path, request, env, headers) {
     }
   }
 
+  // ── PATCH /auth/mbti ──────────────────────────────────────
+  // 마이페이지에서 MBTI 수정 또는 해제 (null 전송 시 해제)
+  if (path === "/auth/mbti" && request.method === "PATCH") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) {
+        return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      }
+
+      const session = await env.DB.prepare(
+        "SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) {
+        return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+      }
+
+      const body = await request.json();
+      const { mbti } = body;
+
+      // MBTI 유효성 검사 (null/undefined 허용 → 해제)
+      const VALID_MBTI = [
+        "INTJ","INTP","ENTJ","ENTP",
+        "INFJ","INFP","ENFJ","ENFP",
+        "ISTJ","ISFJ","ESTJ","ESFJ",
+        "ISTP","ISFP","ESTP","ESFP",
+      ];
+      const finalMbti = mbti && VALID_MBTI.includes(mbti) ? mbti : null;
+
+      await env.DB.prepare(
+        "UPDATE users SET mbti = ? WHERE id = ?"
+      ).bind(finalMbti, session.user_id).run();
+
+      return new Response(JSON.stringify({ ok: true, mbti: finalMbti }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── POST /auth/logout ─────────────────────────────────────
   if (path === "/auth/logout" && request.method === "POST") {
     try {
