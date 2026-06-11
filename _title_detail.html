@@ -1365,6 +1365,9 @@ async function loadTmdb(){
       const hasKorean  = /[\uAC00-\uD7A3]/.test(origName);
       const hasLatin   = /[a-zA-Z]/.test(origName);
       const title_en   = (hasLatin && !hasKorean) ? origName : '';
+      // TMDB 장르 배열 → 한글/영문 이름 콤마 구분 문자열로 변환
+      const genreStr = (det.genres||[]).map(g=>g.name).filter(Boolean).join(',');
+
       fetch(`${OTTRANK_API}/works/register`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1374,6 +1377,7 @@ async function loadTmdb(){
           title_en,
           poster_path: det.poster_path || '',
           media_type : WORK.type,
+          genre      : genreStr || null,
         }),
       }).catch(()=>{});  // 실패해도 UI에 영향 없음
     }
