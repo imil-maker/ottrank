@@ -124,6 +124,15 @@ async def _crawl_one_url(browser, url: str, source_name: str, platform: str,
                 # "01Office Romance" → "Office Romance" (앞 2자리 숫자 제거)
                 title_txt = re.sub(r'^\d{2}', '', full_text).strip()
 
+                # Tudum TV 페이지 불필요 suffix 제거
+                # 예) "The Witness: Limited Series" → "The Witness"
+                # 예) "The Four Seasons: Season 2" → "The Four Seasons"
+                # 예) "Raw: 2026 - June 1, 2026" → "Raw"
+                title_txt = re.sub(
+                    r':\s*(Season\s*\d+|Limited Series|Mini Series|\d{4}.*)$',
+                    '', title_txt, flags=re.IGNORECASE
+                ).strip()
+
                 if not title_txt:
                     continue
 
