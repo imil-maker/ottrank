@@ -124,10 +124,20 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
     url_groups  = {}
 
     for slot in slots:
+        # table_index = -1 이면 크롤링 스킵 (수동 랭킹 등 크롤링 불필요 슬롯)
+        if slot["table_index"] == -1:
+            print(f"  [{platform}][{slot['category_slot']}] ⏭ table_index=-1 — 크롤링 스킵")
+            continue
+
         # crawl_url 있으면 사용, 없으면 PLATFORM_URLS fallback
         raw_url = slot["crawl_url"] or default_url
         if not raw_url:
             print(f"  [{platform}][{slot['category_slot']}] ⚠️ URL 없음 — 스킵")
+            continue
+
+        # Tudum URL이면 별도 크롤러에서 처리 → 여기서는 스킵
+        if "tudum" in raw_url:
+            print(f"  [{platform}][{slot['category_slot']}] ⏭ Tudum URL — netflix_tudum.py에서 처리")
             continue
 
         # {date} placeholder → 어제 날짜로 치환
