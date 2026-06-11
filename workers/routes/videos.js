@@ -496,63 +496,131 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 export function _computeMbtiTags(genre) {
   if (!genre) return null;
 
-  const GENRE_MBTI_MAP = {
-    '드라마'      : ['ENFP','ENTJ','ISTJ','ISFP','INFJ'],
-    '스릴러'      : ['INFJ','INTJ','INTP','ISTP'],
-    '공포'        : ['ISTP','INTP'],
-    '판타지'      : ['INFP','ENFJ','ENFP'],
-    'SF'          : ['INTJ','INTP','ENTP','ENTJ'],
-    '액션'        : ['ESTP','ESTJ','ESFJ'],
-    '코미디'      : ['ESFP','ISFJ','ENFP'],
-    '로맨스'      : ['ISFJ','ENFJ','ESFP'],
-    '범죄'        : ['INTJ','ISTP','INFJ'],
-    '모험'        : ['ESTP','ENTP','ENFP'],
-    '애니메이션'  : ['ISFP','INFP'],
-    '다큐멘터리'  : ['INTJ','INTP','ISTJ'],
-    '미스터리'    : ['INFJ','INTP','INTJ','ISTP'],
-    '전쟁'        : ['ISTJ','ESTJ','ISTP'],
-    '역사'        : ['ISTJ','INTJ','INFJ'],
-    '음악'        : ['ISFP','ENFP','ESFP'],
-    '가족'        : ['ISFJ','ESFJ','ENFJ'],
-    'Reality'     : ['ESFP','ESTP','ENFP'],
-    'Drama'               : ['ENFP','ENTJ','ISTJ','ISFP','INFJ'],
-    'Thriller'            : ['INFJ','INTJ','INTP','ISTP'],
-    'Horror'              : ['ISTP','INTP'],
-    'Fantasy'             : ['INFP','ENFJ','ENFP'],
-    'Science Fiction'     : ['INTJ','INTP','ENTP','ENTJ'],
-    'Sci-Fi & Fantasy'    : ['INTJ','INTP','ENTP','INFP'],
-    'Action'              : ['ESTP','ESTJ','ESFJ'],
-    'Action & Adventure'  : ['ESTP','ESTJ','ESFJ','ENTP'],
-    'Comedy'              : ['ESFP','ISFJ','ENFP'],
-    'Romance'             : ['ISFJ','ENFJ','ESFP'],
-    'Crime'               : ['INTJ','ISTP','INFJ'],
-    'Adventure'           : ['ESTP','ENTP','ENFP'],
-    'Animation'           : ['ISFP','INFP'],
-    'Documentary'         : ['INTJ','INTP','ISTJ'],
-    'Mystery'             : ['INFJ','INTP','INTJ','ISTP'],
-    'War'                 : ['ISTJ','ESTJ','ISTP'],
-    'War & Politics'      : ['ISTJ','INTJ','INFJ'],
-    'History'             : ['ISTJ','INTJ','INFJ'],
-    'Music'               : ['ISFP','ENFP','ESFP'],
-    'Family'              : ['ISFJ','ESFJ','ENFJ'],
-    'Soap'                : ['ISFJ','ESFJ','ENFJ'],
-    'Kids'                : ['ISFJ','ESFJ','ENFP'],
-    'Western'             : ['ISTP','ESTP','ISTJ'],
+  // 비서사 장르 목록 — 단독으로만 있으면 MBTI 섹션 숨김
+  const NON_NARRATIVE = new Set([
+    'Reality','Talk','News','Soap','Documentary','Kids',
+    '다큐멘터리','리얼리티',
+  ]);
+
+  // 장르 파싱 (콤마 구분, 순서 유지)
+  const genres = genre.split(',').map(g => g.trim()).filter(Boolean);
+  if (!genres.length) return null;
+
+  // 비서사 장르만 있으면 null 반환 (섹션 숨김)
+  const narrativeGenres = genres.filter(g => !NON_NARRATIVE.has(g));
+  if (!narrativeGenres.length) return null;
+
+  // 장르 순서 가중치 (앞에 있을수록 높음)
+  // 1번째=5점, 2번째=3점, 3번째=2점, 4번째~=1점
+  const genreWeight = (idx) => idx === 0 ? 5 : idx === 1 ? 3 : idx === 2 ? 2 : 1;
+
+  // MBTI별 선호 장르 매핑
+  // primary: 1순위 장르 목록 (가중치 3점)
+  // secondary: 2순위 장르 목록 (가중치 1점)
+  const MBTI_PREF = {
+    'INTJ': {
+      primary  : ['Science Fiction','Sci-Fi & Fantasy','SF'],
+      secondary: ['Drama','드라마','Thriller','스릴러'],
+    },
+    'INTP': {
+      primary  : ['Science Fiction','Sci-Fi & Fantasy','SF'],
+      secondary: ['Thriller','Mystery','스릴러','미스터리'],
+    },
+    'ENTJ': {
+      primary  : ['Drama','드라마'],
+      secondary: ['Science Fiction','Sci-Fi & Fantasy','SF'],
+    },
+    'ENTP': {
+      primary  : ['Science Fiction','Sci-Fi & Fantasy','SF'],
+      secondary: ['Action','Action & Adventure','액션','Adventure','모험'],
+    },
+    'INFJ': {
+      primary  : ['Thriller','Mystery','스릴러','미스터리'],
+      secondary: ['Drama','드라마','Crime','범죄'],
+    },
+    'INFP': {
+      primary  : ['Fantasy','Sci-Fi & Fantasy','판타지'],
+      secondary: ['Drama','드라마','Animation','애니메이션'],
+    },
+    'ENFJ': {
+      primary  : ['Fantasy','Sci-Fi & Fantasy','판타지'],
+      secondary: ['Drama','드라마','Family','가족'],
+    },
+    'ENFP': {
+      primary  : ['Drama','드라마'],
+      secondary: ['Comedy','코미디','Fantasy','판타지'],
+    },
+    'ISTJ': {
+      primary  : ['Drama','드라마'],
+      secondary: ['Action','Action & Adventure','액션','History','역사','War','War & Politics','전쟁'],
+    },
+    'ISFJ': {
+      primary  : ['Comedy','코미디'],
+      secondary: ['Romance','로맨스','Family','가족','Drama','드라마'],
+    },
+    'ESTJ': {
+      primary  : ['Action','Action & Adventure','액션'],
+      secondary: ['Drama','드라마','History','역사','War','War & Politics','전쟁'],
+    },
+    'ESFJ': {
+      primary  : ['Action','Action & Adventure','액션'],
+      secondary: ['Comedy','코미디','Family','가족','Romance','로맨스'],
+    },
+    'ISTP': {
+      primary  : ['Horror','Thriller','공포','스릴러'],
+      secondary: ['Action','Action & Adventure','액션','Crime','범죄'],
+    },
+    'ISFP': {
+      primary  : ['Drama','드라마'],
+      secondary: ['Animation','애니메이션','Romance','로맨스','Music','음악'],
+    },
+    'ESTP': {
+      primary  : ['Action','Action & Adventure','액션'],
+      secondary: ['Thriller','Mystery','Crime','스릴러','미스터리','범죄'],
+    },
+    'ESFP': {
+      primary  : ['Comedy','코미디'],
+      secondary: ['Action','Action & Adventure','액션','Romance','로맨스'],
+    },
   };
 
-  const genres = genre.split(',').map(g => g.trim()).filter(Boolean);
+  // 각 MBTI 점수 계산
+  // 점수 = Σ (장르순서가중치 × MBTI매핑가중치)
   const scoreMap = {};
-  for (const g of genres) {
-    const mbtis = GENRE_MBTI_MAP[g];
-    if (!mbtis) continue;
-    mbtis.forEach((mbti, idx) => {
-      const score = idx === 0 ? 3 : idx === 1 ? 2 : 1;
-      scoreMap[mbti] = (scoreMap[mbti] || 0) + score;
+
+  for (const [mbti, pref] of Object.entries(MBTI_PREF)) {
+    let total = 0;
+    genres.forEach((g, idx) => {
+      const gw = genreWeight(idx); // 장르 순서 가중치
+      if (pref.primary.includes(g)) {
+        total += gw * 3; // 1순위 매핑 가중치
+      } else if (pref.secondary.includes(g)) {
+        total += gw * 1; // 2순위 매핑 가중치
+      }
     });
+    if (total > 0) scoreMap[mbti] = total;
   }
+
   if (!Object.keys(scoreMap).length) return null;
-  return Object.entries(scoreMap)
-    .sort((a, b) => b[1] - a[1])
+
+  // 점수 내림차순 정렬 → 동점 시 tmdb_id 기반 seed로 셔플 (작품마다 다른 순서)
+  // seed 방식: 새로고침해도 같은 작품은 항상 같은 순서 유지
+  const tmdbId = parseInt(genre.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
+  const seededRandom = (idx) => {
+    const x = Math.sin(tmdbId + idx * 127) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  const entries = Object.entries(scoreMap);
+  entries.sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1]; // 점수 다르면 점수순
+    // 동점이면 seed 기반 랜덤 (작품마다 다른 순서, 새로고침해도 일관)
+    const idxA = entries.indexOf(a);
+    const idxB = entries.indexOf(b);
+    return seededRandom(idxA) - seededRandom(idxB);
+  });
+
+  return entries
     .slice(0, 5)
     .map(([mbti]) => mbti)
     .join(',');
