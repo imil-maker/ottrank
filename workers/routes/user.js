@@ -113,7 +113,7 @@ export async function handleUser(path, request, env, ctx, headers) {
     try {
       const tmdb_id = parseInt(path.split("/")[2]);
       const { results } = await env.DB.prepare(`
-        SELECT r.*, u.nickname, u.provider, u.grade,
+        SELECT r.*, u.nickname, u.provider, u.grade, u.mbti,
           gs.emoji_url as grade_emoji_url, gs.grade_name
         FROM reviews r
         JOIN users u ON r.user_id = u.id
