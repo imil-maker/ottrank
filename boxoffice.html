@@ -3,358 +3,433 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>극장 영화 박스오피스 랭킹 — 오뜨랑</title>
+<title>극장 박스오피스 랭킹 — 오뜨랑</title>
 <meta name="description" content="극장 영화 주간 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요.">
+<meta name="keywords" content="박스오피스 순위, 박스오피스 랭킹, 한국영화 흥행, 주간 박스오피스, 오뜨랑">
 <link rel="canonical" href="https://ottrank.kr/boxoffice.html">
-<link rel="preconnect" href="https://fonts.googleapis.com/">
+<meta property="og:title" content="극장 박스오피스 랭킹 — 오뜨랑">
+<meta property="og:description" content="주간 박스오피스 순위 · 역대 한국영화 흥행을 한눈에">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="오뜨랑">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
+/* ── CSS 변수 (공통 + 박스오피스 골드 컬러) ── */
 :root {
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
   --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
   --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
-  --gold:#f0b429; --red:#f87171;
+  /* 박스오피스 브랜드: 골드 */
+  --accent:#f0b429;
+  --green:#34d399; --gold:#f0b429; --red:#f87171;
   --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
-  --disp:'Bebas Neue',sans-serif; --r:10px;
-  --max-w:1200px; /* OTT/메인 페이지 최대 너비 */
+  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;overflow-x:hidden}
-
-/* ══ sticky 헤더 ══ */
-#ottrang-header{position:sticky;top:0;z-index:200}
-
-/* ══ 히어로 배너 (넷플릭스 스타일, gold 컬러) ══ */
-/* ══ 히어로 배너 — 넷플릭스와 동일한 패딩/마진 ══ */
-.hero{
-  position:relative;padding:30px 0 20px;margin-bottom:20px;
-  border-bottom:1px solid var(--border);overflow:hidden;
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0 }
+html { scroll-behavior:smooth }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:var(--sans); font-size:15px; line-height:1.6; overflow-x:hidden;
 }
-/* gold 방사형 글로우 — 우측 상단 */
-.hero::before{
-  content:'';position:absolute;top:-40px;right:-60px;
-  width:340px;height:340px;border-radius:50%;
-  background:radial-gradient(circle,rgba(240,180,41,.16) 0%,transparent 70%);
+
+/* ── 헤더 sticky ── */
+#ottrang-header { position:sticky; top:0; z-index:200 }
+.main-outer { max-width:var(--max-w); margin:0 auto; padding:0 24px 80px }
+
+/* ── 히어로 배너 ── */
+.hero {
+  position:relative; padding:30px 0 20px; margin-bottom:20px;
+  border-bottom:1px solid var(--border); overflow:hidden;
+}
+.hero::before {
+  content:''; position:absolute; top:-40px; right:-60px;
+  width:340px; height:340px; border-radius:50%;
+  background:radial-gradient(circle, rgba(240,180,41,0.16) 0%, transparent 70%);
   pointer-events:none;
 }
-/* OTT RANKING 아이브로우 */
-.hero-eyebrow{
-  font-family:var(--mono);font-size:11px;color:var(--gold);
-  letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;
-  display:flex;align-items:center;gap:8px;
+.hero-eyebrow {
+  font-family:var(--mono); font-size:11px; color:#f0b429;
+  letter-spacing:3px; text-transform:uppercase; margin-bottom:12px;
+  display:flex; align-items:center; gap:8px;
 }
-.hero-eyebrow::before{content:'';display:block;width:24px;height:1px;background:var(--gold)}
-/* BOXOFFICE 랭킹 대제목 */
-.hero-title{
-  font-family:var(--disp);font-size:52px;letter-spacing:3px;
-  line-height:1;margin-bottom:10px;
+.hero-eyebrow::before {
+  content:''; display:block; width:24px; height:1px; background:#f0b429;
 }
-.hero-title .bo{color:var(--gold)}
-/* 부제 — 우측 하단 */
-.hero-sub{
-  font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.5px;
-  position:absolute;bottom:54px;right:0;text-align:right;
+.hero-title {
+  font-family:var(--disp); font-size:52px; letter-spacing:3px;
+  line-height:1; margin-bottom:10px;
 }
-/* 대형 배경 글자 BOX */
-.hero-logo{
-  position:absolute;right:0;top:50%;transform:translateY(-50%);
-  font-family:var(--disp);font-size:200px;color:rgba(240,180,41,.05);
-  line-height:1;pointer-events:none;user-select:none;letter-spacing:-8px;
+/* 박스오피스 골드 고정 — 헤더 CSS 덮어쓰기 방지 */
+.hero-title .bo { color:#f0b429 !important }
+.hero-sub {
+  font-family:var(--mono); font-size:12px; color:var(--muted); letter-spacing:.5px;
+  position:absolute; bottom:54px; right:0; text-align:right;
 }
-
-/* ══ 메인 ══ */
-.main-outer{max-width:var(--max-w);margin:0 auto;padding:0 24px 80px}
-
-/* ══ 섹션 헤더 ══ */
-.sec-hd{display:flex;align-items:center;gap:12px;padding:0 0 14px;margin-bottom:20px;border-bottom:1px solid var(--border)}
-/* sec-num 뱃지 — 넷플릭스와 동일 구조, gold 컬러 */
-.sec-num{
-  font-family:var(--disp);font-size:13px;color:var(--gold);
-  background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.25);
-  padding:2px 10px;border-radius:4px;letter-spacing:1px;white-space:nowrap;
-}
-.sec-title{font-family:var(--disp);font-size:26px;letter-spacing:1px}
-/* sec-count — 넷플릭스와 동일: 제목 오른쪽 흰색 큰 글씨 TOP N */
-.sec-count{font-family:var(--disp);font-size:24px;letter-spacing:1.5px;color:var(--muted)}
-/* 섹션 헤더 우측 날짜 */
-.sec-date{
-  margin-left:auto;font-family:var(--mono);font-size:12px;
-  color:rgba(240,180,41,.6);letter-spacing:1px;
-  display:flex;align-items:center;gap:6px;
-}
-.sec-date::before{
-  content:'';display:block;width:6px;height:6px;border-radius:50%;
-  background:rgba(240,180,41,.6);flex-shrink:0;
-}
-.week-label{font-family:var(--mono);font-size:12px;color:var(--muted2);margin-left:4px}
-
-/* ══ 모바일 ══ */
-@media(max-width:768px){
-  .main-outer{padding:0 14px 60px}
-  .hero{padding:32px 0 28px}
-  .hero-title{font-size:38px}
-  .hero-logo{font-size:120px;opacity:.5}
-  .hero-sub,.hero-date,.sec-date{display:none}
+/* BOX 대형 배경 글자 */
+.hero-logo {
+  position:absolute; right:0; top:50%; transform:translateY(-50%);
+  font-family:var(--disp); font-size:160px; color:rgba(240,180,41,0.05);
+  line-height:1; pointer-events:none; user-select:none; letter-spacing:-4px;
 }
 
-/* ══ 랭킹 카드 그리드 ══ */
-/* 기본 5열 (OTT 페이지용) */
-.rank-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:32px}
-@media(max-width:900px){.rank-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:600px){.rank-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* ── 섹션 ── */
+.rank-section { margin-bottom:52px }
+.sec-hd {
+  display:flex; align-items:center; gap:12px;
+  margin-bottom:20px; padding-bottom:14px;
+  border-bottom:1px solid var(--border);
+}
+.sec-num {
+  font-family:var(--disp); font-size:13px; color:#f0b429;
+  background:rgba(240,180,41,0.12); border:1px solid rgba(240,180,41,0.3);
+  padding:2px 10px; border-radius:4px; letter-spacing:1px; white-space:nowrap;
+}
+.sec-title {
+  font-family:var(--disp); font-size:24px; letter-spacing:1.5px; color:var(--text);
+}
+.sec-count {
+  font-family:var(--disp); font-size:24px; letter-spacing:1.5px; color:var(--muted);
+}
+.sec-live {
+  margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted);
+  display:flex; align-items:center; gap:7px;
+}
+.sec-live-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:#f0b429; animation:pulse 2s infinite; flex-shrink:0;
+}
 
-/* ══ 포스터 카드 ══ */
-.pk-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:border-color .15s}
-.pk-card:hover{border-color:var(--border2)}
-.pk-poster{position:relative;aspect-ratio:2/3;background:var(--bg3);overflow:hidden}
-.pk-poster img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
-.pk-card:hover .pk-poster img{transform:scale(1.04)}
-.pk-poster-ph{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--bg3),var(--bg2))}
-.pk-rank-num{position:absolute;top:7px;left:9px;font-family:var(--disp);font-size:44px;line-height:1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.9)}
-.pk-rank-top3{color:var(--gold)}
-.pk-badge{position:absolute;top:7px;right:7px;font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px}
-.pk-badge.crawl{background:rgba(230,57,70,.85);color:#fff}
-.pk-rating{position:absolute;bottom:7px;right:7px;font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.78);color:var(--gold);padding:3px 8px;border-radius:4px}
-.pk-overlay{position:absolute;inset:0;opacity:0;transition:opacity .2s;background:linear-gradient(to top,rgba(12,12,16,.97) 0%,transparent 55%);display:flex;flex-direction:column;justify-content:flex-end;padding:12px 14px}
-.pk-card:hover .pk-overlay{opacity:1}
-.ov-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ov-meta{font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.pk-info{padding:10px 12px}
-.pk-title{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
-.pk-year{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.pk-memo{font-family:var(--mono);font-size:11px;color:var(--gold);background:rgba(240,180,41,.1);border:1px solid rgba(240,180,41,.2);border-radius:3px;padding:1px 6px;white-space:nowrap}
+/* ── 카드 그리드 (5열) ── */
+.rank-grid {
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0,1fr));
+  gap:14px;
+  margin-bottom:8px;
+}
+@media(max-width:900px) { .rank-grid { grid-template-columns:repeat(3, minmax(0,1fr)) } }
+@media(max-width:600px) { .rank-grid { grid-template-columns:repeat(2, minmax(0,1fr)) } }
 
-/* ══ 로딩 ══ */
-.loading-msg{text-align:center;padding:60px;color:var(--muted);font-family:var(--mono)}
-.spin{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* ── 포스터 카드 ── */
+.pk-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); overflow:hidden; cursor:pointer;
+  transition:border-color .15s, transform .2s, box-shadow .2s;
+}
+.pk-card:hover {
+  border-color:rgba(240,180,41,0.4); transform:translateY(-4px);
+  box-shadow:0 12px 32px rgba(240,180,41,0.10);
+}
+.pk-poster {
+  position:relative; aspect-ratio:2/3;
+  background:var(--bg3); overflow:hidden;
+}
+.pk-poster img {
+  width:100%; height:100%; object-fit:cover; display:block; transition:transform .3s;
+}
+.pk-card:hover .pk-poster img { transform:scale(1.04) }
+.pk-poster-ph {
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  font-size:40px; background:linear-gradient(135deg,var(--bg3),var(--bg2));
+}
 
-/* ══ 빈 상태 ══ */
-.empty-msg{text-align:center;padding:60px;color:var(--muted)}
-.empty-msg .empty-icon{font-size:40px;display:block;margin-bottom:12px}
+/* 순위 번호 */
+.pk-rank-num {
+  position:absolute; top:7px; left:9px;
+  font-family:var(--disp); font-size:44px; line-height:1;
+  color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.9);
+}
+.pk-rank-top3 { color:#f0b429 !important; text-shadow:0 2px 12px rgba(240,180,41,0.5) !important }
+
+/* TMDB 평점 */
+.pk-rating {
+  position:absolute; bottom:7px; right:7px;
+  font-family:var(--mono); font-size:11px;
+  background:rgba(0,0,0,.78); color:var(--gold);
+  padding:3px 8px; border-radius:4px;
+}
+
+/* 호버 오버레이 */
+.pk-overlay {
+  position:absolute; inset:0; opacity:0; transition:opacity .2s;
+  background:linear-gradient(to top,rgba(12,12,16,.97) 0%,transparent 55%);
+  display:flex; flex-direction:column; justify-content:flex-end; padding:12px 14px;
+}
+.pk-card:hover .pk-overlay { opacity:1 }
+.ov-title {
+  font-size:13px; font-weight:500; color:var(--text); margin-bottom:4px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.ov-meta { font-family:var(--mono); font-size:10px; color:var(--muted2) }
+
+/* 카드 하단 정보 */
+.pk-info { padding:10px 12px }
+.pk-title {
+  font-size:13px; font-weight:500; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px;
+}
+.pk-year {
+  font-family:var(--mono); font-size:11px; color:var(--muted);
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+}
+.pk-memo {
+  font-family:var(--mono); font-size:11px; color:var(--gold);
+  background:rgba(240,180,41,.1); border:1px solid rgba(240,180,41,.2);
+  border-radius:3px; padding:1px 6px; white-space:nowrap;
+}
+
+/* ── 스켈레톤 ── */
+.skel-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); overflow:hidden;
+}
+.skel-poster {
+  width:100%; aspect-ratio:2/3;
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%; animation:shimmer 1.4s infinite;
+}
+.skel-line {
+  height:12px; border-radius:4px; margin:10px 12px 6px;
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);
+  background-size:200% 100%; animation:shimmer 1.4s infinite;
+}
+.skel-line.short { width:55%; height:10px; margin-top:0 }
+
+/* ── 빈 상태 / 에러 ── */
+.sec-empty {
+  padding:40px; text-align:center; font-size:14px; color:var(--muted);
+  background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+  grid-column:1/-1;
+}
+
+/* ── 애니메이션 ── */
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── 모바일 ── */
+@media(max-width:768px) {
+  .main-outer { padding:0 14px 60px }
+  .hero { padding:32px 0 28px }
+  .hero-title { font-size:38px }
+  .hero-logo { font-size:100px; opacity:.5 }
+  .hero-sub { display:none }
+}
 </style>
 </head>
 <body>
 
-<script>
-(function(){
-  fetch('/header.html')
-    .then(r=>r.ok?r.text():Promise.reject())
-    .then(h=>{
-      document.getElementById('ottrang-header').innerHTML=h;
-      document.getElementById('ottrang-header').querySelectorAll('script').forEach(s=>{
-        const ns=document.createElement('script');
-        ns.textContent=s.textContent;
-        document.body.appendChild(ns);
-      });
-      if(typeof initHeader==='function') initHeader();
-    })
-    .catch(()=>{});
-})();
-</script>
-
+<!-- ── 헤더 ── -->
 <div id="ottrang-header"></div>
+<script>
+fetch('/header.html')
+  .then(r => r.ok ? r.text() : Promise.reject())
+  .then(h => {
+    const el = document.getElementById('ottrang-header');
+    el.innerHTML = h;
+    el.querySelectorAll('script').forEach(s => {
+      const ns = document.createElement('script');
+      ns.textContent = s.textContent;
+      document.body.appendChild(ns);
+    });
+    if (typeof initHeader === 'function') initHeader();
+  })
+  .catch(() => {})
+  .finally(() => {
+    loadAll();
+  });
+</script>
 
 <div class="main-outer">
 
-  <!-- ══ 히어로 배너 ══ -->
+  <!-- ── 히어로 배너 ── -->
   <div class="hero">
     <div class="hero-eyebrow">OTT RANKING</div>
     <div class="hero-title"><span class="bo">BOXOFFICE</span> 랭킹</div>
-    <div class="hero-sub">박스오피스 주간 순위 · 역대 한국 영화 · 오뜨랑 집계</div>
+    <div class="hero-sub">주간 박스오피스 순위 · 역대 한국 영화 · 오뜨랑 집계</div>
     <div class="hero-logo">BOX</div>
   </div>
 
-  <!-- ══ 섹션 1: 주간 박스오피스 ══ -->
-  <div class="sec-hd">
-    <span class="sec-num">TOP 10</span>
-    <span class="sec-title">주간 박스오피스</span>
-    <span class="sec-count">TOP 10</span>
-    <span class="sec-date" id="weeklyDate"></span>
-  </div>
-  <div class="rank-grid" id="weeklyGrid">
-    <div class="loading-msg" style="grid-column:1/-1">
-      <span class="spin"></span>불러오는 중...
-    </div>
-  </div>
-
-  <!-- ══ 섹션 2: 수동 랭킹 카테고리들 ══ -->
-  <div id="manualSections"></div>
+  <!-- ── 섹션 컨테이너 (동적 렌더링) ── -->
+  <div id="sectionsWrap"></div>
 
 </div>
 
+<!-- ── 푸터 ── -->
+<div id="ottrang-footer"></div>
 <script>
+fetch('/footer.html')
+  .then(r => r.ok ? r.text() : Promise.reject())
+  .then(h => { document.getElementById('ottrang-footer').innerHTML = h; })
+  .catch(() => {});
+</script>
+
+<script>
+/* ════════════════════════════════════════════════════
+   박스오피스 랭킹 페이지
+   - /rankings/platform?platform=boxoffice 단일 API 호출
+   - ott_categories의 platform_section/platform_order/platform_limit 반영
+   - 어드민에서 노출/순서/개수 변경 시 자동 반영 (하드코딩 없음)
+   - 카드 그리드 나열 방식 (슬라이드 X)
+════════════════════════════════════════════════════ */
+
 const API      = 'https://ottrank-api.tdidream.workers.dev';
-const IMG      = 'https://image.tmdb.org/t/p/w500';
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 const PLATFORM = 'boxoffice';
 
-// ── 주간 몇주차 계산 ──────────────────────────────────
-function getWeekLabel(dateStr) {
-  try {
-    const d = dateStr && dateStr !== 'manual'
-      ? new Date(dateStr)
-      : new Date();
-    const year  = d.getFullYear();
-    const month = d.getMonth() + 1;
-    // 해당 월의 첫째 날
-    const firstDay = new Date(year, d.getMonth(), 1);
-    // 몇 번째 주인지 (1일이 속한 주 = 1주차)
-    const week = Math.ceil((d.getDate() + firstDay.getDay()) / 7);
-    return `${year}년 ${month}월 ${week}주차`;
-  } catch(e) {
-    return '';
-  }
-}
-
-// ── goDetail: 새 URL 형식 /title/{시즌}-{연도}{tmdbId} ──
-function goDetail(tmdbId, title, year, season) {
-  if(!tmdbId) return;
-  const s = season || 1;
-  const y = year   || new Date().getFullYear();
-  const url = `/title/${s}-${y}${tmdbId}`;
+/* ── 작품 상세 페이지 이동 ── */
+function goWork(tmdbId, title) {
+  if (!tmdbId) return;
+  const y   = new Date().getFullYear();
+  const url = `/title/1-${y}${tmdbId}`;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id: tmdbId, type: 'movie', platform: 'boxoffice',
-    rank: '—', title: title || '', season: s, year: y
+    tmdb_id: tmdbId, type: 'movie', title: title || '', platform: PLATFORM
   }));
-  sessionStorage.setItem('ottrang_slug', url);
   location.href = url;
 }
 
-// ── 페이지 진입점 ──────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async () => {
-  await Promise.all([
-    loadWeeklyRankings(),
-    loadManualRankings(),
-  ]);
-});
-
-// ── 주간 박스오피스 (category01) ───────────────────────
-async function loadWeeklyRankings() {
-  const grid = document.getElementById('weeklyGrid');
-  try {
-    const res  = await fetch(`${API}/rankings/platform?platform=${PLATFORM}`);
-    const json = await res.json();
-    if (!json.ok || !json.data?.length) {
-      grid.innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><span class="empty-icon">🎬</span>주간 박스오피스 데이터가 없습니다.</div>`;
-      return;
-    }
-
-    const cat01 = json.data.find(g => g.category_slot === 'category01');
-    if (!cat01 || !cat01.items?.length) {
-      grid.innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><span class="empty-icon">🎬</span>주간 박스오피스 데이터가 없습니다.</div>`;
-      return;
-    }
-
-    // 섹션 헤더 우측에 주차 날짜 표시
-    const weekStr  = getWeekLabel(cat01.items[0]?.date || null);
-    const dateEl   = document.getElementById('weeklyDate');
-    if (dateEl) dateEl.textContent = weekStr;
-
-    // 10개 전부 카드 (5열 2줄)
-    grid.innerHTML = cat01.items.slice(0, 10).map((item, i) => posterCard(item, i + 1, false, null)).join('');
-
-  } catch(e) {
-    grid.innerHTML = `<div class="loading-msg" style="grid-column:1/-1;color:var(--red)">불러오기 실패: ${e.message}</div>`;
-  }
-}
-
-// ── 수동 랭킹 (category02 이후) ────────────────────────
-async function loadManualRankings() {
-  const container = document.getElementById('manualSections');
-  try {
-    const res  = await fetch(`${API}/rankings/platform?platform=${PLATFORM}`);
-    const json = await res.json();
-    if (!json.ok || !json.data?.length) return;
-
-    const manualGroups = json.data.filter(g => g.category_slot !== 'category01');
-    if (!manualGroups.length) {
-      container.innerHTML = `
-        <div class="sec-hd" style="margin-top:8px">
-          <span class="sec-num">TOP 20</span>
-          <span class="sec-title">수동 랭킹</span>
-        </div>
-        <div class="empty-msg">
-          <span class="empty-icon">🎬</span>
-          관리자 모드에서 수동 랭킹을 추가해보세요.
-        </div>`;
-      return;
-    }
-
-    // 수동 랭킹 슬롯별 섹션 렌더링 (전부 카드형)
-    container.innerHTML = manualGroups.map((group, idx) => {
-      const items     = group.items || [];
-      const memoLabel = group.memo_label || null;
-      // 수동 랭킹 개수에 맞춰 TOP N 뱃지 표시
-      const topNum    = items.length ? `TOP ${items.length}` : 'TOP 20';
-
-      const gridHtml = items.length
-        ? items.map((item, i) => posterCard(item, i + 1, true, memoLabel)).join('')
-        : `<div class="empty-msg" style="grid-column:1/-1"><span class="empty-icon">🎬</span>등록된 항목이 없습니다.</div>`;
-
-      return `
-        <div class="sec-hd" style="margin-top:8px">
-          <span class="sec-num">${topNum}</span>
-          <span class="sec-title">${escHtml(group.display_name || group.category_slot)}</span>
-          <span class="sec-count">${topNum}</span>
-          ${memoLabel ? `<span class="week-label"></span>` : ''}
-        </div>
-        <div class="rank-grid">${gridHtml}</div>`;
-    }).join('');
-
-  } catch(e) {
-    container.innerHTML = `<div class="loading-msg" style="color:var(--red)">수동 랭킹 불러오기 실패: ${e.message}</div>`;
-  }
-}
-
-// ── 포스터 카드 렌더링 ─────────────────────────────────
-function posterCard(item, rank, isManual, memoLabel) {
-  const poster    = item.poster_path ? `${IMG}${item.poster_path}` : null;
-  const rankClass = rank <= 3 ? 'pk-rank-top3' : '';
-  const ratingHtml = item.tmdb_rating
-    ? `<div class="pk-rating">★ ${Number(item.tmdb_rating).toFixed(1)}</div>` : '';
-  const badgeHtml = (!isManual && rank <= 3)
-    ? `<div class="pk-badge crawl">TOP ${rank}</div>` : '';
-  const memoHtml = item.memo
-    ? `<div class="pk-memo">${memoLabel ? escHtml(memoLabel)+': ' : ''}${escHtml(item.memo)}</div>` : '';
+/* ── 포스터 카드 HTML 생성 ── */
+function makeCard(item, rank) {
+  const isTop3 = rank <= 3;
+  const poster = item.poster_path
+    ? `<img src="${TMDB_IMG}${item.poster_path}"
+            alt="${escAttr(item.title_ko || '')}"
+            loading="lazy"
+            onerror="this.parentNode.innerHTML='<div class=\\'pk-poster-ph\\'>🎬</div>'">`
+    : `<div class="pk-poster-ph">🎬</div>`;
+  const rating = item.tmdb_rating
+    ? `<div class="pk-rating">★ ${parseFloat(item.tmdb_rating).toFixed(1)}</div>` : '';
+  const memo   = item.memo
+    ? `<span class="pk-memo">${escHtml(item.memo)}</span>` : '';
 
   return `
-    <div class="pk-card" onclick="goDetail(${item.tmdb_id||'null'}, '${escAttr(item.title_ko||'')}', ${item.release_year||'null'}, 1)">
+    <div class="pk-card" onclick="goWork(${item.tmdb_id},'${escAttr(item.title_ko || '')}')">
       <div class="pk-poster">
-        ${poster
-          ? `<img src="${poster}" alt="${escAttr(item.title_ko||'')}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=\\'pk-poster-ph\\'><span style=\\'font-size:30px\\'>🎬</span></div>'">`
-          : `<div class="pk-poster-ph"><span style="font-size:30px">🎬</span></div>`}
-        <div class="pk-rank-num ${rankClass}">${rank}</div>
-        ${badgeHtml}
-        ${ratingHtml}
+        ${poster}
+        <div class="pk-rank-num${isTop3 ? ' pk-rank-top3' : ''}">${rank}</div>
+        ${rating}
         <div class="pk-overlay">
-          <div class="ov-title">${escHtml(item.title_ko||item.title_en||'')}</div>
-          <div class="ov-meta">${item.release_year||''} ${item.genre ? '· '+item.genre.split(',')[0] : ''}</div>
+          <div class="ov-title">${escHtml(item.title_ko || item.title_en || '')}</div>
+          <div class="ov-meta">${item.release_year || ''} ${item.genre ? '· ' + item.genre.split(',')[0] : ''}</div>
         </div>
       </div>
       <div class="pk-info">
-        <div class="pk-title">${escHtml(item.title_ko||item.title_en||'')}</div>
-        <div class="pk-year">${item.release_year||'-'} ${memoHtml}</div>
+        <div class="pk-title">${escHtml(item.title_ko || item.title_en || '')}</div>
+        <div class="pk-year">
+          ${item.release_year || '-'}
+          ${memo}
+        </div>
       </div>
     </div>`;
 }
 
-// ── 유틸 ──────────────────────────────────────────────
+/* ── 스켈레톤 그리드 HTML ── */
+function makeSkel(n = 5) {
+  return Array(n).fill(0).map(() => `
+    <div class="skel-card">
+      <div class="skel-poster"></div>
+      <div class="skel-line"></div>
+      <div class="skel-line short"></div>
+    </div>`).join('');
+}
+
+/* ── 날짜 포맷 ── */
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} 업데이트`;
+}
+
+/* ── 메인 데이터 로드 및 렌더링 ── */
+async function loadAll() {
+  const wrap = document.getElementById('sectionsWrap');
+
+  // 1) 로딩 스켈레톤 표시
+  wrap.innerHTML = `
+    <div class="rank-section">
+      <div class="sec-hd">
+        <span class="sec-num">TOP 10</span>
+        <span class="sec-title">불러오는 중...</span>
+      </div>
+      <div class="rank-grid">${makeSkel(5)}</div>
+    </div>`;
+
+  let groups = [];
+  try {
+    // 2) /rankings/platform API 호출
+    //    - platform_section IS NOT NULL 인 카테고리만 반환
+    //    - platform_order 순으로 정렬
+    //    - platform_limit 개수만큼 items 포함
+    const res = await fetch(`${API}/rankings/platform?platform=${PLATFORM}`);
+    if (!res.ok) throw new Error(`API 오류: ${res.status}`);
+    const json = await res.json();
+    groups = json.data || [];
+  } catch (e) {
+    wrap.innerHTML = `
+      <div class="sec-empty" style="grid-column:unset;padding:60px;text-align:center">
+        랭킹 데이터를 불러오지 못했습니다.<br>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">${e.message}</span>
+      </div>`;
+    return;
+  }
+
+  // 3) 데이터 없을 때
+  if (!groups.length) {
+    wrap.innerHTML = `
+      <div class="sec-empty" style="grid-column:unset;padding:60px;text-align:center">
+        아직 등록된 랭킹이 없습니다.<br>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">
+          어드민 OTT 페이지 설정에서 카테고리를 노출로 설정해주세요.
+        </span>
+      </div>`;
+    return;
+  }
+
+  const dateStr = getTodayStr();
+
+  // 4) 각 그룹을 카드 그리드 섹션으로 렌더링
+  wrap.innerHTML = groups.map((group, i) => {
+    const items    = group.items || [];
+    const topLabel = `TOP ${items.length}`;
+
+    const cardsHtml = items.length
+      ? items.map((item, idx) => makeCard(item, idx + 1)).join('')
+      : `<div class="sec-empty">아직 등록된 랭킹이 없습니다.</div>`;
+
+    return `
+      <div class="rank-section">
+        <div class="sec-hd">
+          <span class="sec-num">${topLabel}</span>
+          <span class="sec-title">${escHtml(getSectionTitle(group.display_name))}</span>
+          <span class="sec-count">${topLabel}</span>
+          <div class="sec-live">
+            <div class="sec-live-dot"></div>
+            <span>${dateStr}</span>
+          </div>
+        </div>
+        <div class="rank-grid">${cardsHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+/* ── 카테고리 타이틀 매핑 ──
+   display_name이 이미 "박스오피스" 또는 "역대"로 시작하면 그대로 사용
+   어드민에서 display_name을 직접 바꾸면 그 이름이 우선 적용됨 ── */
+const DISPLAY_NAME_MAP = {
+  '박스오피스'        : '주간 박스오피스',
+  '역대 한국 영화 관객수' : '역대 한국 영화 관객수',
+};
+
+function getSectionTitle(displayName) {
+  const name = displayName || '';
+  if (DISPLAY_NAME_MAP[name]) return DISPLAY_NAME_MAP[name];
+  return name;
+}
+
+/* ── XSS 방지 유틸 ── */
 function escHtml(str) {
-  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function escAttr(str) {
-  return String(str||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+  return String(str || '').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
 }
-</script>
-
-<!-- 푸터 -->
-<div id="ottrang-footer"></div>
-<script>
-fetch('/footer.html')
-  .then(r=>r.ok?r.text():Promise.reject())
-  .then(h=>{ document.getElementById('ottrang-footer').innerHTML=h; })
-  .catch(()=>{});
 </script>
 </body>
 </html>
