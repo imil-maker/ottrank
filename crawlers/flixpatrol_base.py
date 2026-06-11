@@ -1,12 +1,13 @@
 """
-FlixPatrol 공통 크롤링 로직 v2
+FlixPatrol 공통 크롤링 로직 v3
 ────────────────────────────────────────────────────────────────
-변경사항:
-  - tv/movie 카테고리 코드 완전 삭제
-  - category_slot(category01~09) 방식으로 전환
-  - ott_categories DB에서 슬롯 설정 읽어서 크롤링
-  - 크롤링 결과: 영어 제목 그대로 저장 (판단 없음)
-  - TMDB 매칭은 db.py의 파이프라인에서 처리
+변경사항 (v2 → v3):
+  - ott_categories.crawl_url 컬럼 지원 추가
+    → 슬롯별로 crawl_url 있으면 해당 URL 사용
+    → 없으면 기존 PLATFORM_URLS 사용 (하위 호환 유지)
+  - 같은 URL을 여러 슬롯이 공유할 때 URL당 1번만 페이지 로드
+    → category07(Movies), category08(TV Shows) 둘 다 월드 URL이어도
+       페이지 1번만 로드 후 각각 table_index로 파싱 (성능 최적화)
 ────────────────────────────────────────────────────────────────
 """
 from playwright.async_api import async_playwright
@@ -24,7 +25,7 @@ BROWSER_HEADERS = {
     "timezone_id": "Asia/Seoul",
 }
 
-# FlixPatrol OTT별 URL 매핑
+# FlixPatrol OTT별 기본 URL 매핑 (crawl_url 없는 슬롯용 fallback)
 PLATFORM_URLS = {
     "netflix":    "https://flixpatrol.com/top10/netflix/south-korea/",
     "disney":     "https://flixpatrol.com/top10/disney/south-korea/",
@@ -36,30 +37,59 @@ PLATFORM_URLS = {
 def get_category_slots(local_conn, platform: str) -> list[dict]:
     """
     로컬 SQLite DB에서 해당 플랫폼의 category_slot 설정 조회
-    반환: [{ category_slot, table_index, source_name, crawl_limit }, ...]
+    crawl_url 컬럼 포함 — 없으면 None 반환 (PLATFORM_URLS fallback)
+    반환: [{ category_slot, table_index, source_name, crawl_limit, crawl_url }, ...]
     table_index 오름차순 정렬
     """
-    rows = local_conn.execute("""
-        SELECT category_slot, table_index, source_name, crawl_limit
-        FROM ott_categories
-        WHERE platform = ? AND is_active = 1
-        ORDER BY table_index ASC
-    """, (platform,)).fetchall()
+    try:
+        # crawl_url 컬럼 포함 조회 (v3 신규)
+        rows = local_conn.execute("""
+            SELECT category_slot, table_index, source_name, crawl_limit, crawl_url
+            FROM ott_categories
+            WHERE platform = ? AND is_active = 1
+            ORDER BY table_index ASC
+        """, (platform,)).fetchall()
 
-    return [
-        {
-            "category_slot": row[0],
-            "table_index":   row[1],
-            "source_name":   row[2],
-            "crawl_limit":   row[3],
-        }
-        for row in rows
-    ]
+        return [
+            {
+                "category_slot": row[0],
+                "table_index":   row[1],
+                "source_name":   row[2],
+                "crawl_limit":   row[3],
+                "crawl_url":     row[4],  # None이면 PLATFORM_URLS fallback
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        # crawl_url 컬럼 없는 구버전 DB 하위 호환
+        print(f"  [{platform}] ⚠️ crawl_url 컬럼 없음 — 구버전 호환 모드: {e}")
+        rows = local_conn.execute("""
+            SELECT category_slot, table_index, source_name, crawl_limit
+            FROM ott_categories
+            WHERE platform = ? AND is_active = 1
+            ORDER BY table_index ASC
+        """, (platform,)).fetchall()
+
+        return [
+            {
+                "category_slot": row[0],
+                "table_index":   row[1],
+                "source_name":   row[2],
+                "crawl_limit":   row[3],
+                "crawl_url":     None,
+            }
+            for row in rows
+        ]
 
 
 async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
     """
     FlixPatrol OTT 페이지 크롤링 메인 함수
+
+    v3 변경사항:
+      - 슬롯별 crawl_url 지원
+      - URL 그룹핑: 같은 URL이면 페이지 1번만 로드 후 여러 슬롯 파싱
+        (category07, category08 모두 월드 URL → 페이지 1번 로드)
 
     반환: [
         {
@@ -73,18 +103,35 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
     ]
     판단 없음 — 있는 그대로 반환, TMDB 매칭은 db.py에서 처리
     """
-    url = PLATFORM_URLS.get(platform)
-    if not url:
-        print(f"  [{platform}] ⚠️ URL 없음")
-        return []
-
-    # DB에서 슬롯 설정 조회
+    # DB에서 슬롯 설정 조회 (crawl_url 포함)
     slots = get_category_slots(local_conn, platform)
     if not slots:
         print(f"  [{platform}] ⚠️ ott_categories에 슬롯 설정 없음")
         return []
 
     print(f"  [{platform}] 슬롯 {len(slots)}개: {[s['category_slot'] for s in slots]}")
+
+    # ── URL 그룹핑 ───────────────────────────────────────────
+    # 같은 URL을 여러 슬롯이 공유할 때 페이지 1번만 로드
+    # { url: [slot, slot, ...] }
+    default_url = PLATFORM_URLS.get(platform)
+    url_groups  = {}
+
+    for slot in slots:
+        # crawl_url 있으면 사용, 없으면 PLATFORM_URLS fallback
+        url = slot["crawl_url"] or default_url
+        if not url:
+            print(f"  [{platform}][{slot['category_slot']}] ⚠️ URL 없음 — 스킵")
+            continue
+        if url not in url_groups:
+            url_groups[url] = []
+        url_groups[url].append(slot)
+
+    if not url_groups:
+        print(f"  [{platform}] ⚠️ 크롤링할 URL 없음")
+        return []
+
+    print(f"  [{platform}] URL 그룹 {len(url_groups)}개: {list(url_groups.keys())}")
 
     results = []
 
@@ -101,35 +148,42 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
         page = await context.new_page()
 
         try:
-            resp = await page.goto(url, wait_until="domcontentloaded", timeout=40000)
-            print(f"  [{platform}] HTTP status: {resp.status}")
+            # URL 그룹별로 페이지 로드 → 각 슬롯 파싱
+            for url, url_slots in url_groups.items():
+                print(f"  [{platform}] 페이지 로드: {url}")
 
-            # card-table 셀렉터로 모든 테이블 수집
-            await page.wait_for_selector("table.card-table", timeout=20000)
-            tables = await page.query_selector_all("table.card-table")
-            print(f"  [{platform}] 전체 테이블 수: {len(tables)}")
+                try:
+                    resp = await page.goto(url, wait_until="domcontentloaded", timeout=40000)
+                    print(f"  [{platform}] HTTP status: {resp.status}")
 
-            # 슬롯별로 테이블 파싱
-            for slot in slots:
-                idx          = slot["table_index"]
-                category_slot = slot["category_slot"]
-                source_name  = slot["source_name"]
-                crawl_limit  = slot["crawl_limit"]
+                    # card-table 셀렉터로 모든 테이블 수집
+                    await page.wait_for_selector("table.card-table", timeout=20000)
+                    tables = await page.query_selector_all("table.card-table")
+                    print(f"  [{platform}] 전체 테이블 수: {len(tables)}")
 
-                if idx >= len(tables):
-                    print(f"  [{platform}][{category_slot}] ⚠️ 테이블 없음 (index={idx}, 전체={len(tables)})")
-                    continue
+                    # 이 URL에 속한 슬롯들 파싱
+                    for slot in url_slots:
+                        idx           = slot["table_index"]
+                        category_slot = slot["category_slot"]
+                        source_name   = slot["source_name"]
+                        crawl_limit   = slot["crawl_limit"]
 
-                print(f"  [{platform}][{category_slot}] '{source_name}' 파싱 중 (table_index={idx}, limit={crawl_limit})")
+                        if idx >= len(tables):
+                            print(f"  [{platform}][{category_slot}] ⚠️ 테이블 없음 (index={idx}, 전체={len(tables)})")
+                            continue
 
-                slot_results = await _parse_table(
-                    tables[idx], platform, category_slot, source_name, crawl_limit
-                )
-                print(f"  [{platform}][{category_slot}] 수집: {len(slot_results)}개")
-                results.extend(slot_results)
+                        print(f"  [{platform}][{category_slot}] '{source_name}' 파싱 중 (table_index={idx}, limit={crawl_limit})")
 
-        except Exception as e:
-            print(f"  [{platform}] 크롤링 에러: {e}")
+                        slot_results = await _parse_table(
+                            tables[idx], platform, category_slot, source_name, crawl_limit
+                        )
+                        print(f"  [{platform}][{category_slot}] 수집: {len(slot_results)}개")
+                        results.extend(slot_results)
+
+                except Exception as e:
+                    print(f"  [{platform}] URL 로드 에러 ({url}): {e}")
+                    continue  # 이 URL 실패해도 다음 URL 계속 진행
+
         finally:
             await browser.close()
 
