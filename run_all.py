@@ -44,6 +44,15 @@ async def run_flixpatrol_platforms(conn):
     await save_rankings_batch(conn, all_results)
 
 
+async def run_netflix_tudum(conn):
+    """Netflix Tudum 공식 TOP10 크롤링 (전세계 주간 랭킹)"""
+    try:
+        from crawlers.netflix_tudum import run as tudum_run
+        await tudum_run(conn, save_rankings_batch)
+    except Exception as e:
+        print(f"  [netflix_tudum] 오류: {e}")
+
+
 async def run_tving(conn):
     """티빙 크롤링 (키노라이츠, 기존 방식 유지)"""
     try:
@@ -74,12 +83,16 @@ async def main():
         print("\n[1단계] FlixPatrol 크롤링 시작...")
         await run_flixpatrol_platforms(conn)
 
-        # 2. 티빙 (기존 유지)
-        print("\n[2단계] 티빙 크롤링 시작...")
+        # 2. Netflix Tudum 전세계 TOP10 (주간)
+        print("\n[2단계] Netflix Tudum 크롤링 시작...")
+        await run_netflix_tudum(conn)
+
+        # 3. 티빙 (기존 유지)
+        print("\n[3단계] 티빙 크롤링 시작...")
         await run_tving(conn)
 
-        # 3. 박스오피스 (기존 유지)
-        print("\n[3단계] 박스오피스 크롤링 시작...")
+        # 4. 박스오피스 (기존 유지)
+        print("\n[4단계] 박스오피스 크롤링 시작...")
         await run_boxoffice(conn)
 
     finally:
