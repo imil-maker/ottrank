@@ -458,6 +458,49 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   margin-bottom:8px;
 }
 .empty-comments{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 20px;text-align:center}
+
+/* ══ MBTI 댓글 뱃지 ══ */
+.c-mbti-badge{
+  font-size:10px;padding:2px 7px;border-radius:10px;
+  background:rgba(55,138,221,.12);color:#378ADD;
+  border:.5px solid rgba(55,138,221,.3);
+  font-family:var(--font-mono);font-weight:600;
+  flex-shrink:0;line-height:1.4;
+}
+
+/* ══ MBTI 추천 섹션 ══ */
+.mbti-rec-section{
+  background:var(--bg2);border:.5px solid var(--border2);
+  border-radius:var(--r-lg);padding:20px 20px 18px;
+  margin-bottom:20px;
+}
+.mbti-rec-title{
+  font-size:14px;color:var(--muted2);margin-bottom:14px;
+  display:flex;align-items:center;gap:6px;
+}
+.mbti-rec-title b{color:var(--text);font-size:15px;}
+.mbti-rec-chips{display:flex;gap:8px;flex-wrap:wrap;}
+.mbti-chip{
+  display:flex;flex-direction:column;align-items:center;
+  gap:4px;padding:10px 16px;border-radius:var(--r);
+  border:.5px solid rgba(55,138,221,.3);
+  background:rgba(55,138,221,.08);
+  transition:all .2s;cursor:default;min-width:64px;
+}
+.mbti-chip:hover{
+  border-color:rgba(55,138,221,.6);
+  background:rgba(55,138,221,.15);
+  transform:translateY(-2px);
+}
+.mbti-chip-label{
+  font-size:14px;font-weight:700;color:#378ADD;
+  font-family:var(--font-mono);letter-spacing:.5px;
+}
+.mbti-chip-sub{font-size:11px;color:var(--muted);font-family:var(--font-mono);}
+.mbti-rec-source{
+  font-size:11px;color:var(--muted);margin-top:10px;
+  font-family:var(--font-mono);
+}
 .empty-comments-btn{margin-top:4px;padding:10px 24px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font-sans)}
 
 /* ══ 페이지네이션 ══ */
@@ -860,6 +903,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <button class="review-cta-btn" onclick="event.stopPropagation();goReview(0)">
     ✍ 평점 남기기
   </button>
+</div>
+
+<!-- MBTI 추천 섹션 -->
+<div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
+  <div class="mbti-rec-title">
+    <span>✦</span>
+    <b>이런 MBTI가 좋아해요</b>
+  </div>
+  <div class="mbti-rec-chips" id="mbtiRecChips"></div>
+  <div class="mbti-rec-source" id="mbtiRecSource"></div>
 </div>
 
 <!-- 사용자 댓글 -->
@@ -1265,6 +1318,8 @@ async function loadTmdb(){
         WORK.type=worksData.media_type;
         WORK.media_type=worksData.media_type; // works DB 기준 media_type 별도 보존
       }
+      // mbti_tags 저장 (renderMbtiSection에서 사용)
+      WORK.mbti_tags=worksData?.mbti_tags||null;
     }
 
     // Select valid TV/Movie
@@ -1731,6 +1786,50 @@ function setSort(t){curSort=t;document.getElementById('sortLatest').classList.to
 function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)=>b.likes-a.likes);else a.sort((a,b)=>b.id-a.id);return a;}
 function renderHalfStars(score){let h='';for(let i=1;i<=5;i++){if(score>=i)h+=`<span class="c-star">★</span>`;else if(score>=i-0.5)h+=`<span class="c-star" style="position:relative;display:inline-block;overflow:hidden;width:.7em">★</span>`;else h+=`<span class="c-star off">★</span>`;}return h;}
 
+/* ── MBTI 추천 섹션 렌더링 ───────────────────────────────────
+   Phase 1: works.mbti_tags (장르 기반 자동 매핑)
+   Phase 2: ALL_COMMENTS의 mbti 집계 (댓글 10개 이상일 때)
+─────────────────────────────────────────────────────────── */
+function renderMbtiSection(mbtiTags){
+  const sec=document.getElementById('mbtiRecSection');
+  const chips=document.getElementById('mbtiRecChips');
+  const src=document.getElementById('mbtiRecSource');
+  if(!sec||!chips)return;
+
+  // Phase 2: 댓글 10개 이상 + MBTI 있는 댓글 5개 이상이면 실제 데이터 우선
+  const mbtiComments=ALL_COMMENTS.filter(c=>c.mbti);
+  if(mbtiComments.length>=5){
+    // 댓글 MBTI 집계
+    const countMap={};
+    mbtiComments.forEach(c=>{ countMap[c.mbti]=(countMap[c.mbti]||0)+1; });
+    const total=mbtiComments.length;
+    const sorted=Object.entries(countMap)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,5);
+    chips.innerHTML=sorted.map(([mbti,cnt])=>{
+      const pct=Math.round(cnt/total*100);
+      return `<div class="mbti-chip">
+        <span class="mbti-chip-label">${mbti}</span>
+        <span class="mbti-chip-sub">${pct}%</span>
+      </div>`;
+    }).join('');
+    src.textContent=`오뜨랑 시청자 ${total}명의 실제 데이터`;
+    sec.style.display='block';
+    return;
+  }
+
+  // Phase 1: works.mbti_tags (장르 기반)
+  if(!mbtiTags)return;
+  const list=mbtiTags.split(',').map(s=>s.trim()).filter(Boolean).slice(0,5);
+  if(!list.length)return;
+  chips.innerHTML=list.map(mbti=>`
+    <div class="mbti-chip">
+      <span class="mbti-chip-label">${mbti}</span>
+    </div>`).join('');
+  src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 업데이트됩니다';
+  sec.style.display='block';
+}
+
 function renderComments(){
   const el=document.getElementById('commentsArea');
   const sorted=getSorted();
@@ -1755,6 +1854,7 @@ function renderComments(){
         <div style="flex:1;min-width:0">
           <div class="c-name-wrap" onclick="showProfile('${c.user}')">
             <span class="c-name">${c.user}</span>
+            ${c.mbti?`<span class="c-mbti-badge">${c.mbti}</span>`:''}
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
             <div class="c-stars">${renderHalfStars(c.score)}</div>
@@ -1871,7 +1971,7 @@ async function loadReviews(tmdbId){
         id:r.id,user:r.nickname||'익명',init:(r.nickname||'익')[0],
         score:r.score,emotions:_safeParseArr(r.emotions),customTags:_safeParseArr(r.custom_tags),
         text:r.text||'',time:formatTime(r.created_at),likes:r.likes||0,spoiler:!!r.spoiler,
-        user_id:r.user_id,isMe:false,
+        user_id:r.user_id,isMe:false,mbti:r.mbti||null,
       }));
     }
     if(myRes.status==='fulfilled'&&myRes.value?.data){
@@ -1886,6 +1986,7 @@ async function loadReviews(tmdbId){
     }
     renderMyReview();
     curPage=1;renderComments();updateUserRatingCard();
+    renderMbtiSection(WORK.mbti_tags||null);
   }catch(e){}
 }
 
