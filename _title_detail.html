@@ -909,7 +909,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
   <div class="mbti-rec-title">
     <span>✦</span>
-    <b>이런 MBTI가 좋아해요</b>
+    <b id="mbtiRecTitle">이런 MBTI가 좋아해요</b>
   </div>
   <div class="mbti-rec-chips" id="mbtiRecChips"></div>
   <div class="mbti-rec-source" id="mbtiRecSource"></div>
@@ -1792,19 +1792,23 @@ function getSorted(){const a=[...ALL_COMMENTS];if(curSort==='likes')a.sort((a,b)
 function renderHalfStars(score){let h='';for(let i=1;i<=5;i++){if(score>=i)h+=`<span class="c-star">★</span>`;else if(score>=i-0.5)h+=`<span class="c-star" style="position:relative;display:inline-block;overflow:hidden;width:.7em">★</span>`;else h+=`<span class="c-star off">★</span>`;}return h;}
 
 /* ── MBTI 추천 섹션 렌더링 ───────────────────────────────────
-   Phase 1: works.mbti_tags (장르 기반 자동 매핑)
-   Phase 2: ALL_COMMENTS의 mbti 집계 (댓글 10개 이상일 때)
+   Phase 1: works.mbti_tags (장르 기반 자동 매핑 + 가상 퍼센트)
+   Phase 2: ALL_COMMENTS의 mbti 집계 (MBTI 댓글 5개 이상일 때)
 ─────────────────────────────────────────────────────────── */
 function renderMbtiSection(mbtiTags){
   const sec=document.getElementById('mbtiRecSection');
   const chips=document.getElementById('mbtiRecChips');
   const src=document.getElementById('mbtiRecSource');
+  const titleEl=document.getElementById('mbtiRecTitle');
   if(!sec||!chips)return;
 
-  // Phase 2: 댓글 10개 이상 + MBTI 있는 댓글 5개 이상이면 실제 데이터 우선
+  // 작품명 제목 설정
+  const workTitle=document.getElementById('mainTitle')?.textContent||WORK.title||'이 작품';
+  if(titleEl) titleEl.textContent=`${workTitle}을(를) 가장 좋아하는 MBTI`;
+
+  // Phase 2: MBTI 있는 댓글 5개 이상이면 실제 데이터 우선
   const mbtiComments=ALL_COMMENTS.filter(c=>c.mbti);
   if(mbtiComments.length>=5){
-    // 댓글 MBTI 집계
     const countMap={};
     mbtiComments.forEach(c=>{ countMap[c.mbti]=(countMap[c.mbti]||0)+1; });
     const total=mbtiComments.length;
@@ -1823,15 +1827,36 @@ function renderMbtiSection(mbtiTags){
     return;
   }
 
-  // Phase 1: works.mbti_tags (장르 기반)
+  // Phase 1: works.mbti_tags (장르 기반 + TMDB 평점 연동 퍼센트)
   if(!mbtiTags)return;
   const list=mbtiTags.split(',').map(s=>s.trim()).filter(Boolean).slice(0,5);
   if(!list.length)return;
-  chips.innerHTML=list.map(mbti=>`
-    <div class="mbti-chip">
+
+  // TMDB 평점 가져오기 (tmdbScore 전역변수 또는 화면에서 읽기)
+  const tmdbScoreEl=document.getElementById('tmdbScore');
+  const tmdbRating=parseFloat(tmdbScoreEl?.textContent)||0;
+
+  // 기본 범위 (TMDB 8점 이상 기준)
+  // [min, max] 형태
+  const BASE_RANGES=[[85,95],[80,85],[73,79],[65,72],[55,65]];
+
+  // 8점 미만이면 (8 - 평점) × 10% 차감
+  // 최소 0% 보장
+  const deduct=tmdbRating>0 ? Math.max(0, Math.round((8-Math.min(tmdbRating,8))*10)) : 0;
+
+  chips.innerHTML=list.map((mbti,idx)=>{
+    const [baseMin,baseMax]=BASE_RANGES[idx]||[45,55];
+    const min=Math.max(0, baseMin-deduct);
+    const max=Math.max(0, baseMax-deduct);
+    // tmdb_id 기반 seed — 작품마다 일관된 값 (새로고침해도 동일)
+    const seed=(WORK.tmdb_id||0)+(idx*37);
+    const pct= min===max ? min : min+((seed*13)%(max-min+1));
+    return `<div class="mbti-chip">
       <span class="mbti-chip-label">${mbti}</span>
-    </div>`).join('');
-  src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 업데이트됩니다';
+      <span class="mbti-chip-sub">${pct}%</span>
+    </div>`;
+  }).join('');
+  src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 실제 데이터로 업데이트됩니다';
   sec.style.display='block';
 }
 
