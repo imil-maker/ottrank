@@ -18,11 +18,11 @@
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
   --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
   --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
-  /* 디즈니+ 브랜드: 파란 계열 */
-  --accent:#0063e5;       /* 디즈니+ 메인 블루 */
-  --accent2:#1a8cff;      /* 밝은 블루 호버 */
-  --accent-glow:rgba(0,99,229,0.18);
-  --accent-border:rgba(0,99,229,0.3);
+  /* 디즈니+ 브랜드: 공식 로열 블루 */
+  --accent:#113CCF;       /* 디즈니+ 공식 로열 블루 */
+  --accent2:#2d55e8;      /* 밝은 블루 호버 */
+  --accent-glow:rgba(17,60,207,0.18);
+  --accent-border:rgba(17,60,207,0.35);
   --green:#34d399; --gold:#f0b429;
   --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
   --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
@@ -130,7 +130,7 @@ body {
   text-shadow:0 2px 8px rgba(0,0,0,.8); letter-spacing:-1px;
 }
 .rk-num.top3 {
-  color:var(--accent); text-shadow:0 2px 12px rgba(0,99,229,0.5);
+  color:var(--accent); text-shadow:0 2px 12px rgba(17,60,207,0.5);
 }
 
 /* 포스터 */
@@ -456,7 +456,7 @@ async function loadAll() {
       <div class="rank-section">
         <div class="sec-hd">
           <span class="sec-num">TOP ${group.items?.length || 0}</span>
-          <span class="sec-title">${escHtml(group.display_name || group.category_slot)}</span>
+          <span class="sec-title">${escHtml(getSectionTitle(group.display_name))}</span>
           <span class="sec-count" id="cnt-${i}"></span>
           <div class="sec-live">
             <div class="sec-live-dot"></div>
@@ -491,6 +491,28 @@ async function loadAll() {
     // 스와이프 드래그 초기화
     initSwipe(track);
   });
+}
+
+/* ── 카테고리 타이틀 앞에 플랫폼명 프리픽스 붙이기 ──
+   display_name이 이미 "디즈니+"로 시작하면 그대로 사용
+   예) "TV 시리즈" → "디즈니+ 일간 TV 시리즈"
+       "영화"     → "디즈니+ 영화"
+       "전체 TOP 10" → "디즈니+ 전체 순위"
+   어드민에서 display_name을 직접 바꾸면 그 이름이 우선 적용됨 ── */
+const DISPLAY_NAME_MAP = {
+  'TV 시리즈'   : '디즈니+ 일간 TV 시리즈',
+  '영화'        : '디즈니+ 영화',
+  '전체 TOP 10' : '디즈니+ 전체 순위',
+};
+
+function getSectionTitle(displayName) {
+  const name = displayName || '';
+  // 이미 "디즈니+"로 시작하면 그대로 반환
+  if (name.startsWith('디즈니+')) return name;
+  // 매핑 테이블에 있으면 변환
+  if (DISPLAY_NAME_MAP[name]) return DISPLAY_NAME_MAP[name];
+  // 그 외 카테고리는 "디즈니+ {display_name}" 형식으로 자동 조합
+  return `디즈니+ ${name}`;
 }
 
 /* ── XSS 방지 유틸 ── */
