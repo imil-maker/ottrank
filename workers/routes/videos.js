@@ -373,7 +373,22 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     if (!results.length) {
       return new Response(JSON.stringify({ ok: false, message: "Not found" }), { status: 404, headers });
     }
-    return new Response(JSON.stringify({ ok: true, data: results[0] }), { headers });
+
+    const work = { ...results[0] };
+
+    // mbti_tags 없으면 장르 기반 자동 계산 후 백그라운드 캐싱
+    if (!work.mbti_tags && work.genre) {
+      const computed = _computeMbtiTags(work.genre);
+      if (computed) {
+        ctx.waitUntil(
+          env.DB.prepare("UPDATE works SET mbti_tags = ? WHERE tmdb_id = ?")
+            .bind(computed, parseInt(tmdb_id)).run()
+        );
+        work.mbti_tags = computed;
+      }
+    }
+
+    return new Response(JSON.stringify({ ok: true, data: work }), { headers });
   }
 
   // ── GET /kmrb/:tmdb_id ───────────────────────────────────────
@@ -463,4 +478,75 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   }
 
   return null;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   장르 → MBTI 태그 자동 매핑 함수
+   works.genre 컬럼(콤마 구분 문자열)을 받아서
+   MBTI 목록을 콤마 구분 문자열로 반환
+   예) "드라마,스릴러" → "INFJ,INTJ,INTP,ENFP,ENTJ,ISTJ,ISFP"
+══════════════════════════════════════════════════════════════ */
+export function _computeMbtiTags(genre) {
+  if (!genre) return null;
+
+  const GENRE_MBTI_MAP = {
+    '드라마'      : ['ENFP','ENTJ','ISTJ','ISFP','INFJ'],
+    '스릴러'      : ['INFJ','INTJ','INTP','ISTP'],
+    '공포'        : ['ISTP','INTP'],
+    '판타지'      : ['INFP','ENFJ','ENFP'],
+    'SF'          : ['INTJ','INTP','ENTP','ENTJ'],
+    '액션'        : ['ESTP','ESTJ','ESFJ'],
+    '코미디'      : ['ESFP','ISFJ','ENFP'],
+    '로맨스'      : ['ISFJ','ENFJ','ESFP'],
+    '범죄'        : ['INTJ','ISTP','INFJ'],
+    '모험'        : ['ESTP','ENTP','ENFP'],
+    '애니메이션'  : ['ISFP','INFP'],
+    '다큐멘터리'  : ['INTJ','INTP','ISTJ'],
+    '미스터리'    : ['INFJ','INTP','INTJ','ISTP'],
+    '전쟁'        : ['ISTJ','ESTJ','ISTP'],
+    '역사'        : ['ISTJ','INTJ','INFJ'],
+    '음악'        : ['ISFP','ENFP','ESFP'],
+    '가족'        : ['ISFJ','ESFJ','ENFJ'],
+    'Reality'     : ['ESFP','ESTP','ENFP'],
+    'Drama'               : ['ENFP','ENTJ','ISTJ','ISFP','INFJ'],
+    'Thriller'            : ['INFJ','INTJ','INTP','ISTP'],
+    'Horror'              : ['ISTP','INTP'],
+    'Fantasy'             : ['INFP','ENFJ','ENFP'],
+    'Science Fiction'     : ['INTJ','INTP','ENTP','ENTJ'],
+    'Sci-Fi & Fantasy'    : ['INTJ','INTP','ENTP','INFP'],
+    'Action'              : ['ESTP','ESTJ','ESFJ'],
+    'Action & Adventure'  : ['ESTP','ESTJ','ESFJ','ENTP'],
+    'Comedy'              : ['ESFP','ISFJ','ENFP'],
+    'Romance'             : ['ISFJ','ENFJ','ESFP'],
+    'Crime'               : ['INTJ','ISTP','INFJ'],
+    'Adventure'           : ['ESTP','ENTP','ENFP'],
+    'Animation'           : ['ISFP','INFP'],
+    'Documentary'         : ['INTJ','INTP','ISTJ'],
+    'Mystery'             : ['INFJ','INTP','INTJ','ISTP'],
+    'War'                 : ['ISTJ','ESTJ','ISTP'],
+    'War & Politics'      : ['ISTJ','INTJ','INFJ'],
+    'History'             : ['ISTJ','INTJ','INFJ'],
+    'Music'               : ['ISFP','ENFP','ESFP'],
+    'Family'              : ['ISFJ','ESFJ','ENFJ'],
+    'Soap'                : ['ISFJ','ESFJ','ENFJ'],
+    'Kids'                : ['ISFJ','ESFJ','ENFP'],
+    'Western'             : ['ISTP','ESTP','ISTJ'],
+  };
+
+  const genres = genre.split(',').map(g => g.trim()).filter(Boolean);
+  const scoreMap = {};
+  for (const g of genres) {
+    const mbtis = GENRE_MBTI_MAP[g];
+    if (!mbtis) continue;
+    mbtis.forEach((mbti, idx) => {
+      const score = idx === 0 ? 3 : idx === 1 ? 2 : 1;
+      scoreMap[mbti] = (scoreMap[mbti] || 0) + score;
+    });
+  }
+  if (!Object.keys(scoreMap).length) return null;
+  return Object.entries(scoreMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([mbti]) => mbti)
+    .join(',');
 }
