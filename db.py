@@ -452,14 +452,28 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", stri
         if len(valid) == 1:
             return _build_result(valid[0], media_type)
 
-        # strict 모드 → 결과 여러개이면 None 반환 (오매칭 방지)
+        # strict 모드 — 결과 여러개일 때 오매칭 방지
+        # 단, 제목이 완전 일치하는 결과가 있으면 최신 연도 기준으로 반환
         if strict:
-            # 결과 1개라도 제목 유사도가 너무 낮으면 None 반환
+            def get_year(r):
+                date_str = r.get("release_date") or r.get("first_air_date") or "0000"
+                try: return int(date_str[:4])
+                except: return 0
+
+            # 제목 완전 일치(100점) 결과 있으면 반환 (Creed III 등 커버)
+            exact_match = [r for r in valid if _tmdb_title_score(r, query) == 100]
+            if exact_match:
+                return _build_result(max(exact_match, key=get_year), media_type)
+
+            # 유사도 낮으면 None 반환 (오매칭 방지)
             best_score = max(_tmdb_title_score(r, query) for r in valid)
-            if best_score < 50:
+            if best_score < 80:
                 print(f"    [strict] '{query}' → 유사도 낮아 저장 안함 (score={best_score})")
                 return None
-            return None
+
+            # 80점 이상 중 최신 연도
+            high_score = [r for r in valid if _tmdb_title_score(r, query) >= 80]
+            return _build_result(max(high_score, key=get_year), media_type)
 
         def get_year(r):
             """출시 연도 추출 — 최신 연도 우선 정렬용"""
