@@ -11,8 +11,14 @@ FlixPatrol 공통 크롤링 로직 v3
 ────────────────────────────────────────────────────────────────
 """
 from playwright.async_api import async_playwright
+from datetime import datetime, timezone, timedelta
 import sqlite3
 import os
+
+# 어제 날짜 (KST 기준) — FlixPatrol 월드 URL용
+# 오늘 데이터는 업데이트 중일 수 있으므로 어제 날짜 사용
+KST       = timezone(timedelta(hours=9))
+YESTERDAY = (datetime.now(KST) - timedelta(days=1)).strftime('%Y-%m-%d')
 
 # 브라우저 설정
 BROWSER_HEADERS = {
@@ -119,10 +125,16 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
 
     for slot in slots:
         # crawl_url 있으면 사용, 없으면 PLATFORM_URLS fallback
-        url = slot["crawl_url"] or default_url
-        if not url:
+        raw_url = slot["crawl_url"] or default_url
+        if not raw_url:
             print(f"  [{platform}][{slot['category_slot']}] ⚠️ URL 없음 — 스킵")
             continue
+
+        # {date} placeholder → 어제 날짜로 치환
+        # 예) https://flixpatrol.com/top10/netflix/world/{date}/
+        #   → https://flixpatrol.com/top10/netflix/world/2026-06-11/
+        url = raw_url.replace("{date}", YESTERDAY)
+
         if url not in url_groups:
             url_groups[url] = []
         url_groups[url].append(slot)
