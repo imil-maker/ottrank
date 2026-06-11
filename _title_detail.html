@@ -1358,7 +1358,8 @@ async function loadTmdb(){
     // - worksData 있고 title_en이 영어: 아무것도 안 함 (flixpatrol 기준 보호)
     const needRegister = !worksData || !worksData.title_en ||
       /[\uAC00-\uD7A3]/.test(worksData.title_en) ||
-      worksData.title_en === worksData.title_ko;
+      worksData.title_en === worksData.title_ko ||
+      !worksData.genre;  // genre 없으면 저장 필요
     if(needRegister && WORK.tmdb_id){
       // original_name이 영어(라틴 문자)를 포함할 때만 title_en으로 사용
       const origName   = det.original_name||det.original_title||'';
