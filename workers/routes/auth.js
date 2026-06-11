@@ -7,13 +7,23 @@
    GET    /auth/kakao
    GET    /auth/kakao/callback
    GET    /auth/me
-   POST   /auth/nickname
+   GET    /auth/random-nickname   ← 신규: 랜덤 닉네임 생성
+   POST   /auth/nickname          ← 변경: mbti 파라미터 추가
    PUT    /auth/nickname
    DELETE /auth/withdraw
    POST   /auth/logout
 ══════════════════════════════════════════════════════════════ */
 
 import { _getSessionCookie } from "../utils/authUtils.js";
+
+// ── 랜덤 닉네임 생성용 형용사 목록 ────────────────────────────
+const ADJECTIVES = [
+  "귀여운", "용감한", "신비로운", "엉뚱한", "조용한",
+  "활발한", "느긋한", "열정적인", "낭만적인", "진지한",
+  "유쾌한", "당당한", "수줍은", "독특한", "빠른",
+  "따뜻한", "차가운", "배고픈", "졸린", "멋진",
+  "황당한", "진지한", "느린", "영리한", "강한",
+];
 
 export async function handleAuth(path, request, env, headers) {
   const url = new URL(request.url);
@@ -296,8 +306,9 @@ export async function handleAuth(path, request, env, headers) {
       ).bind(sessionId).first();
       if (!session) return new Response(JSON.stringify({ ok: false }), { headers });
 
+      // mbti 컬럼 포함하여 조회
       const user = await env.DB.prepare(
-        "SELECT id, nickname, email, avatar_url, provider, grade, total_likes_received, created_at FROM users WHERE id = ?"
+        "SELECT id, nickname, email, avatar_url, provider, grade, total_likes_received, mbti, created_at FROM users WHERE id = ?"
       ).bind(session.user_id).first();
       if (!user) return new Response(JSON.stringify({ ok: false }), { headers });
 
@@ -311,11 +322,53 @@ export async function handleAuth(path, request, env, headers) {
     }
   }
 
+  // ── GET /auth/random-nickname ─────────────────────────────
+  // works 테이블에서 랜덤 작품명 + 형용사 + 숫자 4자리 조합
+  if (path === "/auth/random-nickname" && request.method === "GET") {
+    try {
+      // works 테이블에서 한글 제목만 랜덤으로 1개 조회
+      // title_ko가 한글을 포함하고, 10자 이하인 것만 (닉네임 길이 제한 고려)
+      const work = await env.DB.prepare(`
+        SELECT title_ko FROM works
+        WHERE title_ko IS NOT NULL
+          AND title_ko != ''
+          AND length(title_ko) <= 10
+        ORDER BY RANDOM()
+        LIMIT 1
+      `).first();
+
+      // DB 조회 실패 시 기본 단어 사용
+      const workTitle = work?.title_ko || "드라마팬";
+
+      // 형용사 랜덤 선택
+      const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+
+      // 숫자 4자리 랜덤 생성 (1000~9999)
+      const num = Math.floor(Math.random() * 9000) + 1000;
+
+      // 최종 닉네임: "귀여운파친코1234" (공백 없이, 20자 이하 보장)
+      let nickname = `${adj}${workTitle}${num}`;
+
+      // 20자 초과 시 작품명을 6자로 자름
+      if (nickname.length > 20) {
+        nickname = `${adj}${workTitle.slice(0, 6)}${num}`;
+      }
+
+      return new Response(JSON.stringify({ ok: true, nickname }), { headers });
+    } catch (e) {
+      // 오류 시 기본 닉네임 반환
+      const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+      const num = Math.floor(Math.random() * 9000) + 1000;
+      return new Response(JSON.stringify({ ok: true, nickname: `${adj}시네마${num}` }), { headers });
+    }
+  }
+
   // ── POST /auth/nickname ───────────────────────────────────
   if (path === "/auth/nickname" && request.method === "POST") {
     try {
       const body = await request.json();
-      const { nickname, sid } = body;
+      // mbti 파라미터 추가 (선택사항 — null 허용)
+      const { nickname, sid, mbti } = body;
 
       const sessionId = sid || _getSessionCookie(request);
       if (!sessionId) {
@@ -346,9 +399,19 @@ export async function handleAuth(path, request, env, headers) {
         return new Response(JSON.stringify({ ok: false, message: "이미 사용 중인 닉네임이에요" }), { status: 400, headers });
       }
 
+      // MBTI 유효성 검사 (선택사항이므로 null/undefined는 통과)
+      const VALID_MBTI = [
+        "INTJ","INTP","ENTJ","ENTP",
+        "INFJ","INFP","ENFJ","ENFP",
+        "ISTJ","ISFJ","ESTJ","ESFJ",
+        "ISTP","ISFP","ESTP","ESFP",
+      ];
+      const finalMbti = mbti && VALID_MBTI.includes(mbti) ? mbti : null;
+
+      // 닉네임 + mbti 함께 저장
       await env.DB.prepare(
-        "UPDATE users SET nickname = ? WHERE id = ?"
-      ).bind(nickname.trim(), session.user_id).run();
+        "UPDATE users SET nickname = ?, mbti = ? WHERE id = ?"
+      ).bind(nickname.trim(), finalMbti, session.user_id).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
@@ -372,7 +435,7 @@ export async function handleAuth(path, request, env, headers) {
         return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
       }
 
-      const body     = await request.json();
+      const body         = await request.json();
       const { nickname } = body;
 
       if (!nickname || nickname.trim().length < 2) {
