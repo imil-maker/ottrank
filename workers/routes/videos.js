@@ -316,7 +316,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   if (path === "/works/register" && request.method === "POST") {
     try {
       const body = await request.json();
-      const { tmdb_id, title_ko, title_en, poster_path, media_type } = body;
+      const { tmdb_id, title_ko, title_en, poster_path, media_type, genre } = body;
 
       // 필수값 검증
       if (!tmdb_id || !title_ko) {
@@ -331,8 +331,8 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const validTitle_en = (hasLatin && !hasKorean) ? title_en : null;
 
       await env.DB.prepare(`
-        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type, genre)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- title_en 업데이트 조건:
           --   1) 현재 title_en이 비어있을 때
@@ -346,13 +346,20 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             WHEN works.title_en = works.title_ko
               THEN excluded.title_en
             ELSE works.title_en
+          END,
+          -- genre: 비어있을 때만 업데이트 (기존 데이터 보호)
+          genre = CASE
+            WHEN works.genre IS NULL OR works.genre = ''
+              THEN excluded.genre
+            ELSE works.genre
           END
       `).bind(
         parseInt(tmdb_id),
         title_ko       || null,
         validTitle_en  || null,
         poster_path    || null,
-        media_type     || 'tv'
+        media_type     || 'tv',
+        genre          || null
       ).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
