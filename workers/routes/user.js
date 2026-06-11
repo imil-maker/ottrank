@@ -253,7 +253,7 @@ export async function handleUser(path, request, env, ctx, headers) {
 
       const user = await env.DB.prepare(`
         SELECT u.id, u.nickname, u.provider, u.email, u.avatar_url,
-          u.grade, u.total_likes_received, u.created_at, u.wishlist_public,
+          u.grade, u.total_likes_received, u.created_at, u.wishlist_public, u.mbti,
           gs.grade_name, gs.emoji_url as grade_emoji_url, gs.sort_order as grade_order,
           gs.is_special as grade_is_special
         FROM users u
@@ -368,7 +368,7 @@ export async function handleUser(path, request, env, ctx, headers) {
 
       const user = await env.DB.prepare(`
         SELECT u.id, u.nickname, u.grade, u.total_likes_received, u.created_at,
-          u.wishlist_public,
+          u.wishlist_public, u.mbti,
           gs.grade_name, gs.emoji_url as grade_emoji_url, gs.is_special as grade_is_special
         FROM users u
         LEFT JOIN grade_settings gs ON gs.grade_key = u.grade
