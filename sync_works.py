@@ -54,7 +54,7 @@ def d1_query(sql: str, params: list = None) -> list:
 def _ensure_local_tables(conn: sqlite3.Connection):
     """로컬 DB에 필요한 테이블이 없으면 생성"""
 
-    # ott_categories 테이블 (신규)
+    # ott_categories 테이블 (crawl_url 컬럼 포함)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ott_categories (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,9 +67,17 @@ def _ensure_local_tables(conn: sqlite3.Connection):
             main_limit     INTEGER NOT NULL DEFAULT 10,
             platform_limit INTEGER NOT NULL DEFAULT 20,
             is_active      INTEGER NOT NULL DEFAULT 1,
+            crawl_url      TEXT,
             UNIQUE(platform, category_slot)
         )
     """)
+
+    # crawl_url 컬럼 마이그레이션 (기존 테이블에 컬럼 없으면 추가)
+    try:
+        conn.execute("ALTER TABLE ott_categories ADD COLUMN crawl_url TEXT")
+        print("  ✅ ott_categories.crawl_url 컬럼 추가 완료")
+    except Exception:
+        pass  # 이미 존재하면 무시
 
     # works 테이블 (match_source, confidence_score 컬럼 추가 마이그레이션)
     for col_sql in [
@@ -164,7 +172,8 @@ def sync_ott_categories(conn: sqlite3.Connection):
     try:
         rows = d1_query("""
             SELECT platform, category_slot, table_index, source_name,
-                   display_name, crawl_limit, main_limit, platform_limit, is_active
+                   display_name, crawl_limit, main_limit, platform_limit, is_active,
+                   crawl_url
             FROM ott_categories
             ORDER BY platform, category_slot
         """)
@@ -179,8 +188,9 @@ def sync_ott_categories(conn: sqlite3.Connection):
             conn.execute("""
                 INSERT INTO ott_categories
                     (platform, category_slot, table_index, source_name,
-                     display_name, crawl_limit, main_limit, platform_limit, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     display_name, crawl_limit, main_limit, platform_limit, is_active,
+                     crawl_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 row["platform"],
                 row["category_slot"],
@@ -191,6 +201,7 @@ def sync_ott_categories(conn: sqlite3.Connection):
                 row["main_limit"],
                 row["platform_limit"],
                 row["is_active"],
+                row.get("crawl_url"),   # None이면 NULL 저장
             ))
             count += 1
 
