@@ -162,6 +162,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* 컬렉션 카드 내 작품 추가 버튼 */
 .pick-card-add{font-size:11px;color:var(--info);font-family:var(--font-mono);padding:3px 10px;border-radius:4px;border:.5px solid var(--info-border);background:transparent;cursor:pointer;transition:all .15s;flex-shrink:0}
 .pick-card-add:hover{background:var(--info-bg)}
+/* MBTI 뱃지 */
+.mbti-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(55,138,221,.12);color:var(--info);border:.5px solid rgba(55,138,221,.35);font-family:var(--font-mono);font-weight:600;display:inline-flex;align-items:center;gap:5px;cursor:pointer;transition:all .15s;margin-left:4px}
+.mbti-badge:hover{background:rgba(55,138,221,.22)}
+.mbti-badge.empty{background:var(--bg3);color:var(--muted);border-color:var(--border2)}
+/* MBTI 수정 행 */
+.mbti-edit-row{display:none;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+.mbti-edit-row.show{display:flex}
+.mbti-grid-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:100%}
+.mbti-mini-btn{height:34px;background:var(--bg3);border:.5px solid var(--border2);border-radius:6px;color:var(--muted2);font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s}
+.mbti-mini-btn:hover{border-color:var(--info);color:var(--text)}
+.mbti-mini-btn.selected{border-color:var(--info);color:var(--info);background:rgba(55,138,221,.12);font-weight:700}
+.mbti-edit-actions{display:flex;gap:6px;margin-top:6px;width:100%}
+.mbti-save-btn{flex:1;padding:7px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer}
+.mbti-cancel-btn{padding:7px 14px;border-radius:var(--r);background:transparent;color:var(--muted2);font-size:13px;border:.5px solid var(--border);cursor:pointer}
+/* 빈 섹션 구분 강화 */
+.sec-wrap{margin-bottom:28px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r-lg);padding:18px 18px 14px}
+.sec-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.sec-empty{background:var(--bg3);border:.5px solid var(--border);border-radius:var(--r);padding:36px 20px;text-align:center;font-size:13px;color:var(--muted)}
+.sec-empty i{font-size:28px;opacity:.3;display:block;margin-bottom:8px}
 /* 작품 검색 모달 */
 .work-search-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
 .work-search-modal.show{display:flex}
@@ -209,7 +228,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <div class="profile-card">
       <div class="profile-emoji-wrap" id="profileEmoji"><span class="no-emoji">🎬</span></div>
       <div class="profile-info">
-        <div><span class="profile-grade-badge" id="profileGradeBadge">막내</span></div>
+        <div><span class="profile-grade-badge" id="profileGradeBadge">막내</span><span class="mbti-badge empty" id="mbtiBadge" style="display:none" onclick="IS_OWN&&toggleMbtiEdit()">✦ MBTI</span></div>
         <div class="profile-nickname">
           <span id="profileNickname">—</span>
           <button class="edit-btn" id="nicknameEditBtn" style="display:none" onclick="toggleNicknameEdit()">
@@ -220,6 +239,31 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
           <input class="nickname-inp" type="text" id="nicknameInp" placeholder="새 닉네임" maxlength="20" onkeydown="if(event.key==='Enter')saveNickname()">
           <button class="nickname-save-btn" onclick="saveNickname()">저장</button>
           <button class="nickname-cancel-btn" onclick="toggleNicknameEdit()">취소</button>
+        </div>
+        <!-- MBTI 수정 UI -->
+        <div class="mbti-edit-row" id="mbtiEditRow">
+          <div class="mbti-grid-mini" id="mbtiGridMini">
+            <button class="mbti-mini-btn" data-mbti="INTJ" onclick="selectMbtiMini(this)">INTJ</button>
+            <button class="mbti-mini-btn" data-mbti="INTP" onclick="selectMbtiMini(this)">INTP</button>
+            <button class="mbti-mini-btn" data-mbti="ENTJ" onclick="selectMbtiMini(this)">ENTJ</button>
+            <button class="mbti-mini-btn" data-mbti="ENTP" onclick="selectMbtiMini(this)">ENTP</button>
+            <button class="mbti-mini-btn" data-mbti="INFJ" onclick="selectMbtiMini(this)">INFJ</button>
+            <button class="mbti-mini-btn" data-mbti="INFP" onclick="selectMbtiMini(this)">INFP</button>
+            <button class="mbti-mini-btn" data-mbti="ENFJ" onclick="selectMbtiMini(this)">ENFJ</button>
+            <button class="mbti-mini-btn" data-mbti="ENFP" onclick="selectMbtiMini(this)">ENFP</button>
+            <button class="mbti-mini-btn" data-mbti="ISTJ" onclick="selectMbtiMini(this)">ISTJ</button>
+            <button class="mbti-mini-btn" data-mbti="ISFJ" onclick="selectMbtiMini(this)">ISFJ</button>
+            <button class="mbti-mini-btn" data-mbti="ESTJ" onclick="selectMbtiMini(this)">ESTJ</button>
+            <button class="mbti-mini-btn" data-mbti="ESFJ" onclick="selectMbtiMini(this)">ESFJ</button>
+            <button class="mbti-mini-btn" data-mbti="ISTP" onclick="selectMbtiMini(this)">ISTP</button>
+            <button class="mbti-mini-btn" data-mbti="ISFP" onclick="selectMbtiMini(this)">ISFP</button>
+            <button class="mbti-mini-btn" data-mbti="ESTP" onclick="selectMbtiMini(this)">ESTP</button>
+            <button class="mbti-mini-btn" data-mbti="ESFP" onclick="selectMbtiMini(this)">ESFP</button>
+          </div>
+          <div class="mbti-edit-actions">
+            <button class="mbti-save-btn" onclick="saveMbti()">저장</button>
+            <button class="mbti-cancel-btn" onclick="toggleMbtiEdit()">취소</button>
+          </div>
         </div>
         <div class="profile-meta">
           <div class="profile-meta-item"><i class="ti ti-heart" style="color:var(--accent);font-size:13px"></i>받은 좋아요 <b id="profileLikes">0</b>개</div>
@@ -374,6 +418,25 @@ function renderProfile(user,stats,isOwn){
     document.getElementById('providerIcon').className=`ti ${im[user.provider]||'ti-user'}`;
   }
   if(!isOwn)document.title=`${user.nickname||'유저'} 프로필 | 오뜨랑`;
+
+  // MBTI 뱃지 렌더링
+  const mbtiBadge=document.getElementById('mbtiBadge');
+  mbtiBadge.style.display='inline-flex';
+  if(user.mbti){
+    mbtiBadge.textContent=`✦ ${user.mbti}`;
+    mbtiBadge.classList.remove('empty');
+    // MBTI 수정 그리드 초기 선택 표시
+    document.querySelectorAll('.mbti-mini-btn').forEach(b=>{
+      b.classList.toggle('selected',b.dataset.mbti===user.mbti);
+    });
+  } else {
+    mbtiBadge.textContent=isOwn?'✦ MBTI 설정':'';
+    mbtiBadge.classList.add('empty');
+    if(!isOwn)mbtiBadge.style.display='none';
+  }
+  // 본인 페이지에만 MBTI 클릭 가능 표시
+  if(isOwn){mbtiBadge.title='클릭하여 MBTI 설정';}
+  else{mbtiBadge.style.cursor='default';}
 }
 
 function renderNextGrade(user,stats){
@@ -822,6 +885,52 @@ async function saveNickname(){
     const json=await res.json();
     if(json.ok){document.getElementById('profileNickname').textContent=nickname;document.getElementById('nicknameEditRow').classList.remove('show');showToast('✅ 닉네임이 변경됐어요!');}
     else showToast(json.message||'변경 실패');
+  }catch(e){showToast('오류: '+e.message);}
+}
+
+/* ══ MBTI 수정 ══ */
+let _selectedMbtiEdit=null;
+
+function toggleMbtiEdit(){
+  const row=document.getElementById('mbtiEditRow');
+  row.classList.toggle('show');
+}
+
+function selectMbtiMini(el){
+  const mbti=el.dataset.mbti;
+  // 이미 선택된 버튼 다시 누르면 해제
+  if(_selectedMbtiEdit===mbti){
+    el.classList.remove('selected');
+    _selectedMbtiEdit=null;
+    return;
+  }
+  document.querySelectorAll('.mbti-mini-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  _selectedMbtiEdit=mbti;
+}
+
+async function saveMbti(){
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid)return;
+  try{
+    const res=await fetch(`${API}/auth/mbti`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
+      body:JSON.stringify({mbti:_selectedMbtiEdit}),
+    });
+    const json=await res.json();
+    if(json.ok){
+      const mbtiBadge=document.getElementById('mbtiBadge');
+      if(_selectedMbtiEdit){
+        mbtiBadge.textContent=`✦ ${_selectedMbtiEdit}`;
+        mbtiBadge.classList.remove('empty');
+      } else {
+        mbtiBadge.textContent='✦ MBTI 설정';
+        mbtiBadge.classList.add('empty');
+      }
+      document.getElementById('mbtiEditRow').classList.remove('show');
+      showToast(`✅ MBTI가 ${_selectedMbtiEdit||'해제'}됐어요!`);
+    } else showToast(json.message||'저장 실패');
   }catch(e){showToast('오류: '+e.message);}
 }
 
