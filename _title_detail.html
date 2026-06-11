@@ -1840,17 +1840,18 @@ function renderMbtiSection(mbtiTags){
   const list=mbtiTags.split(',').map(s=>s.trim()).filter(Boolean).slice(0,5);
   if(!list.length)return;
 
-  // TMDB 평점 가져오기 (tmdbScore 전역변수 또는 화면에서 읽기)
+  // TMDB 평점 가져오기
   const tmdbScoreEl=document.getElementById('tmdbScore');
   const tmdbRating=parseFloat(tmdbScoreEl?.textContent)||0;
 
+  // 장르 없거나 TMDB 평점 없으면 섹션 숨김 (신뢰도 보호)
+  if(!tmdbRating){ sec.style.display='none'; return; }
+
   // 기본 범위 (TMDB 8점 이상 기준)
-  // [min, max] 형태
   const BASE_RANGES=[[85,95],[80,85],[73,79],[65,72],[55,65]];
 
-  // 8점 미만이면 (8 - 평점) × 10% 차감
-  // 최소 0% 보장
-  const deduct=tmdbRating>0 ? Math.max(0, Math.round((8-Math.min(tmdbRating,8))*10)) : 0;
+  // 8점 미만이면 (8 - 평점) × 10% 차감, 최대 30% 차감
+  const deduct=Math.min(30, Math.max(0, Math.round((8-Math.min(tmdbRating,8))*10)));
 
   chips.innerHTML=list.map((mbti,idx)=>{
     const [baseMin,baseMax]=BASE_RANGES[idx]||[45,55];
@@ -1888,9 +1889,9 @@ function renderComments(){
   el.innerHTML=`<div class="comments-section">${slice.map(c=>`
     <div class="comment-item" id="cmt_${c.id}">
       <div class="comment-header">
-        <div class="avatar" onclick="showProfile('${c.user}')">${c.init}</div>
+        <div class="avatar" onclick="goUserPage(${c.user_id})" style="cursor:pointer">${c.init}</div>
         <div style="flex:1;min-width:0">
-          <div class="c-name-wrap" onclick="showProfile('${c.user}')">
+          <div class="c-name-wrap" onclick="goUserPage(${c.user_id})">
             <span class="c-name">${c.user}</span>
             ${c.mbti?`<span class="c-mbti-badge">${c.mbti}</span>`:''}
           </div>
@@ -2328,6 +2329,11 @@ function updateWishBtn(){updateWishItem();updateSaveMainBtn();}
 async function toggleWish(){await handleSaveWish();}
 
 /* == Profile == */
+function goUserPage(userId){
+  if(!userId)return;
+  location.href=`/mypage.html?uid=${userId}`;
+}
+
 function showProfile(username){
   const reviews=ALL_COMMENTS.filter(c=>c.user===username);
   document.getElementById('profileAvatar').textContent=(username||'?')[0];
