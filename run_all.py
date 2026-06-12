@@ -45,12 +45,12 @@ async def run_flixpatrol_platforms(conn):
 
 
 async def run_netflix_tudum(conn):
-    """Netflix Tudum 공식 TOP10 크롤링 (전세계 주간 랭킹)"""
+    """Netflix 전세계 TOP10 크롤링 (FlixPatrol 전세계 랭킹, requests 기반)"""
     try:
         from crawlers.netflix_tudum import run as tudum_run
         await tudum_run(conn, save_rankings_batch)
     except Exception as e:
-        print(f"  [netflix_tudum] 오류: {e}")
+        print(f"  [netflix_world] 오류: {e}")
 
 
 async def run_tving(conn):
