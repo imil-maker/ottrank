@@ -210,6 +210,25 @@ async def _crawl_one_url(browser, url: str, source_name: str,
         # 테이블 로딩 대기
         await page.wait_for_selector("table", timeout=20000)
 
+        # ── 디버그: 페이지 내 모든 h2 텍스트와 테이블 수 출력 ──
+        h2_texts = await page.evaluate("""
+            () => Array.from(document.querySelectorAll('h2')).map(h => h.innerText.trim())
+        """)
+        table_count = await page.evaluate(""" () => document.querySelectorAll('table').length """)
+        print(f"    [debug] h2 목록: {h2_texts}")
+        print(f"    [debug] 전체 테이블 수: {table_count}")
+
+        # 각 테이블의 첫 번째 행 첫 번째 셀 텍스트 출력
+        table_previews = await page.evaluate("""
+            () => Array.from(document.querySelectorAll('table')).map((t, i) => {
+                const firstRow = t.querySelector('tbody tr td:first-child');
+                return i + ': ' + (firstRow ? firstRow.innerText.trim().slice(0, 30) : 'empty');
+            })
+        """)
+        for preview in table_previews:
+            print(f"    [debug] table {preview}")
+        # ── 디버그 끝 ──
+
         # Global Top 10 섹션 파싱
         results = await _parse_global_top10(
             page, category_slot, source_name, crawl_limit
