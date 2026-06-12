@@ -1,7 +1,7 @@
 name: Add Google Analytics to all HTML files
 
 on:
-  workflow_dispatch: # 수동 실행 전용 (Actions 탭에서 Run workflow 버튼으로 실행)
+  workflow_dispatch:
 
 jobs:
   add-ga:
@@ -12,40 +12,10 @@ jobs:
 
       - name: Insert GA tag into all HTML files
         run: |
-          # GA 태그 한 줄씩 삽입을 위해 파일로 저장
-          cat > /tmp/ga_tag.txt << 'GATAG'
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NMN87YB7Y3"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-NMN87YB7Y3');
-  </script>
-GATAG
+          python3 << 'PYEOF'
+          import os, re
 
-          # 루트의 모든 HTML 파일 순회
-          find . -name "*.html" \
-            -not -path "./.github/*" \
-            -not -name "header.html" \
-            -not -name "footer.html" | sort | while read f; do
-
-            # 이미 GA 태그가 있는 파일은 스킵
-            if grep -q "G-NMN87YB7Y3" "$f"; then
-              echo "SKIP (already has GA): $f"
-              continue
-            fi
-
-            # <meta charset="UTF-8"> 줄 바로 뒤에 GA 태그 삽입 (대소문자 무시)
-            if grep -qi '<meta charset' "$f"; then
-              python3 - "$f" << 'PYEOF'
-import sys, re
-
-filepath = sys.argv[1]
-with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
-    content = fh.read()
-
-ga_tag = """  <!-- Google tag (gtag.js) -->
+          GA_TAG = """  <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NMN87YB7Y3"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -54,26 +24,39 @@ ga_tag = """  <!-- Google tag (gtag.js) -->
     gtag('config', 'G-NMN87YB7Y3');
   </script>"""
 
-# <meta charset="UTF-8"> 패턴 (대소문자 무시, 따옴표 유연하게)
-pattern = re.compile(r'(<meta\s+charset=["\']UTF-8["\']>)', re.IGNORECASE)
-new_content = pattern.sub(r'\1\n' + ga_tag, content, count=1)
+          SKIP_FILES = {'header.html', 'footer.html'}
+          pattern = re.compile(r'(<meta\s+charset=["\']UTF-8["\']>)', re.IGNORECASE)
 
-with open(filepath, 'w', encoding='utf-8') as fh:
-    fh.write(new_content)
-
-print(f"DONE: {filepath}")
-PYEOF
-            else
-              echo "NO CHARSET TAG — skipped: $f"
-            fi
-          done
+          for root, dirs, files in os.walk('.'):
+              # .github 폴더 제외
+              dirs[:] = [d for d in dirs if d != '.github']
+              for fname in files:
+                  if not fname.endswith('.html'):
+                      continue
+                  if fname in SKIP_FILES:
+                      print(f'SKIP (excluded): {fname}')
+                      continue
+                  fpath = os.path.join(root, fname)
+                  with open(fpath, 'r', encoding='utf-8', errors='replace') as f:
+                      content = f.read()
+                  # 이미 GA 태그 있으면 스킵
+                  if 'G-NMN87YB7Y3' in content:
+                      print(f'SKIP (already has GA): {fpath}')
+                      continue
+                  # charset 태그 없으면 스킵
+                  if not pattern.search(content):
+                      print(f'SKIP (no charset tag): {fpath}')
+                      continue
+                  new_content = pattern.sub(r'\1\n' + GA_TAG, content, count=1)
+                  with open(fpath, 'w', encoding='utf-8') as f:
+                      f.write(new_content)
+                  print(f'DONE: {fpath}')
+          PYEOF
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          # 변경사항이 있을 때만 커밋 (없으면 종료)
-          git diff --staged --quiet && echo "변경된 파일 없음 — 이미 모두 GA 적용됨" || \
-          git commit -m "feat: add Google Analytics (G-NMN87YB7Y3) to all HTML pages"
+          git diff --staged --quiet && echo "변경된 파일 없음" || git commit -m "feat: add Google Analytics (G-NMN87YB7Y3) to all HTML pages"
           git push || echo "push 할 변경사항 없음"
