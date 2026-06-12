@@ -31,6 +31,25 @@ BROWSER_HEADERS = {
     "timezone_id": "Asia/Seoul",
 }
 
+# FlixPatrol 월드 페이지 접근용 추가 헤더
+# GitHub Actions IP 차단 우회 — 실제 브라우저처럼 위장
+WORLD_EXTRA_HEADERS = {
+    "Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language":           "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding":           "gzip, deflate, br",
+    "Referer":                   "https://flixpatrol.com/",
+    "sec-ch-ua":                 '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "sec-ch-ua-mobile":          "?0",
+    "sec-ch-ua-platform":        '"Windows"',
+    "sec-fetch-dest":            "document",
+    "sec-fetch-mode":            "navigate",
+    "sec-fetch-site":            "same-origin",
+    "sec-fetch-user":            "?1",
+    "upgrade-insecure-requests": "1",
+    "Cache-Control":             "max-age=0",
+    "Connection":                "keep-alive",
+}
+
 # FlixPatrol OTT별 기본 URL 매핑 (crawl_url 없는 슬롯용 fallback)
 PLATFORM_URLS = {
     "netflix":    "https://flixpatrol.com/top10/netflix/south-korea/",
@@ -175,6 +194,12 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
                 print(f"  [{platform}] 페이지 로드: {url}")
 
                 try:
+                    # 월드 URL은 추가 헤더로 차단 우회 시도
+                    if "world" in url or "world" in url:
+                        await page.set_extra_http_headers(WORLD_EXTRA_HEADERS)
+                    else:
+                        await page.set_extra_http_headers({})
+
                     resp = await page.goto(url, wait_until="domcontentloaded", timeout=40000)
                     print(f"  [{platform}] HTTP status: {resp.status}")
 
