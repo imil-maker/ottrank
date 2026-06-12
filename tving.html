@@ -403,7 +403,7 @@ async function loadAll() {
     return `
       <div class="rank-section">
         <div class="sec-hd">
-          <span class="sec-num">${topLabel}</span>
+          <span class="sec-num">TVING</span>
           <span class="sec-title">${escHtml(getSectionTitle(group.display_name))}</span>
           <span class="sec-count">${topLabel}</span>
           <div class="sec-live">
@@ -416,19 +416,11 @@ async function loadAll() {
   }).join('');
 }
 
-/* ── 카테고리 타이틀 매핑 ──
-   display_name이 이미 "티빙"으로 시작하면 그대로 사용
-   그 외는 자동으로 "티빙 {display_name}" 형식으로 조합
-   어드민에서 display_name을 직접 바꾸면 그 이름이 우선 적용됨 ── */
-const DISPLAY_NAME_MAP = {
-  '전체 TOP 10' : '티빙 일간 전체 TOP 10',
-};
-
+/* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
+   플랫폼명 프리픽스나 "일간" 접두어 없이 그대로 사용
+   OTT 브랜드 태그(TVING)는 sec-num에 별도 표시됨 ── */
 function getSectionTitle(displayName) {
-  const name = displayName || '';
-  if (name.startsWith('티빙')) return name;
-  if (DISPLAY_NAME_MAP[name]) return DISPLAY_NAME_MAP[name];
-  return `티빙 ${name}`;
+  return displayName || '';
 }
 
 /* ── XSS 방지 유틸 ── */
