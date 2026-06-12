@@ -358,13 +358,13 @@ function P(d,a,e){if(!a.length)return d.slice(0,e).map((l,o)=>({...l,rank:o+1}))
         SELECT r.id, r.user_id, r.tmdb_id, r.score, r.text AS body,
                r.emotions, r.created_at,
                COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
-               COALESCE(wk.media_type, rk.category) AS media_type,
+               wk.media_type AS media_type,
                u.nickname, u.profile_image, u.mbti
         FROM reviews r
         JOIN users u ON u.id = r.user_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
         LEFT JOIN (
-          SELECT tmdb_id, title_ko, category, poster_path
+          SELECT tmdb_id, title_ko
           FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
         ORDER BY r.created_at DESC
