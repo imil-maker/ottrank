@@ -693,7 +693,7 @@ export async function handleUser(path, request, env, ctx, headers) {
       const limit = Math.min(parseInt(new URL(request.url).searchParams.get('limit') || '5'), 20);
       const { results } = await env.DB.prepare(`
         SELECT r.id, r.user_id, r.tmdb_id, r.score, r.text AS body,
-               r.emotions, r.evaluation, r.created_at,
+               r.emotions, r.created_at,
                COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
                COALESCE(wk.media_type, rk.category) AS media_type,
                u.nickname, u.profile_image, u.mbti
