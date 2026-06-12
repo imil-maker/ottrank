@@ -63,7 +63,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 /* ══ 기간 탭 (섹션 헤더 내 인라인) ══ */
 .period-tabs{display:flex;gap:2px;margin-left:12px}
 .pb{height:28px;padding:0 12px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
-.pb.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.pb.on{background:rgba(240,180,41,.15);color:var(--gold);border-color:var(--gold);font-weight:700}
 .pb:hover:not(.on){color:var(--muted2)}
 .update-info{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;flex-shrink:0}
@@ -202,25 +202,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .yt-ch{display:none}
 .yt-vw{display:none}
 
-/* ══ 커뮤니티 ══ */
-.comm-grid{display:grid;grid-template-columns:2fr 1fr;gap:20px}
-.comm-list{display:flex;flex-direction:column;gap:3px}
-.comm-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:9px;background:var(--card);border:1px solid var(--border);cursor:pointer;transition:border-color .12s}
-.comm-item:hover{border-color:var(--border2)}
-.comm-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.comm-emoji{font-size:20px;flex-shrink:0}
-.comm-body{flex:1;min-width:0}
-.comm-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
-.comm-meta{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;gap:7px}
-.comm-stats{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0}
-.widget{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-.widget-head{padding:12px 16px 10px;border-bottom:1px solid var(--border);font-family:var(--disp);font-size:18px;letter-spacing:1px}
-.hot-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
-.hot-row:last-child{border-bottom:none}
-.hot-row:hover{background:var(--bg3)}
-.hot-n{font-family:var(--mono);font-size:13px;color:var(--muted);width:20px;text-align:right}
-.hot-t{flex:1;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hot-c{font-family:var(--mono);font-size:12px;color:var(--muted2);flex-shrink:0}
+/* ══ 최근 평점 후기 섹션 ══ */
+.review-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:20px}
+.rv-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:border-color .15s,transform .2s}
+.rv-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.rv-card-top{display:flex;align-items:center;gap:9px}
+.rv-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--bg3),var(--bg2));display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;overflow:hidden}
+.rv-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.rv-user{flex:1;min-width:0}
+.rv-nick{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rv-mbti{font-size:10px;color:#7ec8e3;background:rgba(55,138,221,.12);border:1px solid rgba(55,138,221,.22);border-radius:3px;padding:1px 5px;display:inline-block;margin-top:1px}
+.rv-time{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.rv-work{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.rv-pf-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.rv-work-title{font-size:12px;font-weight:600;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.rv-stars{font-size:14px;color:var(--gold);letter-spacing:1px;line-height:1.2}
+.rv-score-num{font-family:var(--mono);font-size:12px;color:var(--gold);font-weight:600;margin-left:3px}
+.rv-body{font-size:13px;color:var(--muted2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.rv-eval{font-size:11px;padding:2px 7px;border-radius:4px;background:rgba(240,180,41,.12);color:var(--gold);border:1px solid rgba(240,180,41,.2);width:fit-content}
+.rv-skel{background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px}
 
 /* ══ 유튜브 인라인 플레이어 ══ */
 .yt-player-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:center;justify-content:center;padding:20px}
@@ -394,7 +394,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <span class="sec-icon">🎬</span>
     <span class="sec-title">영화 TOP 10</span>
     <div class="period-tabs">
-      <button class="pb" onclick="setPeriod('daily',this)" id="moviePb_daily">일간</button>
+      <button class="pb on" onclick="setPeriod('daily',this)" id="moviePb_daily">일간</button>
       <button class="pb" onclick="setPeriod('weekly',this)" id="moviePb_weekly">주간</button>
       <button class="pb" onclick="setPeriod('monthly',this)" id="moviePb_monthly">월간</button>
     </div>
@@ -403,28 +403,85 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     </div>
   </div>
   <div class="ott-grid" id="movieGrid"></div>
-  <!-- 유튜브 -->
+
+  <!-- ══ 최근 평점 후기 ══ -->
+  <div class="sec-hd" id="recentReviews">
+    <span class="sec-icon">⭐</span>
+    <span class="sec-title">최근 평점 후기</span>
+    <span class="sec-sub">LATEST REVIEWS</span>
+    <a href="/my_review.html" class="sec-more">전체보기 →</a>
+  </div>
+  <!-- 스켈레톤 5개 -->
+  <div class="review-grid" id="reviewGrid">
+    <div class="rv-card" style="pointer-events:none">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
+        <div style="flex:1"><div class="rv-skel" style="height:11px;width:70%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:45%"></div></div>
+      </div>
+      <div class="rv-skel" style="height:10px;width:80%"></div>
+      <div class="rv-skel" style="height:13px;width:55%"></div>
+      <div class="rv-skel" style="height:52px;width:100%"></div>
+    </div>
+    <div class="rv-card" style="pointer-events:none">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
+        <div style="flex:1"><div class="rv-skel" style="height:11px;width:60%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:40%"></div></div>
+      </div>
+      <div class="rv-skel" style="height:10px;width:75%"></div>
+      <div class="rv-skel" style="height:13px;width:50%"></div>
+      <div class="rv-skel" style="height:52px;width:100%"></div>
+    </div>
+    <div class="rv-card" style="pointer-events:none">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
+        <div style="flex:1"><div class="rv-skel" style="height:11px;width:65%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:35%"></div></div>
+      </div>
+      <div class="rv-skel" style="height:10px;width:85%"></div>
+      <div class="rv-skel" style="height:13px;width:60%"></div>
+      <div class="rv-skel" style="height:52px;width:100%"></div>
+    </div>
+    <div class="rv-card" style="pointer-events:none">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
+        <div style="flex:1"><div class="rv-skel" style="height:11px;width:55%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:42%"></div></div>
+      </div>
+      <div class="rv-skel" style="height:10px;width:70%"></div>
+      <div class="rv-skel" style="height:13px;width:48%"></div>
+      <div class="rv-skel" style="height:52px;width:100%"></div>
+    </div>
+    <div class="rv-card" style="pointer-events:none">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
+        <div style="flex:1"><div class="rv-skel" style="height:11px;width:72%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:38%"></div></div>
+      </div>
+      <div class="rv-skel" style="height:10px;width:78%"></div>
+      <div class="rv-skel" style="height:13px;width:52%"></div>
+      <div class="rv-skel" style="height:52px;width:100%"></div>
+    </div>
+  </div>
+
+  <!-- ══ 유튜브 급상승 ══ -->
   <div class="sec-hd" id="youtube">
     <span class="sec-icon">▶️</span>
-    <span class="sec-title">유튜브 급상승</span>
-    <span class="sec-sub">한국 일간 TOP 50</span>
+    <span class="sec-title">실시간 유튜브 급상승 TOP 50</span>
+    <span class="sec-sub">한국 일간</span>
     <div class="update-info" style="margin-left:auto">
       <span id="updateTxt3"></span>
     </div>
   </div>
   <div class="yt-grid" id="ytGrid"></div>
-  <!-- 커뮤니티 -->
-  <div class="sec-hd" id="community">
-    <span class="sec-icon">💬</span>
-    <span class="sec-title">커뮤니티</span>
-    <span class="sec-sub">실시간 최신 글</span>
-    <a href="#" class="sec-more">게시판 →</a>
-  </div>
-  <div class="comm-grid">
-    <div class="comm-list" id="commList"><div class="comm-item"><div class="comm-dot" style="background:#e50914"></div><div class="comm-emoji">🦑</div><div class="comm-body"><div class="comm-title">시즌3 마지막화 진짜 소름... 이 결말 예상한 사람?</div><div class="comm-meta"><span style="color:#e50914">오징어 게임</span><span>·</span><span>영화광킴</span><span>·</span><span>14분 전</span></div></div><div class="comm-stats"><span>♥ 342</span><span>💬 87</span></div></div><div class="comm-item"><div class="comm-dot" style="background:#ff153c"></div><div class="comm-emoji">💛</div><div class="comm-body"><div class="comm-title">역대급 명장면 모음 (스포 없음) 공유해요</div><div class="comm-meta"><span style="color:#ff153c">선재 업고 튀어</span><span>·</span><span>드라마덕후</span><span>·</span><span>28분 전</span></div></div><div class="comm-stats"><span>♥ 218</span><span>💬 64</span></div></div><div class="comm-item"><div class="comm-dot" style="background:#0070f3"></div><div class="comm-emoji">🏙️</div><div class="comm-body"><div class="comm-title">나의 아저씨 4번 정주행한 이유 공감됨</div><div class="comm-meta"><span style="color:#0070f3">나의 아저씨</span><span>·</span><span>감성충만</span><span>·</span><span>1시간 전</span></div></div><div class="comm-stats"><span>♥ 195</span><span>💬 53</span></div></div><div class="comm-item"><div class="comm-dot" style="background:#e50914"></div><div class="comm-emoji">👑</div><div class="comm-body"><div class="comm-title">글로리 시즌3 캐스팅 확정됐다는데?</div><div class="comm-meta"><span style="color:#e50914">더 글로리</span><span>·</span><span>소문통</span><span>·</span><span>2시간 전</span></div></div><div class="comm-stats"><span>♥ 156</span><span>💬 91</span></div></div><div class="comm-item"><div class="comm-dot" style="background:#06b6d4"></div><div class="comm-emoji">⚔️</div><div class="comm-body"><div class="comm-title">쇼군 보고 일본사 공부 시작한 사람 여기</div><div class="comm-meta"><span style="color:#06b6d4">쇼군</span><span>·</span><span>역사탐구</span><span>·</span><span>3시간 전</span></div></div><div class="comm-stats"><span>♥ 134</span><span>💬 29</span></div></div><div class="comm-item"><div class="comm-dot" style="background:#1ac44d"></div><div class="comm-emoji">🕵️</div><div class="comm-body"><div class="comm-title">안나 시즌2 진짜 기대됨 수지 연기 미쳤음</div><div class="comm-meta"><span style="color:#1ac44d">안나</span><span>·</span><span>빈지워처</span><span>·</span><span>4시간 전</span></div></div><div class="comm-stats"><span>♥ 112</span><span>💬 44</span></div></div></div>
-    <div id="commSide"></div>
-  </div>
 </div>
+
+<!-- ══ 공용 푸터 (footer.html에서 동적 로드) ══ -->
+<div id="ottrang-footer"></div>
+<script>
+(function(){
+  fetch('/footer.html')
+    .then(r => r.ok ? r.text() : Promise.reject())
+    .then(h => { document.getElementById('ottrang-footer').innerHTML = h; })
+    .catch(() => { /* 푸터 fetch 실패 시 무시 (로컬 개발환경) */ });
+})();
+</script>
 
 <script>
 const IMG = 'https://image.tmdb.org/t/p/w500';
@@ -543,16 +600,6 @@ const AI_DB=[
 
 
 const YT=Array.from({length:50},(_,i)=>({rank:i+1,title:['손흥민 멀티골 vs 아스날 4K','아이브 컴백 쇼케이스 LIVE','BTS 진 전역 후 첫 콘서트','뉴진스 Supernatural MV','롤드컵 결승 풀게임 4K','나영석 PD 신규 예능 공개','유퀴즈 역대급 게스트','런닝맨 20주년 스페셜','고든램지 한식 반응','세계 1위 바리스타 비법','강남 월세방 내부 공개','주식 10억 번 직장인','코인 불장 시나리오','부동산 폭락 시그널','MZ 픽 게임 TOP5','월드컵 한국 vs 일본','KBO 오늘 하이라이트','ChatGPT o4 후기','애플 WWDC 2025 요약','갤럭시 S26 유출','국밥 유명해진 식당','백종원 냉장고 레전드','혼밥 편의점 레시피','아이유 콘서트 비하인드','임영웅 신곡 첫 무대','방탄 정국 신보 반응','웹툰 원작 vs 드라마','역대급 반전 영화 TOP10','오늘의 영화 리뷰','숏폼 드라마 추천','유튜브 알고리즘 정복','구독자 100만 소감','심야 괴담 실화 시즌4','귀신보다 무서운 이웃','한국 영화 촬영장','드라마 NG 모음 레전드','배우들 성격 폭로','한국인 NASA 인터뷰','기후변화 한반도 예측','홈트레이닝 30분','건강검진 충격 결과','다이어트 100일 비교','피파 레전드 은퇴','엔씨 신작 공개','리니지 추억 모음','롤 신규 스킨 공개','마크 1.22 업데이트','스트리머 방송사고','새벽 감성 플리 3시간','자취방 인테리어'][i]||`급상승 ${i+1}위`,channel:['손흥민TV','HYBE','MBC','KBS','OGN','tvN','JTBC','SBS','채널A','EBS'][i%10],views:`${(Math.random()*900+100).toFixed(0)}만회`,dur:`${Math.floor(Math.random()*40+2)}:${String(Math.floor(Math.random()*60)).padStart(2,'0')}`,vid:['r_ooE1pij0c', 'dQw4w9WgXcQ', 'oHg5SJYRHA0', 'fJ9rUzIMcZQ', 'JGwWNGJdvx8', '9bZkp7q19f0', 'ktvTqknDobU', 'RgKAFK5djSk', 'LXb3EKWsInQ', 'HSaKMNAGiEs', 'XqZsoesa55w', 'xvFZjo5PgG0', 'C0DPdy98e4c', 'lYBUbBu4W08', 'x9_a2WNXFBA', 'OPf0YbXqDm0', 'jOfSMM4WQHM', 'kffacxfA7G4', '7wtfhZwyrcc', 'h9irHSMtVXI', 'VYOjWnS4cMY', '8UVNT4wvIGY', 'FTQbiNvZqaY', 'sNLNSRIHKOk', 'lFM83jBwFMg', 'z3B6cPQMJXQ', 'SXuS_bWURGY', 'bM7SZ5SBzyY', 'k6EQaoxK0Gs', 'u9VMfdG873E', 'sGkh1W5cbH4', 'eYSIgBBDNXc', 'ZZX8ZNliPuc', 'cHBR6g4vn7o', 'Adr0NMSsCRs', 'Mv_jHCS0VwI', 'yCjpiM1lFKc', 'XhzpxjjIoBM', 'Ks-_Mh1QhMc', 'u3v-DXroTfU', 'MXmSryGOOXM', 'F90Cw4l-8NY', 'Ud73fm4Uoq0', 'k2qgadSvNyU', 'GV-cHSLDfUQ', 'A_MjCqQoLLA', 'w4w1zFpGXeQ', 'jZhQOvn9vc4', '6Zbi0XmGtMw', 'x7LzLuCKfHo'][i]||''}));
-
-const POSTS=[
-  {p:'netflix',e:'🦑',work:'오징어 게임',title:'시즌3 마지막화 진짜 소름... 이 결말 예상한 사람?',author:'영화광킴',likes:342,comments:87,time:'14분 전'},
-  {p:'tving',e:'💛',work:'선재 업고 튀어',title:'역대급 명장면 모음 (스포 없음) 공유해요',author:'드라마덕후',likes:218,comments:64,time:'28분 전'},
-  {p:'wavve',e:'🏙️',work:'나의 아저씨',title:'나의 아저씨 4번 정주행한 이유 공감됨',author:'감성충만',likes:195,comments:53,time:'1시간 전'},
-  {p:'netflix',e:'👑',work:'더 글로리',title:'글로리 시즌3 캐스팅 확정됐다는데?',author:'소문통',likes:156,comments:91,time:'2시간 전'},
-  {p:'disney',e:'⚔️',work:'쇼군',title:'쇼군 보고 일본사 공부 시작한 사람 여기',author:'역사탐구',likes:134,comments:29,time:'3시간 전'},
-  {p:'coupang',e:'🕵️',work:'안나',title:'안나 시즌2 진짜 기대됨 수지 연기 미쳤음',author:'빈지워처',likes:112,comments:44,time:'4시간 전'},
-];
-const HOT=[{t:'오징어게임 시즌3 결말 해석',c:'댓글 342'},{t:'티빙 vs 넷플릭스 비교 2025',c:'댓글 218'},{t:'국내 OTT 구독 조합 추천',c:'댓글 195'},{t:'쿠팡플레이 스포츠 화질 후기',c:'댓글 156'},{t:'디즈니+ 한국 오리지널 예정작',c:'댓글 134'}];
 
 /* TMDB */
 const pCache={};
@@ -692,7 +739,6 @@ function renderCard(p,items){
 const curCat='tv';
 function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');}
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
-function renderComm(){document.getElementById('commList').innerHTML=POSTS.map(p=>`<div class="comm-item"><div class="comm-dot" style="background:${PC[p.p]||'#888'}"></div><div class="comm-emoji">${p.e}</div><div class="comm-body"><div class="comm-title">${p.title}</div><div class="comm-meta"><span style="color:${PC[p.p]}">${p.work}</span><span>·</span><span>${p.author}</span><span>·</span><span>${p.time}</span></div></div><div class="comm-stats"><span>♥ ${p.likes}</span><span>💬 ${p.comments}</span></div></div>`).join('');document.getElementById('commSide').innerHTML=`<div class="widget"><div class="widget-head">🔥 HOT 토픽</div>${HOT.map((h,i)=>`<div class="hot-row"><span class="hot-n">${i+1}</span><span class="hot-t">${h.t}</span><span class="hot-c">${h.c}</span></div>`).join('')}</div>`;}
 
 /* AI 추천 — 실제 랭킹 기반 규칙 필터링 */
 let aiType='all';
@@ -808,6 +854,122 @@ function closeYtPlayer(e) {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeYtPlayer(null); });
 
+/* ══ 최근 평점 후기 로드 ══ */
+// 별점 점수(0.5~5.0) → ★☆ 하프스타 문자열 변환 (★=1점, ½=0.5점 근사)
+function renderStars(score) {
+  const s = parseFloat(score) || 0;
+  const full  = Math.floor(s);
+  const half  = (s - full) >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+}
+
+// 상대 시간 포맷 (초→"방금", 분→"N분 전", 시간→"N시간 전", 일→"N일 전")
+function relTimeRv(dateStr) {
+  if (!dateStr) return '';
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60)   return '방금';
+  if (diff < 3600) return Math.floor(diff / 60) + '분 전';
+  if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
+  return Math.floor(diff / 86400) + '일 전';
+}
+
+// 플랫폼 색상 맵 (works 테이블 media_type은 tv/movie, 여기선 별도 플랫폼 필드 없음)
+const RV_PF_COLOR = {
+  netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4',
+  coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429'
+};
+
+async function loadRecentReviews() {
+  try {
+    // GET /reviews/recent?limit=5 — 최근 평점 후기 5개 반환
+    // 인증 불필요 (공개 API), 응답: { ok, reviews: [...] }
+    const sid = localStorage.getItem('ottrang_sid');
+    const opts = sid
+      ? { credentials: 'include', headers: { Authorization: `Bearer ${sid}` } }
+      : { credentials: 'include' };
+    const res  = await fetch(`${API}/reviews/recent?limit=5`, opts);
+    const data = await res.json();
+
+    if (!data.ok || !data.reviews?.length) {
+      // 데이터 없을 때 섹션 자체를 숨김 (빈 상태보다 깔끔)
+      document.getElementById('recentReviews')?.style.setProperty('display', 'none');
+      document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
+      return;
+    }
+    renderRecentReviews(data.reviews);
+  } catch(e) {
+    // API 오류 시 섹션 숨김
+    document.getElementById('recentReviews')?.style.setProperty('display', 'none');
+    document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
+  }
+}
+
+function renderRecentReviews(reviews) {
+  const grid = document.getElementById('reviewGrid');
+  if (!grid) return;
+
+  // 플랫폼 색상: works 테이블에 platform 필드가 없을 수 있으므로 media_type으로 폴백 처리
+  grid.innerHTML = reviews.map(rv => {
+    const nick    = rv.nickname || '익명';
+    const initial = nick.charAt(0);
+
+    // 아바타: 프로필 이미지 있으면 img, 없으면 이니셜
+    const avatar = rv.profile_image
+      ? `<img src="${rv.profile_image}" alt="${nick}" loading="lazy"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+             style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%">
+         <span style="display:none;font-size:15px;font-weight:700">${initial}</span>`
+      : `<span style="font-size:15px;font-weight:700">${initial}</span>`;
+
+    // MBTI 뱃지 (있을 때만 표시)
+    const mbtiBadge = rv.mbti
+      ? `<span class="rv-mbti">✦ ${rv.mbti}</span>`
+      : '';
+
+    // 별점 시각화 (score: 0.5~5.0)
+    const stars    = renderStars(rv.score);
+    const scoreNum = rv.score ? `<span class="rv-score-num">${parseFloat(rv.score).toFixed(1)}</span>` : '';
+
+    // 평가 태그 (강추해요/추천해요 등 — 있을 때만 표시)
+    const evalTags = ['강추해요','추천해요','평범해요','별로예요'];
+    const evalBadge = rv.evaluation && evalTags.includes(rv.evaluation)
+      ? `<div class="rv-eval">${rv.evaluation}</div>`
+      : '';
+
+    // 플랫폼 색상: platform 필드 우선, 없으면 media_type으로 구분
+    const pfColor = RV_PF_COLOR[rv.platform] || (rv.media_type === 'movie' ? '#f0b429' : '#e50914');
+
+    // 작품 상세 이동 함수 활용
+    const clickFn = rv.tmdb_id
+      ? `goDetail(${rv.tmdb_id},'${rv.media_type||'tv'}','${rv.platform||'netflix'}',1,'${(rv.title_ko||'').replace(/'/g,'')}',1,'')`
+      : '';
+
+    return `<div class="rv-card" onclick="${clickFn}">
+      <!-- 유저 정보 -->
+      <div class="rv-card-top">
+        <div class="rv-avatar">${avatar}</div>
+        <div class="rv-user">
+          <div class="rv-nick">${nick}${mbtiBadge ? ' ' + mbtiBadge : ''}</div>
+          <div class="rv-time">${relTimeRv(rv.created_at)}</div>
+        </div>
+      </div>
+      <!-- 작품명 + 플랫폼 점 -->
+      <div class="rv-work">
+        <span class="rv-pf-dot" style="background:${pfColor}"></span>
+        <span class="rv-work-title">${rv.title_ko || '작품명 미확인'}</span>
+      </div>
+      <!-- 별점 -->
+      <div>
+        <span class="rv-stars">${stars}</span>${scoreNum}
+        ${evalBadge}
+      </div>
+      <!-- 후기 본문 -->
+      <div class="rv-body">${rv.body ? rv.body.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '<span style="color:var(--muted);font-size:12px">평점만 남긴 후기입니다.</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
 async function init(){
   const today=new Date();
   const dateStr=`${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 09:00 업데이트`;
@@ -826,6 +988,9 @@ async function init(){
 
   // 오늘의 신작 & 예정작 로드
   loadContentsPreview();
+
+  // 최근 평점 후기 로드 (비동기 — 다른 로드와 병렬)
+  loadRecentReviews();
 }
 
 /* ── 오늘의 신작 & 예정작 (메인 5개) ── */
