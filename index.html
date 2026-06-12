@@ -6,7 +6,7 @@
 <!-- 기본 SEO -->
 <title>오뜨랑 — 넷플릭스·티빙·디즈니+ OTT 랭킹 한눈에</title>
 <meta name="description" content="오늘 OTT 뭐 볼까? 넷플릭스, 티빙, 디즈니플러스, 쿠팡플레이, 웨이브 TV시리즈·영화 순위를 실시간으로 확인하세요.">
-<meta name="keywords" content="OTT 랭킹, 넷플릭스 순위, 티빙 순위, 디즈니플러스 순위, 쿠팡플레이 순위, 웨이브 순위, 오늘 볼만한 드라마, 오늘 볼만한 영화">
+<meta name="keywords" content="OTT 랭킹, 넷플릭스 순위, 넷플릭스 세계순위, 월드랭킹, 티빙 순위, 디즈니플러스 순위, 쿠팡플레이 순위, 웨이브 순위, 오늘 볼만한 드라마, 오늘 볼만한 영화">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://ottrank.kr/">
 
@@ -87,7 +87,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .p-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
 .p-card-head{padding:12px 14px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
 .p-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.p-name{font-size:15px;font-weight:700}
+.p-name{font-size:15px;font-weight:700;text-decoration:none !important}
 .p-cat{font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:auto}
 .p-cat:hover{color:var(--text)}
 .p-hero{position:relative;aspect-ratio:2/3;background:var(--bg3);cursor:pointer;overflow:hidden}
@@ -727,7 +727,7 @@ function renderCard(p,items){
   const fClick=f.tmdb_id?`onclick="goDetail(${f.tmdb_id},'${f.type||'tv'}','${p.id}',1,'${(f._ko||f.t).replace(/'/g,'')}',${f._season||1},'${f._year||''}')" style="cursor:pointer"`:'' ;
   // 플랫폼명: OTT 페이지 링크 / 더보기: 동일 링크
   const pUrl = p.url || '#';
-  const card=`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><a class="p-name" href="${pUrl}" style="color:${p.color};text-decoration:none">${p.name}</a><a class="p-cat" href="${pUrl}" style="color:var(--muted);text-decoration:none;margin-left:auto">더보기</a></div><div class="p-hero" ${fClick}>${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${fmtScore(f.r)}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${fmtScore(f.r)}</span>`:''}</div></div></div><div class="p-list">`;
+  const card=`<div class="p-card"><div class="p-card-head"><div class="p-dot" style="background:${p.color}"></div><a class="p-name" href="${pUrl}" style="color:${p.color} !important;text-decoration:none">${p.name}</a><a class="p-cat" href="${pUrl}" style="color:var(--muted);text-decoration:none;margin-left:auto">더보기</a></div><div class="p-hero" ${fClick}>${posterEl}<div class="rank1">1</div>${f.ch==='new'?'<div class="new-b">NEW</div>':''}${f.r?`<div class="rating-b">★ ${fmtScore(f.r)}</div>`:''}<div class="p-overlay"><div class="ov-title">${f._ko||f.t}</div><div class="ov-meta">${f.r?`<span>⭐ ${fmtScore(f.r)}</span>`:''}</div></div></div><div class="p-list">`;
   const rows=rest.map((item,i)=>{
     const rClick=item.tmdb_id?`onclick="goDetail(${item.tmdb_id},'${item.type||'tv'}','${p.id}',${i+2},'${(item._ko||item.t).replace(/'/g,'')}',${item._season||1},'${item._year||''}')" style="cursor:pointer"`:'' ;
     const score=fmtScore(item.r);
@@ -855,7 +855,7 @@ function closeYtPlayer(e) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeYtPlayer(null); });
 
 /* ══ 최근 평점 후기 로드 ══ */
-// 별점 점수(0.5~5.0) → ★☆ 하프스타 문자열 변환 (★=1점, ½=0.5점 근사)
+// 별점 점수(0.5~5.0, DB 저장값) → ★☆ 하프스타 문자열 변환 (5점 기준 그대로 사용)
 function renderStars(score) {
   const s = parseFloat(score) || 0;
   const full  = Math.floor(s);
@@ -927,11 +927,11 @@ function renderRecentReviews(reviews) {
       ? `<span class="rv-mbti">✦ ${rv.mbti}</span>`
       : '';
 
-    // 별점 시각화 (score: 0.5~5.0)
+    // 별점: ★ 5개 기준 표시 / 숫자는 ×2해서 10점 기준으로 표시
     const stars    = renderStars(rv.score);
-    const scoreNum = rv.score ? `<span class="rv-score-num">${parseFloat(rv.score).toFixed(1)}</span>` : '';
+    const scoreNum = rv.score ? `<span class="rv-score-num">${(parseFloat(rv.score) * 2).toFixed(1).replace(/\.0$/, '')}</span>` : '';
 
-    // 평가 태그 (강추해요/추천해요 등 — 있을 때만 표시)
+    // 평가 태그 — evaluation 컬럼이 있을 때만 표시
     const evalTags = ['강추해요','추천해요','평범해요','별로예요'];
     const evalBadge = rv.evaluation && evalTags.includes(rv.evaluation)
       ? `<div class="rv-eval">${rv.evaluation}</div>`
