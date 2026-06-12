@@ -14,6 +14,7 @@ from playwright.async_api import async_playwright
 from datetime import datetime, timezone, timedelta
 import sqlite3
 import os
+import re
 
 # 어제 날짜 (KST 기준) — FlixPatrol 월드 URL용
 # 오늘 데이터는 업데이트 중일 수 있으므로 어제 날짜 사용
