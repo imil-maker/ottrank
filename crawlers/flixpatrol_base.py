@@ -159,6 +159,12 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
             print(f"  [{platform}][{slot['category_slot']}] ⏭ Tudum URL — netflix_tudum.py에서 처리")
             continue
 
+        # FlixPatrol 기본 URL (south-korea/world 없는 것)은 requests 기반 크롤러에서 처리
+        # 예) https://flixpatrol.com/top10/netflix/ → netflix_tudum.py에서 처리
+        if re.search(r"flixpatrol\.com/top10/[^/]+/$", raw_url):
+            print(f"  [{platform}][{slot['category_slot']}] ⏭ FlixPatrol 기본 URL — netflix_tudum.py에서 처리")
+            continue
+
         # {date} placeholder → 어제 날짜로 치환
         # 예) https://flixpatrol.com/top10/netflix/world/{date}/
         #   → https://flixpatrol.com/top10/netflix/world/2026-06-11/
