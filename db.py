@@ -282,20 +282,34 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
 
     titles_text = "\n".join(f"- {t}" for t in titles)
 
-    prompt = f"""당신은 한국 OTT 스트리밍 콘텐츠 전문가입니다.
+    # 제목 단어 수에 따라 검색 전략 분기
+    # 단어 1~2개 짧은 제목 → 플랫폼명 포함 (예: "넷플릭스 Tag 한국 공식 제목")
+    # 단어 3개 이상 긴 제목  → 플랫폼명 없이  (예: "Monster-in-Law 한국 제목")
+    def _search_hint(title: str, platform: str) -> str:
+        word_count = len(title.replace("-", " ").split())
+        if word_count <= 2:
+            return f"{platform} {title} 한국 공식 제목"
+        return f"{title} 한국 제목"
+
+    search_hints = "\n".join(
+        f"- {t}  →  검색어: \"{_search_hint(t, platform_ko)}\""
+        for t in titles
+    )
+
+    prompt = f"""당신은 영화/드라마 한국 공식 제목 전문가입니다.
 웹 검색을 활용해서 아래 작품들의 한국 공식 제목을 찾아주세요.
 
-플랫폼: {platform_ko}
-작품 목록:
-{titles_text}
-
-각 작품마다 "{platform_ko} [영어제목] 한국 공식 제목" 으로 검색해서 정확한 한국 서비스 제목을 찾아주세요.
+작품 목록 (각 작품마다 제안된 검색어로 검색하세요):
+{search_hints}
 
 중요 규칙:
-1. 반드시 한국 OTT/극장에서 실제 사용하는 공식 한국어 서비스 제목으로 답하세요
-2. 절대 직역하지 마세요 (예: "A Shop for Killers" → "킬러들의 쇼핑몰", NOT "킬러의 상점")
+1. 한국에서 실제 사용된 공식 한국어 제목으로 답하세요 (극장/OTT/방송 모두 포함)
+2. 절대 직역하지 마세요
+   - 예: "Monster-in-Law" → "퍼펙트 웨딩" (NOT "시어머니의 법칙")
+   - 예: "A Shop for Killers" → "킬러들의 쇼핑몰" (NOT "킬러의 상점")
+   - 예: "Tag" → 넷플릭스 Tag 검색 후 정확한 한국 제목 사용
 3. 한국 작품이면 원래 한국어 제목으로 답하세요
-4. 공식 한국 제목을 확실히 모르면 영어 원제 그대로 유지하세요
+4. 공식 한국 제목을 확실히 모르면 영어 원제 그대로 유지하세요 (절대 추측 금지)
 5. 검색 후 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 
 {{"translations": {{"영어제목1": "한글제목1", "영어제목2": "한글제목2"}}}}"""
@@ -327,7 +341,11 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
             return {}
 
         # tool_use 응답 처리: content 블록 중 text 타입만 추출
-        content_blocks = resp.json().get("content", [])
+        # 웹검색 응답은 tool_use 블록 + text 블록이 섞여서 옴
+        resp_json      = resp.json()
+        content_blocks = resp_json.get("content", [])
+        stop_reason    = resp_json.get("stop_reason", "")
+
         raw = "\n".join(
             block.get("text", "")
             for block in content_blocks
@@ -335,11 +353,33 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
         ).strip()
 
         if not raw:
-            print("  [Claude] 웹 검색 응답에 텍스트 없음")
+            print(f"  [Claude] 웹 검색 응답 텍스트 없음 (stop_reason={stop_reason})")
             return {}
 
-        raw  = raw.replace("```json", "").replace("```", "").strip()
-        data = json.loads(raw)
+        # JSON 블록 추출 — 응답에 설명 텍스트가 섞여 있을 수 있음
+        # 1) ```json ... ``` 블록 우선 추출
+        import re as _re
+        json_match = _re.search(r"```json\s*(.+?)\s*```", raw, _re.DOTALL)
+        if json_match:
+            raw = json_match.group(1).strip()
+        else:
+            # 2) { ... } 블록 직접 추출
+            brace_match = _re.search(r"(\{.+\})", raw, _re.DOTALL)
+            if brace_match:
+                raw = brace_match.group(1).strip()
+            else:
+                raw = raw.replace("```json", "").replace("```", "").strip()
+
+        if not raw:
+            print("  [Claude] JSON 추출 실패")
+            return {}
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as je:
+            print(f"  [Claude] JSON 파싱 실패: {je} / raw={raw[:100]}")
+            return {}
+
         translations = data.get("translations", {})
         print(f"  [Claude+웹검색] 번역 완료: {len(translations)}개")
         return translations
