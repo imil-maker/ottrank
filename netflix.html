@@ -81,9 +81,9 @@ body {
   border-bottom:1px solid var(--border);
 }
 .sec-num {
-  font-family:var(--disp); font-size:13px; color:#E50914;
+  font-family:var(--disp); font-size:12px; color:#E50914 !important;
   background:rgba(229,9,20,0.18); border:1px solid rgba(229,9,20,0.35);
-  padding:2px 10px; border-radius:4px; letter-spacing:1px; white-space:nowrap;
+  padding:2px 10px; border-radius:4px; letter-spacing:2px; white-space:nowrap;
 }
 .sec-title {
   font-family:var(--disp); font-size:24px; letter-spacing:1.5px; color:var(--text);
@@ -455,9 +455,8 @@ async function loadAll() {
     return `
       <div class="rank-section">
         <div class="sec-hd">
-          <span class="sec-num">TOP ${group.items?.length || 0}</span>
+          <span class="sec-num">NETFLIX</span>
           <span class="sec-title">${escHtml(getSectionTitle(group.display_name))}</span>
-          <span class="sec-count" id="cnt-${i}"></span>
           <div class="sec-live">
             <div class="sec-live-dot"></div>
             <span>${dateStr}</span>
@@ -481,10 +480,6 @@ async function loadAll() {
       return;
     }
 
-    // TOP N 카운트 업데이트
-    const cntEl = document.getElementById(`cnt-${i}`);
-    if (cntEl) cntEl.textContent = `TOP ${items.length}`;
-
     // 카드 렌더링
     track.innerHTML = items.map((item, idx) => makeCard(item, idx)).join('');
 
@@ -493,25 +488,11 @@ async function loadAll() {
   });
 }
 
-/* ── 카테고리 타이틀 앞에 플랫폼명 프리픽스 붙이기 ──
-   display_name이 이미 "넷플릭스"로 시작하면 그대로 사용
-   예) "넷플릭스 역대 TV 시리즈" → 그대로 표시
-       "TV 시리즈" → "넷플릭스 일간 TV 시리즈"
-       "영화"      → "넷플릭스 일간 영화"
-   어드민에서 display_name을 직접 바꾸면 그 이름이 우선 적용됨 ── */
-const DISPLAY_NAME_MAP = {
-  'TV 시리즈' : '넷플릭스 일간 TV 시리즈',
-  '영화'      : '넷플릭스 일간 영화',
-};
-
+/* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
+   플랫폼명 프리픽스나 "일간" 접두어 없이 그대로 사용
+   OTT 브랜드 태그(NETFLIX)는 sec-num에 별도 표시됨 ── */
 function getSectionTitle(displayName) {
-  const name = displayName || '';
-  // 이미 "넷플릭스"로 시작하면 그대로 반환
-  if (name.startsWith('넷플릭스')) return name;
-  // 매핑 테이블에 있으면 변환
-  if (DISPLAY_NAME_MAP[name]) return DISPLAY_NAME_MAP[name];
-  // 그 외 카테고리는 "넷플릭스 {display_name}" 형식으로 자동 조합
-  return `넷플릭스 ${name}`;
+  return displayName || '';
 }
 
 /* ── XSS 방지 유틸 ── */
