@@ -6,7 +6,7 @@
 <!-- 기본 SEO -->
 <title>오뜨랑 — 넷플릭스·티빙·디즈니+ OTT 랭킹 한눈에</title>
 <meta name="description" content="오늘 OTT 뭐 볼까? 넷플릭스, 티빙, 디즈니플러스, 쿠팡플레이, 웨이브 TV시리즈·영화 순위를 실시간으로 확인하세요.">
-<meta name="keywords" content="OTT 랭킹, 넷플릭스 순위, 넷플릭스 세계순위, 월드랭킹, 티빙 순위, 디즈니플러스 순위, 쿠팡플레이 순위, 웨이브 순위, 오늘 볼만한 드라마, 오늘 볼만한 영화">
+<meta name="keywords" content="OTT 랭킹, 넷플릭스 순위, 티빙 순위, 디즈니플러스 순위, 쿠팡플레이 순위, 웨이브 순위, 오늘 볼만한 드라마, 오늘 볼만한 영화">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://ottrank.kr/">
 
@@ -720,6 +720,19 @@ function goDetail(tmdbId, type, platform, rank, title, season, year){
   sessionStorage.setItem('ottrang_slug', slugUrl);
   location.href = slugUrl;
 }
+
+// 최근 평점 후기 카드 클릭 — 작품 페이지 사용자 후기 섹션(#userReviews)으로 바로 이동
+function goDetailReview(tmdbId, type, title, season, year){
+  if(!tmdbId) return;
+  const s = season || 1;
+  const y = year   || new Date().getFullYear();
+  const slugUrl = `/title/${s}-${y}${tmdbId}`;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type, platform: '', rank: 0, title, season: s, year: y
+  }));
+  sessionStorage.setItem('ottrang_slug', slugUrl);
+  location.href = slugUrl + '#userReviews';
+}
 function renderCard(p,items){
   if(!items||!items.length)return'';
   const f=items[0],rest=items.slice(1);
@@ -941,8 +954,9 @@ function renderRecentReviews(reviews) {
     const pfColor = RV_PF_COLOR[rv.platform] || (rv.media_type === 'movie' ? '#f0b429' : '#e50914');
 
     // 작품 상세 이동 함수 활용
+    // 작품 페이지 사용자 후기 섹션(#userReviews)으로 바로 이동
     const clickFn = rv.tmdb_id
-      ? `goDetail(${rv.tmdb_id},'${rv.media_type||'tv'}','${rv.platform||'netflix'}',1,'${(rv.title_ko||'').replace(/'/g,'')}',1,'')`
+      ? `goDetailReview(${rv.tmdb_id},'${rv.media_type||'tv'}','${(rv.title_ko||'').replace(/'/g,'')}',1,'')`
       : '';
 
     return `<div class="rv-card" onclick="${clickFn}">
