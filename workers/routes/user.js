@@ -687,6 +687,32 @@ export async function handleUser(path, request, env, ctx, headers) {
     }
   }
 
+  // ── GET /reviews/recent — 최근 평점 후기 (공개 API, 인증 불필요) ──
+  if (path === "/reviews/recent" && request.method === "GET") {
+    try {
+      const limit = Math.min(parseInt(new URL(request.url).searchParams.get('limit') || '5'), 20);
+      const { results } = await env.DB.prepare(`
+        SELECT r.id, r.user_id, r.tmdb_id, r.score, r.text AS body,
+               r.emotions, r.evaluation, r.created_at,
+               COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
+               COALESCE(wk.media_type, rk.category) AS media_type,
+               u.nickname, u.profile_image, u.mbti
+        FROM reviews r
+        JOIN users u ON u.id = r.user_id
+        LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
+        LEFT JOIN (
+          SELECT tmdb_id, title_ko, category, poster_path
+          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+        ) rk ON rk.tmdb_id = r.tmdb_id
+        ORDER BY r.created_at DESC
+        LIMIT ?
+      `).bind(limit).all();
+      return new Response(JSON.stringify({ ok: true, reviews: results || [] }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /grade-settings ───────────────────────────────────
   if (path === "/grade-settings" && request.method === "GET") {
     try {
