@@ -117,31 +117,30 @@ async def _parse_global_top10(page, category_slot: str, source_name: str,
                 return []
             target_table = tables[0]
         else:
-            # h2 다음에 오는 가장 가까운 table 찾기
-            # JavaScript로 nextElementSibling 순회
-            target_table = await page.evaluate_handle("""
+            # h2의 위치를 파악해서 해당 h2 이후에 등장하는 첫 번째 table 찾기
+            # DOM 전체 순서(document order)로 h2 인덱스 확인 후 그 다음 table 선택
+            table_index = await page.evaluate("""
                 (h2) => {
-                    let el = h2.nextElementSibling;
-                    let count = 0;
-                    while (el && count < 20) {
-                        if (el.tagName === 'TABLE') return el;
-                        // 하위 요소에 table 있는지 확인
-                        const tbl = el.querySelector('table');
-                        if (tbl) return tbl;
-                        el = el.nextElementSibling;
-                        count++;
+                    const allH2 = Array.from(document.querySelectorAll('h2'));
+                    const h2Idx = allH2.indexOf(h2);
+                    const allTables = Array.from(document.querySelectorAll('table'));
+
+                    // h2보다 DOM 순서상 뒤에 있는 첫 번째 table의 인덱스 반환
+                    for (let i = 0; i < allTables.length; i++) {
+                        const pos = h2.compareDocumentPosition(allTables[i]);
+                        // DOCUMENT_POSITION_FOLLOWING = 4
+                        if (pos & 4) return i;
                     }
-                    return null;
+                    return 0; // fallback: 첫 번째 테이블
                 }
             """, target_h2)
 
-            # JSHandle → ElementHandle로 변환 확인
-            if not target_table or await target_table.evaluate("el => el === null"):
-                print(f"    [global] ⚠️ Global Top 10 다음 테이블 없음 — 첫 번째 테이블 fallback")
-                tables = await page.query_selector_all("table")
-                if not tables:
-                    return []
-                target_table = tables[0]
+            print(f"    [global] Global Top 10 다음 테이블 index: {table_index}")
+            tables = await page.query_selector_all("table")
+            if not tables:
+                print(f"    [global] ⚠️ 테이블 없음")
+                return []
+            target_table = tables[table_index]
 
         # 테이블 rows 파싱
         rows = await target_table.query_selector_all("tbody tr")
