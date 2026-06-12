@@ -457,6 +457,7 @@ async function loadAll() {
         <div class="sec-hd">
           <span class="sec-num">NETFLIX</span>
           <span class="sec-title">${escHtml(getSectionTitle(group.display_name))}</span>
+          <span class="sec-count" id="cnt-${i}"></span>
           <div class="sec-live">
             <div class="sec-live-dot"></div>
             <span>${dateStr}</span>
@@ -479,6 +480,10 @@ async function loadAll() {
       track.innerHTML = `<div class="sec-empty">아직 등록된 랭킹이 없습니다.</div>`;
       return;
     }
+
+    // TOP N 카운트 업데이트
+    const cntEl = document.getElementById(`cnt-${i}`);
+    if (cntEl) cntEl.textContent = `TOP ${items.length}`;
 
     // 카드 렌더링
     track.innerHTML = items.map((item, idx) => makeCard(item, idx)).join('');
