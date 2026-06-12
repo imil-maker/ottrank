@@ -721,7 +721,7 @@ function goDetail(tmdbId, type, platform, rank, title, season, year){
   location.href = slugUrl;
 }
 
-// 최근 평점 후기 카드 클릭 — 작품 페이지 사용자 후기 섹션(#userReviews)으로 바로 이동
+// 최근 평점 후기 카드 클릭 — 작품 페이지로 이동
 function goDetailReview(tmdbId, type, title, season, year){
   if(!tmdbId) return;
   const s = season || 1;
@@ -731,7 +731,7 @@ function goDetailReview(tmdbId, type, title, season, year){
     tmdb_id: tmdbId, type, platform: '', rank: 0, title, season: s, year: y
   }));
   sessionStorage.setItem('ottrang_slug', slugUrl);
-  location.href = slugUrl + '#userReviews';
+  location.href = slugUrl;
 }
 function renderCard(p,items){
   if(!items||!items.length)return'';
