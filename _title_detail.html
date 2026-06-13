@@ -1837,8 +1837,35 @@ function renderMbtiSection(mbtiTags){
 
   // Phase 1: works.mbti_tags (장르 기반 + TMDB 평점 연동 퍼센트)
   if(!mbtiTags)return;
-  const list=mbtiTags.split(',').map(s=>s.trim()).filter(Boolean).slice(0,5);
-  if(!list.length)return;
+
+  // mbti_tags 파싱 — 두 가지 형식 지원
+  //   형식 A (수동 %): "ENFP:95,ENTJ:80,ISTJ:75"  → % 수동값 우선 사용
+  //   형식 B (자동)  : "ENFP,ENTJ,ISTJ"            → 기존 자동계산 방식
+  const rawList = mbtiTags.split(',').map(s=>s.trim()).filter(Boolean).slice(0,5);
+  if(!rawList.length)return;
+
+  // 수동 % 포함 여부 판단 (하나라도 ':' 포함이면 수동 형식)
+  const hasManualPct = rawList.some(s=>s.includes(':'));
+
+  if(hasManualPct){
+    // ── 수동 % 형식: MBTI:퍼센트 파싱 ──
+    const parsed = rawList.map(s=>{
+      const [mbti, pctStr] = s.split(':');
+      return { mbti: (mbti||'').trim(), pct: parseInt(pctStr)||0 };
+    }).filter(item=>item.mbti);
+    if(!parsed.length)return;
+    chips.innerHTML=parsed.map(({mbti,pct})=>`
+      <div class="mbti-chip">
+        <span class="mbti-chip-label">${mbti}</span>
+        <span class="mbti-chip-sub">${pct}%</span>
+      </div>`).join('');
+    src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 실제 데이터로 업데이트됩니다';
+    sec.style.display='block';
+    return;
+  }
+
+  // ── 자동 % 형식: TMDB 평점 기반 계산 ──
+  const list = rawList;
 
   // TMDB 평점 가져오기
   const tmdbScoreEl=document.getElementById('tmdbScore');
@@ -1867,7 +1894,6 @@ function renderMbtiSection(mbtiTags){
   }).join('');
   src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 실제 데이터로 업데이트됩니다';
   sec.style.display='block';
-}
 
 function renderComments(){
   const el=document.getElementById('commentsArea');
