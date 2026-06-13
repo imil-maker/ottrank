@@ -1568,14 +1568,26 @@ async function loadTmdb(){
       const imdbCard=document.getElementById('imdbScore').closest('.r-card');
       imdbCard.style.cursor='pointer';
       imdbCard.onclick=()=>window.open(`https://www.imdb.com/title/${imdbId}/`,'_blank');
-      fetch(`${OTTRANK_API}/imdb/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tmdb_id:WORK.tmdb_id,imdb_id:imdbId})}).catch(()=>{});
+
+      // /imdb/save를 await으로 먼저 완료 후 /imdb/:id 호출
+      // 이유: /imdb/save가 works.imdb_id를 저장해야
+      //       /imdb/:id에서 OMDB 결과를 works에 저장할 수 있음
+      //       fire & forget이면 imdb_id 저장 전에 /imdb/:id가 실행되어
+      //       OMDB 결과가 DB에 저장 안 되는 버그 발생
+      try{
+        await fetch(`${OTTRANK_API}/imdb/save`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({tmdb_id:WORK.tmdb_id,imdb_id:imdbId}),
+        });
+      }catch(e){}
 
       // 1순위: 우리 DB(worksData)에 imdb_rating이 있으면 바로 표시
       if(worksData?.imdb_rating){
         document.getElementById('imdbScore').textContent=fmtScore(worksData.imdb_rating);
         document.getElementById('imdbVotes').textContent=worksData.imdb_votes?worksData.imdb_votes.replace(/,/g,'')+' 명':'';
       }else{
-        // 2순위: 외부 API 호출
+        // 2순위: OMDB API 호출 (결과는 DB에 저장되어 다음 접속부터 1순위로 표시)
         try{
           const omdbData=await fetch(`${OTTRANK_API}/imdb/${imdbId}`).then(r=>r.json());
           if(omdbData.ok&&omdbData.rating){
