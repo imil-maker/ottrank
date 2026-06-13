@@ -13,10 +13,10 @@
  */
 export async function _crawlYoutubeVideos(tmdb_id, env) {
   try {
-    // ① works 테이블에서 한글 작품명 조회
+    // ① works 테이블에서 작품명 조회 (title_ko + title_en 모두)
     //    rankings 테이블에서 최근 등록 플랫폼도 함께 조회 (검색 쿼리 정확도 향상)
     const work = await env.DB.prepare(
-      "SELECT title_ko FROM works WHERE tmdb_id = ?"
+      "SELECT title_ko, title_en FROM works WHERE tmdb_id = ?"
     ).bind(tmdb_id).first();
 
     if (!work?.title_ko) {
@@ -24,29 +24,52 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
       return 0;
     }
     const title_ko = work.title_ko;
+    const title_en = work.title_en || '';
+
+    // 한글 포함 비율로 한국어 작품 여부 판단
+    // - title_ko에서 한글 문자 비율이 30% 미만이면 → 영어 검색 모드
+    // - 예) "Office Romance" → 한글 0% → 영어 검색
+    //       "오피스 로맨스" → 한글 100% → 한국어 검색
+    //       "Mr. 플랭크턴"  → 한글 30% → 한국어 검색 (혼합은 한국어로)
+    const koreanChars = (title_ko.match(/[\uAC00-\uD7A3]/g) || []).length;
+    const totalChars  = title_ko.replace(/\s/g, '').length;
+    const isKoreanTitle = totalChars > 0 && (koreanChars / totalChars) >= 0.3;
+
+    // 영어 검색 모드: title_en 우선, 없으면 title_ko 그대로 사용
+    const searchLang  = isKoreanTitle ? 'ko' : 'en';
+    const searchBase  = isKoreanTitle ? title_ko : (title_en || title_ko);
+
+    console.log(`[YT_CRAWL] tmdb_id=${tmdb_id} "${title_ko}" → ${isKoreanTitle ? '한국어' : '영어'} 검색 모드 (lang=${searchLang})`);
 
     // 플랫폼 조회 — 가장 최근 랭킹 데이터 기준 (한 작품이 여러 플랫폼일 수 있으므로 1개만)
     const platformRow = await env.DB.prepare(
       "SELECT platform FROM rankings WHERE tmdb_id = ? ORDER BY date DESC LIMIT 1"
     ).bind(tmdb_id).first();
 
-    // 플랫폼 → YouTube 검색 접두어 매핑
-    const PLATFORM_PREFIX = {
+    // 플랫폼 → YouTube 검색 접두어 매핑 (한국어/영어 분리)
+    const PLATFORM_PREFIX_KO = {
       netflix   : '넷플릭스',
       tving     : '티빙',
       disney    : '디즈니플러스',
       wavve     : '웨이브',
       coupang   : '쿠팡플레이',
-      boxoffice : '영화',   // 박스오피스는 "영화 {제목}" 형식
+      boxoffice : '영화',
     };
-    const prefix = platformRow?.platform
-      ? (PLATFORM_PREFIX[platformRow.platform] || '')
+    const PLATFORM_PREFIX_EN = {
+      netflix   : 'Netflix',
+      tving     : 'Tving',
+      disney    : 'Disney+',
+      wavve     : 'Wavve',
+      coupang   : 'Coupang Play',
+      boxoffice : 'Movie',
+    };
+    const prefixMap = isKoreanTitle ? PLATFORM_PREFIX_KO : PLATFORM_PREFIX_EN;
+    const prefix    = platformRow?.platform
+      ? (prefixMap[platformRow.platform] || '')
       : '';
 
-    // 검색에 사용할 제목 (접두어 포함)
-    // - 플랫폼 있으면: "넷플릭스 끝까지 살아남아라: 더 정글"
-    // - 플랫폼 없으면: "끝까지 살아남아라: 더 정글" (기존 방식)
-    const searchTitle = prefix ? `${prefix} ${title_ko}` : title_ko;
+    // 검색에 사용할 최종 제목 (접두어 포함)
+    const searchTitle = prefix ? `${prefix} ${searchBase}` : searchBase;
 
     // ② DB에 이미 있는 youtube_id 목록 (중복 저장 방지)
     const { results: existingVideos } = await env.DB.prepare(
@@ -54,48 +77,59 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
     ).bind(tmdb_id).all();
     const existingIds = new Set(existingVideos.map(v => v.youtube_id));
 
-    // ③ YouTube Data API v3 검색 — 정확도 우선 다단계 전략
+    // ③ YouTube Data API v3 검색 — 한국어/영어 분기
     //
-    // 검색 쿼리 순서 (앞쪽일수록 정확도 높음):
-    //   1차: "{플랫폼} {title_ko} 공식 예고편"  — 플랫폼 공식 예고편 (가장 정확)
-    //   2차: "{플랫폼} {title_ko} 예고편"        — 플랫폼 일반 예고편
-    //   3차: "{title_ko} 리뷰"                   — 리뷰/분석 영상 (플랫폼 없이)
-    //   4차: "{title_ko} 후기"                   — 시청 후기 영상 (플랫폼 없이)
-    const searchQueries = [
-      `${searchTitle} 공식 예고편`,
-      `${searchTitle} 예고편`,
-      `${title_ko} 리뷰`,
-      `${title_ko} 후기`,
-    ];
+    // 한국어 모드 (isKoreanTitle=true):
+    //   1차: "{플랫폼} {title_ko} 공식 예고편"
+    //   2차: "{플랫폼} {title_ko} 예고편"
+    //   3차: "{title_ko} 리뷰"
+    //   4차: "{title_ko} 후기"
+    //
+    // 영어 모드 (isKoreanTitle=false):
+    //   1차: "{Platform} {title_en} official trailer"
+    //   2차: "{Platform} {title_en} trailer"
+    //   3차: "{title_en} review"
+    //   4차: "{title_en} clip"
+    const searchQueries = isKoreanTitle
+      ? [
+          `${searchTitle} 공식 예고편`,
+          `${searchTitle} 예고편`,
+          `${searchBase} 리뷰`,
+          `${searchBase} 후기`,
+        ]
+      : [
+          `${searchTitle} official trailer`,
+          `${searchTitle} trailer`,
+          `${searchBase} review`,
+          `${searchBase} clip`,
+        ];
 
-    // 제목 필터링용 핵심 단어 추출
+    // 제목 필터링용 핵심 단어 추출 (한국어/영어 공통)
     // - 콜론(:) 등 부제 구분자 제거 후 분리
-    // - 2글자 이상 단어만 사용 (조사/단음절 제거)
-    // - 예) "끝까지 살아남아라: 더 정글" → ["끝까지", "살아남아라", "정글"]
-    const titleWords = title_ko
-      .replace(/[:\-·|]/g, ' ')            // 부제 구분자 → 공백
-      .replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s]/g, '') // 나머지 특수문자 제거
+    // - 2글자 이상 단어만 사용
+    const titleWords = searchBase
+      .replace(/[:\-·|]/g, ' ')
+      .replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s]/g, '')
       .split(/\s+/)
       .filter(w => w.length >= 2);
 
-    // 영상 제목이 작품명과 관련 있는지 확인
+    // 영상 제목 관련성 필터
     // - 제목 단어 수에 따라 매칭 임계값 동적 조정
-    //   단어 1~2개 → 1개 이상 포함 (짧은 제목은 관대하게)
+    //   단어 1~2개 → 1개 이상 포함
     //   단어 3개   → 2개 이상 포함
-    //   단어 4개~  → 3개 이상 포함 (긴 제목은 엄격하게)
-    // - 이렇게 하면 "끝까지"처럼 흔한 단어 하나만 겹쳐서 통과되는 오매칭 방지
+    //   단어 4개~  → 3개 이상 포함
     function isRelatedVideo(videoTitle) {
       if (!videoTitle || !titleWords.length) return true;
-      const vt        = videoTitle.toLowerCase();
+      const vt         = videoTitle.toLowerCase();
       const matchCount = titleWords.filter(w => vt.includes(w.toLowerCase())).length;
       const threshold  = titleWords.length <= 2 ? 1
                        : titleWords.length === 3 ? 2
-                       : 3; // 4단어 이상
+                       : 3;
       return matchCount >= threshold;
     }
 
-    const items        = []; // 필터 통과한 영상
-    const fallbackItems = []; // 필터 미통과 (폴백용)
+    const items         = [];
+    const fallbackItems = [];
 
     for (const query of searchQueries) {
       if (items.length >= 3) break;
@@ -103,7 +137,7 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
       const ytUrl =
         `https://www.googleapis.com/youtube/v3/search` +
         `?part=snippet&type=video&order=relevance&maxResults=8` +
-        `&relevanceLanguage=ko` +
+        `&relevanceLanguage=${searchLang}` +
         `&q=${encodeURIComponent(query)}` +
         `&key=${env.YOUTUBE_API_KEY}`;
 
@@ -120,16 +154,14 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
 
         const entry = {
           youtube_id:  videoId,
-          title:       videoTitle || title_ko,
+          title:       videoTitle || searchBase,
           youtube_url: `https://www.youtube.com/watch?v=${videoId}`,
         };
 
         if (isRelatedVideo(videoTitle)) {
-          // 필터 통과 — 바로 채택
           items.push(entry);
           existingIds.add(videoId);
         } else if (fallbackItems.length < 3) {
-          // 필터 미통과 — 폴백 후보로 보관 (영상 0개 방지)
           fallbackItems.push(entry);
           existingIds.add(videoId);
         }
