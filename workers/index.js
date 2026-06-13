@@ -14,6 +14,7 @@
    admin.js     : /admin/* (reactions, videos, contents 제외)
    contents.js  : /contents/*, /admin/contents*
 ══════════════════════════════════════════════════════════════ */
+// build trigger: 2026-06-14 (esbuild 캐시 무효화용)
 
 import { handleRankings  } from "./routes/rankings.js";
 import { handleVideos    } from "./routes/videos.js";
