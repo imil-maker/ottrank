@@ -897,7 +897,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 </div>
 
 <!-- 후기 0개 CTA — JS에서 후기 있으면 숨김 -->
-<div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:none">
+<div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:flex">
   <div class="review-cta-left">
     <div class="review-cta-eyebrow">첫 번째 평점</div>
     <div class="review-cta-stars">
@@ -1905,15 +1905,16 @@ function renderComments(){
   const el=document.getElementById('commentsArea');
   const sorted=getSorted();
   document.getElementById('commentCount').textContent=`${sorted.length}개`;
-  // 후기 0개: CTA 표시 / 있으면: CTA 숨기고 댓글 섹션 표시
+  // 후기 0개: CTA 유지(이미 표시 중) / 있으면: CTA 숨기고 댓글 섹션 표시
   const cta=document.getElementById('reviewCta');
   const commentSection=document.getElementById('commentSection');
   if(sorted.length===0){
-    if(cta) cta.style.display='flex';
+    if(cta) cta.style.display='flex';   // 혹시 숨겨진 경우 복구
     if(commentSection) commentSection.style.display='none';
     document.getElementById('pagination').innerHTML='';
     return;
   }
+  // 후기 있음 → CTA 숨기고 댓글 섹션 표시
   if(cta) cta.style.display='none';
   if(commentSection) commentSection.style.display='block';
   updateCommentWatchLayout();
