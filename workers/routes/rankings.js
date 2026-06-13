@@ -155,7 +155,7 @@ export async function handleRankings(path, request, env, url, headers) {
         manualBySlot[key].push(row);
       }
 
-      const tv = {}, movie = {};
+      const tv = {}, movie = {}, featured = {};
       const allKeys = new Set([...Object.keys(crawlBySlot), ...Object.keys(manualBySlot)]);
 
       for (const key of allKeys) {
@@ -191,14 +191,26 @@ export async function handleRankings(path, request, env, url, headers) {
               memo_label: meta.memo_label || null, items: []
             };
             movie[key].items.push(item);
+          } else if (meta.main_section === "featured" && meta.platform === "netflix") {
+            // featured: 넷플릭스 전용 — 메인 최상단 슬라이드 섹션 (최대 2개)
+            if (!featured[key]) featured[key] = {
+              platform: meta.platform, category_slot: meta.category_slot,
+              display_name: meta.display_name, main_order: meta.main_order,
+              memo_label: meta.memo_label || null, items: []
+            };
+            featured[key].items.push(item);
           }
         }
       }
 
-      const tvList    = Object.values(tv).sort((a, b) => a.main_order - b.main_order);
-      const movieList = Object.values(movie).sort((a, b) => a.main_order - b.main_order);
+      const tvList       = Object.values(tv).sort((a, b) => a.main_order - b.main_order);
+      const movieList    = Object.values(movie).sort((a, b) => a.main_order - b.main_order);
+      // featured: main_order 오름차순, 최대 2개만 반환
+      const featuredList = Object.values(featured)
+        .sort((a, b) => a.main_order - b.main_order)
+        .slice(0, 2);
 
-      return new Response(JSON.stringify({ ok: true, tv: tvList, movie: movieList }), { headers });
+      return new Response(JSON.stringify({ ok: true, tv: tvList, movie: movieList, featured: featuredList }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
