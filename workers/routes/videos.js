@@ -439,25 +439,72 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const kmrbRes  = await fetch(kmrbUrl);
       const kmrbText = await kmrbRes.text();
 
-      // XML 파싱 (정규식 기반)
+      // ── XML 파싱 (실제 KMRB API 태그명 기준) ──────────────
+      // <item> 블록 단위로 분리 후 제목 일치하는 항목 선택
+      const itemBlocks = kmrbText.match(/<item>([\s\S]*?)<\/item>/g) || [];
+
+      // 특수문자/공백 제거 후 비교하는 정규화 함수
+      const normalize = (s) => (s || "").replace(/[\s\(\)\[\]·\-\:\.]/g, "").toLowerCase();
+      const titleNorm = normalize(title_ko);
+
+      // 제목이 일치하는 item 블록 찾기
+      // useTitle 또는 oriTitle이 검색 제목과 유사하면 채택
+      let bestBlock = null;
+      for (const block of itemBlocks) {
+        const getItemTag = (tag) => {
+          const m = block.match(new RegExp(`<${tag}>([^<]*)<\/${tag}>`));
+          return m ? m[1].trim() : "";
+        };
+        const useTitle = normalize(getItemTag("useTitle"));
+        const oriTitle = normalize(getItemTag("oriTitle"));
+        if (useTitle.includes(titleNorm) || titleNorm.includes(useTitle) ||
+            oriTitle.includes(titleNorm) || titleNorm.includes(oriTitle)) {
+          bestBlock = block;
+          break;
+        }
+      }
+
+      // 제목 일치 항목 없으면 빈 데이터 저장 (오매칭 방지)
       const getTag = (tag) => {
-        const m = kmrbText.match(new RegExp(`<${tag}>([^<]*)<\/${tag}>`));
+        if (!bestBlock) return "";
+        const m = bestBlock.match(new RegExp(`<${tag}>([^<]*)<\/${tag}>`));
         return m ? m[1].trim() : "";
       };
 
+      // Flag(Y/N) → 한글 레이블 변환
+      const flagToLabel = (flag, grade) => {
+        if (flag === "Y") return grade || "해당";
+        return "없음";
+      };
+
+      // 관람등급: gradeName 태그
+      const watchGrade = getTag("gradeName") || "";
+
+      // 시청가이드 항목: Flag 기반 (Y=해당, N=없음)
+      // 각 항목은 Flag가 Y일 때 등급(gradeName)을 표시
+      const pokFlag    = getTag("pokFlag");     // 폭력성
+      const yakDrkFlag = getTag("yakDrkFlag");  // 약물(음주)
+      const yakSmkFlag = getTag("yakSmkFlag");  // 약물(흡연)
+      const yakDrgFlag = getTag("yakDrgFlag");  // 약물(마약)
+      const moSuiFlag  = getTag("moSuiFlag");   // 자살/자해
+      const moHarmFlag = getTag("moHarmFlag");  // 신체노출
+      const coreHarm   = getTag("coreHarmRsn"); // 핵심 해악사유
+
       const rating = {
         tmdb_id,
-        title_ko:    title_ko,
-        watch_grade: getTag("watchGrade") || getTag("movieGrade") || "",
-        subject:     getTag("subject")     || "",
-        sexuality:   getTag("sexuality")   || "",
-        violence:    getTag("violence")    || "",
-        language:    getTag("language")    || "",
-        imitation:   getTag("imitation")   || "",
-        drug:        getTag("drug")        || "",
-        horror:      getTag("horror")      || "",
-        source:      "kmrb_api",
-        fetched_at:  new Date().toISOString(),
+        title_ko,
+        watch_grade: watchGrade,
+        // 시청가이드: Flag Y/N 기반으로 해당 여부 표시
+        subject:   coreHarm || "",                                    // 핵심 해악사유
+        violence:  pokFlag    === "Y" ? watchGrade || "해당" : "없음", // 폭력성
+        drug:      (yakDrkFlag === "Y" || yakSmkFlag === "Y" || yakDrgFlag === "Y")
+                     ? watchGrade || "해당" : "없음",                  // 약물
+        imitation: moSuiFlag  === "Y" ? watchGrade || "해당" : "없음", // 모방위험(자살/자해)
+        sexuality: moHarmFlag === "Y" ? watchGrade || "해당" : "없음", // 선정성(신체노출)
+        language:  "",  // KMRB API에 대사 관련 Flag 없음
+        horror:    "",  // KMRB API에 공포 관련 Flag 없음
+        source:    "kmrb_api",
+        fetched_at: new Date().toISOString(),
       };
 
       // D1에 캐시 저장
