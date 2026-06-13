@@ -72,10 +72,20 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
     const searchTitle = prefix ? `${prefix} ${searchBase}` : searchBase;
 
     // ② DB에 이미 있는 youtube_id 목록 (중복 저장 방지)
+    //    is_main=1 영상은 별도로 추적 — 크롤링으로 절대 덮어쓰지 않음
     const { results: existingVideos } = await env.DB.prepare(
-      "SELECT youtube_id FROM title_videos WHERE tmdb_id = ?"
+      "SELECT youtube_id, is_main FROM title_videos WHERE tmdb_id = ?"
     ).bind(tmdb_id).all();
-    const existingIds = new Set(existingVideos.map(v => v.youtube_id));
+    const existingIds  = new Set(existingVideos.map(v => v.youtube_id));
+    const mainVideoIds = new Set(
+      existingVideos.filter(v => v.is_main === 1).map(v => v.youtube_id)
+    );
+
+    // is_main=1 영상이 이미 있으면 해당 youtube_id는 크롤링 결과에서 제외
+    // (어드민에서 메인 영상을 삭제하지 않는 한 TMDB 공식 트레일러 유지)
+    if (mainVideoIds.size > 0) {
+      console.log(`[YT_CRAWL] tmdb_id=${tmdb_id} 메인 영상 ${mainVideoIds.size}개 보호 중`);
+    }
 
     // ③ YouTube Data API v3 검색 — 한국어/영어 분기
     //
@@ -150,7 +160,8 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
         if (items.length >= 3) break;
         const videoId    = item.id?.videoId;
         const videoTitle = item.snippet?.title || '';
-        if (!videoId || existingIds.has(videoId)) continue;
+        // 이미 DB에 있거나 is_main=1 영상과 동일한 youtube_id면 스킵
+        if (!videoId || existingIds.has(videoId) || mainVideoIds.has(videoId)) continue;
 
         const entry = {
           youtube_id:  videoId,
