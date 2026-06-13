@@ -20,7 +20,8 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
   // ── GET /videos/:tmdb_id ─────────────────────────────────────
   // DB 0개: TMDB 저장 + YouTube 크롤링 동시 실행
-  // DB 1~2개: YouTube 크롤링 추가 실행
+  // DB 1~2개 + is_main 없음: YouTube 보충 크롤링
+  // is_main 있거나 DB 3개 이상: 크롤링 완전 스킵
   // DB 3개 이상: DB 영상만 표시
   if (path.startsWith("/videos/") && !path.includes("/admin") && request.method === "GET") {
     const tmdb_id = parseInt(path.split("/videos/")[1]);
@@ -32,17 +33,18 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         "SELECT * FROM title_videos WHERE tmdb_id = ? ORDER BY is_main DESC, created_at DESC"
       ).bind(tmdb_id).all();
 
-      const hasMain = results.some(v => v.is_main === 1);
+      const hasMain   = results.some(v => v.is_main === 1);
+      const hasEnough = results.length >= 3; // 영상 3개 이상이면 충분
 
       if (results.length === 0) {
         // 영상 없음 → TMDB 저장 + YouTube 크롤링 동시 실행
         ctx.waitUntil(_saveTmdbVideos(tmdb_id, env));
         ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
-      } else if (results.length <= 2 && !hasMain) {
-        // 2개 이하 + 메인 영상 없음 → YouTube 추가 크롤링
-        // is_main=1 영상이 있으면 TMDB 공식 트레일러가 정상 등록된 것으로 보고 스킵
+      } else if (!hasEnough && !hasMain) {
+        // 영상 1~2개 + 메인 없음 → YouTube 보충 크롤링
         ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
       }
+      // is_main=1 있거나 영상 3개 이상 → 크롤링 완전 스킵 (매 접속마다 크롤링 방지)
 
       return new Response(JSON.stringify({ ok: true, data: results }), { headers });
     } catch (e) {
