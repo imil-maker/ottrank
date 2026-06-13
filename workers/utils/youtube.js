@@ -14,7 +14,7 @@
 export async function _crawlYoutubeVideos(tmdb_id, env) {
   try {
     // ① works 테이블에서 작품명 조회 (title_ko + title_en 모두)
-    //    rankings 테이블에서 최근 등록 플랫폼도 함께 조회 (검색 쿼리 정확도 향상)
+    //    rankings 테이블에서 플랫폼 + category_slot도 함께 조회
     const work = await env.DB.prepare(
       "SELECT title_ko, title_en FROM works WHERE tmdb_id = ?"
     ).bind(tmdb_id).first();
@@ -26,25 +26,25 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
     const title_ko = work.title_ko;
     const title_en = work.title_en || '';
 
-    // 한글 포함 비율로 한국어 작품 여부 판단
-    // - title_ko에서 한글 문자 비율이 30% 미만이면 → 영어 검색 모드
-    // - 예) "Office Romance" → 한글 0% → 영어 검색
-    //       "오피스 로맨스" → 한글 100% → 한국어 검색
-    //       "Mr. 플랭크턴"  → 한글 30% → 한국어 검색 (혼합은 한국어로)
-    const koreanChars = (title_ko.match(/[\uAC00-\uD7A3]/g) || []).length;
-    const totalChars  = title_ko.replace(/\s/g, '').length;
-    const isKoreanTitle = totalChars > 0 && (koreanChars / totalChars) >= 0.3;
-
-    // 영어 검색 모드: title_en 우선, 없으면 title_ko 그대로 사용
-    const searchLang  = isKoreanTitle ? 'ko' : 'en';
-    const searchBase  = isKoreanTitle ? title_ko : (title_en || title_ko);
-
-    console.log(`[YT_CRAWL] tmdb_id=${tmdb_id} "${title_ko}" → ${isKoreanTitle ? '한국어' : '영어'} 검색 모드 (lang=${searchLang})`);
-
-    // 플랫폼 조회 — 가장 최근 랭킹 데이터 기준 (한 작품이 여러 플랫폼일 수 있으므로 1개만)
+    // 플랫폼 + category_slot 조회 — 가장 최근 랭킹 데이터 기준
     const platformRow = await env.DB.prepare(
-      "SELECT platform FROM rankings WHERE tmdb_id = ? ORDER BY date DESC LIMIT 1"
+      "SELECT platform, category_slot FROM rankings WHERE tmdb_id = ? ORDER BY date DESC LIMIT 1"
     ).bind(tmdb_id).first();
+
+    // 검색 언어 결정:
+    //   넷플릭스 전세계 랭킹(category07/08) → 영어 검색
+    //     이유: 전세계 랭킹 외국 작품은 한국어 예고편/리뷰가 거의 없어
+    //           한국어 검색 시 엉뚱한 영상 연결 문제 발생
+    //   그 외 모든 슬롯 → 한국어 검색 (기존 방식 유지)
+    const NETFLIX_WORLD_SLOTS = new Set(['category07', 'category08']);
+    const isWorldRanking = platformRow?.platform === 'netflix'
+      && NETFLIX_WORLD_SLOTS.has(platformRow?.category_slot);
+
+    const isEnglishMode = isWorldRanking;
+    const searchLang    = isEnglishMode ? 'en' : 'ko';
+    const searchBase    = isEnglishMode ? (title_en || title_ko) : title_ko;
+
+    console.log(`[YT_CRAWL] tmdb_id=${tmdb_id} "${title_ko}" → ${isEnglishMode ? '영어' : '한국어'} 검색 모드 (slot=${platformRow?.category_slot || 'none'})`);
 
     // 플랫폼 → YouTube 검색 접두어 매핑 (한국어/영어 분리)
     const PLATFORM_PREFIX_KO = {
@@ -63,8 +63,8 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
       coupang   : 'Coupang Play',
       boxoffice : 'Movie',
     };
-    const prefixMap = isKoreanTitle ? PLATFORM_PREFIX_KO : PLATFORM_PREFIX_EN;
-    const prefix    = platformRow?.platform
+    const prefixMap   = isEnglishMode ? PLATFORM_PREFIX_EN : PLATFORM_PREFIX_KO;
+    const prefix      = platformRow?.platform
       ? (prefixMap[platformRow.platform] || '')
       : '';
 
@@ -79,29 +79,29 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
 
     // ③ YouTube Data API v3 검색 — 한국어/영어 분기
     //
-    // 한국어 모드 (isKoreanTitle=true):
+    // 한국어 모드 (isEnglishMode=false, 대부분의 작품):
     //   1차: "{플랫폼} {title_ko} 공식 예고편"
     //   2차: "{플랫폼} {title_ko} 예고편"
     //   3차: "{title_ko} 리뷰"
     //   4차: "{title_ko} 후기"
     //
-    // 영어 모드 (isKoreanTitle=false):
-    //   1차: "{Platform} {title_en} official trailer"
-    //   2차: "{Platform} {title_en} trailer"
+    // 영어 모드 (isEnglishMode=true, 넷플릭스 전세계 랭킹 category07/08):
+    //   1차: "Netflix {title_en} official trailer"
+    //   2차: "Netflix {title_en} trailer"
     //   3차: "{title_en} review"
     //   4차: "{title_en} clip"
-    const searchQueries = isKoreanTitle
+    const searchQueries = isEnglishMode
       ? [
-          `${searchTitle} 공식 예고편`,
-          `${searchTitle} 예고편`,
-          `${searchBase} 리뷰`,
-          `${searchBase} 후기`,
-        ]
-      : [
           `${searchTitle} official trailer`,
           `${searchTitle} trailer`,
           `${searchBase} review`,
           `${searchBase} clip`,
+        ]
+      : [
+          `${searchTitle} 공식 예고편`,
+          `${searchTitle} 예고편`,
+          `${searchBase} 리뷰`,
+          `${searchBase} 후기`,
         ];
 
     // 제목 필터링용 핵심 단어 추출 (한국어/영어 공통)
