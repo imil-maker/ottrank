@@ -593,7 +593,8 @@ def _build_result(tmdb_item: dict, media_type: str) -> dict:
         "genre":        detail.get("genre", ""),
         "overview":     detail.get("overview", ""),
         "release_year": int(date_str[:4]) if date_str and len(date_str) >= 4 else None,
-        "tmdb_rating":  tmdb_item.get("vote_average") or None,
+        # tmdb_rating: 상세 조회(ko-KR) 우선 → 검색 결과 폴백 (둘 다 없으면 None)
+        "tmdb_rating":  detail.get("tmdb_rating") or tmdb_item.get("vote_average") or None,
     }
 
 
@@ -677,8 +678,8 @@ def save_review_queue(conn: sqlite3.Connection, item: dict, title_ko_guess: str 
 def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "auto_claude"):
     """
     works 테이블에 신규 작품 INSERT
-    ⚠️ 크롤러는 INSERT만 — ON CONFLICT DO NOTHING (기존 데이터 절대 덮어쓰기 금지)
-    Admin이 수동으로 저장한 데이터(confidence_score=100)는 절대 변경 안 됨
+    ⚠️ 크롤러는 INSERT만 — ON CONFLICT 시 tmdb_rating/genre가 NULL일 때만 보완
+    Admin이 수동으로 저장한 핵심 데이터(title_ko, poster_path 등)는 절대 변경 안 됨
     """
     confidence = 100 if match_source == "admin" else 95
     try:
@@ -688,7 +689,20 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
                  release_year, tmdb_rating, match_source, confidence_score,
                  first_matched_date, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now','localtime'), datetime('now','localtime'))
-            ON CONFLICT(tmdb_id) DO NOTHING
+            ON CONFLICT(tmdb_id) DO UPDATE SET
+                -- tmdb_rating이 NULL일 때만 새 값으로 업데이트 (기존 평점 보호)
+                tmdb_rating = CASE
+                    WHEN works.tmdb_rating IS NULL AND excluded.tmdb_rating IS NOT NULL
+                    THEN excluded.tmdb_rating
+                    ELSE works.tmdb_rating
+                END,
+                -- genre도 NULL이면 보완
+                genre = CASE
+                    WHEN works.genre IS NULL AND excluded.genre IS NOT NULL
+                    THEN excluded.genre
+                    ELSE works.genre
+                END,
+                updated_at = datetime('now','localtime')
         """, (
             tmdb_data["tmdb_id"],
             tmdb_data.get("title_ko", ""),
@@ -793,6 +807,27 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
     works_data = lookup_works(conn, title_en)
     if works_data:
         print(f"  ✅ [{platform}][{slot}] {rank:2d}. '{title_en}' → works DB 매칭 (tmdb_id={works_data['tmdb_id']})")
+
+        # tmdb_rating 없으면 TMDB API에서 즉시 보완 후 works 업데이트
+        if not works_data.get("tmdb_rating") and works_data.get("tmdb_id"):
+            print(f"     → tmdb_rating 없음 — TMDB API 보완 중...")
+            detail = _fetch_detail(works_data["tmdb_id"],
+                                   "movie" if works_data.get("media_type") == "movie" else "tv")
+            rating = detail.get("tmdb_rating")
+            if not rating:
+                # tv/movie 둘 다 시도
+                detail2 = _fetch_detail(works_data["tmdb_id"], "movie")
+                rating  = detail2.get("tmdb_rating")
+            if rating:
+                works_data["tmdb_rating"] = rating
+                # works 테이블 tmdb_rating 업데이트 (NULL → 실제 값)
+                conn.execute(
+                    "UPDATE works SET tmdb_rating = ?, updated_at = datetime('now','localtime') WHERE tmdb_id = ? AND tmdb_rating IS NULL",
+                    (rating, works_data["tmdb_id"])
+                )
+                conn.commit()
+                print(f"     → tmdb_rating 보완 완료: {rating}")
+
         _save_to_rankings(conn, item, works_data)
         return
 
