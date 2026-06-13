@@ -906,6 +906,23 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
     for item, works_data in matched_items:
         print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
               f"{item['rank']:2d}. '{item['title_en']}' → works DB (tmdb_id={works_data['tmdb_id']})")
+
+        # tmdb_rating 없으면 TMDB API에서 즉시 보완 후 works 업데이트
+        if not works_data.get("tmdb_rating") and works_data.get("tmdb_id"):
+            detail = _fetch_detail(works_data["tmdb_id"], "tv")
+            rating = detail.get("tmdb_rating")
+            if not rating:
+                detail2 = _fetch_detail(works_data["tmdb_id"], "movie")
+                rating  = detail2.get("tmdb_rating")
+            if rating:
+                works_data["tmdb_rating"] = rating
+                conn.execute(
+                    "UPDATE works SET tmdb_rating = ?, updated_at = datetime('now','localtime') WHERE tmdb_id = ? AND tmdb_rating IS NULL",
+                    (rating, works_data["tmdb_id"])
+                )
+                conn.commit()
+                print(f"     → tmdb_rating 보완: {rating}")
+
         _save_to_rankings(conn, item, works_data)
 
     if not unmatched_items:
