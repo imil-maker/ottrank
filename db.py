@@ -678,8 +678,9 @@ def save_review_queue(conn: sqlite3.Connection, item: dict, title_ko_guess: str 
 def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "auto_claude"):
     """
     works 테이블에 신규 작품 INSERT
-    ⚠️ 크롤러는 INSERT만 — ON CONFLICT 시 tmdb_rating/genre가 NULL일 때만 보완
-    Admin이 수동으로 저장한 핵심 데이터(title_ko, poster_path 등)는 절대 변경 안 됨
+    ⚠️ 3키 원칙: title_ko / title_en / tmdb_id 크롤러 수정 불가
+    ⚠️ tmdb_rating은 변동값 → 크롤링마다 최신 값으로 업데이트
+    ⚠️ genre는 NULL일 때만 보완 (Admin 수동 설정 보호)
     """
     confidence = 100 if match_source == "admin" else 95
     try:
@@ -690,13 +691,14 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
                  first_matched_date, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now','localtime'), datetime('now','localtime'))
             ON CONFLICT(tmdb_id) DO UPDATE SET
-                -- tmdb_rating이 NULL일 때만 새 값으로 업데이트 (기존 평점 보호)
+                -- 3키 원칙: title_ko / title_en / tmdb_id 절대 수정 불가
+                -- tmdb_rating은 변동값 → 최신 값으로 항상 업데이트
                 tmdb_rating = CASE
-                    WHEN works.tmdb_rating IS NULL AND excluded.tmdb_rating IS NOT NULL
+                    WHEN excluded.tmdb_rating IS NOT NULL
                     THEN excluded.tmdb_rating
                     ELSE works.tmdb_rating
                 END,
-                -- genre도 NULL이면 보완
+                -- genre는 NULL일 때만 보완 (Admin 수동 설정 보호)
                 genre = CASE
                     WHEN works.genre IS NULL AND excluded.genre IS NOT NULL
                     THEN excluded.genre
