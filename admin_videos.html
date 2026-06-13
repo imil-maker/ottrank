@@ -148,12 +148,54 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .btn-crawl:disabled{opacity:.4;cursor:default}
 .crawl-result{font-size:13px;padding:10px 14px;border-radius:var(--r);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);color:#34d399;font-family:var(--mono);margin-bottom:16px;display:none}
 
-@media(max-width:600px){
-  .video-card{flex-direction:column;align-items:flex-start}
-  .video-thumb{width:100%;height:auto;aspect-ratio:16/9}
-  .video-actions{flex-direction:row}
+/* ── MBTI 관리 ── */
+.mbti-add-chip{
+  padding:6px 14px;border-radius:20px;border:1px solid var(--border);
+  background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;
+  font-family:var(--mono);transition:all .15s;
 }
-</style>
+.mbti-add-chip:hover:not(:disabled){background:rgba(55,138,221,.15);color:#7ec8e3;border-color:rgba(55,138,221,.4)}
+.mbti-add-chip:disabled{opacity:.3;cursor:default}
+.mbti-add-chip.used{background:rgba(52,211,153,.1);color:var(--green);border-color:rgba(52,211,153,.3)}
+
+/* 드래그 행 */
+.mbti-drag-row{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;margin-bottom:8px;cursor:grab;transition:border-color .15s;
+  user-select:none;
+}
+.mbti-drag-row:active{cursor:grabbing}
+.mbti-drag-row.dragging{opacity:.4;background:rgba(255,255,255,.05)}
+.mbti-drag-row.drag-over{border-color:var(--green);border-top:2px solid var(--green)}
+.mbti-drag-handle{color:var(--muted);font-size:18px;flex-shrink:0}
+.mbti-rank-num{
+  font-family:'DM Mono',monospace;font-size:18px;font-weight:700;
+  color:var(--gold);width:28px;text-align:center;flex-shrink:0;
+}
+.mbti-label{
+  font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
+  color:var(--text);min-width:50px;
+}
+.mbti-pct-inp{
+  width:70px;padding:6px 10px;border-radius:6px;
+  border:1px solid var(--border);background:var(--bg2);
+  color:var(--text);font-family:'DM Mono',monospace;font-size:14px;
+  outline:none;text-align:right;
+}
+.mbti-pct-inp:focus{border-color:var(--border2)}
+.mbti-pct-unit{font-family:'DM Mono',monospace;font-size:13px;color:var(--muted);flex-shrink:0}
+.mbti-del-btn{
+  margin-left:auto;padding:4px 12px;border-radius:6px;
+  border:1px solid rgba(230,57,70,.3);background:rgba(230,57,70,.1);
+  color:var(--red);font-size:12px;cursor:pointer;flex-shrink:0;
+}
+.mbti-del-btn:hover{background:rgba(230,57,70,.2)}
+
+@media(max-width:600px){
+  .mbti-drag-row{flex-wrap:wrap;gap:8px}
+  .mbti-pct-inp{width:60px}
+}
 </head>
 <body>
 
@@ -173,8 +215,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <div id="mainWrap" style="display:none">
 
   <div class="admin-header">
-    <h1>🎬 영상 관리</h1>
-    <a class="back-btn" href="/admin.html">← 어드민으로</a>
+    <h1 id="adminHeaderTitle">🎬 영상 관리</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+      <!-- 페이지 탭 -->
+      <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px">
+        <button id="tabVideo" onclick="switchPageTab('video')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+          🎬 영상 관리
+        </button>
+        <button id="tabMbti" onclick="switchPageTab('mbti')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          ✦ MBTI 관리
+        </button>
+      </div>
+      <a class="back-btn" href="/admin.html">← 어드민으로</a>
+    </div>
   </div>
 
   <div class="wrap">
@@ -240,6 +295,79 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="videosList"></div>
 
   </div>
+
+  <!-- ══ MBTI 관리 섹션 ══ -->
+  <div class="wrap" id="mbtiWrap" style="display:none">
+
+    <!-- 작품 검색 (영상관리와 동일 UI) -->
+    <div class="search-tabs">
+      <button class="search-tab" id="mTabId" onclick="switchMbtiTab('id')">TMDB ID</button>
+      <button class="search-tab on" id="mTabName" onclick="switchMbtiTab('name')">작품명 검색</button>
+    </div>
+    <div class="search-row">
+      <input class="search-input" id="mTmdbInput" type="number" placeholder="tmdb_id 입력 (예: 259837)"
+        onkeydown="if(event.key==='Enter')loadMbtiWork()" style="display:none">
+      <div class="search-dropdown" id="mNameSearchWrap" style="display:block;flex:1">
+        <input class="search-input" id="mNameInput" type="text"
+          placeholder="한글 또는 영어 작품명 입력"
+          oninput="onMbtiNameInput(this.value)"
+          onkeydown="if(event.key==='Enter')searchMbtiByName()"
+          autocomplete="off" style="width:100%">
+        <div class="search-results" id="mSearchResults"></div>
+      </div>
+      <button class="btn-primary" onclick="handleMbtiSearch()">작품 조회</button>
+    </div>
+
+    <!-- 작품 정보 -->
+    <div class="work-info-box" id="mWorkInfoBox" style="display:none">
+      <div class="work-poster" id="mWorkPoster"></div>
+      <div>
+        <div class="work-title" id="mWorkTitle"></div>
+        <div class="work-sub" id="mWorkSub"></div>
+      </div>
+    </div>
+
+    <!-- MBTI 편집 영역 -->
+    <div id="mbtiEditArea" style="display:none">
+
+      <!-- 안내 메시지 -->
+      <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 드래그로 순서 변경 · % 직접 입력 가능 (비워두면 자동계산)<br>
+        저장 형식: <span style="color:var(--green)">ENFP:95,ENTJ:80,ISTJ:75</span> — % 없으면 <span style="color:var(--gold)">ENFP,ENTJ,ISTJ</span> (자동계산 유지)
+      </div>
+
+      <!-- MBTI 추가 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:12px">✦ MBTI 추가 <span style="font-size:12px;color:var(--muted);font-weight:400">(최대 5개)</span></div>
+        <div id="mbtiAddChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- 현재 MBTI 목록 (드래그 재정렬) -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:600">✦ 현재 MBTI 순위</div>
+          <span style="font-size:12px;color:var(--muted);font-family:var(--mono)" id="mbtiCountLabel">0 / 5</span>
+        </div>
+        <div id="mbtiDragList"></div>
+        <div id="mbtiEmpty" style="padding:24px;text-align:center;color:var(--muted);font-size:13px;display:none">
+          위에서 MBTI를 선택해 추가하세요
+        </div>
+      </div>
+
+      <!-- 저장 버튼 -->
+      <div style="display:flex;gap:10px">
+        <button class="btn-primary" onclick="saveMbtiTags()" id="mbtiSaveBtn"
+          style="flex:1;padding:13px">
+          💾 저장
+        </button>
+        <button class="btn-secondary" onclick="resetMbtiTags()"
+          style="padding:13px 20px">
+          🔄 자동계산으로 초기화
+        </button>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 <!-- 미리보기 모달 -->
@@ -299,10 +427,11 @@ async function verifySecret(){
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('mainWrap').style.display = 'block';
   }
-  // 드롭다운 외부 클릭 시 닫기
+  // 드롭다운 외부 클릭 시 닫기 (영상관리 + MBTI관리 공통)
   document.addEventListener('click', (e) => {
-    if(!e.target.closest('.search-dropdown')){
+    if (!e.target.closest('.search-dropdown')) {
       document.getElementById('searchResults').classList.remove('show');
+      document.getElementById('mSearchResults').classList.remove('show');
     }
   });
 })();
@@ -545,6 +674,326 @@ function openPreview(ytId, title){
 function closePreview(){
   document.getElementById('previewFrame').src = '';
   document.getElementById('previewModal').classList.remove('show');
+}
+
+/* ══ 페이지 탭 전환 (영상관리 ↔ MBTI 관리) ══ */
+let currentPageTab = 'video';
+function switchPageTab(tab) {
+  currentPageTab = tab;
+  const isVideo = tab === 'video';
+  // 컨텐츠 영역 토글
+  document.querySelector('.wrap:not(#mbtiWrap)').style.display = isVideo ? 'block' : 'none';
+  document.getElementById('mbtiWrap').style.display = isVideo ? 'none' : 'block';
+  // 탭 버튼 스타일
+  const tabVideo = document.getElementById('tabVideo');
+  const tabMbti  = document.getElementById('tabMbti');
+  tabVideo.style.background = isVideo ? 'var(--accent)' : 'transparent';
+  tabVideo.style.color      = isVideo ? '#fff' : 'var(--muted2)';
+  tabMbti.style.background  = isVideo ? 'transparent' : 'rgba(55,138,221,.2)';
+  tabMbti.style.color       = isVideo ? 'var(--muted2)' : '#7ec8e3';
+  // 헤더 타이틀
+  document.getElementById('adminHeaderTitle').textContent = isVideo ? '🎬 영상 관리' : '✦ MBTI 관리';
+}
+
+/* ══ MBTI 관리 — 상태 ══ */
+const MBTI_16 = [
+  'INTJ','INTP','ENTJ','ENTP',
+  'INFJ','INFP','ENFJ','ENFP',
+  'ISTJ','ISFJ','ESTJ','ESFJ',
+  'ISTP','ISFP','ESTP','ESFP',
+];
+let mbtiCurrentTmdbId = null; // 현재 선택된 작품 tmdb_id
+let mbtiItems = [];            // [{ mbti: 'ENFP', pct: 95 }, ...]  pct=0 은 자동계산
+let mbtiSearchTab = 'name';
+let mbtiNameTimer = null;
+let _mbtiDragSrc  = null;
+
+/* ── 검색 탭 전환 ── */
+function switchMbtiTab(tab) {
+  mbtiSearchTab = tab;
+  document.getElementById('mTabId').classList.toggle('on', tab === 'id');
+  document.getElementById('mTabName').classList.toggle('on', tab === 'name');
+  document.getElementById('mTmdbInput').style.display     = tab === 'id'   ? 'block' : 'none';
+  document.getElementById('mNameSearchWrap').style.display = tab === 'name' ? 'block' : 'none';
+  document.getElementById('mSearchResults').classList.remove('show');
+}
+
+function handleMbtiSearch() {
+  if (mbtiSearchTab === 'id') loadMbtiWork();
+  else searchMbtiByName();
+}
+
+/* ── 작품명 디바운스 검색 ── */
+function onMbtiNameInput(val) {
+  clearTimeout(mbtiNameTimer);
+  const results = document.getElementById('mSearchResults');
+  if (!val.trim()) { results.classList.remove('show'); return; }
+  mbtiNameTimer = setTimeout(() => searchMbtiByName(val), 400);
+}
+
+async function searchMbtiByName(query) {
+  const val = query || document.getElementById('mNameInput').value.trim();
+  if (!val) { showToast('작품명을 입력해주세요'); return; }
+  const results = document.getElementById('mSearchResults');
+  results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 중...</div>';
+  results.classList.add('show');
+  try {
+    const res  = await fetch(`${API}/works/search?q=${encodeURIComponent(val)}&limit=8`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (!data.ok || !data.data?.length) {
+      results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과가 없습니다</div>';
+      return;
+    }
+    results.innerHTML = data.data.map(w => `
+      <div class="search-result-item" onclick="selectMbtiWork(${w.tmdb_id})">
+        <div class="sri-poster">
+          ${w.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`}
+        </div>
+        <div>
+          <div class="sri-title">${w.title_ko || ''}</div>
+          <div class="sri-sub">${[w.title_en, `tmdb: ${w.tmdb_id}`].filter(Boolean).join(' · ')}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--accent)">검색 오류</div>';
+  }
+}
+
+async function loadMbtiWork() {
+  const id = parseInt(document.getElementById('mTmdbInput').value.trim());
+  if (!id) { showToast('tmdb_id를 입력해주세요'); return; }
+  await loadMbtiWorkById(id);
+}
+async function selectMbtiWork(tmdbId) {
+  document.getElementById('mSearchResults').classList.remove('show');
+  await loadMbtiWorkById(tmdbId);
+}
+
+/* ── tmdb_id로 작품 + 현재 mbti_tags 로드 ── */
+async function loadMbtiWorkById(tmdbId) {
+  mbtiCurrentTmdbId = tmdbId;
+  try {
+    const [worksRes, tmdbRes] = await Promise.allSettled([
+      fetch(`${API}/works/${tmdbId}`).then(r => r.json()),
+      fetch(`${TMDB_PROXY}/tv/${tmdbId}?language=ko-KR`).then(r => r.json())
+        .catch(() => fetch(`${TMDB_PROXY}/movie/${tmdbId}?language=ko-KR`).then(r => r.json())),
+    ]);
+    const works = worksRes.status === 'fulfilled' && worksRes.value?.ok ? worksRes.value.data : null;
+    const tmdb  = tmdbRes.status  === 'fulfilled' ? tmdbRes.value : null;
+    const title   = works?.title_ko || tmdb?.name || tmdb?.title || `tmdb_id: ${tmdbId}`;
+    const titleEn = works?.title_en || tmdb?.original_name || tmdb?.original_title || '';
+    const poster  = tmdb?.poster_path ? `${IMG}${tmdb.poster_path}` : null;
+
+    document.getElementById('mWorkPoster').innerHTML = poster
+      ? `<img src="${poster}" alt="${title}">`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🎬</div>`;
+    document.getElementById('mWorkTitle').textContent = title;
+    document.getElementById('mWorkSub').textContent   = [titleEn, `tmdb_id: ${tmdbId}`].filter(Boolean).join(' · ');
+    document.getElementById('mWorkInfoBox').style.display = 'flex';
+    document.getElementById('mbtiEditArea').style.display = 'block';
+
+    // mbti_tags 파싱 → mbtiItems 초기화
+    const mbtiTagsRaw = works?.mbti_tags || '';
+    mbtiItems = parseMbtiTags(mbtiTagsRaw);
+    renderMbtiEditor();
+  } catch(e) {
+    showToast('작품 조회 실패');
+  }
+}
+
+/* ── mbti_tags 문자열 파싱 ── */
+function parseMbtiTags(raw) {
+  if (!raw) return [];
+  return raw.split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .slice(0, 5)
+    .map(s => {
+      const [mbti, pctStr] = s.split(':');
+      return { mbti: (mbti || '').trim(), pct: pctStr !== undefined ? parseInt(pctStr) || 0 : 0 };
+    })
+    .filter(item => item.mbti);
+}
+
+/* ── MBTI 편집기 렌더링 ── */
+function renderMbtiEditor() {
+  // 추가 칩 (16개 - 이미 등록된 것 비활성)
+  const usedSet = new Set(mbtiItems.map(i => i.mbti));
+  document.getElementById('mbtiAddChips').innerHTML = MBTI_16.map(m => `
+    <button class="mbti-add-chip ${usedSet.has(m) ? 'used' : ''}"
+      ${usedSet.has(m) || mbtiItems.length >= 5 ? 'disabled' : ''}
+      onclick="addMbtiItem('${m}')">${m}</button>`).join('');
+
+  // 카운트 레이블
+  document.getElementById('mbtiCountLabel').textContent = `${mbtiItems.length} / 5`;
+
+  // 드래그 목록
+  const listEl = document.getElementById('mbtiDragList');
+  const emptyEl = document.getElementById('mbtiEmpty');
+  if (!mbtiItems.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = '';
+
+  mbtiItems.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className   = 'mbti-drag-row';
+    row.draggable   = true;
+    row.dataset.idx = idx;
+    row.innerHTML = `
+      <span class="mbti-drag-handle">⠿</span>
+      <span class="mbti-rank-num">${idx + 1}</span>
+      <span class="mbti-label">${item.mbti}</span>
+      <input class="mbti-pct-inp" type="number" min="0" max="100"
+        placeholder="자동" value="${item.pct || ''}"
+        oninput="updateMbtiPct(${idx}, this.value)"
+        title="% 입력 (비워두면 자동계산)">
+      <span class="mbti-pct-unit">%</span>
+      <button class="mbti-del-btn" onclick="removeMbtiItem(${idx})">✕ 삭제</button>`;
+
+    // 드래그 이벤트
+    row.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      row.classList.add('dragging');
+      _mbtiDragSrc = row;
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      listEl.querySelectorAll('.mbti-drag-row').forEach(r => r.classList.remove('drag-over'));
+      _syncMbtiFromDom(listEl);
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      listEl.querySelectorAll('.mbti-drag-row').forEach(r => r.classList.remove('drag-over'));
+      if (row !== _mbtiDragSrc) row.classList.add('drag-over');
+    });
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (_mbtiDragSrc && _mbtiDragSrc !== row) {
+        const allRows = [...listEl.querySelectorAll('.mbti-drag-row')];
+        const srcIdx  = allRows.indexOf(_mbtiDragSrc);
+        const tgtIdx  = allRows.indexOf(row);
+        if (srcIdx < tgtIdx) row.after(_mbtiDragSrc);
+        else row.before(_mbtiDragSrc);
+        _syncMbtiFromDom(listEl);
+      }
+    });
+    listEl.appendChild(row);
+  });
+}
+
+/* ── DOM 순서 → mbtiItems 동기화 (드래그 후) ── */
+function _syncMbtiFromDom(listEl) {
+  const rows = [...listEl.querySelectorAll('.mbti-drag-row')];
+  mbtiItems = rows.map((row, i) => {
+    const mbti  = row.querySelector('.mbti-label').textContent.trim();
+    const pctEl = row.querySelector('.mbti-pct-inp');
+    const pct   = pctEl ? (parseInt(pctEl.value) || 0) : 0;
+    row.querySelector('.mbti-rank-num').textContent = i + 1;
+    row.dataset.idx = i;
+    return { mbti, pct };
+  });
+}
+
+/* ── MBTI 추가 ── */
+function addMbtiItem(mbti) {
+  if (mbtiItems.length >= 5) { showToast('최대 5개까지 추가할 수 있어요'); return; }
+  if (mbtiItems.some(i => i.mbti === mbti)) { showToast('이미 추가된 MBTI예요'); return; }
+  mbtiItems.push({ mbti, pct: 0 });
+  renderMbtiEditor();
+}
+
+/* ── MBTI 삭제 ── */
+function removeMbtiItem(idx) {
+  mbtiItems.splice(idx, 1);
+  renderMbtiEditor();
+}
+
+/* ── % 입력 업데이트 ── */
+function updateMbtiPct(idx, val) {
+  if (mbtiItems[idx] !== undefined) {
+    mbtiItems[idx].pct = parseInt(val) || 0;
+  }
+}
+
+/* ── DOM에서 최신 % 값 읽어 mbtiItems 동기화 ── */
+function _syncPctFromDom() {
+  document.querySelectorAll('#mbtiDragList .mbti-drag-row').forEach((row, i) => {
+    const pctEl = row.querySelector('.mbti-pct-inp');
+    if (pctEl && mbtiItems[i] !== undefined) {
+      mbtiItems[i].pct = parseInt(pctEl.value) || 0;
+    }
+  });
+}
+
+/* ── 저장 ── */
+async function saveMbtiTags() {
+  if (!mbtiCurrentTmdbId) { showToast('작품을 먼저 조회해주세요'); return; }
+  _syncPctFromDom(); // 저장 직전 최신 % 반영
+
+  // mbti_tags 문자열 조합
+  // % 있으면 "MBTI:%" 형식, 없으면 "MBTI" 형식
+  const tagsStr = mbtiItems.map(item =>
+    item.pct > 0 ? `${item.mbti}:${item.pct}` : item.mbti
+  ).join(',');
+
+  const btn = document.getElementById('mbtiSaveBtn');
+  btn.disabled    = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/works/${mbtiCurrentTmdbId}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body:    JSON.stringify({ mbti_tags: tagsStr || null }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`✅ MBTI 저장 완료! (${tagsStr || '초기화'})`);
+    } else {
+      showToast(data.message || '저장 실패');
+    }
+  } catch(e) {
+    showToast('네트워크 오류');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '💾 저장';
+  }
+}
+
+/* ── 자동계산으로 초기화 ── */
+async function resetMbtiTags() {
+  if (!mbtiCurrentTmdbId) return;
+  if (!confirm('MBTI를 자동계산 방식으로 초기화합니다. (장르 기반 자동 재계산)\n계속할까요?')) return;
+  const btn = document.getElementById('mbtiSaveBtn');
+  btn.disabled = true;
+  try {
+    // mbti_tags = null 로 저장 → 작품 페이지에서 장르 기반 재계산
+    const res  = await fetch(`${API}/admin/works/${mbtiCurrentTmdbId}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body:    JSON.stringify({ mbti_tags: null }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      mbtiItems = [];
+      renderMbtiEditor();
+      showToast('✅ 자동계산으로 초기화됐어요');
+    } else {
+      showToast(data.message || '초기화 실패');
+    }
+  } catch(e) {
+    showToast('네트워크 오류');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 /* ══ 토스트 ══ */
