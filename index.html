@@ -60,7 +60,129 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 
 
-/* ══ 기간 탭 (섹션 헤더 내 인라인) ══ */
+/* ══ 넷플릭스 featured 슬라이드 섹션 (메인 최상단) ══ */
+.featured-section {
+  margin-bottom: 12px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.featured-hd {
+  display: flex; align-items: center; gap: 10px;
+  padding: 20px 0 14px;
+}
+.featured-badge {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 2px; color: #E50914;
+  background: rgba(229,9,20,0.12); border: 1px solid rgba(229,9,20,0.35);
+  padding: 2px 10px; border-radius: 4px; white-space: nowrap;
+}
+.featured-title {
+  font-family: var(--disp); font-size: 20px; letter-spacing: 1px; color: var(--text);
+}
+.featured-more {
+  margin-left: auto; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); text-decoration: none; white-space: nowrap;
+}
+.featured-more:hover { color: #E50914; }
+/* 슬라이드 트랙 — netflix.html과 동일 구조 */
+.ft-swipe-wrap { position: relative; margin-bottom: 20px; }
+.ft-swipe-track {
+  display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -ms-overflow-style: none;
+  padding-bottom: 4px; cursor: grab;
+}
+.ft-swipe-track::-webkit-scrollbar { display: none; }
+.ft-swipe-track.dragging { cursor: grabbing; user-select: none; }
+/* 카드 */
+.ft-card {
+  flex: 0 0 calc(20% - 12px); min-width: 180px; max-width: 210px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden; cursor: pointer; transition: all .22s; scroll-snap-align: start;
+  position: relative;
+}
+.ft-card:hover {
+  border-color: rgba(229,9,20,0.4); transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(229,9,20,0.15);
+}
+.ft-poster {
+  position: relative; width: 100%; aspect-ratio: 2/3;
+  background: var(--bg3); overflow: hidden;
+}
+.ft-poster img {
+  width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s;
+}
+.ft-card:hover .ft-poster img { transform: scale(1.04); }
+.ft-poster-ph {
+  width: 100%; height: 100%; display: flex; align-items: center;
+  justify-content: center; font-size: 40px;
+  background: linear-gradient(135deg, var(--bg3), var(--bg2));
+}
+.ft-rank {
+  position: absolute; top: 0; left: 0;
+  font-family: var(--disp); font-size: 38px; line-height: 1;
+  color: rgba(255,255,255,.9); z-index: 2; padding: 4px 8px;
+  text-shadow: 0 2px 8px rgba(0,0,0,.8); letter-spacing: -1px;
+}
+.ft-rank.top3 { color: #E50914 !important; text-shadow: 0 2px 12px rgba(229,9,20,0.5); }
+.ft-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.8) 0%, transparent 50%);
+  display: flex; align-items: flex-end; padding: 10px;
+  opacity: 0; transition: opacity .2s;
+}
+.ft-card:hover .ft-overlay { opacity: 1; }
+.ft-play {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(229,9,20,0.9); display: flex;
+  align-items: center; justify-content: center; margin: 0 auto;
+}
+.ft-play svg { width: 14px; height: 14px; fill: #fff; margin-left: 2px; }
+.ft-body { padding: 8px 10px 10px; }
+.ft-title {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.ft-en {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;
+}
+.ft-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.ft-year { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.ft-rating { font-family: var(--mono); font-size: 11px; color: var(--gold); margin-left: auto; }
+/* 화살표 버튼 */
+.ft-btn {
+  position: absolute; top: 38%; transform: translateY(-50%);
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid rgba(229,9,20,0.35); background: var(--bg2);
+  color: var(--text); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; z-index: 10;
+  transition: all .15s; opacity: 0;
+}
+.ft-swipe-wrap:hover .ft-btn { opacity: 1; }
+.ft-btn:hover { background: rgba(229,9,20,0.18); border-color: #E50914; }
+.ft-btn.prev { left: -17px; }
+.ft-btn.next { right: -17px; }
+/* 스켈레톤 */
+.ft-skel {
+  flex: 0 0 calc(20% - 12px); min-width: 180px; border-radius: var(--r);
+  background: var(--card); border: 1px solid var(--border); overflow: hidden;
+}
+.ft-skel-poster {
+  width: 100%; aspect-ratio: 2/3;
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg2) 50%, var(--bg3) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+}
+.ft-skel-line {
+  height: 11px; border-radius: 4px; margin: 8px 10px 5px;
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg2) 50%, var(--bg3) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+}
+.ft-skel-line.short { width: 50%; height: 9px; margin-top: 0; }
+@media(max-width:768px) {
+  .ft-card { min-width: 150px; max-width: 170px; }
+  .ft-btn { display: none; }
+}
 .period-tabs{display:flex;gap:2px;margin-left:12px}
 .pb{height:28px;padding:0 12px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
 .pb.on{background:rgba(240,180,41,.15);color:var(--gold);border-color:var(--gold);font-weight:700}
@@ -296,6 +418,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 </div>
 
 <div class="main-outer">
+
+  <!-- ══ 넷플릭스 featured 슬라이드 섹션 (어드민 main_section=featured 설정 시 표시) ══ -->
+  <div id="featuredWrap"></div>
 
   <!-- TV 시리즈 -->
   <div class="sec-hd" id="tv">
@@ -808,6 +933,129 @@ async function setPeriod(p,btn){
   await loadRankings(p);
 }
 
+/* ══ 넷플릭스 featured 슬라이드 섹션 렌더링 ══
+   - /rankings/main 응답의 featured 배열 사용 (넷플릭스 전용, 최대 2개)
+   - 어드민 main_section='featured' + platform='netflix' 설정 시 표시
+   - 0개면 섹션 전체 숨김
+══════════════════════════════════════════════════ */
+function renderFeatured(featuredGroups) {
+  const wrap = document.getElementById('featuredWrap');
+  if (!wrap) return;
+
+  // 데이터 없으면 섹션 숨김
+  if (!featuredGroups || !featuredGroups.length) {
+    wrap.innerHTML = '';
+    return;
+  }
+
+  const TMDB_IMG_FT = 'https://image.tmdb.org/t/p/w342';
+
+  // 각 그룹 → 슬라이드 섹션 HTML 생성
+  wrap.innerHTML = featuredGroups.map((group, gi) => {
+    const trackId = `ft-trk-${gi}`;
+    // 스켈레톤 5개로 초기 렌더 (카드는 아래에서 채움)
+    return `
+      <div class="featured-section">
+        <div class="featured-hd">
+          <span class="featured-badge">NETFLIX</span>
+          <span class="featured-title">${_escFt(group.display_name || '')}</span>
+          <a href="/netflix.html" class="featured-more">넷플릭스 전체보기 →</a>
+        </div>
+        <div class="ft-swipe-wrap">
+          <button class="ft-btn prev" onclick="ftScrollTrack('${trackId}',-1)">‹</button>
+          <div class="ft-swipe-track" id="${trackId}">
+            ${Array(5).fill(0).map(() => `
+              <div class="ft-skel">
+                <div class="ft-skel-poster"></div>
+                <div class="ft-skel-line"></div>
+                <div class="ft-skel-line short"></div>
+              </div>`).join('')}
+          </div>
+          <button class="ft-btn next" onclick="ftScrollTrack('${trackId}',1)">›</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  // 각 그룹 카드 실제 렌더링 + 스와이프 초기화
+  featuredGroups.forEach((group, gi) => {
+    const track = document.getElementById(`ft-trk-${gi}`);
+    if (!track) return;
+    const items = group.items || [];
+    if (!items.length) {
+      track.innerHTML = `<div style="padding:20px;color:var(--muted);font-size:13px">데이터 없음</div>`;
+      return;
+    }
+    track.innerHTML = items.map((item, idx) => {
+      const rank   = item.rank || (idx + 1);
+      const isTop3 = rank <= 3;
+      const poster = item.poster_path
+        ? `<img src="${TMDB_IMG_FT}${item.poster_path}"
+                alt="${_escAttrFt(item.title_ko || '')}"
+                loading="lazy"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : '';
+      const year   = item.release_year ? `<span class="ft-year">${item.release_year}</span>` : '';
+      const rating = item.tmdb_rating  ? `<span class="ft-rating">★ ${parseFloat(item.tmdb_rating).toFixed(1)}</span>` : '';
+      const y      = new Date().getFullYear();
+      const href   = item.tmdb_id ? `/title/1-${y}${item.tmdb_id}` : '#';
+      return `
+        <div class="ft-card" onclick="ftGoWork(${item.tmdb_id},'${_escAttrFt(item.title_ko || '')}')">
+          <div class="ft-poster">
+            ${poster}
+            <div class="ft-poster-ph" style="${poster ? 'display:none' : ''}">🎬</div>
+            <div class="ft-overlay">
+              <div class="ft-play">
+                <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+              </div>
+            </div>
+          </div>
+          <span class="ft-rank${isTop3 ? ' top3' : ''}">${rank}</span>
+          <div class="ft-body">
+            <div class="ft-title">${_escFt(item.title_ko || item.title_en || '—')}</div>
+            <div class="ft-en">${_escFt(item.title_en || '')}</div>
+            <div class="ft-meta">${year}${rating}</div>
+          </div>
+        </div>`;
+    }).join('');
+    // 드래그 스와이프 초기화
+    ftInitSwipe(track);
+  });
+}
+
+/* featured 섹션 전용 유틸 */
+function ftGoWork(tmdbId, title) {
+  if (!tmdbId) return;
+  const y = new Date().getFullYear();
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type: 'tv', title: title || '', platform: 'netflix'
+  }));
+  location.href = `/title/1-${y}${tmdbId}`;
+}
+function ftScrollTrack(id, dir) {
+  const t = document.getElementById(id);
+  if (t) t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
+}
+function ftInitSwipe(track) {
+  let down = false, startX = 0, sl = 0;
+  track.addEventListener('mousedown', e => {
+    down = true; track.classList.add('dragging');
+    startX = e.pageX - track.offsetLeft; sl = track.scrollLeft;
+  });
+  ['mouseleave', 'mouseup'].forEach(ev =>
+    track.addEventListener(ev, () => { down = false; track.classList.remove('dragging'); })
+  );
+  track.addEventListener('mousemove', e => {
+    if (!down) return; e.preventDefault();
+    track.scrollLeft = sl - (e.pageX - track.offsetLeft - startX) * 1.2;
+  });
+}
+function _escFt(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _escAttrFt(str) {
+  return String(str || '').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+
 async function loadRankings(period='daily'){
   try{
     if(period==='daily'){
@@ -823,6 +1071,8 @@ async function loadRankings(period='daily'){
         if(apiRankings.movie['boxoffice']?.length)
           RANKINGS.movie['boxoffice']=apiRankings.movie['boxoffice'];
         renderGrids();
+        // featured 슬라이드 섹션 렌더링 (넷플릭스 전용, 0~2개)
+        renderFeatured(json.featured || []);
       }
     } else {
       // weekly/monthly — daily와 동일한 응답 구조, buildRankingsFromMain으로 처리
