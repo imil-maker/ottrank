@@ -32,10 +32,15 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         "SELECT * FROM title_videos WHERE tmdb_id = ? ORDER BY is_main DESC, created_at DESC"
       ).bind(tmdb_id).all();
 
+      const hasMain = results.some(v => v.is_main === 1);
+
       if (results.length === 0) {
+        // 영상 없음 → TMDB 저장 + YouTube 크롤링 동시 실행
         ctx.waitUntil(_saveTmdbVideos(tmdb_id, env));
         ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
-      } else if (results.length <= 2) {
+      } else if (results.length <= 2 && !hasMain) {
+        // 2개 이하 + 메인 영상 없음 → YouTube 추가 크롤링
+        // is_main=1 영상이 있으면 TMDB 공식 트레일러가 정상 등록된 것으로 보고 스킵
         ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
       }
 
