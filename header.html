@@ -554,4 +554,31 @@ function initHeader(){
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded', initHeader);
 } else { initHeader(); }
+
+/* ── Google Analytics 4 (GA4) 동적 삽입 ──────────────────
+   header.html이 모든 페이지에 공통 로드되므로 여기서 한 번만 삽입.
+   async 속성으로 페이지 렌더링 블록 없음.
+   중복 삽입 방지: id='gtag-js' 체크
+──────────────────────────────────────────────────────── */
+(function() {
+  if (document.getElementById('gtag-js')) return; // 중복 삽입 방지
+  const GA_ID = 'G-NMN87YB7Y3';
+
+  // ① gtag.js 스크립트 로드 (async — 렌더링 블록 없음)
+  const s = document.createElement('script');
+  s.id    = 'gtag-js';
+  s.src   = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+  s.async = true;
+  document.head.appendChild(s);
+
+  // ② gtag 초기화
+  const i = document.createElement('script');
+  i.textContent = `
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '${GA_ID}');
+  `;
+  document.head.appendChild(i);
+})();
 </script>
