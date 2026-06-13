@@ -42,8 +42,16 @@
   }
 }
 </script>
-<link rel="preconnect" href="https://fonts.googleapis.com/">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<!-- 폰트: preconnect + print→all swap 방식 — 렌더링 블록 없음 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style"
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap"
+  rel="stylesheet" media="print" onload="this.media='all'">
+<noscript>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+</noscript>
 <style>
 :root {
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
@@ -1252,17 +1260,21 @@ async function init(){
   // API 실제 데이터 로드
   await loadRankings('daily');
 
-  // ③ TMDB 포스터·시즌·연도 보강 (병렬, 배치)
-  enrichAll(RANKINGS).then(()=>renderGrids()); // 비동기로 뒤에서 처리, 완료되면 다시 렌더
+  // TMDB 포스터 보강 — poster_path 없는 항목이 있을 때만 실행
+  // API 응답에 poster_path가 이미 포함된 경우 enrichAll 전체 스킵
+  const needEnrich = Object.values(RANKINGS)
+    .flatMap(pd => Object.values(pd).flat())
+    .some(item => !item._poster);
+  if (needEnrich) {
+    enrichAll(RANKINGS).then(() => renderGrids());
+  }
 
-  // 유튜브 급상승 TOP 50 로드
-  loadYoutubeTrending();
-
-  // 오늘의 신작 & 예정작 로드
-  loadContentsPreview();
-
-  // 최근 평점 후기 로드 (비동기 — 다른 로드와 병렬)
-  loadRecentReviews();
+  // 유튜브·신작·후기 — 병렬 로드 (순서 무관, 동시 실행)
+  Promise.all([
+    loadYoutubeTrending(),
+    loadContentsPreview(),
+    loadRecentReviews(),
+  ]);
 }
 
 /* ── 오늘의 신작 & 예정작 (메인 5개) ── */
