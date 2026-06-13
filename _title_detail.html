@@ -1463,6 +1463,11 @@ async function loadTmdb(){
     document.getElementById('heroLoading').style.display='none';
     document.getElementById('heroContent').classList.add('visible');
 
+    // MBTI 섹션 — loadReviews 완료를 기다리지 않고 즉시 렌더링
+    // mbti_tags는 이미 worksData에서 세팅됐고, TMDB 평점도 위에서 DOM에 반영됐으므로
+    // 후기 API와 무관하게 바로 표시 가능
+    renderMbtiSection(WORK.mbti_tags||null);
+
     // Parallel API calls after hero shown
     const [creditsRes, videosRes, ratingsRes, extIdsRes] = await Promise.allSettled([
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/credits?language=ko-KR`).then(r=>r.json()),
@@ -2052,7 +2057,7 @@ async function loadReviews(tmdbId){
     }
     renderMyReview();
     curPage=1;renderComments();updateUserRatingCard();
-    renderMbtiSection(WORK.mbti_tags||null);
+    // renderMbtiSection은 loadTmdb()에서 즉시 호출하므로 여기서 제거
   }catch(e){}
 }
 
@@ -2440,14 +2445,16 @@ function updateCommentWatchLayout(){}
 /* == 댓글+보러가기 레이아웃 업데이트 == */
 
 async function init(){
-  // Load TMDB (includes hero render)
+  // Load TMDB (includes hero render + MBTI 즉시 렌더링)
   await loadTmdb();
 
-  // Parallel load remaining
+  // 나머지 전부 병렬 실행
+  // loadTop10Days는 WORK_CATEGORY_SLOT 설정용이지만
+  // loadWatchGuide는 실제로 WORK_CATEGORY_SLOT을 사용하지 않으므로
+  // await 순차 대기 불필요 → Promise.all에 포함
   if(WORK.tmdb_id){
-    // loadTop10Days 먼저 완료 (WORK_CATEGORY_SLOT 설정) → loadWatchGuide에서 참조
-    await loadTop10Days();
     await Promise.all([
+      loadTop10Days(),
       loadPlatforms(),
       loadManualBadges(),
       loadReviews(WORK.tmdb_id),
