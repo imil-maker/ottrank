@@ -1003,6 +1003,9 @@ let allData = [];
 let curFilter = 'all';
 let allGradeSettings = []; // 등급 설정 전체 캐시
 let userSearchTimer = null;
+// platform__category_slot → display_name 매핑 캐시
+// 랭킹 관리 그룹 헤더에 프론트 표시명을 같이 보여주기 위해 사용
+let categoryDisplayMap = {};
 
 // ════════════════════════════════════════════════════
 // 로그인
@@ -1016,6 +1019,17 @@ function login() {
   document.getElementById('mainSection').style.display = 'block';
   document.getElementById('logoutBtn').style.display = 'block';
   document.getElementById('pageTabs').style.display = 'block';
+  // ott_categories 미리 로드 → categoryDisplayMap 캐싱
+  // 랭킹 관리 그룹 헤더에 display_name(프론트 표시명) 표시에 사용
+  fetch(`${API}/admin/categories`, { headers: { Authorization: `Bearer ${t}` } })
+    .then(r => r.json())
+    .then(json => {
+      categoryDisplayMap = {};
+      (json.data || []).forEach(c => {
+        categoryDisplayMap[`${c.platform}__${c.category_slot}`] = c.display_name || '';
+      });
+    })
+    .catch(() => {});
   // DB 최신 날짜 가져와서 세팅
   fetch(`${API}/latest-date`)
     .then(r => r.json())
@@ -2107,11 +2121,13 @@ function renderTable() {
 
     // 그룹 헤더 (타이틀 + 추가 버튼 + 저장 버튼)
     const groupId = `${platform}-${slot}`;
+    // categoryDisplayMap에서 프론트 표시명 조회 (없으면 빈 문자열)
+    const displayName = categoryDisplayMap[`${platform}__${slot}`] || '';
     groupEl.innerHTML = `
       <div class="category-group-header">
         <span class="category-group-title">
           <span class="platform-badge" style="background:${PC[platform]||'#888'};margin-right:6px">${platform}</span>
-          ${slot}
+          ${slot}${displayName ? ` <span style="color:var(--muted2);font-weight:400;font-size:11px;margin-left:4px">· ${displayName}</span>` : ''}
         </span>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn-reorder-save"
