@@ -779,10 +779,10 @@ function _saInit() {
     'ytGrid':          document.querySelector('#youtube'),
   };
   Object.entries(map).forEach(([id, hd]) => {
-    if(!hd || g._arrAdded) return;
-    g._arrAdded = true;
+    if(!hd) return;
     const g = document.getElementById(id);
-    if(!g) return;
+    if(!g || g._arrAdded) return;
+    g._arrAdded = true;
 
     const prev = document.createElement('button');
     prev.className = 'sec-arr-btn prev';
