@@ -245,7 +245,7 @@ body {
   .sec-sub{ display:none; }
   .sec-live{ display:none; }  /* 모바일: 날짜 섹션헤더에서 숨김 */
   /* ── 슬라이드 화살표 — 모바일 상시 표시 ── */
-  .swipe-btn{ display:flex !important; opacity:1 !important; }
+  .swipe-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
   .swipe-btn.prev{ left:-14px; }
   .swipe-btn.next{ right:-14px; }
 }
@@ -539,7 +539,12 @@ async function loadAll() {
 
     // 스와이프 드래그 초기화
     initSwipe(track);
+    // 화살표 초기 상태 갱신
+    updateSwipeBtns(track);
   });
+
+  // 전체 트랙 scroll 이벤트 등록
+  setTimeout(initSwipeBtns, 100);
 }
 
 /* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
