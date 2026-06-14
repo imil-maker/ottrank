@@ -608,8 +608,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .rank-info-chip.chip-top10{background:rgba(240,180,41,.12);border:.5px solid rgba(240,180,41,.4);color:var(--gold)}
 .rank-info-chip.chip-manual{background:rgba(240,180,41,.15);border:.5px solid rgba(240,180,41,.5);color:#f0b429}
 
-/* ══ 지금 보러가기 ══ */
-.wg-outer{display:flex;align-items:flex-start}
+/* ══ MBTI 추천 + 지금 보러가기 (같은 행) ══ */
+.mbti-wg-row{align-items:flex-start;gap:16px;margin-bottom:20px}
+.mbti-wg-row .mbti-rec-section{flex:1;margin-bottom:0;min-width:0}
 .watch-now-box{
   width:200px;flex-shrink:0;
   background:var(--bg2);border:.5px solid var(--border);
@@ -628,7 +629,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .watch-now-btn:hover{border-color:var(--info-border);background:var(--info-bg);color:var(--info)}
 .watch-now-btn .wn-icon{font-size:15px}
 @media(max-width:640px){
-  .wg-outer{flex-direction:column}
+  .mbti-wg-row{flex-direction:column}
   .watch-now-box{width:100%}
   .watch-now-btns{flex-direction:row;flex-wrap:wrap}
 }
@@ -869,13 +870,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
-<!-- 지금 보러가기 (박스오피스 현재 상영작만 표시) -->
-<div class="wg-outer" id="wgOuter" style="display:none;gap:16px;margin-bottom:24px">
-  <div class="watch-now-box" id="watchNowBox" style="display:none;width:100%">
-    <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
-    <div class="watch-now-btns" id="watchNowBtns"></div>
-  </div>
-</div>
+
 
 <!-- 후기 0개 CTA — JS에서 후기 있으면 숨김 -->
 <div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:flex">
@@ -894,14 +889,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </button>
 </div>
 
-<!-- MBTI 추천 섹션 -->
-<div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
-  <div class="mbti-rec-title">
-    <span>✦</span>
-    <b id="mbtiRecTitle">이런 MBTI가 좋아해요</b>
+<!-- MBTI 추천 섹션 + 지금 보러가기 (같은 행 배치) -->
+<div class="mbti-wg-row" id="mbtiWgRow" style="display:none">
+  <div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
+    <div class="mbti-rec-title">
+      <span>✦</span>
+      <b id="mbtiRecTitle">이런 MBTI가 좋아해요</b>
+    </div>
+    <div class="mbti-rec-chips" id="mbtiRecChips"></div>
+    <div class="mbti-rec-source" id="mbtiRecSource"></div>
   </div>
-  <div class="mbti-rec-chips" id="mbtiRecChips"></div>
-  <div class="mbti-rec-source" id="mbtiRecSource"></div>
+  <!-- 지금 보러가기 (박스오피스 현재 상영작만 표시) -->
+  <div class="watch-now-box" id="watchNowBox" style="display:none">
+    <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
+    <div class="watch-now-btns" id="watchNowBtns"></div>
+  </div>
 </div>
 
 <!-- 사용자 댓글 -->
@@ -1232,6 +1234,16 @@ async function loadGallery(){
   }catch(e){}
 }
 
+/* == MBTI / 지금 보러가기 행(row) 표시 갱신 ==
+   둘 중 하나라도 보이면 row 표시, 둘 다 숨겨지면 row 숨김 */
+function updateMbtiWgRow(){
+  const row=document.getElementById('mbtiWgRow');
+  if(!row)return;
+  const mbtiVisible=document.getElementById('mbtiRecSection')?.style.display==='block';
+  const wnVisible=document.getElementById('watchNowBox')?.style.display==='block';
+  row.style.display=(mbtiVisible||wnVisible)?'flex':'none';
+}
+
 /* == 지금 보러가기 (박스오피스 현재 상영작만) == */
 async function loadWatchGuide(){
   // 극장 연결 - boxoffice category01 (주간 박스오피스 현재 상영중)일 때만 표시
@@ -1244,7 +1256,7 @@ async function loadWatchGuide(){
     `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 메가박스</a>`,
   ].join('');
   document.getElementById('watchNowBox').style.display='block';
-  document.getElementById('wgOuter').style.display='flex';
+  updateMbtiWgRow();
 }
 
 /* == TMDB Load (parallel) == */
@@ -1794,6 +1806,7 @@ function renderMbtiSection(mbtiTags){
     }).join('');
     src.textContent=`오뜨랑 시청자 ${total}명의 실제 데이터`;
     sec.style.display='block';
+    updateMbtiWgRow();
     return;
   }
 
@@ -1823,6 +1836,7 @@ function renderMbtiSection(mbtiTags){
       </div>`).join('');
     src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 실제 데이터로 업데이트됩니다';
     sec.style.display='block';
+    updateMbtiWgRow();
     return;
   }
 
@@ -1834,7 +1848,7 @@ function renderMbtiSection(mbtiTags){
   const tmdbRating=parseFloat(tmdbScoreEl?.textContent)||0;
 
   // 장르 없거나 TMDB 평점 없으면 섹션 숨김 (신뢰도 보호)
-  if(!tmdbRating){ sec.style.display='none'; return; }
+  if(!tmdbRating){ sec.style.display='none'; updateMbtiWgRow(); return; }
 
   // 기본 범위 (TMDB 8점 이상 기준)
   const BASE_RANGES=[[85,95],[80,85],[73,79],[65,72],[55,65]];
@@ -1856,6 +1870,7 @@ function renderMbtiSection(mbtiTags){
   }).join('');
   src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 실제 데이터로 업데이트됩니다';
   sec.style.display='block';
+  updateMbtiWgRow();
 }
 
 function renderComments(){
