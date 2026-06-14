@@ -1575,10 +1575,7 @@ async function loadTmdb(){
         const kr=results.find(r=>r.iso_3166_1==='KR');const us=results.find(r=>r.iso_3166_1==='US');
         cert=kr?.release_dates?.find(d=>d.certification)?.certification||us?.release_dates?.find(d=>d.certification)?.certification||'';
       }
-      if(cert){
-        ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
-        if(mobBadge){mobBadge.textContent=cert;mobBadge.style.display='inline-flex';}
-      }
+      if(cert)ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
     }
     const seasHtml=det.number_of_seasons?`<span class="hero-meta-item">시즌 <b>${det.number_of_seasons}</b></span><span class="hero-meta-sep">·</span>`:'';
     let episodeHtml='';
