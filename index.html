@@ -676,7 +676,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 }
 .msb.prev { left:2px; }
 .msb.next { right:2px; }
-@media(max-width:768px){ .msb{ display:flex; } }
+@media(max-width:768px){
+  .msb{ display:flex; }
+  /* Featured 화살표 — 모바일 표시 */
+  .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; }
+  .ft-btn.prev{ left:4px !important; }
+  .ft-btn.next{ right:4px !important; }
+}
 </style>
 <style>
 /* ── 공용 헤더 컨테이너 sticky (fetch 삽입 후에도 동작) ── */
