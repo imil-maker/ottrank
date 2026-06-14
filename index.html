@@ -666,7 +666,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 }
 
 /* ── 메인 화살표 ── */
-.main-swipe-wrap { position:relative; }
+.msb-wrap { position:relative; }  /* 그리드 부모에 추가 */
 .msb {
   position:absolute; top:35%; transform:translateY(-50%);
   width:30px; height:30px; border-radius:50%;
@@ -677,7 +677,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .msb.prev { left:2px; }
 .msb.next { right:2px; }
 .msb:disabled { opacity:0 !important; pointer-events:none; }
-.msb:active { background:red !important; }
 @media(max-width:768px){
   .msb{ display:flex; }
   /* Featured 화살표 — 모바일 표시 */
@@ -731,30 +730,47 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 function msc(id, dir) {
   const g = document.getElementById(id);
   if(!g) return;
-  // 카드 너비 계산 — .p-card, .rv-card, .yt-card 등
-  const card = g.querySelector('.p-card, .rv-card, .yt-card, .ct-preview-card');
-  const cardW = card ? card.offsetWidth + 12 : 160;
-  g.scrollLeft += dir * cardW * 2;
+  const card = g.firstElementChild;
+  const cardW = (card ? card.offsetWidth : 160) + 12;
+  g.scrollBy({ left: dir * cardW * 2, behavior:'smooth' });
   setTimeout(() => _mupd(g), 350);
 }
 
 function _mupd(g) {
-  if(window.innerWidth > 768) return;  /* 모바일에서만 실행 */
-  const w = g.closest('.main-swipe-wrap');
+  if(window.innerWidth > 768) return;
+  const w = g.parentElement;  /* 그리드 바로 위 부모 */
   if(!w) return;
   const p = w.querySelector('.msb.prev');
   const n = w.querySelector('.msb.next');
-  // padding:0 16px 때문에 scrollLeft 기준을 20px으로 설정
   if(p) p.disabled = g.scrollLeft <= 20;
   if(n) n.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
 }
 
 function _minit() {
+  if(window.innerWidth > 768) return;
   ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
     const g = document.getElementById(id);
-    if(!g) return;
-    // 초기 _mupd 호출 제거 — 버튼은 enabled 상태로 시작
-    // 실제 스크롤 발생 시에만 갱신
+    if(!g || g._arrAdded) return;
+    g._arrAdded = true;
+
+    /* 그리드 부모에 position:relative + msb-wrap 클래스 추가 */
+    const par = g.parentElement;
+    par.classList.add('msb-wrap');
+
+    /* 이전 버튼 */
+    const prev = document.createElement('button');
+    prev.className = 'msb prev';
+    prev.innerHTML = '&#8249;';
+    prev.onclick = () => msc(id, -1);
+    par.appendChild(prev);
+
+    /* 다음 버튼 */
+    const next = document.createElement('button');
+    next.className = 'msb next';
+    next.innerHTML = '&#8250;';
+    next.onclick = () => msc(id, 1);
+    par.appendChild(next);
+
     g.addEventListener('scroll', () => _mupd(g), { passive:true });
   });
 }
@@ -797,11 +813,7 @@ window.addEventListener('load', function() {
       <span id="updateTxt">업데이트 중...</span>
     </div>
   </div>
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('tvGrid',-1)">&#8249;</button>
-    <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
-    <button class="msb next" onclick="msc('tvGrid',1)">&#8250;</button>
-  </div>
+  <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
 <!-- /AI 추천 비활성화 끝 -->
 
   <!-- 오늘의 신작 & 예정작 -->
@@ -812,16 +824,12 @@ window.addEventListener('load', function() {
     <a href="/contents.html" class="sec-more">전체보기 →</a>
   </div>
   <!-- 스켈레톤 로딩 -->
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('contentsPreview',-1)">&#8249;</button>
-    <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
+  <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
-  </div>
-    <button class="msb next" onclick="msc('contentsPreview',1)">&#8250;</button>
   </div>
 
   <!-- 영화 -->
@@ -837,11 +845,7 @@ window.addEventListener('load', function() {
       <span id="updateTxt2"></span>
     </div>
   </div>
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('movieGrid',-1)">&#8249;</button>
-    <div class="ott-grid" id="movieGrid"></div>
-    <button class="msb next" onclick="msc('movieGrid',1)">&#8250;</button>
-  </div>
+  <div class="ott-grid" id="movieGrid"></div>
 
   <!-- ══ 최근 평점 후기 ══ -->
   <div class="sec-hd" id="recentReviews">
@@ -851,9 +855,7 @@ window.addEventListener('load', function() {
     <a href="/my_review.html" class="sec-more">전체보기 →</a>
   </div>
   <!-- 스켈레톤 5개 -->
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('reviewGrid',-1)">&#8249;</button>
-    <div class="review-grid" id="reviewGrid">
+  <div class="review-grid" id="reviewGrid">
     <div class="rv-card" style="pointer-events:none">
       <div style="display:flex;align-items:center;gap:9px">
         <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
@@ -900,8 +902,6 @@ window.addEventListener('load', function() {
       <div class="rv-skel" style="height:52px;width:100%"></div>
     </div>
   </div>
-    <button class="msb next" onclick="msc('reviewGrid',1)">&#8250;</button>
-  </div>
 
   <!-- ══ 유튜브 급상승 ══ -->
   <div class="sec-hd" id="youtube">
@@ -912,11 +912,7 @@ window.addEventListener('load', function() {
       <span id="updateTxt3"></span>
     </div>
   </div>
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('ytGrid',-1)">&#8249;</button>
-    <div class="yt-grid" id="ytGrid"></div>
-    <button class="msb next" onclick="msc('ytGrid',1)">&#8250;</button>
-  </div>
+  <div class="yt-grid" id="ytGrid"></div>
 </div>
 
   <!-- 오늘의 AI 추천 — 일단 비활성화 -->
