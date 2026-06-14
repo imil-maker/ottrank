@@ -666,14 +666,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 }
 
 /* ── 메인 화살표 ── */
-.main-swipe-wrap {
-  position:relative;
-  overflow-x:auto;
-  scroll-snap-type:x mandatory;
-  scrollbar-width:none;
-  -ms-overflow-style:none;
-}
-.main-swipe-wrap::-webkit-scrollbar{ display:none; }
+.main-swipe-wrap { position:relative; }
 .msb {
   position:absolute; top:35%; transform:translateY(-50%);
   width:30px; height:30px; border-radius:50%;
@@ -737,31 +730,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 function msc(id, dir) {
   const g = document.getElementById(id);
   if(!g) return;
-  const wrap = g.closest('.main-swipe-wrap') || g;
-  const card = g.firstElementChild;
-  const cardW = (card ? card.offsetWidth : 160) + 12;
-  wrap.scrollBy({ left: dir * cardW * 2, behavior:'smooth' });
+  g.scrollBy({ left: dir * ((g.firstElementChild?.offsetWidth||160)+12)*2, behavior:'smooth' });
   setTimeout(() => _mupd(g), 350);
 }
 
 function _mupd(g) {
-  if(window.innerWidth > 768) return;
+  if(window.innerWidth > 768) return;  /* 모바일에서만 실행 */
   const w = g.closest('.main-swipe-wrap');
   if(!w) return;
   const p = w.querySelector('.msb.prev');
   const n = w.querySelector('.msb.next');
-  if(p) p.disabled = w.scrollLeft <= 4;
-  if(n) n.disabled = w.scrollLeft + w.clientWidth >= w.scrollWidth - 4;
+  // padding:0 16px 때문에 scrollLeft 기준을 20px으로 설정
+  if(p) p.disabled = g.scrollLeft <= 20;
+  if(n) n.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
 }
 
 function _minit() {
   ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
     const g = document.getElementById(id);
     if(!g) return;
-    const w = g.closest('.main-swipe-wrap');
-    if(!w) return;
-    // scroll 이벤트를 wrap에 등록
-    w.addEventListener('scroll', () => _mupd(g), { passive:true });
+    _mupd(g);
+    g.addEventListener('scroll', () => _mupd(g), { passive:true });
   });
 }
 
