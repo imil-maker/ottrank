@@ -29,6 +29,9 @@
 /* title_detail.css — 오뜨랑 작품 상세 페이지 스타일 */
 
 
+.hero-poster-row{display:contents}  /* PC: 포스터+info-side를 hero-content flex에 직접 */
+.hero-info-side{display:contents}   /* PC: 제목/원제/장르를 hero-info에 직접 */
+.mob-age-badge{display:none!important} /* PC: 시청등급은 metaRow에서 표시 */
 :root{
   --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
   --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
@@ -637,18 +640,104 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ══ rating-cta-banner 삭제됐으므로 관련 CSS도 제거 ══ */
 /* ══ 모바일 ══ */
 @media(max-width:640px){
-  .hero-content{flex-direction:column;align-items:flex-start;gap:16px;padding-bottom:24px}
-  .hero-poster{width:130px}
-  .hero-main-title{font-size:26px}
-  .hero-overview{-webkit-line-clamp:2}
-  .hero-backdrop{min-height:320px}
+  /* ── 히어로 기본 ── */
+  .hero-backdrop{min-height:auto}
+  .hero-content{
+    flex-direction:column;      /* 전체는 세로 */
+    align-items:flex-start;
+    gap:0;
+    padding:16px 16px 20px;
+  }
+
+  /* ── 포스터 + 우측 정보 가로 배치 ── */
+  .hero-poster-row{
+    display:flex;
+    flex-direction:row;
+    align-items:flex-start;
+    gap:14px;
+    width:100%;
+    margin-bottom:14px;
+  }
+
+  /* 포스터 */
+  .hero-poster{
+    width:110px;
+    flex-shrink:0;
+  }
+
+  /* 포스터 옆 정보 영역 — 제목/원제/장르/시청등급만 */
+  .hero-info-side{
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    padding-top:4px;
+  }
+
+  /* 제목 + 시청등급 한 줄 */
+  .hero-title-age-row{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .hero-main-title{
+    font-size:20px;
+    line-height:1.2;
+    flex:1;
+    min-width:0;
+  }
+
+  /* 시청등급 뱃지 — 제목 옆 인라인 */
+  .mob-age-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    min-width:28px;
+    height:22px;
+    padding:0 6px;
+    border-radius:4px;
+    background:rgba(230,57,70,0.18);
+    border:1px solid rgba(230,57,70,0.4);
+    color:var(--accent);
+    font-size:11px;
+    font-weight:700;
+    font-family:var(--font-mono);
+    margin-top:2px;
+  }
+
+  /* 원제·국가·연도 */
+  .hero-orig-title{font-size:11px;color:rgba(255,255,255,.45)}
+
+  /* 장르태그 */
+  .hero-tags{gap:4px}
+  .hero-tag{font-size:11px;padding:2px 8px}
+
+  /* ── 포스터 아래 전체폭 영역 ── */
+  /* metaRow(시즌/부작/개봉일) — 포스터 아래 전체폭 */
+  .hero-meta{gap:8px;flex-wrap:wrap}
+  .hero-meta-item{font-size:13px}
+
+  /* 줄거리 */
+  .hero-overview{
+    font-size:13px;
+    -webkit-line-clamp:3;
+    max-width:100%;
+    margin-bottom:4px;
+  }
+
+  /* 감정버튼 */
+  .feeling-btns{gap:6px}
+  .feeling-btn{min-width:60px;padding:8px 10px;font-size:12px}
+  .feeling-btn .f-emoji{font-size:20px}
+
+  /* 기타 */
   .ratings-row{grid-template-columns:1fr 1fr}
   .r-score{font-size:13px}
   .yt-grid{grid-template-columns:1fr}
   .cast-card{width:72px}.cast-photo{width:72px;height:72px}
-  .feeling-btns{gap:6px}
-  .feeling-btn{min-width:60px;padding:8px 10px;font-size:13px}
-  .feeling-btn .f-emoji{font-size:24px}
   .gallery-grid{grid-template-columns:repeat(2,1fr)}
 }
 
@@ -720,23 +809,38 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </a>
 
   <div class="hero-content" id="heroContent">
-    <!-- 포스터 -->
-    <div class="hero-poster" id="heroPoster">
 
-      <div class="hero-poster-ph" id="posterPh">🎬</div>
-      <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="eager">
-      <!-- OTT pill 컨테이너 — 포스터 상단, 가로 나열 -->
-      <div id="platformPills" style="position:absolute;top:8px;left:6px;display:flex;flex-direction:row;gap:4px;z-index:5;align-items:flex-start"></div>
+    <!-- ━━ 포스터 + 우측 정보 가로 배치 (모바일: hero-poster-row) ━━ -->
+    <div class="hero-poster-row">
 
-    </div>
-
-    <!-- 정보 -->
-    <div class="hero-info">
-      <div>
-        <h1 class="hero-main-title" id="mainTitle">작품명</h1>
-        <div class="hero-orig-title" id="origTitle"></div>
+      <!-- 포스터 -->
+      <div class="hero-poster" id="heroPoster">
+        <div class="hero-poster-ph" id="posterPh">🎬</div>
+        <img id="posterImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="eager">
+        <!-- OTT pill — 포스터 상단 -->
+        <div id="platformPills" style="position:absolute;top:8px;left:6px;display:flex;flex-direction:row;gap:4px;z-index:5;align-items:flex-start"></div>
       </div>
-      <div class="hero-tags" id="genreTags"></div>
+
+      <!-- 포스터 옆 정보 — 제목/원제/장르/시청등급 (모바일 전용 배치) -->
+      <div class="hero-info-side">
+        <!-- 제목 + 시청등급 한 줄 -->
+        <div class="hero-title-age-row">
+          <h1 class="hero-main-title" id="mainTitle">작품명</h1>
+          <!-- 모바일 시청등급 뱃지 (JS에서 id="mobAgeBadge"로 업데이트) -->
+          <span class="mob-age-badge" id="mobAgeBadge" style="display:none"></span>
+        </div>
+        <div class="hero-orig-title" id="origTitle"></div>
+        <div class="hero-tags" id="genreTags"></div>
+      </div>
+
+    </div><!-- /hero-poster-row -->
+
+    <!-- ━━ 포스터 아래 전체폭 정보 영역 ━━ -->
+    <div class="hero-info" style="width:100%">
+      <!-- PC용 제목(모바일에서는 숨김) — hero-info-side에서 표시 -->
+      <div class="hero-pc-title" id="heroPcTitle" style="display:none">
+        <!-- JS에서 PC 제목 별도 처리 불필요 — mainTitle은 hero-info-side에 있음 -->
+      </div>
       <div class="hero-meta" id="metaRow"></div>
       <p class="hero-overview" id="overview">줄거리 정보 불러오는 중…</p>
 
@@ -748,34 +852,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <button class="feeling-btn f-bad"   id="fbtn-bad"   onclick="feelingClick('bad')"><span class="f-emoji">👎</span>별로예요</button>
       </div>
 
-      <!-- 추천 비율 표시 영역 (데이터 로드 후 JS로 렌더링) -->
+      <!-- 추천 비율 표시 영역 -->
       <div id="feelingRatios" class="feeling-ratios" style="display:none"></div>
 
-      <!-- 찜 + 공유 + 랭킹 칩 한 행 -->
+      <!-- 저장하기 + 공유 + 랭킹 -->
       <div class="hero-action-row">
-        <!-- 저장하기 드롭다운 -->
         <div class="save-dropdown-wrap" id="saveDropdownWrap">
           <button class="save-main-btn" id="saveMainBtn" onclick="toggleSaveDropdown(event)">
             <span id="saveMainIcon">♡</span> 저장하기 <span class="save-chevron">▾</span>
           </button>
           <div class="save-dropdown" id="saveDropdown">
-            <!-- ♡ 찜하기 -->
             <button class="save-dropdown-item" id="wishItem" onclick="handleSaveWish()">
-              <span class="item-icon">♡</span>
-              <span class="item-label">찜하기</span>
-              <span class="item-check">✓</span>
+              <span class="item-icon">♡</span><span class="item-label">찜하기</span><span class="item-check">✓</span>
             </button>
-            <!-- 👑 인생작품 -->
             <button class="save-dropdown-item" id="lifeItem" onclick="handleSaveLife()">
-              <span class="item-icon">👑</span>
-              <span class="item-label">인생작품으로 저장</span>
-              <span class="item-check">✓</span>
+              <span class="item-icon">👑</span><span class="item-label">인생작품으로 저장</span><span class="item-check">✓</span>
             </button>
-            <!-- 📋 추천작품 -->
             <button class="save-dropdown-item" id="pickItem" onclick="handleSavePick()">
-              <span class="item-icon">📋</span>
-              <span class="item-label">추천작품에 추가</span>
-              <span class="item-check">✓</span>
+              <span class="item-icon">📋</span><span class="item-label">추천작품에 추가</span><span class="item-check">✓</span>
             </button>
           </div>
         </div>
@@ -784,8 +878,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         </button>
         <div id="heroRankRow" style="display:contents"></div>
       </div>
-    </div>
-  </div>
+    </div><!-- /hero-info -->
+
+  </div><!-- /hero-content -->
 </div><!-- /hero-backdrop -->
 
 <!-- ══ 본문 ══ -->
@@ -880,9 +975,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
     </div>
     <div class="review-cta-title">
-      지금 <em>내 평점</em>을 남기면<br>이 자리에 모든 사람에게 보여집니다
+      지금 <em>내 평점</em>을 남기면<br>이곳에 모두에게 보여집니다
     </div>
-    <div class="review-cta-sub">오뜨랑에서 이 작품의 첫 번째 평점을 남겨보세요</div>
+    <div class="review-cta-sub">이 작품의 첫 번째 평점을 남겨보세요</div>
   </div>
   <button class="review-cta-btn" onclick="event.stopPropagation();goReview(0)">
     ✍ 평점 남기기
@@ -1446,7 +1541,12 @@ async function loadTmdb(){
         const kr=results.find(r=>r.iso_3166_1==='KR');const us=results.find(r=>r.iso_3166_1==='US');
         cert=kr?.release_dates?.find(d=>d.certification)?.certification||us?.release_dates?.find(d=>d.certification)?.certification||'';
       }
-      if(cert)ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
+      if(cert){
+        ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
+        // 모바일 시청등급 뱃지 업데이트 (제목 옆 표시)
+        const mobBadge=document.getElementById('mobAgeBadge');
+        if(mobBadge){mobBadge.textContent=cert;mobBadge.style.display='inline-flex';}
+      }
     }
     const seasHtml=det.number_of_seasons?`<span class="hero-meta-item">시즌 <b>${det.number_of_seasons}</b></span><span class="hero-meta-sep">·</span>`:'';
     let episodeHtml='';
