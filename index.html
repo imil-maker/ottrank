@@ -1321,9 +1321,8 @@ function renderFeatured(featuredGroups) {
   const wrap = document.getElementById('featuredWrap');
   if (!wrap) return;
 
-  // 데이터 없으면 섹션 숨김
+  // 데이터 없으면 기존 내용 유지 (weekly/monthly 전환 시 Featured 유지)
   if (!featuredGroups || !featuredGroups.length) {
-    wrap.innerHTML = '';
     return;
   }
 
