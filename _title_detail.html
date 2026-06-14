@@ -593,18 +593,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .review-time{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
 
-/* ══ 시청가이드 ══ */
-.watch-guide{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:24px}
-.wg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:4px}
-.wg-item{background:var(--bg3);border-radius:var(--r);padding:12px 8px;text-align:center;border:.5px solid var(--border)}
-.wg-emoji{font-size:24px;margin-bottom:6px}
-.wg-label{font-size:13px;color:var(--muted);font-family:var(--font-mono);margin-bottom:4px}
-.wg-level{font-size:14px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block}
-.wg-level.none{background:rgba(52,211,153,.1);color:#34d399}
-.wg-level.low{background:rgba(240,180,41,.1);color:var(--gold)}
-.wg-level.mid{background:rgba(230,57,70,.1);color:var(--accent)}
-.wg-level.high{background:rgba(230,57,70,.2);color:#ff6b6b;border:.5px solid rgba(230,57,70,.4)}
-@media(max-width:640px){.wg-grid{grid-template-columns:repeat(2,1fr)}}
+
 
 
 /* ══ 랭킹 정보 행 ══ */
@@ -619,9 +608,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .rank-info-chip.chip-top10{background:rgba(240,180,41,.12);border:.5px solid rgba(240,180,41,.4);color:var(--gold)}
 .rank-info-chip.chip-manual{background:rgba(240,180,41,.15);border:.5px solid rgba(240,180,41,.5);color:#f0b429}
 
-/* ══ 시청가이드 + 보러가기 래퍼 ══ */
+/* ══ 지금 보러가기 ══ */
 .wg-outer{display:flex;align-items:flex-start}
-.watch-guide{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:0}
 .watch-now-box{
   width:200px;flex-shrink:0;
   background:var(--bg2);border:.5px solid var(--border);
@@ -881,16 +869,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
-<!-- 시청가이드 + 지금 보러가기 -->
+<!-- 지금 보러가기 (박스오피스 현재 상영작만 표시) -->
 <div class="wg-outer" id="wgOuter" style="display:none;gap:16px;margin-bottom:24px">
-  <!-- 시청가이드 -->
-  <div class="watch-guide" id="watchGuideSection" style="flex:1;margin-bottom:0">
-    <div class="sec-title"><i class="ti ti-shield-check" style="font-size:16px"></i>시청가이드 <small id="watchGradeLabel"></small></div>
-    <div class="wg-grid" id="watchGuideGrid"></div>
-    <div style="font-size:15px;color:var(--muted);margin-top:10px;font-family:var(--font-mono)">출처: 영상물등급위원회</div>
-  </div>
-  <!-- 지금 보러가기 -->
-  <div class="watch-now-box" id="watchNowBox" style="display:none">
+  <div class="watch-now-box" id="watchNowBox" style="display:none;width:100%">
     <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
     <div class="watch-now-btns" id="watchNowBtns"></div>
   </div>
@@ -1251,55 +1232,19 @@ async function loadGallery(){
   }catch(e){}
 }
 
-/* == Watch Guide (boxoffice + media_type=movie 전체) == */
+/* == 지금 보러가기 (박스오피스 현재 상영작만) == */
 async function loadWatchGuide(){
-  // works DB의 media_type이 movie이거나 boxoffice 플랫폼인 경우 표시
-  const isMovie = WORK.platform==='boxoffice' || WORK.media_type==='movie';
-  if(!isMovie||!WORK.tmdb_id||!WORK.title)return;
-  try{
-    const res=await fetch(`${OTTRANK_API}/kmrb/${WORK.tmdb_id}?title_ko=${encodeURIComponent(WORK.title)}`);
-    const data=await res.json();
-    if(!data.ok||!data.data)return;
-    const d=data.data;
-    const gradeEl=document.getElementById('watchGradeLabel');
-    if(gradeEl&&d.watch_grade)gradeEl.textContent=d.watch_grade;
-    const items=[
-      {key:'subject',  label:'주제',     emoji:'📖'},
-      {key:'sexuality',label:'선정성',   emoji:'🔞'},
-      {key:'violence', label:'폭력성',   emoji:'⚔️'},
-      {key:'language', label:'대사',     emoji:'💬'},
-      {key:'horror',   label:'공포',     emoji:'😱'},
-      {key:'drug',     label:'약물',     emoji:'💊'},
-      {key:'imitation',label:'모방위험', emoji:'⚠️'},
-    ];
-    const levelClass=(val)=>{
-      if(!val||val==='없음'||val==='해당없음')return'none';
-      if(val.includes('12세'))return'low';
-      if(val.includes('15세'))return'mid';
-      return'high';
-    };
-    const hasAny=items.some(i=>d[i.key]);
-    if(!hasAny)return;
-    document.getElementById('watchGuideGrid').innerHTML=items.map(i=>`
-      <div class="wg-item">
-        <div class="wg-emoji">${i.emoji}</div>
-        <div class="wg-label">${i.label}</div>
-        <span class="wg-level ${levelClass(d[i.key])}">${d[i.key]||'없음'}</span>
-      </div>`).join('');
-    document.getElementById('watchGuideSection').style.display='block';
-    document.getElementById('wgOuter').style.display='flex';
-    // 극장 연결 - boxoffice category01 (주간 박스오피스 현재 상영중)일 때만
-    const isCategory01 = WORK.platform==='boxoffice' && WORK_CATEGORY_SLOT==='category01';
-    if(isCategory01){
-      const t=WORK.title;
-      document.getElementById('watchNowBtns').innerHTML=[
-        `<a class="watch-now-btn" href="https://cgv.co.kr/cnm/movieBook" target="_blank" rel="noopener">🎬 CGV</a>`,
-        `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/List?flag=1" target="_blank" rel="noopener">🎬 롯데시네마</a>`,
-        `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 메가박스</a>`,
-      ].join('');
-      document.getElementById('watchNowBox').style.display='block';
-    }
-  }catch(e){}
+  // 극장 연결 - boxoffice category01 (주간 박스오피스 현재 상영중)일 때만 표시
+  const isCategory01 = WORK.platform==='boxoffice' && WORK_CATEGORY_SLOT==='category01';
+  if(!isCategory01)return;
+  const t=WORK.title;
+  document.getElementById('watchNowBtns').innerHTML=[
+    `<a class="watch-now-btn" href="https://cgv.co.kr/cnm/movieBook" target="_blank" rel="noopener">🎬 CGV</a>`,
+    `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/List?flag=1" target="_blank" rel="noopener">🎬 롯데시네마</a>`,
+    `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 메가박스</a>`,
+  ].join('');
+  document.getElementById('watchNowBox').style.display='block';
+  document.getElementById('wgOuter').style.display='flex';
 }
 
 /* == TMDB Load (parallel) == */
@@ -2445,7 +2390,7 @@ async function loadPlatforms(){
 
     // 히어로 하단 랭킹 칩 — 박스오피스는 순위 칩 표시 안 함, 나머지는 모든 OTT 순위 표시
     if(WORK.platform==='boxoffice'){
-      renderRankRow([]); // 박스오피스는 순위 칩 없음 (시청가이드+극장링크로 대체)
+      renderRankRow([]); // 박스오피스는 순위 칩 없음 (지금 보러가기 극장링크로 대체)
     }else{
       renderRankRow(platforms);
     }
@@ -2462,16 +2407,14 @@ async function init(){
   await loadTmdb();
 
   // 나머지 전부 병렬 실행
-  // loadTop10Days는 WORK_CATEGORY_SLOT 설정용이지만
-  // loadWatchGuide는 실제로 WORK_CATEGORY_SLOT을 사용하지 않으므로
-  // await 순차 대기 불필요 → Promise.all에 포함
+  // loadWatchGuide는 "지금 보러가기"(박스오피스 극장 링크)만 표시
+  // WORK_CATEGORY_SLOT은 loadTop10Days에서 설정되므로 완료 후 실행
   if(WORK.tmdb_id){
     await Promise.all([
-      loadTop10Days(),
+      loadTop10Days().then(loadWatchGuide),
       loadPlatforms(),
       loadManualBadges(),
       loadReviews(WORK.tmdb_id),
-      loadWatchGuide(),
       loadTitleVideos(),
       loadFeelingData(),
     ]);
