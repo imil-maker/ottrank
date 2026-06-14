@@ -6,7 +6,7 @@
 
    라우트 모듈 목록:
    rankings.js  : /rankings/*, /latest-date, /platforms
-   videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*, /kmrb/*
+   videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*
    reactions.js : /reactions/*, /admin/reactions*
    auth.js      : /auth/*
    user.js      : /wishlist/*, /reviews/*, /mypage/*, /user/*, /grade-settings, /life-works/*, /pick-lists/*
@@ -14,7 +14,6 @@
    admin.js     : /admin/* (reactions, videos, contents 제외)
    contents.js  : /contents/*, /admin/contents*
 ══════════════════════════════════════════════════════════════ */
-// build trigger: 2026-06-14 (esbuild 캐시 무효화용)
 
 import { handleRankings  } from "./routes/rankings.js";
 import { handleVideos    } from "./routes/videos.js";
@@ -81,14 +80,13 @@ export default {
       res = await handleRankings(path, request, env, url, headers);
     }
 
-    // 4. 영상 / IMDb / YouTube / works / kmrb
+    // 4. 영상 / IMDb / YouTube / works
     if (!res && (
       path.startsWith("/videos/") ||
       path.startsWith("/admin/videos") ||
       path.startsWith("/imdb/") ||
       path.startsWith("/youtube/") ||
-      path.startsWith("/works/") ||
-      path.startsWith("/kmrb/")
+      path.startsWith("/works/")
     )) {
       res = await handleVideos(path, request, env, ctx, url, headers);
     }
