@@ -236,12 +236,12 @@ body {
   .hero { padding:32px 0 28px }
   .hero-title { font-size:38px }
   .hero-logo { font-size:120px; opacity:.5 }
-  /* 카드 + 스켈레톤 동일 크기 — 스켈레톤→실제 카드 깜빡임 방지 */
+  /* 카드 + 스켈레톤 동일 크기 — 2개씩, 깜빡임 없음 */
   .rk-card,
   .skel-card{
-    flex:0 0 62vw;
+    flex:0 0 calc(50% - 8px);
     min-width:0;
-    max-width:260px;
+    max-width:none;
     scroll-snap-align:start;
   }
   .hero-sub { display:none }
@@ -255,6 +255,8 @@ body {
   .swipe-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
   .swipe-btn.prev{ left:-14px; }
   .swipe-btn.next{ right:-14px; }
+  /* swipe-track 좌우 여백 — 카드 2개가 화면에 딱 맞게 */
+  .swipe-track{ padding:0 0 6px; gap:12px; }
 }
 
 /* ott-date-bottom — 모바일 전용, 첫 섹션 하단 날짜 */
