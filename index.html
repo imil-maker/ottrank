@@ -667,8 +667,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 /* ── 메인 화살표 — Featured와 동일한 구조 ── */
 .main-swipe-wrap {
-  position: relative;
-  margin-bottom: 8px;
+  display: contents;  /* PC: 투명 래퍼 — 자식이 직접 부모에 속한 것처럼 동작 */
+}
+@media(max-width:768px) {
+  .main-swipe-wrap {
+    display: block;
+    position: relative;
+  }
 }
 .msb {
   position: absolute; top: 35%; transform: translateY(-50%);
