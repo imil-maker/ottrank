@@ -426,8 +426,9 @@ function updateSwipeBtns(track) {
   const next = wrap.querySelector('.swipe-btn.next');
   const atStart = track.scrollLeft <= 4;
   const atEnd   = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
-  if (prev) prev.style.opacity = atStart ? '0' : '1';
-  if (next) next.style.opacity = atEnd   ? '0' : '1';
+  // PC와 동일한 방식: disabled 속성 → .swipe-btn:disabled CSS 적용
+  if (prev) prev.disabled = atStart;
+  if (next) next.disabled = atEnd;
 }
 
 /* 초기 화살표 상태 설정 — 로드 시 */
