@@ -637,99 +637,84 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ══ rating-cta-banner 삭제됐으므로 관련 CSS도 제거 ══ */
 /* ══ 모바일 ══ */
 
-/* mob-age-badge: PC에선 숨김, 모바일에서만 표시 */
-.mob-age-badge{ display:none; }
 
 @media(max-width:640px){
   .hero-backdrop{ min-height:auto; }
 
-  /* ── hero-content: flex 유지, 세로 배치 ── */
+  /* 기존 hero-content 포스터 — 모바일에서 숨김 (mob-hero-top에 복사본) */
   .hero-content{
     flex-direction:column;
-    align-items:stretch;
-    gap:0;
-    padding:14px 16px 20px;
+    align-items:flex-start;
+    gap:12px;
+    padding:0 16px 20px;
   }
+  .hero-poster{ display:none; }
 
-  /* ── 포스터: float left로 띄워서 글자가 옆에 흐르게 ── */
-  .hero-poster{
-    float:left;
-    width:120px;
-    margin:0 14px 8px 0;
-    flex-shrink:0;
-  }
+  /* hero-info 내 제목/원제/장르 — 모바일에서 숨김 */
+  .mob-hide-in-hero{ display:none !important; }
 
-  /* ── hero-info: float 옆에서 흐름 (전체폭 차지) ── */
-  .hero-info{
+  /* ── 모바일 전용 상단 블록 ── */
+  .mob-hero-top{
+    display:flex;
+    flex-direction:row;
+    align-items:flex-start;
+    gap:14px;
+    padding:14px 16px 0;
     width:100%;
-    gap:6px;
-    padding-bottom:0;
-    min-width:0;
   }
-
-  /* 제목/원제/장르/meta는 포스터 옆에 자연스럽게 흐름 */
-  .hero-main-title{
-    font-size:18px;
-    line-height:1.2;
-    letter-spacing:-.3px;
+  .mob-poster-col{ flex-shrink:0; width:115px; }
+  .mob-poster-img{
+    width:115px;
+    aspect-ratio:2/3;
+    border-radius:10px;
+    overflow:hidden;
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 12px 32px rgba(0,0,0,.6);
+    background:var(--bg3);
+    position:relative;
   }
-
-  /* 시청등급 뱃지 — 제목 바로 아래 */
-  .mob-age-badge{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    height:20px;
-    padding:0 7px;
-    border-radius:4px;
-    background:rgba(230,57,70,0.18);
-    border:1px solid rgba(230,57,70,0.4);
-    color:var(--accent);
-    font-size:11px;
-    font-weight:700;
+  .mob-poster-img img{ width:100%;height:100%;object-fit:cover;display:block; }
+  .mob-pill{
+    position:absolute;top:7px;left:7px;
+    color:#fff;font-size:11px;font-weight:700;
+    padding:2px 7px;border-radius:4px;
     font-family:var(--font-mono);
-    margin-top:3px;
-    margin-bottom:4px;
+  }
+  .mob-info-col{
+    flex:1;min-width:0;
+    display:flex;flex-direction:column;gap:6px;
+    padding-top:4px;
+  }
+  .mob-title{
+    font-size:19px;font-weight:900;line-height:1.2;
+    letter-spacing:-.3px;color:#fff;
+  }
+  .mob-orig{
+    font-size:11px;color:rgba(255,255,255,.45);
+    font-family:var(--font-mono);
+  }
+  .mob-tags{ display:flex;flex-wrap:wrap;gap:4px; }
+  .mob-tag{
+    font-size:11px;padding:2px 8px;border-radius:20px;
+    border:.5px solid rgba(255,255,255,.2);
+    color:rgba(255,255,255,.7);
+    font-family:var(--font-mono);
+    background:rgba(255,255,255,.05);
   }
 
-  .hero-orig-title{
-    font-size:11px;
-    color:rgba(255,255,255,.45);
-    margin-top:2px;
-  }
-
-  .hero-tags{ gap:4px; }
-  .hero-tag{ font-size:11px; padding:2px 7px; }
-
-  .hero-meta{ gap:5px; flex-wrap:wrap; }
+  /* meta/overview/버튼 — 전체폭 */
+  .hero-meta{ gap:6px;flex-wrap:wrap; }
   .hero-meta-item{ font-size:12px; }
-
-  /* ── overview 부터는 float 해제 → 전체 폭 ── */
-  .hero-overview{
-    clear:both;           /* ← 포스터 float 해제, 전체폭으로 */
-    font-size:13px;
-    -webkit-line-clamp:4;
-    max-width:100%;
-    margin-top:12px;
-  }
-
-  /* 감정버튼도 clear:both로 전체폭 */
-  .feeling-btns{
-    clear:both;
-    gap:6px;
-    margin-top:4px;
-  }
-  .feeling-btn{ min-width:60px; padding:8px 10px; font-size:12px; }
+  .hero-overview{ font-size:13px;-webkit-line-clamp:4;max-width:100%; }
+  .feeling-btns{ gap:6px; }
+  .feeling-btn{ min-width:60px;padding:8px 10px;font-size:12px; }
   .feeling-btn .f-emoji{ font-size:20px; }
-
-  .feeling-ratios{ clear:both; }
-  .hero-action-row{ clear:both; }
 
   /* 기타 */
   .ratings-row{ grid-template-columns:1fr 1fr; }
   .r-score{ font-size:13px; }
   .yt-grid{ grid-template-columns:1fr; }
-  .cast-card{ width:72px; } .cast-photo{ width:72px; height:72px; }
+  .cast-card{ width:72px; }.cast-photo{ width:72px;height:72px; }
   .gallery-grid{ grid-template-columns:repeat(2,1fr); }
 }
 
@@ -790,6 +775,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div id="detailPage">
 
 <!-- ══ 히어로 ══ -->
+<!-- ══ 모바일 전용 상단 블록 — PC에서 display:none ══ -->
+<div class="mob-hero-top" id="mobHeroTop" style="display:none">
+  <!-- 왼쪽: 포스터 -->
+  <div class="mob-poster-col">
+    <div class="mob-poster-img" id="mobPosterWrap">
+      <img id="mobPosterImg" src="" alt="" style="display:none">
+      <div id="mobPosterPh" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px">🎬</div>
+      <!-- OTT pill -->
+      <div id="mobPlatformPill" class="mob-pill"></div>
+    </div>
+  </div>
+  <!-- 오른쪽: 제목 + 원제 + 장르 -->
+  <div class="mob-info-col">
+    <div class="mob-title" id="mobTitle"></div>
+    <div class="mob-orig" id="mobOrig"></div>
+    <div class="mob-tags" id="mobTags"></div>
+  </div>
+</div>
+
 <div class="hero-backdrop" id="heroBackdrop">
   <div id="heroLoading" class="loading-row"><div class="spinner"></div><span>작품 정보 불러오는 중…</span></div>
   <img id="backdropImg" class="hero-backdrop-img" src="" alt="">
@@ -812,13 +816,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
     <!-- 정보 -->
     <div class="hero-info">
-      <div>
+      <!-- 제목/원제: 모바일에서 mob-hero-top 복사본으로 대체 → 여기선 숨김 -->
+      <div class="mob-hide-in-hero">
         <h1 class="hero-main-title" id="mainTitle">작품명</h1>
-        <!-- 모바일 전용 시청등급 뱃지 — PC에서 display:none, JS로 값 채움 -->
-        <span class="mob-age-badge" id="mobAgeBadge"></span>
         <div class="hero-orig-title" id="origTitle"></div>
       </div>
-      <div class="hero-tags" id="genreTags"></div>
+      <!-- 장르: 모바일에서 숨김 -->
+      <div class="hero-tags mob-hide-in-hero" id="genreTags"></div>
       <div class="hero-meta" id="metaRow"></div>
       <p class="hero-overview" id="overview">줄거리 정보 불러오는 중…</p>
 
@@ -1062,6 +1066,45 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
 const IMG='https://image.tmdb.org/t/p/w500';
+
+/* ── 모바일 상단 블록 동기화 ── */
+function syncMobHero(){
+  if(window.innerWidth>640)return;
+  const top=document.getElementById('mobHeroTop');
+  if(!top)return;
+  // 포스터
+  const pi=document.getElementById('posterImg');
+  const mi=document.getElementById('mobPosterImg');
+  const mp=document.getElementById('mobPosterPh');
+  if(pi&&mi&&pi.src&&pi.style.display!=='none'){
+    mi.src=pi.src;mi.style.display='block';
+    if(mp)mp.style.display='none';
+  }
+  // OTT pill
+  const pills=document.querySelectorAll('#platformPills .platform-pill');
+  const mobPill=document.getElementById('mobPlatformPill');
+  if(pills.length&&mobPill){
+    mobPill.textContent=pills[0].textContent;
+    mobPill.style.background=pills[0].style.background||pills[0].style.backgroundColor||'';
+    mobPill.style.display='block';
+  }
+  // 제목
+  const mt=document.getElementById('mainTitle');
+  const mobt=document.getElementById('mobTitle');
+  if(mt&&mobt)mobt.textContent=mt.textContent;
+  // 원제
+  const ot=document.getElementById('origTitle');
+  const mobo=document.getElementById('mobOrig');
+  if(ot&&mobo)mobo.textContent=ot.textContent;
+  // 장르
+  const gt=document.getElementById('genreTags');
+  const mobg=document.getElementById('mobTags');
+  if(gt&&mobg){
+    mobg.innerHTML=Array.from(gt.querySelectorAll('.hero-tag'))
+      .map(t=>`<span class="mob-tag">${t.textContent}</span>`).join('');
+  }
+  top.style.display='flex';
+}
 const IMG_BACKDROP='https://image.tmdb.org/t/p/w1280';
 const IMG_PROFILE='https://image.tmdb.org/t/p/w185';
 const IMG_STILL='https://image.tmdb.org/t/p/w780';
@@ -1347,6 +1390,7 @@ async function loadTmdb(){
   if(!WORK.tmdb_id){
     document.getElementById('heroLoading').style.display='none';
     document.getElementById('heroContent').classList.add('visible');
+    syncMobHero();
     updateSEO(WORK.title,'',null,WORK.platform,WORK.rank);
     initWish(WORK.tmdb_id);initLifeSave(WORK.tmdb_id);return;
   }
@@ -1386,6 +1430,7 @@ async function loadTmdb(){
     if(!det){
       document.getElementById('heroLoading').style.display='none';
       document.getElementById('heroContent').classList.add('visible');
+    syncMobHero();
       return;
     }
 
@@ -1502,6 +1547,7 @@ async function loadTmdb(){
     // Show hero immediately
     document.getElementById('heroLoading').style.display='none';
     document.getElementById('heroContent').classList.add('visible');
+    syncMobHero();
 
     // MBTI 섹션 — loadReviews 완료를 기다리지 않고 즉시 렌더링
     // mbti_tags는 이미 worksData에서 세팅됐고, TMDB 평점도 위에서 DOM에 반영됐으므로
@@ -1531,8 +1577,6 @@ async function loadTmdb(){
       }
       if(cert){
         ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
-        // 모바일 시청등급 뱃지 업데이트 (제목 옆 표시)
-        const mobBadge=document.getElementById('mobAgeBadge');
         if(mobBadge){mobBadge.textContent=cert;mobBadge.style.display='inline-flex';}
       }
     }
@@ -1656,6 +1700,7 @@ async function loadTmdb(){
     console.error('[loadTmdb]',e);
     document.getElementById('heroLoading').style.display='none';
     document.getElementById('heroContent').classList.add('visible');
+    syncMobHero();
   }
 }
 
