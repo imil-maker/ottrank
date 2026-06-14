@@ -10,6 +10,7 @@
    GET  /rankings/manual/:tmdb_id
    GET  /latest-date
    GET  /platforms
+   GET  /sitemap.xml
 ══════════════════════════════════════════════════════════════ */
 
 /**
@@ -508,6 +509,72 @@ export async function handleRankings(path, request, env, url, headers) {
       "SELECT DISTINCT platform FROM rankings ORDER BY platform"
     ).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+  }
+
+  // ── GET /sitemap.xml ───────────────────────────────────────
+  // 정적 페이지 + works 전체(작품 상세 페이지)를 묶어서 사이트맵 생성
+  // 작품 슬러그 형식: /title/{season}-{year}{tmdb_id}
+  //   - season: _title_detail.html에서 TMDB number_of_seasons 기준으로 결정되지만
+  //             사이트맵에서는 시즌1(대표) 페이지만 등록 → 항상 1
+  //   - year:   슬러그 파싱 시 폴백값인 "현재 연도"를 그대로 사용
+  if (path === "/sitemap.xml") {
+    try {
+      const baseUrl = "https://ottrank.kr";
+      const year    = new Date().getFullYear();
+
+      // 정적 페이지 목록
+      const staticPaths = [
+        "/",
+        "/netflix",
+        "/tving",
+        "/disneyplus",
+        "/wavve",
+        "/coupangplay",
+        "/boxoffice",
+        "/mypage",
+      ];
+
+      // works 전체 작품 목록 (tmdb_id 기준)
+      const { results: works } = await env.DB.prepare(
+        "SELECT tmdb_id FROM works WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id"
+      ).all();
+
+      const urls = [];
+
+      for (const p of staticPaths) {
+        urls.push(
+          `  <url>\n` +
+          `    <loc>${baseUrl}${p}</loc>\n` +
+          `    <changefreq>daily</changefreq>\n` +
+          `  </url>`
+        );
+      }
+
+      for (const w of works) {
+        const loc = `${baseUrl}/title/1-${year}${w.tmdb_id}`;
+        urls.push(
+          `  <url>\n` +
+          `    <loc>${loc}</loc>\n` +
+          `    <changefreq>weekly</changefreq>\n` +
+          `  </url>`
+        );
+      }
+
+      const xml =
+        `<?xml version="1.0" encoding="UTF-8"?>\n` +
+        `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+        urls.join("\n") + `\n` +
+        `</urlset>`;
+
+      return new Response(xml, {
+        headers: {
+          ...headers,
+          "Content-Type": "application/xml; charset=utf-8",
+        },
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
   }
 
   return null; // 해당 라우트 없음
