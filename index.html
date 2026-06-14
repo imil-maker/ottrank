@@ -731,7 +731,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 function msc(id, dir) {
   const g = document.getElementById(id);
   if(!g) return;
-  g.scrollBy({ left: dir * ((g.firstElementChild?.offsetWidth||160)+12)*2, behavior:'smooth' });
+  // 고정 300px씩 스크롤
+  g.scrollBy({ left: dir * 300, behavior:'smooth' });
   setTimeout(() => _mupd(g), 350);
 }
 
