@@ -214,12 +214,213 @@
   background-clip:text;font-weight:700;
 }
 
-/* 모바일 */
+/* ══ 모바일 전용 요소 — 데스크톱에서는 숨김 ══ */
+.ottrang-mob-search-btn { display:none; }
+.ottrang-mob-ham-btn    { display:none; }
+
+/* ══ 모바일 검색 오버레이 ══ */
+.ottrang-mob-search-overlay {
+  display:none;
+  position:fixed;inset:0;z-index:600;
+  background:rgba(0,0,0,0.75);
+  flex-direction:column;
+  align-items:stretch;
+}
+.ottrang-mob-search-overlay.show { display:flex; }
+.ottrang-mob-search-bar {
+  background:#13131a;
+  border-bottom:1px solid rgba(255,255,255,0.1);
+  padding:12px 16px;
+  display:flex;align-items:center;gap:10px;
+}
+.ottrang-mob-search-back {
+  width:36px;height:36px;flex-shrink:0;
+  border-radius:50%;background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  color:var(--muted2);font-size:18px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.ottrang-mob-search-input {
+  flex:1;height:42px;
+  background:var(--bg3);border:1px solid rgba(255,255,255,0.12);
+  border-radius:22px;padding:0 18px;
+  color:var(--text);font-family:var(--sans);font-size:15px;
+  outline:none;
+}
+.ottrang-mob-search-input::placeholder { color:var(--muted); }
+.ottrang-mob-search-input:focus { border-color:rgba(230,57,70,0.5); }
+.ottrang-mob-search-results {
+  flex:1;overflow-y:auto;background:#0c0c10;
+}
+
+/* ══ 햄버거 드로어 ══ */
+/* 오버레이 (드로어 바깥 어두운 배경) */
+.ottrang-drawer-overlay {
+  display:none;
+  position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,0.6);
+  backdrop-filter:blur(2px);
+}
+.ottrang-drawer-overlay.show { display:block; }
+
+/* 드로어 본체 */
+.ottrang-drawer {
+  position:fixed;top:0;right:0;bottom:0;
+  width:85%;max-width:320px;z-index:501;
+  background:#1e1e2a;
+  display:flex;flex-direction:column;
+  transform:translateX(100%);
+  transition:transform .28s cubic-bezier(.4,0,.2,1);
+  overflow:hidden;
+}
+.ottrang-drawer.open { transform:translateX(0); }
+
+/* 드로어 — 헤더 줄 */
+.ottrang-drawer-head {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px 14px;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+  flex-shrink:0;
+}
+.ottrang-drawer-logo {
+  font-family:'Bebas Neue',sans-serif;font-size:22px;
+  letter-spacing:2px;color:#ededf0;line-height:1;
+  text-decoration:none;
+}
+.ottrang-drawer-logo span { color:#e63946; }
+.ottrang-drawer-close {
+  height:32px;padding:0 12px;
+  border-radius:6px;background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  color:var(--muted2);font-size:13px;font-family:var(--sans);
+  cursor:pointer;display:flex;align-items:center;gap:5px;
+  transition:background .15s;
+}
+.ottrang-drawer-close:hover { background:rgba(255,255,255,0.1); }
+
+/* 드로어 — 로그인/프로필 영역 */
+.ottrang-drawer-auth {
+  padding:16px 18px;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+  flex-shrink:0;
+}
+/* 비로그인 */
+.ottrang-drawer-auth-btns {
+  display:flex;gap:8px;
+}
+.ottrang-drawer-btn-login {
+  flex:1;height:40px;border-radius:8px;
+  border:1px solid rgba(255,255,255,0.16);background:transparent;
+  color:#ededf0;font-family:var(--sans);font-size:14px;
+  cursor:pointer;transition:background .15s;
+}
+.ottrang-drawer-btn-login:hover { background:rgba(255,255,255,0.07); }
+.ottrang-drawer-btn-join {
+  flex:1;height:40px;border-radius:8px;
+  background:#e63946;border:none;
+  color:#fff;font-family:var(--sans);font-size:14px;font-weight:600;
+  cursor:pointer;transition:background .15s;
+}
+.ottrang-drawer-btn-join:hover { background:#ff4d58; }
+/* 로그인 상태 — 프로필 */
+.ottrang-drawer-profile {
+  display:flex;align-items:center;gap:12px;
+  text-decoration:none;
+  cursor:pointer;
+}
+.ottrang-drawer-avatar {
+  width:44px;height:44px;border-radius:50%;flex-shrink:0;
+  background:rgba(230,57,70,0.18);border:1.5px solid rgba(230,57,70,0.35);
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;font-weight:700;color:#e63946;overflow:hidden;
+}
+.ottrang-drawer-avatar img { width:100%;height:100%;object-fit:cover;display:block; }
+.ottrang-drawer-user-info { flex:1;min-width:0; }
+.ottrang-drawer-nick {
+  font-size:15px;font-weight:700;color:#ededf0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.ottrang-drawer-meta {
+  font-size:11px;color:var(--muted);margin-top:3px;
+  font-family:'DM Mono',monospace;letter-spacing:0.3px;
+}
+.ottrang-drawer-meta .mbti-tag {
+  color:#7ec8e3;
+}
+.ottrang-drawer-chevron {
+  color:var(--muted);font-size:16px;flex-shrink:0;
+}
+
+/* 드로어 — 메뉴 리스트 */
+.ottrang-drawer-nav {
+  flex:1;overflow-y:auto;padding:8px 0;
+}
+.ottrang-drawer-nav-item {
+  display:flex;align-items:center;gap:12px;
+  padding:13px 20px;
+  color:#a0a0bc;font-size:15px;font-weight:500;
+  text-decoration:none;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  transition:background .12s,color .12s;
+  cursor:pointer;
+}
+.ottrang-drawer-nav-item:hover,
+.ottrang-drawer-nav-item.on {
+  background:rgba(255,255,255,0.05);
+  color:#ededf0;
+}
+.ottrang-drawer-nav-item.on { color:#fff; }
+/* 플랫폼 컬러 도트 */
+.ottrang-drawer-dot {
+  width:9px;height:9px;border-radius:50%;flex-shrink:0;
+}
+/* 홈 아이콘 (도트 대신) */
+.ottrang-drawer-home-icon {
+  width:9px;height:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;
+}
+.ottrang-drawer-nav-arrow {
+  margin-left:auto;color:rgba(255,255,255,0.2);font-size:14px;
+}
+.ottrang-drawer-nav-item:hover .ottrang-drawer-nav-arrow,
+.ottrang-drawer-nav-item.on .ottrang-drawer-nav-arrow {
+  color:rgba(255,255,255,0.45);
+}
+
+/* 드로어 — 하단 마이페이지 버튼 (로그인 상태) */
+.ottrang-drawer-footer {
+  padding:14px 18px;
+  border-top:1px solid rgba(255,255,255,0.07);
+  flex-shrink:0;
+}
+.ottrang-drawer-mypage-btn {
+  display:block;width:100%;height:44px;
+  border-radius:9px;
+  background:rgba(230,57,70,0.1);
+  border:1px solid rgba(230,57,70,0.3);
+  color:#e63946;font-family:var(--sans);font-size:14px;font-weight:600;
+  cursor:pointer;text-align:center;line-height:44px;
+  text-decoration:none;transition:background .15s;
+}
+.ottrang-drawer-mypage-btn:hover { background:rgba(230,57,70,0.18); }
+
+/* ══ 모바일 미디어쿼리 ══ */
 @media(max-width:768px){
-  .ottrang-header-inner { padding:0 16px;gap:12px; }
-  .ottrang-nav { display:none; }
-  .ottrang-search-input { width:160px; }
-  .ottrang-search-input:focus { width:200px; }
+  /* 헤더 레이아웃 */
+  .ottrang-header-inner { padding:0 16px;gap:0; }
+
+  /* 데스크톱 요소 숨김 */
+  .ottrang-nav          { display:none !important; }
+  .ottrang-search-wrap  { display:none !important; }
+  .ottrang-hright       { display:none !important; }
+
+  /* 모바일 버튼 표시 */
+  .ottrang-mob-search-btn { display:flex; }
+  .ottrang-mob-ham-btn    { display:flex; }
+
+  /* 슬로건 배너 숨김 */
+  .ottrang-banner { display:none !important; }
 }
 </style>
 
@@ -265,11 +466,101 @@
         <span class="u-nick" id="ottrangNick"></span>
       </a>
     </div>
+
+    <!-- ── 모바일 전용: 검색 아이콘 + 햄버거 버튼 ── -->
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+      <!-- 검색 아이콘 (원형) -->
+      <button class="ottrang-mob-search-btn" id="ottrangMobSearchBtn"
+        aria-label="검색"
+        style="width:38px;height:38px;border-radius:50%;
+               background:rgba(255,255,255,0.06);
+               border:1px solid rgba(255,255,255,0.1);
+               color:#a0a0bc;font-size:18px;cursor:pointer;
+               align-items:center;justify-content:center;">⌕</button>
+      <!-- 햄버거 — 레드 액센트 B스타일 -->
+      <button class="ottrang-mob-ham-btn" id="ottrangHamBtn"
+        aria-label="메뉴 열기"
+        style="width:38px;height:38px;border-radius:8px;
+               background:rgba(230,57,70,0.12);
+               border:1px solid rgba(230,57,70,0.38);
+               flex-direction:column;align-items:center;justify-content:center;
+               gap:5px;cursor:pointer;padding:10px;">
+        <span style="display:block;width:18px;height:1.5px;background:#e63946;border-radius:2px;"></span>
+        <span style="display:block;width:13px;height:1.5px;background:#e63946;border-radius:2px;"></span>
+        <span style="display:block;width:18px;height:1.5px;background:#e63946;border-radius:2px;"></span>
+      </button>
+    </div>
   </div>
 </div>
 <div class="ottrang-banner" id="ottrangBanner" style="display:none">
   <div class="ottrang-banner-inner">
     <p class="ottrang-slogan">오늘 OTT 뭐 볼까?&nbsp;&nbsp;<b>오뜨랑(OTTRANK)에서 확인</b>&nbsp;&nbsp;—&nbsp;&nbsp; 현재 베타버전 테스트 중, 26년 7월 1일 정식 오픈 </p>
+  </div>
+</div>
+<!-- ══ 모바일 검색 오버레이 ══ -->
+<div class="ottrang-mob-search-overlay" id="ottrangMobSearchOverlay">
+  <div class="ottrang-mob-search-bar">
+    <button class="ottrang-mob-search-back" id="ottrangMobSearchBack" aria-label="검색 닫기">&#8592;</button>
+    <input class="ottrang-mob-search-input" id="ottrangMobSearchInput"
+      type="text" placeholder="작품, 배우, 감독 검색"
+      oninput="_mobSearchRun(this.value)"
+      onkeydown="if(event.key==='Enter'){_mobSearchRun(this.value,true);}"
+      autocomplete="off">
+  </div>
+  <div class="ottrang-mob-search-results" id="ottrangMobSearchResults"></div>
+</div>
+
+<!-- ══ 드로어 오버레이 ══ -->
+<div class="ottrang-drawer-overlay" id="ottrangDrawerOverlay"></div>
+
+<!-- ══ 사이드 드로어 ══ -->
+<div class="ottrang-drawer" id="ottrangDrawer" role="dialog" aria-modal="true" aria-label="메뉴">
+  <div class="ottrang-drawer-head">
+    <a class="ottrang-drawer-logo" href="/">오뜨랑<span>.</span></a>
+    <button class="ottrang-drawer-close" id="ottrangDrawerClose" aria-label="메뉴 닫기">&#10005; 닫기</button>
+  </div>
+  <div class="ottrang-drawer-auth" id="ottrangDrawerAuth">
+    <div class="ottrang-drawer-auth-btns" id="ottrangDrawerAuthBtns">
+      <button class="ottrang-drawer-btn-login" id="ottrangDrawerBtnLogin">로그인</button>
+      <button class="ottrang-drawer-btn-join"  id="ottrangDrawerBtnJoin">1초 가입</button>
+    </div>
+    <a class="ottrang-drawer-profile" id="ottrangDrawerProfile" href="/mypage.html" style="display:none;">
+      <div class="ottrang-drawer-avatar" id="ottrangDrawerAvatar"></div>
+      <div class="ottrang-drawer-user-info">
+        <div class="ottrang-drawer-nick" id="ottrangDrawerNick"></div>
+        <div class="ottrang-drawer-meta" id="ottrangDrawerMeta"></div>
+      </div>
+      <span class="ottrang-drawer-chevron">&#8250;</span>
+    </a>
+  </div>
+  <nav class="ottrang-drawer-nav" id="ottrangDrawerNav">
+    <a class="ottrang-drawer-nav-item" href="/" id="dnavHome">
+      <span style="font-size:13px;width:9px;text-align:center;flex-shrink:0;">&#127968;</span>홈<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+    <a class="ottrang-drawer-nav-item" href="/netflix.html" id="dnavNetflix">
+      <span class="ottrang-drawer-dot" style="background:#e50914;"></span>넷플릭스<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+    <a class="ottrang-drawer-nav-item" href="/boxoffice.html" id="dnavBoxoffice">
+      <span class="ottrang-drawer-dot" style="background:#f0b429;"></span>박스오피스<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+    <a class="ottrang-drawer-nav-item" href="/tving.html" id="dnavTving">
+      <span class="ottrang-drawer-dot" style="background:#ff153c;"></span>티빙<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+    <a class="ottrang-drawer-nav-item" href="/disneyplus.html" id="dnavDisney">
+      <span class="ottrang-drawer-dot" style="background:#06b6d4;"></span>디즈니+<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+    <a class="ottrang-drawer-nav-item" href="/coupangplay.html" id="dnavCoupang">
+      <span class="ottrang-drawer-dot" style="background:#1ac44d;"></span>쿠팡플레이<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+    <a class="ottrang-drawer-nav-item" href="/wavve.html" id="dnavWavve">
+      <span class="ottrang-drawer-dot" style="background:#0070f3;"></span>웨이브<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+    <a class="ottrang-drawer-nav-item" href="/community.html" id="dnavComm">
+      <span class="ottrang-drawer-dot" style="background:#a0a0bc;"></span>커뮤니티<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+    </a>
+  </nav>
+  <div class="ottrang-drawer-footer" id="ottrangDrawerFooter" style="display:none;">
+    <a class="ottrang-drawer-mypage-btn" href="/mypage.html">마이페이지 바로가기</a>
   </div>
 </div>
 
@@ -332,6 +623,8 @@ function initHeader(){
         if(btnJoin)  btnJoin.style.display='none';
         if(btnUser){ btnUser.style.display='flex'; }
         if(nick) nick.textContent=data.user.nickname||'유저';
+        // ── 드로어 프로필 업데이트 (로그인 상태) ──
+        _updateDrawerAuth(data.user);
       } else {
         // 비로그인 상태 - localStorage 초기화
         window.__ottrangUser__ = null;
@@ -345,6 +638,8 @@ function initHeader(){
           btnJoin.onclick=()=>{ location.href='/login.html'; };
         }
         if(btnUser) btnUser.style.display='none';
+        // ── 드로어 비로그인 상태 ──
+        _updateDrawerAuth(null);
       }
     } catch(e) {
       // 네트워크 오류 시에도 반드시 null로 resolve (무한 대기 방지)
@@ -549,6 +844,201 @@ function initHeader(){
       el.innerHTML = `<div class="ottrang-sr-empty">검색 중 오류가 발생했습니다</div>`;
     }
   }
+  /* ── 모바일 드로어 & 검색 오버레이 JS ── */
+
+  // 드로어 열기/닫기
+  function _openDrawer() {
+    document.getElementById('ottrangDrawer')?.classList.add('open');
+    document.getElementById('ottrangDrawerOverlay')?.classList.add('show');
+    document.body.style.overflow = 'hidden'; // 배경 스크롤 방지
+  }
+  function _closeDrawer() {
+    document.getElementById('ottrangDrawer')?.classList.remove('open');
+    document.getElementById('ottrangDrawerOverlay')?.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+
+  // 현재 페이지 드로어 메뉴 활성화
+  (function(){
+    const p = location.pathname;
+    const map = {
+      '/':                'dnavHome',
+      '/index.html':      'dnavHome',
+      '/netflix.html':    'dnavNetflix',
+      '/boxoffice.html':  'dnavBoxoffice',
+      '/tving.html':      'dnavTving',
+      '/disneyplus.html': 'dnavDisney',
+      '/coupangplay.html':'dnavCoupang',
+      '/wavve.html':      'dnavWavve',
+      '/community.html':  'dnavComm',
+    };
+    const activeId = map[p];
+    if(activeId) document.getElementById(activeId)?.classList.add('on');
+  })();
+
+  // 드로어 버튼 이벤트
+  document.getElementById('ottrangHamBtn')?.addEventListener('click', _openDrawer);
+  document.getElementById('ottrangDrawerClose')?.addEventListener('click', _closeDrawer);
+  document.getElementById('ottrangDrawerOverlay')?.addEventListener('click', _closeDrawer);
+
+  // 드로어 비로그인 버튼 클릭
+  document.getElementById('ottrangDrawerBtnLogin')?.addEventListener('click', () => { location.href='/login.html'; });
+  document.getElementById('ottrangDrawerBtnJoin')?.addEventListener('click',  () => { location.href='/login.html'; });
+
+  // ESC 키로 드로어/검색 닫기
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape'){
+      _closeDrawer();
+      _closeMobSearch();
+    }
+  });
+
+  // 드로어 — 인증 상태에 따라 프로필/버튼 전환
+  function _updateDrawerAuth(user) {
+    const authBtns = document.getElementById('ottrangDrawerAuthBtns');
+    const profile  = document.getElementById('ottrangDrawerProfile');
+    const footer   = document.getElementById('ottrangDrawerFooter');
+    if(!authBtns || !profile) return;
+
+    if(user) {
+      // 로그인: 프로필 표시, 버튼 숨김
+      authBtns.style.display = 'none';
+      profile.style.display  = 'flex';
+      if(footer) footer.style.display = 'block';
+
+      // 아바타 — 프로필 이미지 or 이니셜
+      const avatar = document.getElementById('ottrangDrawerAvatar');
+      if(avatar){
+        if(user.profile_image){
+          avatar.innerHTML = `<img src="${user.profile_image}" alt="${user.nickname||''}" onerror="this.parentNode.textContent='${(user.nickname||'U').charAt(0)}'">`;
+        } else {
+          avatar.textContent = (user.nickname||'U').charAt(0).toUpperCase();
+        }
+      }
+      // 닉네임
+      const nickEl = document.getElementById('ottrangDrawerNick');
+      if(nickEl) nickEl.textContent = user.nickname || '유저';
+
+      // 메타 (MBTI + 등급)
+      const metaEl = document.getElementById('ottrangDrawerMeta');
+      if(metaEl){
+        const mbtiPart  = user.mbti  ? `<span class="mbti-tag">✦ ${user.mbti}</span>` : '';
+        const gradePart = user.grade ? ` · ${user.grade}` : '';
+        metaEl.innerHTML = mbtiPart + gradePart || '마이페이지에서 설정하세요';
+      }
+    } else {
+      // 비로그인: 버튼 표시, 프로필 숨김
+      authBtns.style.display = 'flex';
+      profile.style.display  = 'none';
+      if(footer) footer.style.display = 'none';
+    }
+  }
+
+  // 모바일 검색 오버레이 열기
+  document.getElementById('ottrangMobSearchBtn')?.addEventListener('click', () => {
+    const overlay = document.getElementById('ottrangMobSearchOverlay');
+    const input   = document.getElementById('ottrangMobSearchInput');
+    if(!overlay) return;
+    overlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    // 즉시 포커스 — 키보드 자동 올라옴
+    setTimeout(() => input?.focus(), 80);
+  });
+
+  // 모바일 검색 오버레이 닫기
+  function _closeMobSearch() {
+    const overlay = document.getElementById('ottrangMobSearchOverlay');
+    const input   = document.getElementById('ottrangMobSearchInput');
+    const results = document.getElementById('ottrangMobSearchResults');
+    if(!overlay) return;
+    overlay.classList.remove('show');
+    document.body.style.overflow = '';
+    if(input)   input.value = '';
+    if(results) results.innerHTML = '';
+  }
+  document.getElementById('ottrangMobSearchBack')?.addEventListener('click', _closeMobSearch);
+
+  // 모바일 검색 — 기존 _runSearch 함수 재사용 (결과를 모바일 컨테이너에 출력)
+  window._mobSearchRun = function(q, immediate) {
+    clearTimeout(window._mobSrTimer);
+    const el = document.getElementById('ottrangMobSearchResults');
+    if(!el) return;
+    if(!q || q.length < 2){
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = '<div class="ottrang-sr-loading">검색 중...</div>';
+    // _runSearch는 el 파라미터 없이 'ottrangSearchResults'를 직접 참조하므로
+    // 모바일용 결과 렌더 함수를 별도로 처리
+    if(immediate){
+      _mobRunSearch(q);
+    } else {
+      window._mobSrTimer = setTimeout(() => _mobRunSearch(q), 350);
+    }
+  };
+
+  // 모바일 전용 검색 실행 (기존 _runSearch와 동일 로직, 결과 컨테이너만 다름)
+  async function _mobRunSearch(q) {
+    const el = document.getElementById('ottrangMobSearchResults');
+    if(!el) return;
+    const API        = 'https://ottrank-api.tdidream.workers.dev';
+    const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+    const IMG        = 'https://image.tmdb.org/t/p/w92';
+    function _slug(tmdb_id){ return `/title/1-${new Date().getFullYear()}${tmdb_id}`; }
+    function _hesc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function _workItem(w, isDB){
+      const poster    = w.poster_path ? `<img class="ottrang-sr-poster" src="${IMG}${w.poster_path}" alt="" loading="lazy">` : `<div class="ottrang-sr-poster-ph">🎬</div>`;
+      const title     = w.title_ko||w.title||w.name||'';
+      const titleEn   = w.title_en||w.original_title||w.original_name||'';
+      const year      = (w.release_year||(w.first_air_date||w.release_date||'').slice(0,4))||'';
+      const mtype     = w.media_type||w._type||'';
+      const typeLabel = mtype==='movie'?'영화':'TV';
+      const typeColor = mtype==='movie'?'rgba(240,180,41,.8)':'rgba(55,138,221,.8)';
+      const dbBadge   = isDB?'<span class="ottrang-sr-db">DB</span>':'';
+      const slug      = w.tmdb_id?_slug(w.tmdb_id):'#';
+      const goWork    = w.tmdb_id
+        ? `(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${w.tmdb_id},type:'${mtype||'tv'}',platform:'',rank:1,title:'${title.replace(/'/g,'').replace(/"/g,'')}',season:1,year:${new Date().getFullYear()}}));location.href='${slug}';})()`
+        : `location.href='#'`;
+      return `<div class="ottrang-sr-item" onclick="${goWork}">${poster}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(title)}</div><div class="ottrang-sr-meta">${_hesc(titleEn)}${year?` · ${year}`:''}</div></div><span class="ottrang-sr-type" style="background:${typeColor};color:#fff">${typeLabel}</span>${dbBadge}</div>`;
+    }
+    function _personItem(p){
+      const profile  = p.profile_path?`<img class="ottrang-sr-profile" src="${IMG}${p.profile_path}" alt="" loading="lazy">`:`<div class="ottrang-sr-profile-ph">👤</div>`;
+      const name     = p.name||'';
+      const knownFor = (p.known_for||[]).map(k=>k.title||k.name).slice(0,2).join(', ');
+      const dept     = p.known_for_department||'';
+      const url      = `/person.html?id=${p.id||p.tmdb_person_id}`;
+      return `<div class="ottrang-sr-item" onclick="location.href='${url}'">${profile}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(name)}</div><div class="ottrang-sr-meta">${dept}${knownFor?` · ${knownFor}`:''}</div></div></div>`;
+    }
+    try {
+      const [dbRes,tvRes,mvRes,personRes] = await Promise.allSettled([
+        fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=6`),
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
+      ]);
+      let dbWorks=[];
+      if(dbRes.status==='fulfilled'&&dbRes.value.ok){ const j=await dbRes.value.json(); dbWorks=(j.data||[]).slice(0,6); }
+      const dbIds=new Set(dbWorks.map(w=>w.tmdb_id));
+      let tmdbTv=[];
+      if(tvRes.status==='fulfilled'&&tvRes.value.ok){ const j=await tvRes.value.json(); tmdbTv=(j.results||[]).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'tv',tmdb_id:r.id})); }
+      let tmdbMv=[];
+      if(mvRes.status==='fulfilled'&&mvRes.value.ok){ const j=await mvRes.value.json(); tmdbMv=(j.results||[]).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'movie',tmdb_id:r.id})); }
+      let persons=[];
+      if(personRes.status==='fulfilled'&&personRes.value.ok){ const j=await personRes.value.json(); persons=(j.results||[]).slice(0,3); }
+      if(!dbWorks.length&&!tmdbTv.length&&!tmdbMv.length&&!persons.length){
+        el.innerHTML='<div class="ottrang-sr-empty">검색 결과가 없습니다</div>'; return;
+      }
+      let html='';
+      if(dbWorks.length){ html+='<div class="ottrang-sr-section">🗄️ 추천</div>'+dbWorks.map(w=>_workItem(w,true)).join(''); }
+      const tmdbAll=[...tmdbTv,...tmdbMv];
+      if(tmdbAll.length){ html+='<div class="ottrang-sr-section">🎬 작품</div>'+tmdbAll.map(w=>_workItem(w,false)).join(''); }
+      if(persons.length){ html+='<div class="ottrang-sr-section">👤 인물</div>'+persons.map(p=>_personItem(p)).join(''); }
+      el.innerHTML=html;
+    } catch(e){
+      el.innerHTML='<div class="ottrang-sr-empty">검색 중 오류가 발생했습니다</div>';
+    }
+  }
+
 } // initHeader 끝
 /* 헤더가 직접 삽입된 경우 자동 초기화 */
 if(document.readyState==='loading'){
