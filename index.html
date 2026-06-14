@@ -670,15 +670,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   position: relative;
   margin-bottom: 8px;
 }
-.main-swipe-track {
-  display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  -webkit-overflow-scrolling: touch;
-}
-.main-swipe-track::-webkit-scrollbar { display: none; }
 .msb {
   position: absolute; top: 35%; transform: translateY(-50%);
   width: 34px; height: 34px; border-radius: 50%;
@@ -743,32 +734,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 function msc(id, dir) {
   const g = document.getElementById(id);
   if(!g) return;
-  // track(실제 스크롤 컨테이너) 찾기 — Featured의 ft-swipe-track과 동일 구조
-  const track = g.closest('.main-swipe-track') || g;
   const card = g.firstElementChild;
   const cardW = (card ? card.offsetWidth : 160) + 12;
-  track.scrollBy({ left: dir * cardW * 2, behavior: 'smooth' });
-  setTimeout(() => _mupd(track), 350);
+  g.scrollBy({ left: dir * cardW * 2, behavior: 'smooth' });
+  setTimeout(() => _mupd(g), 350);
 }
 
-function _mupd(track) {
+function _mupd(g) {
   if(window.innerWidth > 768) return;
-  const wrap = track.closest('.main-swipe-wrap');
+  const wrap = g.closest('.main-swipe-wrap');
   if(!wrap) return;
   const p = wrap.querySelector('.msb.prev');
   const n = wrap.querySelector('.msb.next');
-  if(p) p.disabled = track.scrollLeft <= 4;
-  if(n) n.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+  if(p) p.disabled = g.scrollLeft <= 4;
+  if(n) n.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
 }
 
 function _minit() {
   ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
     const g = document.getElementById(id);
     if(!g) return;
-    const track = g.closest('.main-swipe-track');
-    if(!track) return;
-    // Featured와 동일: track에 scroll 이벤트 등록
-    track.addEventListener('scroll', () => _mupd(track), { passive:true });
+    g.addEventListener('scroll', () => _mupd(g), { passive:true });
   });
 }
 
@@ -812,9 +798,7 @@ window.addEventListener('load', function() {
   </div>
   <div class="main-swipe-wrap">
     <button class="msb prev" onclick="msc('tvGrid',-1)">&#8249;</button>
-    <div class="main-swipe-track">
-      <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
-    </div>
+    <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
     <button class="msb next" onclick="msc('tvGrid',1)">&#8250;</button>
   </div>
 <!-- /AI 추천 비활성화 끝 -->
@@ -829,15 +813,13 @@ window.addEventListener('load', function() {
   <!-- 스켈레톤 로딩 -->
   <div class="main-swipe-wrap">
     <button class="msb prev" onclick="msc('contentsPreview',-1)">&#8249;</button>
-    <div class="main-swipe-track">
-      <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
+    <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
   </div>
-    </div>
     <button class="msb next" onclick="msc('contentsPreview',1)">&#8250;</button>
   </div>
 
@@ -856,9 +838,7 @@ window.addEventListener('load', function() {
   </div>
   <div class="main-swipe-wrap">
     <button class="msb prev" onclick="msc('movieGrid',-1)">&#8249;</button>
-    <div class="main-swipe-track">
-      <div class="ott-grid" id="movieGrid"></div>
-    </div>
+    <div class="ott-grid" id="movieGrid"></div>
     <button class="msb next" onclick="msc('movieGrid',1)">&#8250;</button>
   </div>
 
@@ -872,8 +852,7 @@ window.addEventListener('load', function() {
   <!-- 스켈레톤 5개 -->
   <div class="main-swipe-wrap">
     <button class="msb prev" onclick="msc('reviewGrid',-1)">&#8249;</button>
-    <div class="main-swipe-track">
-      <div class="review-grid" id="reviewGrid">
+    <div class="review-grid" id="reviewGrid">
     <div class="rv-card" style="pointer-events:none">
       <div style="display:flex;align-items:center;gap:9px">
         <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
@@ -882,7 +861,6 @@ window.addEventListener('load', function() {
       <div class="rv-skel" style="height:10px;width:80%"></div>
       <div class="rv-skel" style="height:13px;width:55%"></div>
       <div class="rv-skel" style="height:52px;width:100%"></div>
-    </div>
     <div class="rv-card" style="pointer-events:none">
       <div style="display:flex;align-items:center;gap:9px">
         <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
@@ -935,9 +913,7 @@ window.addEventListener('load', function() {
   </div>
   <div class="main-swipe-wrap">
     <button class="msb prev" onclick="msc('ytGrid',-1)">&#8249;</button>
-    <div class="main-swipe-track">
-      <div class="yt-grid" id="ytGrid"></div>
-    </div>
+    <div class="yt-grid" id="ytGrid"></div>
     <button class="msb next" onclick="msc('ytGrid',1)">&#8250;</button>
   </div>
 </div>
