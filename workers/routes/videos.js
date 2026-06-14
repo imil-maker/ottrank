@@ -10,7 +10,6 @@
    GET    /youtube/trending         YouTube 한국 급상승 TOP50
    GET    /works/search             작품 검색 (공개)
    GET    /works/:tmdb_id           작품 단건 조회
-   GET    /kmrb/:tmdb_id            영상물등급위원회 시청가이드
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
@@ -403,93 +402,6 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     }
 
     return new Response(JSON.stringify({ ok: true, data: work }), { headers });
-  }
-
-  // ── GET /kmrb/:tmdb_id ───────────────────────────────────────
-  // 영상물등급위원회 시청가이드 (30일 캐시)
-  if (path.startsWith("/kmrb/") && request.method === "GET") {
-    const tmdb_id  = parseInt(path.split("/kmrb/")[1]);
-    const title_ko = url.searchParams.get("title_ko") || "";
-    if (!tmdb_id || !title_ko) {
-      return new Response(JSON.stringify({ ok: false, message: "tmdb_id and title_ko required" }), { status: 400, headers });
-    }
-    try {
-      // D1 캐시 확인 (30일 이내)
-      const cached = await env.DB.prepare(
-        "SELECT * FROM kmrb_ratings WHERE tmdb_id = ?"
-      ).bind(tmdb_id).first();
-      if (cached) {
-        const fetchedAt = new Date(cached.fetched_at || 0);
-        const daysSince = (Date.now() - fetchedAt.getTime()) / (1000 * 60 * 60 * 24);
-        // watch_grade가 있고 30일 이내면 캐시 반환
-        // watch_grade가 비어있으면 재호출 (이전에 API 키 오류로 빈 값 저장된 경우 대비)
-        if (daysSince < 30 && cached.watch_grade) {
-          return new Response(JSON.stringify({ ok: true, source: "cache", data: cached }), { headers });
-        }
-      }
-
-      // 영화진흥위원회(KMRB) 등급분류 정보 API 호출
-      // 엔드포인트: apis.data.go.kr/B551008/movie_v3/movie_search_v3
-      // 파라미터: serviceKey(encodeURIComponent 필수), title
-      const kmrbUrl =
-        `https://apis.data.go.kr/B551008/movie_v3/movie_search_v3` +
-        `?serviceKey=${encodeURIComponent(env.KMRB_MOVIE_API_KEY)}` +
-        `&title=${encodeURIComponent(title_ko)}` +
-        `&pageNo=1&numOfRows=5`;
-
-      const kmrbRes  = await fetch(kmrbUrl);
-      const kmrbText = await kmrbRes.text();
-
-      // XML 파싱 (정규식 기반)
-      const getTag = (tag) => {
-        const m = kmrbText.match(new RegExp(`<${tag}>([^<]*)<\/${tag}>`));
-        return m ? m[1].trim() : "";
-      };
-
-      const rating = {
-        tmdb_id,
-        title_ko:    title_ko,
-        watch_grade: getTag("watchGrade") || getTag("movieGrade") || "",
-        subject:     getTag("subject")     || "",
-        sexuality:   getTag("sexuality")   || "",
-        violence:    getTag("violence")    || "",
-        language:    getTag("language")    || "",
-        imitation:   getTag("imitation")   || "",
-        drug:        getTag("drug")        || "",
-        horror:      getTag("horror")      || "",
-        source:      "kmrb_api",
-        fetched_at:  new Date().toISOString(),
-      };
-
-      // D1에 캐시 저장
-      await env.DB.prepare(`
-        INSERT INTO kmrb_ratings
-          (tmdb_id, title_ko, watch_grade, subject, sexuality, violence,
-           language, imitation, drug, horror, source, fetched_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(tmdb_id) DO UPDATE SET
-          watch_grade = excluded.watch_grade,
-          subject     = excluded.subject,
-          sexuality   = excluded.sexuality,
-          violence    = excluded.violence,
-          language    = excluded.language,
-          imitation   = excluded.imitation,
-          drug        = excluded.drug,
-          horror      = excluded.horror,
-          source      = excluded.source,
-          fetched_at  = excluded.fetched_at
-      `).bind(
-        rating.tmdb_id, rating.title_ko, rating.watch_grade,
-        rating.subject, rating.sexuality, rating.violence,
-        rating.language, rating.imitation, rating.drug,
-        rating.horror, rating.source, rating.fetched_at
-      ).run();
-
-      return new Response(JSON.stringify({ ok: true, source: "api", data: rating }), { headers });
-    } catch (e) {
-      console.error("[KMRB]", e.message);
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
   }
 
   return null;
