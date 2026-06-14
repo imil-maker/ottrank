@@ -521,15 +521,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     gap:10px;
   }
   .ft-card{
-    flex:0 0 calc((100vw - 44px) / 2);  /* 2열 */
+    flex:0 0 calc((100vw - 40px) / 2);  /* 2열 */
     min-width:0;
     max-width:none;
   }
-  /* Featured 화살표 — 모바일 상시 표시 */
-  .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
-  .ft-swipe-wrap .ft-btn:disabled{ opacity:0 !important; pointer-events:none !important; }
-  .ft-btn.prev{ left:4px !important; }
-  .ft-btn.next{ right:4px !important; }
+  .ft-btn{ display:none; }     /* 화살표 버튼 숨김 */
 
   /* ── 2. TV/영화 OTT 그리드 → 슬라이드 ── */
   /* ott-grid를 flex 슬라이드로 전환 */
@@ -549,7 +545,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   /* 플랫폼 카드 너비 — 1.5열 (다음 카드 예고) */
   .ott-grid .p-card{
-    flex:0 0 calc((100vw - 44px) / 2);
+    flex:0 0 calc((100vw - 40px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -580,7 +576,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* 신작 카드 너비 — 1.5열 (16:9 썸네일) */
   #contentsPreview .ct-preview-card,
   #contentsPreview .skel-ct-card{
-    flex:0 0 calc((100vw - 44px) / 2);
+    flex:0 0 calc((100vw - 40px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -603,7 +599,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   /* 리뷰 카드 너비 — 1.5열 */
   .review-grid .rv-card{
-    flex:0 0 calc((100vw - 44px) / 2);
+    flex:0 0 calc((100vw - 40px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -625,7 +621,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   /* 유튜브 카드 — 가로 레이아웃 → 썸네일 위, 제목 아래로 변경 */
   .yt-card{
-    flex:0 0 calc((100vw - 44px) / 2);
+    flex:0 0 calc((100vw - 40px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -666,6 +662,43 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   /* ── period-tabs 반응형 — 일간/주간/월간 위치 ── */
   /* 섹션 헤더가 flex-wrap:wrap이므로 자동 처리됨 */
+
+  /* ── Featured 화살표 모바일 표시 ── */
+  .ft-swipe-wrap .ft-btn{
+    display:flex !important;
+    opacity:1 !important;
+    transition:opacity .2s;
+  }
+  .ft-swipe-wrap .ft-btn:disabled{
+    opacity:0 !important;
+    pointer-events:none !important;
+  }
+  .ft-btn.prev{ left:4px !important; }
+  .ft-btn.next{ right:4px !important; }
+
+  /* ── 나머지 섹션 화살표 버튼 ── */
+  .main-arr-btn{
+    display:flex !important;
+    align-items:center;
+    justify-content:center;
+    position:absolute;
+    top:38%;
+    transform:translateY(-50%);
+    width:28px; height:28px;
+    border-radius:50%;
+    background:var(--bg2);
+    border:1px solid rgba(255,255,255,.15);
+    color:var(--text);
+    font-size:16px;
+    z-index:20;
+    opacity:1;
+    transition:opacity .2s;
+    cursor:pointer;
+  }
+  .main-arr-btn:disabled{
+    opacity:0 !important;
+    pointer-events:none;
+  }
 
 }
 </style>
@@ -711,59 +744,63 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       };
     })
     .catch(()=>{ /* 헤더 fetch 실패 시 무시 (로컬 개발환경) */ });
-/* ── 메인 모바일 화살표 (OTT 방식 동일) ── */
-function _addMainArrow(gridId) {
-  if (window.innerWidth > 768) return;
+/* ── 모바일 화살표 공통 함수 ── */
+function _mobUpdBtn(grid, prev, next) {
+  const atS = grid.scrollLeft <= 4;
+  const atE = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 4;
+  if(prev) prev.disabled = atS;
+  if(next) next.disabled = atE;
+}
+
+function _mobAddArrow(gridId) {
+  if(window.innerWidth > 768) return;
   const grid = document.getElementById(gridId);
-  if (!grid || grid._arrAdded) return;
-  grid._arrAdded = true;
+  if(!grid || grid._ma) return;
+  grid._ma = 1;
 
-  /* 부모에 relative 추가 */
   const par = grid.parentElement;
-  par.style.position = 'relative';
+  if(getComputedStyle(par).position === 'static')
+    par.style.position = 'relative';
 
-  const mkBtn = (label, dir) => {
-    const btn = document.createElement('button');
-    btn.innerHTML = dir < 0 ? '‹' : '›';
-    btn.setAttribute('aria-label', label);
-    btn.style.cssText = [
-      'display:flex;align-items:center;justify-content:center;',
-      'position:absolute;top:38%;transform:translateY(-50%);',
-      'width:28px;height:28px;border-radius:50%;',
-      'background:var(--bg2);border:1px solid rgba(255,255,255,.15);',
-      'color:var(--text);font-size:16px;z-index:10;',
-      'transition:opacity .2s;cursor:pointer;',
-      dir < 0 ? 'left:2px;' : 'right:2px;'
-    ].join('');
-    btn.onclick = () => {
-      const w = grid.firstElementChild?.offsetWidth || 150;
-      grid.scrollBy({ left: dir * (w + 12) * 2, behavior: 'smooth' });
-      setTimeout(() => _updArr(grid, prev, next), 350);
+  const make = (isLeft) => {
+    const b = document.createElement('button');
+    b.className = 'main-arr-btn';
+    b.innerHTML = isLeft ? '‹' : '›';
+    b.style[isLeft ? 'left' : 'right'] = '2px';
+    b.onclick = () => {
+      const w = (grid.firstElementChild?.offsetWidth || 150) + 12;
+      grid.scrollBy({ left: (isLeft ? -1 : 1) * w * 2, behavior:'smooth' });
+      setTimeout(() => _mobUpdBtn(grid, prev, next), 350);
     };
-    return btn;
+    par.appendChild(b);
+    return b;
   };
 
-  const prev = mkBtn('이전', -1);
-  const next = mkBtn('다음',  1);
-  par.appendChild(prev);
-  par.appendChild(next);
-
-  /* disabled CSS — OTT 방식과 동일 */
-  _updArr(grid, prev, next);
-  grid.addEventListener('scroll', () => _updArr(grid, prev, next), { passive:true });
+  const prev = make(true);
+  const next = make(false);
+  _mobUpdBtn(grid, prev, next);
+  grid.addEventListener('scroll', () => _mobUpdBtn(grid, prev, next), {passive:true});
 }
 
-function _updArr(grid, prev, next) {
-  prev.disabled = grid.scrollLeft <= 4;
-  next.disabled = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 4;
-  prev.style.opacity = prev.disabled ? '0' : '1';
-  prev.style.pointerEvents = prev.disabled ? 'none' : 'auto';
-  next.style.opacity = next.disabled ? '0' : '1';
-  next.style.pointerEvents = next.disabled ? 'none' : 'auto';
+function _mobInitArrows() {
+  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid']
+    .forEach(_mobAddArrow);
 }
 
-function _initMainArrows() {
-  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(_addMainArrow);
+/* Featured 화살표 끝 감지 */
+function _ftUpdBtn(track) {
+  const w = track.closest('.ft-swipe-wrap');
+  if(!w) return;
+  const p = w.querySelector('.ft-btn.prev');
+  const n = w.querySelector('.ft-btn.next');
+  if(p) p.disabled = track.scrollLeft <= 4;
+  if(n) n.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+}
+function _ftInitBtns() {
+  document.querySelectorAll('.ft-swipe-track').forEach(t => {
+    _ftUpdBtn(t);
+    t.addEventListener('scroll', () => _ftUpdBtn(t), {passive:true});
+  });
 }
 
 })();
@@ -1239,7 +1276,7 @@ function renderCard(p,items){
 
 const curCat='tv';
 function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
-  setTimeout(_initMainArrows, 200);
+  if(window.innerWidth<=768) setTimeout(_mobInitArrows, 200);
 }
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
@@ -1402,7 +1439,7 @@ function renderFeatured(featuredGroups) {
     ftInitSwipe(track);
   });
 
-  setTimeout(_initFtBtns, 100);
+  if(window.innerWidth<=768) setTimeout(_ftInitBtns, 100);
 }
 
 /* featured 섹션 전용 유틸 */
@@ -1416,27 +1453,7 @@ function ftGoWork(tmdbId, title) {
 }
 function ftScrollTrack(id, dir) {
   const t = document.getElementById(id);
-  if (!t) return;
-  t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
-  setTimeout(() => _updateFtBtns(t), 350);
-}
-
-function _updateFtBtns(track) {
-  const wrap = track.closest('.ft-swipe-wrap');
-  if (!wrap) return;
-  const prev = wrap.querySelector('.ft-btn.prev');
-  const next = wrap.querySelector('.ft-btn.next');
-  const atStart = track.scrollLeft <= 4;
-  const atEnd   = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
-  if (prev) prev.disabled = atStart;
-  if (next) next.disabled = atEnd;
-}
-
-function _initFtBtns() {
-  document.querySelectorAll('.ft-swipe-track').forEach(t => {
-    _updateFtBtns(t);
-    t.addEventListener('scroll', () => _updateFtBtns(t), { passive:true });
-  });
+  if (t) t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
 }
 function ftInitSwipe(track) {
   let down = false, startX = 0, sl = 0;
@@ -1723,7 +1740,7 @@ async function loadContentsPreview(){
     renderContentsPreview([]);
   }
 
-  setTimeout(_initMainArrows, 200);
+  if(window.innerWidth<=768) setTimeout(_mobInitArrows, 200);
 }
 
 function renderContentsPreview(items){
