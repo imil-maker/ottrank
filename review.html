@@ -459,7 +459,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <img class="share-preview-img" id="sharePreviewImg" src="" alt="공유 이미지">
     </div>
     <div class="share-preview-actions">
-      <button class="share-preview-close" onclick="closeSharePreview()">닫기</button>
+      <button class="share-preview-close" onclick="closeSharePreview();goBack()">닫기</button>
       <a class="share-btn" id="sharePreviewDownload" download="" href="" style="text-decoration:none;flex:1.2;width:auto">
         <i class="ti ti-download" style="font-size:16px"></i> 저장
       </a>
