@@ -85,6 +85,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .featured-hd-row2 {
   display: none;     /* 데스크톱에서는 row2 완전 숨김 */
 }
+/* 데스크톱 전용: 헤더 안 update-info 오른쪽 정렬 */
+.featured-hd-update {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
 .featured-top-badge {
   font-family: var(--disp); font-size: 20px; letter-spacing: 1px; color: var(--muted);
 }
@@ -478,13 +488,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .featured-hd-row2{
     display:none;              /* 헤더에서는 숨기고 슬라이드 하단에 표시 */
   }
-  /* 날짜를 슬라이드 섹션 하단 오른쪽에 표시 */
+  /* 데스크톱 헤더 안 날짜 — 모바일에서 숨김 */
+  .featured-hd-update{ display:none !important; }
+
+  /* 슬라이드 하단 날짜 — 모바일 전용 */
   .featured-date-bottom{
-    display:block;
-    text-align:right;
-    padding:4px 16px 8px;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:5px;
+    padding:2px 16px 10px;
     font-family:var(--mono);font-size:10px;color:var(--muted);
   }
+  /* live-dot은 이미 전역 CSS에 정의되어 있음 — 재사용 */
   /* 섹션 헤더 업데이트 정보 숨김 */
   .featured-hd .update-info{ display:none; }
   /* 기존 ft-swipe-track → 모바일 슬라이드로 */
@@ -1242,12 +1258,14 @@ function renderFeatured(featuredGroups) {
             <a href="/netflix.html" class="featured-badge" style="text-decoration:none">넷플릭스</a>
             <span class="featured-title">${_escFt(group.display_name || '')}</span>
             ${topLabel ? `<span class="featured-top-badge">${topLabel}</span>` : ''}
-            <a href="/netflix.html" class="featured-more">더보기 →</a>
+            <!-- 데스크톱 전용: live-dot + 날짜 (모바일에서는 하단에 표시) -->
+            <div class="update-info featured-hd-update">
+              <div class="live-dot"></div>
+              <span>${dateStr}</span>
+            </div>
           </div>
-          <!-- row2: 날짜 — 모바일에서만 표시 (데스크톱 display:none) -->
-          <div class="featured-hd-row2">
-            <span class="featured-date">${dateStr}</span>
-          </div>
+          <!-- row2: 모바일 전용 (데스크톱 display:none) — 현재 비어있음 -->
+          <div class="featured-hd-row2"></div>
         </div>
         <div class="ft-swipe-wrap">
           <button class="ft-btn prev" onclick="ftScrollTrack('${trackId}',-1)">‹</button>
@@ -1261,8 +1279,11 @@ function renderFeatured(featuredGroups) {
           </div>
           <button class="ft-btn next" onclick="ftScrollTrack('${trackId}',1)">›</button>
         </div>
-        <!-- 날짜 — 모바일에서 슬라이드 하단 오른쪽 표시 -->
-        <div class="featured-date-bottom">${dateStr}</div>
+        <!-- 날짜 — 모바일에서 슬라이드 하단 오른쪽 표시 (live-dot 포함) -->
+        <div class="featured-date-bottom">
+          <div class="live-dot"></div>
+          <span>${dateStr}</span>
+        </div>
       </div>`;
   }).join('');
 
