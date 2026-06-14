@@ -66,8 +66,6 @@
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;overflow-x:hidden}
 
-
-
 /* ══ 넷플릭스 featured 슬라이드 섹션 (메인 최상단) ══ */
 .featured-section {
   margin-bottom: 12px;
@@ -664,17 +662,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* 섹션 헤더가 flex-wrap:wrap이므로 자동 처리됨 */
 
 }
-.main-swipe-wrap { position:relative; }
-.msb {
-  position:absolute; top:35%; transform:translateY(-50%);
-  width:30px; height:30px; border-radius:50%;
-  background:var(--bg2); border:1px solid rgba(255,255,255,.15);
-  color:var(--text); font-size:18px; cursor:pointer; z-index:10;
-  display:none; align-items:center; justify-content:center;
-}
-.msb.prev { left:2px; }
-.msb.next { right:2px; }
-.msb:disabled { opacity:0 !important; pointer-events:none; }
+
 @media(max-width:768px){
 
   /* Featured 화살표 — 모바일 표시 */
@@ -683,32 +671,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .ft-btn.next{ right:4px !important; }
 }
 
-/* ── 모바일 섹션 화살표 (sec-hd 우측) ── */
-.sec-arr-btn {
-  display: none;
-  position: absolute;
-  top: 35%;
-  transform: translateY(-50%);
-  width: 34px; height: 34px;
-  border-radius: 50%;
-  background: var(--bg2);
-  border: 1px solid rgba(255,255,255,.15);
-  color: var(--text);
-  font-size: 20px;
-  cursor: pointer;
-  z-index: 10;
-  align-items: center;
-  justify-content: center;
-  transition: opacity .2s;
-}
-.sec-arr-btn.prev { left: 2px; }
-.sec-arr-btn.next { right: 2px; }
-.sec-arr-btn:disabled { opacity: 0 !important; pointer-events: none; }
-@media(max-width:768px) {
-  .sec-arr-btn { display: flex; }
-  /* 그리드에 position:relative 추가 — 버튼 기준점 */
-  .ott-grid, .review-grid, .yt-grid, #contentsPreview { position: relative; }
-}
+
 </style>
 <style>
 /* ── 공용 헤더 컨테이너 sticky (fetch 삽입 후에도 동작) ── */
@@ -753,65 +716,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     })
     .catch(()=>{ /* 헤더 fetch 실패 시 무시 (로컬 개발환경) */ });
 
-
-
-
-
-
-/* 페이지 완전 로드 후 화살표 초기화 */
-
-
-/* ── 모바일 섹션 화살표 (sec-hd 우측 배치) ── */
-function _saUpd(gridId, prev, next) {
-  const g = document.getElementById(gridId);
-  if(!g) return;
-  if(prev) prev.disabled = g.scrollLeft <= 20;
-  if(next) next.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
-}
-
-function _saInit() {
-  if(window.innerWidth > 768) return;
-  const map = {
-    'tvGrid':          document.querySelector('#tv'),
-    'movieGrid':       document.querySelector('#movie'),
-    'contentsPreview': document.querySelector('#contentsPreview')?.previousElementSibling,
-    'reviewGrid':      document.querySelector('#recentReviews'),
-    'ytGrid':          document.querySelector('#youtube'),
-  };
-  Object.entries(map).forEach(([id, hd]) => {
-    if(!hd) return;
-    const g = document.getElementById(id);
-    if(!g || g._arrAdded) return;
-    g._arrAdded = true;
-
-    const prev = document.createElement('button');
-    prev.className = 'sec-arr-btn prev';
-    prev.innerHTML = '&#8249;';
-
-    const next = document.createElement('button');
-    next.className = 'sec-arr-btn next';
-    next.innerHTML = '&#8250;';
-
-    prev.onclick = () => {
-      const w = (g.firstElementChild?.offsetWidth||150) + 12;
-      g.scrollBy({ left: -w*2, behavior:'smooth' });
-      setTimeout(() => _saUpd(id, prev, next), 350);
-    };
-    next.onclick = () => {
-      const w = (g.firstElementChild?.offsetWidth||150) + 12;
-      g.scrollBy({ left: w*2, behavior:'smooth' });
-      setTimeout(() => _saUpd(id, prev, next), 350);
-    };
-
-    /* 버튼을 헤더가 아닌 그리드에 추가 (position:absolute로 카드 위에 표시) */
-    g.appendChild(prev);
-    g.appendChild(next);
-
-    _saUpd(id, prev, next);
-    g.addEventListener('scroll', () => _saUpd(id, prev, next), { passive:true });
-  });
-}
-window._saInit = _saInit;
 
 })();
 </script>
@@ -1288,8 +1192,6 @@ function renderCard(p,items){
 
 const curCat='tv';
 function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
-
-  if(window._saInit) setTimeout(window._saInit, 200);
 }
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
