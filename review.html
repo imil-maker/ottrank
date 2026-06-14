@@ -282,6 +282,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .share-preview-actions{padding:14px 16px;display:flex;gap:8px}
 .share-preview-close{flex:1;padding:10px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font-sans)}
 .share-preview-close:hover{background:var(--bg3);color:var(--text)}
+
+/* ── 등록 완료 안내 모달 ── */
+.complete-modal-box{
+  background:var(--bg2);border:.5px solid var(--border2);
+  border-radius:var(--r-lg);max-width:340px;width:100%;
+  padding:32px 24px 24px;text-align:center;
+  box-shadow:0 16px 48px rgba(0,0,0,.7);
+}
+.complete-modal-icon{font-size:40px;margin-bottom:12px}
+.complete-modal-title{font-size:18px;font-weight:700;margin-bottom:10px;color:var(--text)}
+.complete-modal-desc{font-size:14px;color:var(--muted2);line-height:1.6;margin-bottom:24px}
+.complete-modal-actions{display:flex;gap:8px}
+.complete-modal-later{
+  flex:1;padding:12px;border-radius:var(--r);
+  border:.5px solid var(--border);background:transparent;
+  color:var(--muted2);font-size:14px;cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;
+}
+.complete-modal-later:hover{background:var(--bg3);color:var(--text)}
+.complete-modal-make{
+  flex:1.4;padding:12px;border-radius:var(--r);border:none;
+  background:var(--accent);color:#fff;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:var(--font-sans);transition:background .15s;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.complete-modal-make:hover{background:#ff4d58}
 </style>
 </head>
 <body>
@@ -404,6 +430,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <div id="shareCardFooter">
       <span id="shareCardNick"></span>
       <span id="shareCardBrand">ottrank.kr</span>
+    </div>
+  </div>
+</div>
+
+<!-- 등록 완료 안내 모달 -->
+<div class="share-preview-modal" id="completeModal">
+  <div class="complete-modal-box">
+    <div class="complete-modal-icon">🎉</div>
+    <div class="complete-modal-title">후기가 등록됐어요!</div>
+    <div class="complete-modal-desc">내 평점·후기를 영화 포스터처럼<br>만들어 드립니다. 만드시겠습니까?</div>
+    <div class="complete-modal-actions">
+      <button class="complete-modal-later" onclick="closeCompleteModal();goBack()">나중에</button>
+      <button class="complete-modal-make" onclick="closeCompleteModal();shareReviewCard()">
+        <i class="ti ti-sparkles" style="font-size:16px"></i> 카드 만들기
+      </button>
     </div>
   </div>
 </div>
@@ -640,11 +681,13 @@ async function submitReview(){
     // 공유 카드용 데이터 저장
     LAST_REVIEW={score:myStars,emotions,text:txt};
 
-    showToast('후기가 등록됐어요! 🎉');
     btn.textContent='등록 완료 ✓';
     document.getElementById('cancelBtn').textContent='돌아가기';
     document.getElementById('shareRow').classList.add('show');
     document.getElementById('deleteBtn').style.display='block';
+
+    // 등록 완료 안내 모달 표시
+    document.getElementById('completeModal').classList.add('show');
   }catch(e){showToast('네트워크 오류');btn.disabled=false;btn.textContent='후기 등록';}
 }
 
@@ -781,6 +824,10 @@ async function shareReviewCard(){
 
 function closeSharePreview(){
   document.getElementById('sharePreviewModal').classList.remove('show');
+}
+
+function closeCompleteModal(){
+  document.getElementById('completeModal').classList.remove('show');
 }
 
 /* ══ 유틸 ══ */
