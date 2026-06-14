@@ -765,11 +765,11 @@ function _saUpd(gridId, prev, next) {
 function _saInit() {
   if(window.innerWidth > 768) return;
   const map = {
-    'tvGrid':          document.querySelector('#tv .sec-hd'),
-    'movieGrid':       document.querySelector('#movie .sec-hd'),
-    'contentsPreview': document.querySelector('.sec-hd:has(+ #contentsPreview), #contents-hd'),
+    'tvGrid':          document.querySelector('#tv'),
+    'movieGrid':       document.querySelector('#movie'),
+    'contentsPreview': document.querySelector('#contentsPreview')?.previousElementSibling,
     'reviewGrid':      document.querySelector('#recentReviews'),
-    'ytGrid':          document.querySelector('#youtube .sec-hd'),
+    'ytGrid':          document.querySelector('#youtube'),
   };
   Object.entries(map).forEach(([id, hd]) => {
     if(!hd || hd._arrAdded) return;
