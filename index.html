@@ -734,28 +734,55 @@ function msc(id, dir) {
   setTimeout(() => _mupd(g), 350);
 }
 
+/* 화살표 끝 도달 시 disabled 처리
+   - .main-swipe-wrap > .msb.prev/.msb.next
+   - .ft-swipe-wrap   > .ft-btn.prev/.ft-btn.next (Featured 섹션)
+   둘 다 지원 */
 function _mupd(g) {
   if(window.innerWidth > 768) return;  /* 모바일에서만 실행 */
-  const w = g.closest('.main-swipe-wrap');
+  const w = g.closest('.main-swipe-wrap') || g.closest('.ft-swipe-wrap');
   if(!w) return;
-  const p = w.querySelector('.msb.prev');
-  const n = w.querySelector('.msb.next');
-  if(p) p.disabled = g.scrollLeft <= 4;
-  if(n) n.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
+  const p = w.querySelector('.msb.prev, .ft-btn.prev');
+  const n = w.querySelector('.msb.next, .ft-btn.next');
+  // scrollWidth가 0이면(아직 렌더 전) 판단 보류
+  if(g.scrollWidth <= 0) return;
+  const atStart  = g.scrollLeft <= 4;
+  const atEnd    = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
+  // 스크롤 자체가 불가능(콘텐츠가 화면보다 작음) → 양쪽 다 숨김
+  const noScroll = g.scrollWidth <= g.clientWidth + 4;
+  if(p) p.disabled = atStart || noScroll;
+  if(n) n.disabled = atEnd || noScroll;
+}
+
+/* 그리드에 scroll 리스너 등록(중복 방지) + 렌더 직후 1회 갱신
+   각 렌더 함수가 렌더링 완료 직후 직접 호출한다 */
+function _markup(id) {
+  const g = document.getElementById(id);
+  if(!g) return;
+  if(!g.dataset.msInit){
+    g.dataset.msInit = '1';
+    g.addEventListener('scroll', () => _mupd(g), { passive:true });
+  }
+  // 렌더 직후 DOM 반영을 한 프레임 더 기다린 후 갱신
+  requestAnimationFrame(() => requestAnimationFrame(() => _mupd(g)));
 }
 
 function _minit() {
-  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
-    const g = document.getElementById(id);
-    if(!g) return;
-    _mupd(g);
-    g.addEventListener('scroll', () => _mupd(g), { passive:true });
-  });
+  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(_markup);
 }
 
-/* 페이지 완전 로드 후 화살표 초기화 */
+/* 페이지 완전 로드 후 화살표 초기화 (보조 — 각 렌더 함수에서도 _markup 호출됨) */
 window.addEventListener('load', function() {
   setTimeout(_minit, 1000);
+});
+
+/* 화면 회전/리사이즈 시 모든 화살표 재계산 */
+window.addEventListener('resize', () => {
+  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
+    const g = document.getElementById(id);
+    if(g) _mupd(g);
+  });
+  document.querySelectorAll('.ft-swipe-track').forEach(t => _mupd(t));
 });
 
 })();
@@ -1252,9 +1279,9 @@ function renderCard(p,items){
 }
 
 const curCat='tv';
-function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
+function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');_markup('tvGrid');_markup('movieGrid');
 }
-function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
+function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');_markup('ytGrid');}
 
 /* AI 추천 — 실제 랭킹 기반 규칙 필터링 */
 let aiType='all';
@@ -1412,6 +1439,12 @@ function renderFeatured(featuredGroups) {
     }).join('');
     // 드래그 스와이프 초기화
     ftInitSwipe(track);
+    // 화살표 끝 도달 시 숨김 처리 — scroll 리스너 등록 + 즉시 갱신
+    if(!track.dataset.msInit){
+      track.dataset.msInit = '1';
+      track.addEventListener('scroll', () => _mupd(track), { passive:true });
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => _mupd(track)));
   });
 }
 
@@ -1485,7 +1518,7 @@ async function loadRankings(period='daily'){
     }
   }catch(e){console.warn(period+' 랭킹 로드 실패:',e);}
 }
-window.addEventListener('resize',()=>{});
+// (resize 리스너는 위쪽 _minit/_markup 블록에서 처리)
 
 
 function openYtPlayer(vid, title, channel, views) {
@@ -1625,6 +1658,7 @@ function renderRecentReviews(reviews) {
       <div class="rv-body">${rv.body ? rv.body.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '<span style="color:var(--muted);font-size:12px">평점만 남긴 후기입니다.</span>'}</div>
     </div>`;
   }).join('');
+  _markup('reviewGrid');
 }
 
 async function init(){
@@ -1722,6 +1756,7 @@ function renderContentsPreview(items){
     wrap.innerHTML = `<div style="grid-column:1/-1;padding:32px;text-align:center;
       background:var(--card);border:1px solid var(--border);border-radius:var(--r);
       font-size:14px;color:var(--muted)">등록된 신작 예고편이 없습니다.</div>`;
+    _markup('contentsPreview');
     return;
   }
 
@@ -1759,6 +1794,7 @@ function renderContentsPreview(items){
       </div>
     </div>`;
   }).join('');
+  _markup('contentsPreview');
 }
 
 async function loadYoutubeTrending(){
