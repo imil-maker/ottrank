@@ -735,6 +735,7 @@ function msc(id, dir) {
 }
 
 function _mupd(g) {
+  if(window.innerWidth > 768) return;  /* 모바일에서만 실행 */
   const w = g.closest('.main-swipe-wrap');
   if(!w) return;
   const p = w.querySelector('.msb.prev');
