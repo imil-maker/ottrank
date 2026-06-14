@@ -676,12 +676,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 }
 .msb.prev { left:2px; }
 .msb.next { right:2px; }
+.msb:disabled { opacity:0 !important; pointer-events:none; }
 @media(max-width:768px){
   .msb{ display:flex; }
   /* Featured 화살표 — 모바일 표시 */
-  .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; }
+  .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
   .ft-btn.prev{ left:4px !important; }
   .ft-btn.next{ right:4px !important; }
+  .ft-swipe-wrap .ft-btn:disabled{ opacity:0 !important; pointer-events:none !important; }
 }
 </style>
 <style>
@@ -730,6 +732,30 @@ function msc(id, dir) {
   const g = document.getElementById(id);
   if(!g) return;
   g.scrollBy({ left: dir * ((g.firstElementChild?.offsetWidth||160)+12)*2, behavior:'smooth' });
+  // OTT 방식: 스크롤 후 350ms뒤 화살표 갱신
+  setTimeout(() => _mupd(g), 350);
+}
+
+function _mupd(grid) {
+  const wrap = grid.closest('.main-swipe-wrap');
+  if(!wrap) return;
+  const prev = wrap.querySelector('.msb.prev');
+  const next = wrap.querySelector('.msb.next');
+  const atStart = grid.scrollLeft <= 4;
+  const atEnd   = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 4;
+  // OTT와 동일: disabled 속성 → CSS로 opacity:0
+  if(prev) prev.disabled = atStart;
+  if(next) next.disabled = atEnd;
+}
+
+function _minit() {
+  // 모든 그리드에 scroll 이벤트 등록 + 초기 상태 설정
+  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
+    const g = document.getElementById(id);
+    if(!g) return;
+    _mupd(g);
+    g.addEventListener('scroll', () => _mupd(g), { passive:true });
+  });
 }
 
 })();
@@ -1226,7 +1252,9 @@ function renderCard(p,items){
 }
 
 const curCat='tv';
-function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');}
+function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
+  setTimeout(_minit, 150);
+}
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
 /* AI 추천 — 실제 랭킹 기반 규칙 필터링 */
@@ -1387,6 +1415,8 @@ function renderFeatured(featuredGroups) {
     // 드래그 스와이프 초기화
     ftInitSwipe(track);
   });
+
+  setTimeout(_ftInit, 150);
 }
 
 /* featured 섹션 전용 유틸 */
@@ -1400,7 +1430,25 @@ function ftGoWork(tmdbId, title) {
 }
 function ftScrollTrack(id, dir) {
   const t = document.getElementById(id);
-  if (t) t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
+  if(!t) return;
+  t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
+  setTimeout(() => _ftUpd(t), 350);
+}
+
+function _ftUpd(track) {
+  const wrap = track.closest('.ft-swipe-wrap');
+  if(!wrap) return;
+  const prev = wrap.querySelector('.ft-btn.prev');
+  const next = wrap.querySelector('.ft-btn.next');
+  if(prev) prev.disabled = track.scrollLeft <= 4;
+  if(next) next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+}
+
+function _ftInit() {
+  document.querySelectorAll('.ft-swipe-track').forEach(t => {
+    _ftUpd(t);
+    t.addEventListener('scroll', () => _ftUpd(t), { passive:true });
+  });
 }
 function ftInitSwipe(track) {
   let down = false, startX = 0, sl = 0;
