@@ -641,43 +641,40 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .mob-age-badge{ display:none; }
 
 @media(max-width:640px){
-  /* ── 히어로: grid로 변경 ── */
-  /* 포스터(120px 고정) | 제목/원제/장르 (상단)
-     전체폭 meta/overview/버튼 (하단)            */
-  .hero-backdrop{min-height:auto}
+  .hero-backdrop{ min-height:auto; }
+
+  /* ── hero-content: flex 유지, 세로 배치 ── */
   .hero-content{
-    display:grid !important;
-    grid-template-columns:120px 1fr;
-    grid-template-rows:auto auto;
-    gap:0 14px;
-    align-items:start;
-    padding:16px 16px 20px;
+    flex-direction:column;
+    align-items:stretch;
+    gap:0;
+    padding:14px 16px 20px;
   }
 
-  /* 포스터 — 그리드 1행 1열 */
+  /* ── 포스터: float left로 띄워서 글자가 옆에 흐르게 ── */
   .hero-poster{
-    grid-column:1;
-    grid-row:1;
+    float:left;
     width:120px;
+    margin:0 14px 8px 0;
     flex-shrink:0;
   }
 
-  /* 정보 — 그리드 1행 2열 (제목/원제/장르/시청등급/meta) */
+  /* ── hero-info: float 옆에서 흐름 (전체폭 차지) ── */
   .hero-info{
-    grid-column:2;
-    grid-row:1;
+    width:100%;
     gap:6px;
     padding-bottom:0;
+    min-width:0;
   }
 
-  /* 제목 */
+  /* 제목/원제/장르/meta는 포스터 옆에 자연스럽게 흐름 */
   .hero-main-title{
     font-size:18px;
     line-height:1.2;
     letter-spacing:-.3px;
   }
 
-  /* 시청등급 뱃지 — 제목 바로 아래 표시 */
+  /* 시청등급 뱃지 — 제목 바로 아래 */
   .mob-age-badge{
     display:inline-flex;
     align-items:center;
@@ -692,51 +689,48 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     font-weight:700;
     font-family:var(--font-mono);
     margin-top:3px;
-    margin-bottom:2px;
+    margin-bottom:4px;
   }
 
-  /* 원제 */
-  .hero-orig-title{font-size:11px;color:rgba(255,255,255,.45);margin-top:0}
+  .hero-orig-title{
+    font-size:11px;
+    color:rgba(255,255,255,.45);
+    margin-top:2px;
+  }
 
-  /* 장르태그 */
-  .hero-tags{gap:4px}
-  .hero-tag{font-size:11px;padding:2px 8px}
+  .hero-tags{ gap:4px; }
+  .hero-tag{ font-size:11px; padding:2px 7px; }
 
-  /* meta(시즌/부작/개봉) — 우측 열에 이어서 표시 */
-  .hero-meta{gap:6px;flex-wrap:wrap}
-  .hero-meta-item{font-size:12px}
-  .hero-meta-sep{display:none}  /* · 구분자 숨기고 줄바꿈으로 */
+  .hero-meta{ gap:5px; flex-wrap:wrap; }
+  .hero-meta-item{ font-size:12px; }
 
-  /* overview/버튼/액션 — 포스터 아래 전체폭 (2열 모두 차지) */
+  /* ── overview 부터는 float 해제 → 전체 폭 ── */
   .hero-overview{
-    grid-column:1 / -1;
-    grid-row:2;
+    clear:both;           /* ← 포스터 float 해제, 전체폭으로 */
     font-size:13px;
-    -webkit-line-clamp:3;
+    -webkit-line-clamp:4;
     max-width:100%;
-    margin-top:14px;
-  }
-  .feeling-btns{
-    grid-column:1 / -1;
-    gap:6px;
-  }
-  .feeling-ratios{
-    grid-column:1 / -1;
-  }
-  .hero-action-row{
-    grid-column:1 / -1;
+    margin-top:12px;
   }
 
-  /* 감정버튼 */
-  .feeling-btn{min-width:60px;padding:8px 10px;font-size:12px}
-  .feeling-btn .f-emoji{font-size:20px}
+  /* 감정버튼도 clear:both로 전체폭 */
+  .feeling-btns{
+    clear:both;
+    gap:6px;
+    margin-top:4px;
+  }
+  .feeling-btn{ min-width:60px; padding:8px 10px; font-size:12px; }
+  .feeling-btn .f-emoji{ font-size:20px; }
+
+  .feeling-ratios{ clear:both; }
+  .hero-action-row{ clear:both; }
 
   /* 기타 */
-  .ratings-row{grid-template-columns:1fr 1fr}
-  .r-score{font-size:13px}
-  .yt-grid{grid-template-columns:1fr}
-  .cast-card{width:72px}.cast-photo{width:72px;height:72px}
-  .gallery-grid{grid-template-columns:repeat(2,1fr)}
+  .ratings-row{ grid-template-columns:1fr 1fr; }
+  .r-score{ font-size:13px; }
+  .yt-grid{ grid-template-columns:1fr; }
+  .cast-card{ width:72px; } .cast-photo{ width:72px; height:72px; }
+  .gallery-grid{ grid-template-columns:repeat(2,1fr); }
 }
 
 
