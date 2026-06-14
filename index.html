@@ -686,21 +686,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 /* ── 모바일 섹션 화살표 (sec-hd 우측) ── */
 .sec-arr-btn {
   display: none;
-  width: 28px; height: 28px;
+  position: absolute;
+  top: 35%;
+  transform: translateY(-50%);
+  width: 34px; height: 34px;
   border-radius: 50%;
   background: var(--bg2);
   border: 1px solid rgba(255,255,255,.15);
   color: var(--text);
-  font-size: 16px;
+  font-size: 20px;
   cursor: pointer;
+  z-index: 10;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
   transition: opacity .2s;
 }
+.sec-arr-btn.prev { left: 2px; }
+.sec-arr-btn.next { right: 2px; }
 .sec-arr-btn:disabled { opacity: 0 !important; pointer-events: none; }
 @media(max-width:768px) {
   .sec-arr-btn { display: flex; }
+  /* 그리드에 position:relative 추가 — 버튼 기준점 */
+  .ott-grid, .review-grid, .yt-grid, #contentsPreview { position: relative; }
 }
 </style>
 <style>
@@ -772,20 +779,18 @@ function _saInit() {
     'ytGrid':          document.querySelector('#youtube'),
   };
   Object.entries(map).forEach(([id, hd]) => {
-    if(!hd || hd._arrAdded) return;
-    hd._arrAdded = true;
+    if(!hd || g._arrAdded) return;
+    g._arrAdded = true;
     const g = document.getElementById(id);
     if(!g) return;
 
     const prev = document.createElement('button');
-    prev.className = 'sec-arr-btn';
+    prev.className = 'sec-arr-btn prev';
     prev.innerHTML = '&#8249;';
-    prev.style.marginLeft = 'auto';
 
     const next = document.createElement('button');
-    next.className = 'sec-arr-btn';
+    next.className = 'sec-arr-btn next';
     next.innerHTML = '&#8250;';
-    next.style.marginLeft = '4px';
 
     prev.onclick = () => {
       const w = (g.firstElementChild?.offsetWidth||150) + 12;
@@ -798,8 +803,9 @@ function _saInit() {
       setTimeout(() => _saUpd(id, prev, next), 350);
     };
 
-    hd.appendChild(prev);
-    hd.appendChild(next);
+    /* 버튼을 헤더가 아닌 그리드에 추가 (position:absolute로 카드 위에 표시) */
+    g.appendChild(prev);
+    g.appendChild(next);
 
     _saUpd(id, prev, next);
     g.addEventListener('scroll', () => _saUpd(id, prev, next), { passive:true });
