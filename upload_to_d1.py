@@ -6,7 +6,7 @@ SQL을 배치(batch)로 나눠서 업로드 (D1 API 한 번에 최대 10MB 제�
 
 업로드 대상:
   1. rankings  — 오늘 날짜 데이터
-  2. works     — 신규 작품 INSERT + tmdb_rating/genre NULL이면 보완
+  2. works     — 신규 작품 INSERT + tmdb_rating 항상 최신화
   3. review_queue — 오늘 날짜 매칭 실패 항목
   4. title_map — 전체 upsert
 ────────────────────────────────────────────────────────────────
@@ -342,10 +342,11 @@ def upload_works(conn: sqlite3.Connection) -> int:
             f"datetime('now')) "
             f"ON CONFLICT(tmdb_id) DO UPDATE SET"
             # ── 3키 원칙: title_ko / title_en / tmdb_id 절대 수정 불가 ──
-            # ── tmdb_rating / genre 는 최신 값으로 항상 업데이트 ──
+            # ── tmdb_rating 은 변동값 → 항상 최신값으로 업데이트 ──
             f"  tmdb_rating = CASE"
             f"    WHEN excluded.tmdb_rating IS NOT NULL"
             f"    THEN excluded.tmdb_rating ELSE works.tmdb_rating END,"
+            # ── genre 는 NULL일 때만 보완 (Admin 설정 보호) ──
             f"  genre = CASE"
             f"    WHEN works.genre IS NULL AND excluded.genre IS NOT NULL"
             f"    THEN excluded.genre ELSE works.genre END,"
