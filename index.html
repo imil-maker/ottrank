@@ -518,19 +518,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* 기존 ft-swipe-track → 모바일 슬라이드로 */
   .ft-swipe-track{
     padding:0 16px 8px;
-    gap:12px;
+    gap:10px;
   }
   .ft-card{
-    flex:0 0 calc((100vw - 44px) / 2);  /* 2열: vw 기준 */
+    flex:0 0 calc((100vw - 44px) / 2);  /* 2열 */
     min-width:0;
     max-width:none;
-    scroll-snap-align:start;
   }
-  /* 화살표 — 모바일 상시 표시 */
+  /* Featured 화살표 — 모바일 상시 표시 */
   .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
   .ft-swipe-wrap .ft-btn:disabled{ opacity:0 !important; pointer-events:none !important; }
-  .ft-btn.prev{ left:4px; }   /* 화면 밖 안 나가게 위치 조정 */
-  .ft-btn.next{ right:4px; }
+  .ft-btn.prev{ left:4px !important; }
+  .ft-btn.next{ right:4px !important; }
 
   /* ── 2. TV/영화 OTT 그리드 → 슬라이드 ── */
   /* ott-grid를 flex 슬라이드로 전환 */
@@ -543,12 +542,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     -ms-overflow-style:none;
     padding:0 16px 16px;
     margin-bottom:0;
-    grid-template-columns:unset;
+    grid-template-columns:unset; /* grid 해제 */
     -webkit-overflow-scrolling:touch;
   }
   .ott-grid::-webkit-scrollbar{ display:none; }
 
-  /* 플랫폼 카드 너비 — 2열 */
+  /* 플랫폼 카드 너비 — 1.5열 (다음 카드 예고) */
   .ott-grid .p-card{
     flex:0 0 calc((100vw - 44px) / 2);
     min-width:0;
@@ -578,7 +577,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   }
   #contentsPreview::-webkit-scrollbar{ display:none; }
 
-  /* 신작 카드 너비 — 2열 */
+  /* 신작 카드 너비 — 1.5열 (16:9 썸네일) */
   #contentsPreview .ct-preview-card,
   #contentsPreview .skel-ct-card{
     flex:0 0 calc((100vw - 44px) / 2);
@@ -602,7 +601,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   }
   .review-grid::-webkit-scrollbar{ display:none; }
 
-  /* 리뷰 카드 너비 — 2열 */
+  /* 리뷰 카드 너비 — 1.5열 */
   .review-grid .rv-card{
     flex:0 0 calc((100vw - 44px) / 2);
     min-width:0;
@@ -624,7 +623,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   }
   .yt-grid::-webkit-scrollbar{ display:none; }
 
-  /* 유튜브 카드 — 썸네일 위, 제목 아래, 2열 */
+  /* 유튜브 카드 — 가로 레이아웃 → 썸네일 위, 제목 아래로 변경 */
   .yt-card{
     flex:0 0 calc((100vw - 44px) / 2);
     min-width:0;
@@ -668,38 +667,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* ── period-tabs 반응형 — 일간/주간/월간 위치 ── */
   /* 섹션 헤더가 flex-wrap:wrap이므로 자동 처리됨 */
 
-  /* ── 모바일 섹션 화살표 ── */
-  .mob-arr-wrap{
-    display:block;
-    position:relative;
-  }
-  .mob-arr-btn{
-    display:flex !important;
-    align-items:center;
-    justify-content:center;
-    position:absolute;
-    top:38%;
-    transform:translateY(-50%);
-    width:28px; height:28px;
-    border-radius:50%;
-    background:var(--bg2);
-    border:1px solid rgba(255,255,255,0.15);
-    color:var(--text);
-    font-size:16px;
-    z-index:10;
-    transition:opacity .2s;
-    cursor:pointer;
-  }
-  .mob-arr-btn.prev-btn{ left:4px; }
-  .mob-arr-btn.next-btn{ right:4px; }
-  .mob-arr-btn:disabled{ opacity:0 !important; pointer-events:none; }
-
 }
-
-
-/* ── 모바일 섹션 화살표 — JS로 동적 생성 ── */
-.mob-arr-wrap{ display:none; }          /* PC: 숨김 */
-.mob-arr-btn{ display:none; }           /* PC: 숨김 */
 </style>
 <style>
 /* ── 공용 헤더 컨테이너 sticky (fetch 삽입 후에도 동작) ── */
@@ -743,63 +711,59 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       };
     })
     .catch(()=>{ /* 헤더 fetch 실패 시 무시 (로컬 개발환경) */ });
-
-
-
-
-
-
-/* ── 모바일 화살표 동적 생성 ── */
-function addMobArrows(gridId) {
+/* ── 메인 모바일 화살표 (OTT 방식 동일) ── */
+function _addMainArrow(gridId) {
   if (window.innerWidth > 768) return;
   const grid = document.getElementById(gridId);
-  if (!grid || grid.dataset.arrAdded) return;
+  if (!grid || grid._arrAdded) return;
+  grid._arrAdded = true;
 
-  // 부모에 relative wrap 클래스 추가
-  const parent = grid.parentElement;
-  parent.classList.add('mob-arr-wrap');
+  /* 부모에 relative 추가 */
+  const par = grid.parentElement;
+  par.style.position = 'relative';
 
-  // 이전 버튼
-  const prev = document.createElement('button');
-  prev.className = 'mob-arr-btn prev-btn';
-  prev.innerHTML = '‹';
-  prev.setAttribute('aria-label', '이전');
-  prev.onclick = () => {
-    const cardW = grid.firstElementChild?.offsetWidth || 160;
-    grid.scrollBy({ left: -(cardW + 12) * 2, behavior: 'smooth' });
-    setTimeout(() => updateMobArr(grid, prev, next), 350);
+  const mkBtn = (label, dir) => {
+    const btn = document.createElement('button');
+    btn.innerHTML = dir < 0 ? '‹' : '›';
+    btn.setAttribute('aria-label', label);
+    btn.style.cssText = [
+      'display:flex;align-items:center;justify-content:center;',
+      'position:absolute;top:38%;transform:translateY(-50%);',
+      'width:28px;height:28px;border-radius:50%;',
+      'background:var(--bg2);border:1px solid rgba(255,255,255,.15);',
+      'color:var(--text);font-size:16px;z-index:10;',
+      'transition:opacity .2s;cursor:pointer;',
+      dir < 0 ? 'left:2px;' : 'right:2px;'
+    ].join('');
+    btn.onclick = () => {
+      const w = grid.firstElementChild?.offsetWidth || 150;
+      grid.scrollBy({ left: dir * (w + 12) * 2, behavior: 'smooth' });
+      setTimeout(() => _updArr(grid, prev, next), 350);
+    };
+    return btn;
   };
 
-  // 다음 버튼
-  const next = document.createElement('button');
-  next.className = 'mob-arr-btn next-btn';
-  next.innerHTML = '›';
-  next.setAttribute('aria-label', '다음');
-  next.onclick = () => {
-    const cardW = grid.firstElementChild?.offsetWidth || 160;
-    grid.scrollBy({ left: (cardW + 12) * 2, behavior: 'smooth' });
-    setTimeout(() => updateMobArr(grid, prev, next), 350);
-  };
+  const prev = mkBtn('이전', -1);
+  const next = mkBtn('다음',  1);
+  par.appendChild(prev);
+  par.appendChild(next);
 
-  parent.appendChild(prev);
-  parent.appendChild(next);
-  grid.dataset.arrAdded = '1';
-
-  // 초기 상태 + scroll 이벤트
-  updateMobArr(grid, prev, next);
-  grid.addEventListener('scroll', () => updateMobArr(grid, prev, next), { passive: true });
+  /* disabled CSS — OTT 방식과 동일 */
+  _updArr(grid, prev, next);
+  grid.addEventListener('scroll', () => _updArr(grid, prev, next), { passive:true });
 }
 
-function updateMobArr(grid, prev, next) {
-  const atStart = grid.scrollLeft <= 4;
-  const atEnd   = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 4;
-  prev.disabled = atStart;
-  next.disabled = atEnd;
+function _updArr(grid, prev, next) {
+  prev.disabled = grid.scrollLeft <= 4;
+  next.disabled = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 4;
+  prev.style.opacity = prev.disabled ? '0' : '1';
+  prev.style.pointerEvents = prev.disabled ? 'none' : 'auto';
+  next.style.opacity = next.disabled ? '0' : '1';
+  next.style.pointerEvents = next.disabled ? 'none' : 'auto';
 }
 
-function initAllMobArrows() {
-  if (window.innerWidth > 768) return;
-  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(addMobArrows);
+function _initMainArrows() {
+  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(_addMainArrow);
 }
 
 })();
@@ -1275,9 +1239,7 @@ function renderCard(p,items){
 
 const curCat='tv';
 function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
-  // 화살표 초기화
-
-  setTimeout(initAllMobArrows, 200);
+  setTimeout(_initMainArrows, 200);
 }
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
@@ -1439,7 +1401,8 @@ function renderFeatured(featuredGroups) {
     // 드래그 스와이프 초기화
     ftInitSwipe(track);
   });
-  if(window.innerWidth<=768){ setTimeout(initFtBtns, 150); }
+
+  setTimeout(_initFtBtns, 100);
 }
 
 /* featured 섹션 전용 유틸 */
@@ -1455,10 +1418,10 @@ function ftScrollTrack(id, dir) {
   const t = document.getElementById(id);
   if (!t) return;
   t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
-  setTimeout(() => updateFtBtns(t), 350);
+  setTimeout(() => _updateFtBtns(t), 350);
 }
 
-function updateFtBtns(track) {
+function _updateFtBtns(track) {
   const wrap = track.closest('.ft-swipe-wrap');
   if (!wrap) return;
   const prev = wrap.querySelector('.ft-btn.prev');
@@ -1469,10 +1432,10 @@ function updateFtBtns(track) {
   if (next) next.disabled = atEnd;
 }
 
-function initFtBtns() {
-  document.querySelectorAll('.ft-swipe-track').forEach(track => {
-    updateFtBtns(track);
-    track.addEventListener('scroll', () => updateFtBtns(track), { passive:true });
+function _initFtBtns() {
+  document.querySelectorAll('.ft-swipe-track').forEach(t => {
+    _updateFtBtns(t);
+    t.addEventListener('scroll', () => _updateFtBtns(t), { passive:true });
   });
 }
 function ftInitSwipe(track) {
@@ -1759,6 +1722,8 @@ async function loadContentsPreview(){
   } catch(e){
     renderContentsPreview([]);
   }
+
+  setTimeout(_initMainArrows, 200);
 }
 
 function renderContentsPreview(items){
