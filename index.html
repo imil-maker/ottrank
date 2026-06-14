@@ -747,7 +747,7 @@ function _mupd(g) {
   if(!wrap) return;
   const p = wrap.querySelector('.msb.prev');
   const n = wrap.querySelector('.msb.next');
-  if(p) p.disabled = g.scrollLeft <= 4;
+  if(p) p.disabled = g.scrollLeft <= 20;  /* padding-left:16px 보정 */
   if(n) n.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
 }
 
