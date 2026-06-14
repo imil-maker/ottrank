@@ -518,17 +518,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* 기존 ft-swipe-track → 모바일 슬라이드로 */
   .ft-swipe-track{
     padding:0 16px 8px;
-    gap:10px;
+    gap:12px;
   }
   .ft-card{
-    flex:0 0 calc(50% - 8px);  /* 2열 */
+    flex:0 0 calc((100vw - 44px) / 2);  /* 2열: vw 기준 */
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
   }
-  /* 화살표 — 모바일 상시 표시, 끝에서 숨김(disabled CSS로 처리) */
-  .ft-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
-  .ft-btn:disabled{ opacity:0 !important; pointer-events:none; }
+  /* 화살표 — 모바일 상시 표시 */
+  .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
+  .ft-swipe-wrap .ft-btn:disabled{ opacity:0 !important; pointer-events:none !important; }
+  .ft-btn.prev{ left:4px; }   /* 화면 밖 안 나가게 위치 조정 */
+  .ft-btn.next{ right:4px; }
 
   /* ── 2. TV/영화 OTT 그리드 → 슬라이드 ── */
   /* ott-grid를 flex 슬라이드로 전환 */
@@ -541,14 +543,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     -ms-overflow-style:none;
     padding:0 16px 16px;
     margin-bottom:0;
-    grid-template-columns:unset; /* grid 해제 */
+    grid-template-columns:unset;
     -webkit-overflow-scrolling:touch;
   }
   .ott-grid::-webkit-scrollbar{ display:none; }
 
   /* 플랫폼 카드 너비 — 2열 */
   .ott-grid .p-card{
-    flex:0 0 calc(50% - 8px);
+    flex:0 0 calc((100vw - 44px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -579,7 +581,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* 신작 카드 너비 — 2열 */
   #contentsPreview .ct-preview-card,
   #contentsPreview .skel-ct-card{
-    flex:0 0 calc(50% - 8px);
+    flex:0 0 calc((100vw - 44px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -602,7 +604,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   /* 리뷰 카드 너비 — 2열 */
   .review-grid .rv-card{
-    flex:0 0 calc(50% - 8px);
+    flex:0 0 calc((100vw - 44px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -624,7 +626,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   /* 유튜브 카드 — 썸네일 위, 제목 아래, 2열 */
   .yt-card{
-    flex:0 0 calc(50% - 8px);
+    flex:0 0 calc((100vw - 44px) / 2);
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
