@@ -739,6 +739,7 @@ function msc(id, dir) {
   g.scrollBy({ left: dir * cardW * 2, behavior: 'smooth' });
   setTimeout(() => _mupd(g), 350);
 }
+window.msc = msc;  /* onclick에서 접근 가능하도록 전역 등록 */
 
 function _mupd(g) {
   if(window.innerWidth > 768) return;
