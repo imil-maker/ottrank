@@ -237,8 +237,33 @@ body {
   .hero-title { font-size:38px }
   .hero-logo { font-size:120px; opacity:.5 }
   .rk-card { min-width:160px; max-width:180px }
-  .swipe-btn { display:none }
   .hero-sub { display:none }
+
+  /* ── 섹션 헤더 1줄화 ── */
+  .sec-hd{ flex-wrap:nowrap; padding:18px 16px 10px; gap:6px; overflow:hidden; }
+  .sec-title{ font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:1; min-width:0; letter-spacing:0.5px; }
+  .sec-sub{ display:none; }
+  .sec-live{ display:none; }  /* 모바일: 날짜 섹션헤더에서 숨김 */
+  /* ── 슬라이드 화살표 — 모바일 상시 표시 ── */
+  .swipe-btn{ display:flex !important; opacity:1 !important; }
+  .swipe-btn.prev{ left:-14px; }
+  .swipe-btn.next{ right:-14px; }
+}
+
+/* ott-date-bottom — 모바일 전용, 첫 섹션 하단 날짜 */
+.ott-date-bottom{
+  display:none;
+  font-family:var(--mono);font-size:10px;color:var(--muted);
+}
+.ott-live-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:#006FE6;animation:pulse 2s infinite;flex-shrink:0;
+}
+@media(max-width:768px){
+  .ott-date-bottom{
+    display:flex;align-items:center;justify-content:flex-end;
+    gap:5px;padding:2px 16px 10px;
+  }
 }
 </style>
 </head>
@@ -388,7 +413,29 @@ function initSwipe(track) {
 /* ── 트랙 좌우 스크롤 ── */
 function scrollTrack(id, dir) {
   const t = document.getElementById(id);
-  if (t) t.scrollBy({ left: dir * (210 * 3), behavior: 'smooth' });
+  if (!t) return;
+  t.scrollBy({ left: dir * (210 * 3), behavior: 'smooth' });
+  // 스크롤 후 화살표 표시/숨김 갱신
+  setTimeout(() => updateSwipeBtns(t), 350);
+}
+
+function updateSwipeBtns(track) {
+  const wrap = track.closest('.swipe-wrap');
+  if (!wrap) return;
+  const prev = wrap.querySelector('.swipe-btn.prev');
+  const next = wrap.querySelector('.swipe-btn.next');
+  const atStart = track.scrollLeft <= 4;
+  const atEnd   = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+  if (prev) prev.style.opacity = atStart ? '0' : '1';
+  if (next) next.style.opacity = atEnd   ? '0' : '1';
+}
+
+/* 초기 화살표 상태 설정 — 로드 시 */
+function initSwipeBtns() {
+  document.querySelectorAll('.swipe-track').forEach(track => {
+    updateSwipeBtns(track);
+    track.addEventListener('scroll', () => updateSwipeBtns(track), { passive:true });
+  });
 }
 
 /* ── 날짜 포맷: 오늘 기준 업데이트 텍스트 ── */
@@ -468,6 +515,7 @@ async function loadAll() {
           <div class="swipe-track" id="${trackId}">${makeSkel(5)}</div>
           <button class="swipe-btn next" onclick="scrollTrack('${trackId}',1)">›</button>
         </div>
+        ${i === 0 ? `<div class="ott-date-bottom"><div class="ott-live-dot"></div><span>${dateStr}</span></div>` : ''}
       </div>`;
   }).join('');
 
