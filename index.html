@@ -664,34 +664,43 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* 섹션 헤더가 flex-wrap:wrap이므로 자동 처리됨 */
 
 }
-
-/* ── 메인 화살표 — Featured와 동일한 구조 ── */
-.main-swipe-wrap {
-  display: contents;  /* PC: 투명 래퍼 — 자식이 직접 부모에 속한 것처럼 동작 */
-}
-@media(max-width:768px) {
-  .main-swipe-wrap {
-    display: block;
-    position: relative;
-  }
-}
+.main-swipe-wrap { position:relative; }
 .msb {
-  position: absolute; top: 35%; transform: translateY(-50%);
-  width: 34px; height: 34px; border-radius: 50%;
-  background: var(--bg2); border: 1px solid rgba(255,255,255,.15);
-  color: var(--text); font-size: 20px; cursor: pointer; z-index: 10;
-  display: none; align-items: center; justify-content: center;
-  transition: opacity .2s;
+  position:absolute; top:35%; transform:translateY(-50%);
+  width:30px; height:30px; border-radius:50%;
+  background:var(--bg2); border:1px solid rgba(255,255,255,.15);
+  color:var(--text); font-size:18px; cursor:pointer; z-index:10;
+  display:none; align-items:center; justify-content:center;
 }
-.msb.prev { left: 2px; }
-.msb.next { right: 2px; }
-.msb:disabled { opacity: 0 !important; pointer-events: none; }
+.msb.prev { left:2px; }
+.msb.next { right:2px; }
+.msb:disabled { opacity:0 !important; pointer-events:none; }
 @media(max-width:768px){
-  .msb{ display:flex; }
+
   /* Featured 화살표 — 모바일 표시 */
   .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; }
   .ft-btn.prev{ left:4px !important; }
   .ft-btn.next{ right:4px !important; }
+}
+
+/* ── 모바일 섹션 화살표 (sec-hd 우측) ── */
+.sec-arr-btn {
+  display: none;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--bg2);
+  border: 1px solid rgba(255,255,255,.15);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity .2s;
+}
+.sec-arr-btn:disabled { opacity: 0 !important; pointer-events: none; }
+@media(max-width:768px) {
+  .sec-arr-btn { display: flex; }
 }
 </style>
 <style>
@@ -736,38 +745,67 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       };
     })
     .catch(()=>{ /* 헤더 fetch 실패 시 무시 (로컬 개발환경) */ });
-function msc(id, dir) {
-  const g = document.getElementById(id);
+
+
+
+
+
+
+/* 페이지 완전 로드 후 화살표 초기화 */
+
+
+/* ── 모바일 섹션 화살표 (sec-hd 우측 배치) ── */
+function _saUpd(gridId, prev, next) {
+  const g = document.getElementById(gridId);
   if(!g) return;
-  const card = g.firstElementChild;
-  const cardW = (card ? card.offsetWidth : 160) + 12;
-  g.scrollBy({ left: dir * cardW * 2, behavior: 'smooth' });
-  setTimeout(() => _mupd(g), 350);
-}
-window.msc = msc;  /* onclick에서 접근 가능하도록 전역 등록 */
-
-function _mupd(g) {
-  if(window.innerWidth > 768) return;
-  const wrap = g.closest('.main-swipe-wrap');
-  if(!wrap) return;
-  const p = wrap.querySelector('.msb.prev');
-  const n = wrap.querySelector('.msb.next');
-  if(p) p.disabled = g.scrollLeft <= 20;  /* padding-left:16px 보정 */
-  if(n) n.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
+  if(prev) prev.disabled = g.scrollLeft <= 20;
+  if(next) next.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
 }
 
-function _minit() {
+function _saInit() {
   if(window.innerWidth > 768) return;
-  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
+  const map = {
+    'tvGrid':          document.querySelector('#tv .sec-hd'),
+    'movieGrid':       document.querySelector('#movie .sec-hd'),
+    'contentsPreview': document.querySelector('.sec-hd:has(+ #contentsPreview), #contents-hd'),
+    'reviewGrid':      document.querySelector('#recentReviews'),
+    'ytGrid':          document.querySelector('#youtube .sec-hd'),
+  };
+  Object.entries(map).forEach(([id, hd]) => {
+    if(!hd || hd._arrAdded) return;
+    hd._arrAdded = true;
     const g = document.getElementById(id);
     if(!g) return;
-    _mupd(g);  /* 카드 렌더 완료 후 호출되므로 정확한 scrollWidth */
-    g.addEventListener('scroll', () => _mupd(g), { passive:true });
+
+    const prev = document.createElement('button');
+    prev.className = 'sec-arr-btn';
+    prev.innerHTML = '&#8249;';
+    prev.style.marginLeft = 'auto';
+
+    const next = document.createElement('button');
+    next.className = 'sec-arr-btn';
+    next.innerHTML = '&#8250;';
+    next.style.marginLeft = '4px';
+
+    prev.onclick = () => {
+      const w = (g.firstElementChild?.offsetWidth||150) + 12;
+      g.scrollBy({ left: -w*2, behavior:'smooth' });
+      setTimeout(() => _saUpd(id, prev, next), 350);
+    };
+    next.onclick = () => {
+      const w = (g.firstElementChild?.offsetWidth||150) + 12;
+      g.scrollBy({ left: w*2, behavior:'smooth' });
+      setTimeout(() => _saUpd(id, prev, next), 350);
+    };
+
+    hd.appendChild(prev);
+    hd.appendChild(next);
+
+    _saUpd(id, prev, next);
+    g.addEventListener('scroll', () => _saUpd(id, prev, next), { passive:true });
   });
 }
-window._minit = _minit;
-
-/* 화살표 초기화는 renderGrids 완료 후 호출 */
+window._saInit = _saInit;
 
 })();
 </script>
@@ -802,11 +840,7 @@ window._minit = _minit;
       <span id="updateTxt">업데이트 중...</span>
     </div>
   </div>
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('tvGrid',-1)">&#8249;</button>
-    <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
-    <button class="msb next" onclick="msc('tvGrid',1)">&#8250;</button>
-  </div>
+  <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
 <!-- /AI 추천 비활성화 끝 -->
 
   <!-- 오늘의 신작 & 예정작 -->
@@ -817,16 +851,12 @@ window._minit = _minit;
     <a href="/contents.html" class="sec-more">전체보기 →</a>
   </div>
   <!-- 스켈레톤 로딩 -->
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('contentsPreview',-1)">&#8249;</button>
-    <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
+  <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
-  </div>
-    <button class="msb next" onclick="msc('contentsPreview',1)">&#8250;</button>
   </div>
 
   <!-- 영화 -->
@@ -842,11 +872,7 @@ window._minit = _minit;
       <span id="updateTxt2"></span>
     </div>
   </div>
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('movieGrid',-1)">&#8249;</button>
-    <div class="ott-grid" id="movieGrid"></div>
-    <button class="msb next" onclick="msc('movieGrid',1)">&#8250;</button>
-  </div>
+  <div class="ott-grid" id="movieGrid"></div>
 
   <!-- ══ 최근 평점 후기 ══ -->
   <div class="sec-hd" id="recentReviews">
@@ -856,9 +882,7 @@ window._minit = _minit;
     <a href="/my_review.html" class="sec-more">전체보기 →</a>
   </div>
   <!-- 스켈레톤 5개 -->
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('reviewGrid',-1)">&#8249;</button>
-    <div class="review-grid" id="reviewGrid">
+  <div class="review-grid" id="reviewGrid">
     <div class="rv-card" style="pointer-events:none">
       <div style="display:flex;align-items:center;gap:9px">
         <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
@@ -867,6 +891,7 @@ window._minit = _minit;
       <div class="rv-skel" style="height:10px;width:80%"></div>
       <div class="rv-skel" style="height:13px;width:55%"></div>
       <div class="rv-skel" style="height:52px;width:100%"></div>
+    </div>
     <div class="rv-card" style="pointer-events:none">
       <div style="display:flex;align-items:center;gap:9px">
         <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
@@ -904,9 +929,6 @@ window._minit = _minit;
       <div class="rv-skel" style="height:52px;width:100%"></div>
     </div>
   </div>
-    </div>
-    <button class="msb next" onclick="msc('reviewGrid',1)">&#8250;</button>
-  </div>
 
   <!-- ══ 유튜브 급상승 ══ -->
   <div class="sec-hd" id="youtube">
@@ -917,11 +939,7 @@ window._minit = _minit;
       <span id="updateTxt3"></span>
     </div>
   </div>
-  <div class="main-swipe-wrap">
-    <button class="msb prev" onclick="msc('ytGrid',-1)">&#8249;</button>
-    <div class="yt-grid" id="ytGrid"></div>
-    <button class="msb next" onclick="msc('ytGrid',1)">&#8250;</button>
-  </div>
+  <div class="yt-grid" id="ytGrid"></div>
 </div>
 
   <!-- 오늘의 AI 추천 — 일단 비활성화 -->
@@ -1265,7 +1283,7 @@ function renderCard(p,items){
 const curCat='tv';
 function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
 
-  if(window._minit) setTimeout(window._minit, 100);
+  if(window._saInit) setTimeout(window._saInit, 200);
 }
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
@@ -1725,8 +1743,6 @@ async function loadContentsPreview(){
   } catch(e){
     renderContentsPreview([]);
   }
-
-  if(window._minit) setTimeout(window._minit, 100);
 }
 
 function renderContentsPreview(items){
