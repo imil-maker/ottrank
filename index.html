@@ -521,11 +521,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     gap:10px;
   }
   .ft-card{
-    flex:0 0 58vw;             /* 1.5열: 58vw면 다음 카드 살짝 보임 */
+    flex:0 0 calc(50% - 8px);  /* 2열 */
     min-width:0;
-    max-width:220px;
+    max-width:none;
+    scroll-snap-align:start;
   }
-  .ft-btn{ display:none; }     /* 화살표 버튼 숨김 */
+  /* 화살표 — 모바일 상시 표시, 끝에서 숨김(disabled CSS로 처리) */
+  .ft-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
+  .ft-btn:disabled{ opacity:0 !important; pointer-events:none; }
 
   /* ── 2. TV/영화 OTT 그리드 → 슬라이드 ── */
   /* ott-grid를 flex 슬라이드로 전환 */
@@ -543,11 +546,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   }
   .ott-grid::-webkit-scrollbar{ display:none; }
 
-  /* 플랫폼 카드 너비 — 1.5열 (다음 카드 예고) */
+  /* 플랫폼 카드 너비 — 2열 */
   .ott-grid .p-card{
-    flex:0 0 62vw;
+    flex:0 0 calc(50% - 8px);
     min-width:0;
-    max-width:260px;
+    max-width:none;
     scroll-snap-align:start;
   }
 
@@ -573,12 +576,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   }
   #contentsPreview::-webkit-scrollbar{ display:none; }
 
-  /* 신작 카드 너비 — 1.5열 (16:9 썸네일) */
+  /* 신작 카드 너비 — 2열 */
   #contentsPreview .ct-preview-card,
   #contentsPreview .skel-ct-card{
-    flex:0 0 62vw;
+    flex:0 0 calc(50% - 8px);
     min-width:0;
-    max-width:280px;
+    max-width:none;
     scroll-snap-align:start;
   }
 
@@ -597,11 +600,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   }
   .review-grid::-webkit-scrollbar{ display:none; }
 
-  /* 리뷰 카드 너비 — 1.5열 */
+  /* 리뷰 카드 너비 — 2열 */
   .review-grid .rv-card{
-    flex:0 0 72vw;
+    flex:0 0 calc(50% - 8px);
     min-width:0;
-    max-width:300px;
+    max-width:none;
     scroll-snap-align:start;
   }
 
@@ -619,11 +622,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   }
   .yt-grid::-webkit-scrollbar{ display:none; }
 
-  /* 유튜브 카드 — 가로 레이아웃 → 썸네일 위, 제목 아래로 변경 */
+  /* 유튜브 카드 — 썸네일 위, 제목 아래, 2열 */
   .yt-card{
-    flex:0 0 62vw;
+    flex:0 0 calc(50% - 8px);
     min-width:0;
-    max-width:260px;
+    max-width:none;
     scroll-snap-align:start;
     flex-direction:column;     /* 세로 배치 */
     padding:0;
@@ -1353,7 +1356,27 @@ function ftGoWork(tmdbId, title) {
 }
 function ftScrollTrack(id, dir) {
   const t = document.getElementById(id);
-  if (t) t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
+  if (!t) return;
+  t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
+  setTimeout(() => updateFtBtns(t), 350);
+}
+
+function updateFtBtns(track) {
+  const wrap = track.closest('.ft-swipe-wrap');
+  if (!wrap) return;
+  const prev = wrap.querySelector('.ft-btn.prev');
+  const next = wrap.querySelector('.ft-btn.next');
+  const atStart = track.scrollLeft <= 4;
+  const atEnd   = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+  if (prev) prev.disabled = atStart;
+  if (next) next.disabled = atEnd;
+}
+
+function initFtBtns() {
+  document.querySelectorAll('.ft-swipe-track').forEach(track => {
+    updateFtBtns(track);
+    track.addEventListener('scroll', () => updateFtBtns(track), { passive:true });
+  });
 }
 function ftInitSwipe(track) {
   let down = false, startX = 0, sl = 0;
