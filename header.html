@@ -278,23 +278,32 @@
 /* 드로어 — 헤더 줄 */
 .ottrang-drawer-head {
   display:flex;align-items:center;justify-content:space-between;
-  padding:16px 18px 14px;
+  padding:12px 12px 12px 16px;           /* 오른쪽 padding 줄여 닫기 버튼 짤림 방지 */
   border-bottom:1px solid rgba(255,255,255,0.07);
   flex-shrink:0;
+  gap:8px;
 }
+/* 드로어 로고 이미지 */
 .ottrang-drawer-logo {
+  display:flex;align-items:center;text-decoration:none;flex-shrink:0;
+}
+.ottrang-drawer-logo-img {
+  height:36px;width:auto;max-width:160px;
+  object-fit:contain;mix-blend-mode:lighten;display:block;
+}
+.ottrang-drawer-logo-txt {
   font-family:'Bebas Neue',sans-serif;font-size:22px;
   letter-spacing:2px;color:#ededf0;line-height:1;
-  text-decoration:none;
 }
-.ottrang-drawer-logo span { color:#e63946; }
+.ottrang-drawer-logo-txt span { color:#e63946; }
 .ottrang-drawer-close {
-  height:32px;padding:0 12px;
+  height:32px;padding:0 10px;
+  flex-shrink:0;                         /* 절대 줄어들지 않도록 */
   border-radius:6px;background:rgba(255,255,255,0.06);
   border:1px solid rgba(255,255,255,0.1);
-  color:var(--muted2);font-size:13px;font-family:var(--sans);
-  cursor:pointer;display:flex;align-items:center;gap:5px;
-  transition:background .15s;
+  color:var(--muted2);font-size:12px;font-family:var(--sans);
+  cursor:pointer;display:flex;align-items:center;gap:4px;
+  transition:background .15s;white-space:nowrap;
 }
 .ottrang-drawer-close:hover { background:rgba(255,255,255,0.1); }
 
@@ -309,24 +318,35 @@
   display:flex;gap:8px;
 }
 .ottrang-drawer-btn-login {
-  flex:1;height:40px;border-radius:8px;
+  flex:1;height:38px;border-radius:8px;
   border:1px solid rgba(255,255,255,0.16);background:transparent;
-  color:#ededf0;font-family:var(--sans);font-size:14px;
-  cursor:pointer;transition:background .15s;
+  color:#ededf0;font-family:var(--sans);font-size:13px;
+  cursor:pointer;transition:background .15s;white-space:nowrap;
+  min-width:0;                           /* flex 항목이 줄어들 수 있게 */
 }
 .ottrang-drawer-btn-login:hover { background:rgba(255,255,255,0.07); }
 .ottrang-drawer-btn-join {
-  flex:1;height:40px;border-radius:8px;
+  flex:1;height:38px;border-radius:8px;
   background:#e63946;border:none;
-  color:#fff;font-family:var(--sans);font-size:14px;font-weight:600;
-  cursor:pointer;transition:background .15s;
+  color:#fff;font-family:var(--sans);font-size:13px;font-weight:600;
+  cursor:pointer;transition:background .15s;white-space:nowrap;
+  min-width:0;
 }
 .ottrang-drawer-btn-join:hover { background:#ff4d58; }
 /* 로그인 상태 — 프로필 */
 .ottrang-drawer-profile {
   display:flex;align-items:center;gap:12px;
-  text-decoration:none;
-  cursor:pointer;
+  text-decoration:none;cursor:pointer;
+  padding:4px 0;                         /* 클릭 영역 넉넉하게 */
+}
+/* MYPAGE 태그 */
+.ottrang-drawer-mypage-tag {
+  display:inline-block;margin-top:5px;
+  font-size:10px;font-weight:600;letter-spacing:1px;
+  color:#e63946;background:rgba(230,57,70,0.12);
+  border:1px solid rgba(230,57,70,0.3);
+  border-radius:4px;padding:2px 7px;
+  font-family:'DM Mono',monospace;
 }
 .ottrang-drawer-avatar {
   width:44px;height:44px;border-radius:50%;flex-shrink:0;
@@ -381,12 +401,46 @@
   font-size:13px;
 }
 .ottrang-drawer-nav-arrow {
-  margin-left:auto;color:rgba(255,255,255,0.2);font-size:14px;
+  margin-left:auto;color:rgba(255,255,255,0.2);font-size:14px;flex-shrink:0;
 }
 .ottrang-drawer-nav-item:hover .ottrang-drawer-nav-arrow,
 .ottrang-drawer-nav-item.on .ottrang-drawer-nav-arrow {
   color:rgba(255,255,255,0.45);
 }
+/* 메뉴 텍스트 래퍼 */
+.ottrang-drawer-nav-text {
+  display:flex;flex-direction:column;flex:1;min-width:0;gap:1px;
+}
+.ottrang-drawer-nav-ko {
+  font-size:14px;font-weight:500;color:inherit;line-height:1.2;
+}
+.ottrang-drawer-nav-en {
+  font-size:10px;font-family:'DM Mono',monospace;
+  color:rgba(255,255,255,0.3);letter-spacing:0.8px;line-height:1.2;
+}
+.ottrang-drawer-nav-item:hover .ottrang-drawer-nav-en,
+.ottrang-drawer-nav-item.on .ottrang-drawer-nav-en {
+  color:rgba(255,255,255,0.5);
+}
+/* 드로어 안 검색창 */
+.ottrang-drawer-search-wrap {
+  padding:12px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+  flex-shrink:0;
+}
+.ottrang-drawer-search-inner {
+  display:flex;align-items:center;gap:8px;
+  background:#13131a;border:1px solid rgba(255,255,255,0.1);
+  border-radius:22px;padding:0 14px;height:38px;
+}
+.ottrang-drawer-search-icon {
+  color:rgba(255,255,255,0.3);font-size:15px;flex-shrink:0;
+}
+.ottrang-drawer-search-input {
+  flex:1;background:none;border:none;outline:none;
+  color:#ededf0;font-family:var(--sans);font-size:13px;
+}
+.ottrang-drawer-search-input::placeholder { color:rgba(255,255,255,0.28); }
 
 /* 드로어 — 하단 마이페이지 버튼 (로그인 상태) */
 .ottrang-drawer-footer {
@@ -516,7 +570,13 @@
 <!-- ══ 사이드 드로어 ══ -->
 <div class="ottrang-drawer" id="ottrangDrawer" role="dialog" aria-modal="true" aria-label="메뉴">
   <div class="ottrang-drawer-head">
-    <a class="ottrang-drawer-logo" href="/">오뜨랑<span>.</span></a>
+    <a class="ottrang-drawer-logo" href="/" aria-label="오뜨랑 홈">
+      <img class="ottrang-drawer-logo-img"
+        src="https://ottrank.kr/img/logo-trans1.png"
+        alt="오뜨랑 OTTRANK"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <span class="ottrang-drawer-logo-txt" style="display:none;">오뜨랑<span>.</span></span>
+    </a>
     <button class="ottrang-drawer-close" id="ottrangDrawerClose" aria-label="메뉴 닫기">&#10005; 닫기</button>
   </div>
   <div class="ottrang-drawer-auth" id="ottrangDrawerAuth">
@@ -529,34 +589,89 @@
       <div class="ottrang-drawer-user-info">
         <div class="ottrang-drawer-nick" id="ottrangDrawerNick"></div>
         <div class="ottrang-drawer-meta" id="ottrangDrawerMeta"></div>
+        <span class="ottrang-drawer-mypage-tag">MYPAGE →</span>
       </div>
       <span class="ottrang-drawer-chevron">&#8250;</span>
     </a>
   </div>
+  <!-- 드로어 검색창 -->
+  <div class="ottrang-drawer-search-wrap">
+    <div class="ottrang-drawer-search-inner">
+      <span class="ottrang-drawer-search-icon">&#9906;</span>
+      <input class="ottrang-drawer-search-input" id="ottrangDrawerSearchInput"
+        type="text" placeholder="작품, 배우, 감독 검색"
+        oninput="_drawerSearchRun(this.value)"
+        onkeydown="if(event.key==='Enter'){_drawerSearchRun(this.value,true);}"
+        autocomplete="off">
+    </div>
+    <!-- 드로어 내 검색결과 (펼쳐짐) -->
+    <div id="ottrangDrawerSearchResults" style="margin-top:8px;border-radius:10px;overflow:hidden;background:#13131a;"></div>
+  </div>
+
   <nav class="ottrang-drawer-nav" id="ottrangDrawerNav">
     <a class="ottrang-drawer-nav-item" href="/" id="dnavHome">
-      <span style="font-size:13px;width:9px;text-align:center;flex-shrink:0;">&#127968;</span>홈<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span style="font-size:13px;width:9px;text-align:center;flex-shrink:0;">&#127968;</span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">홈</span>
+        <span class="ottrang-drawer-nav-en">HOME</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
     <a class="ottrang-drawer-nav-item" href="/netflix.html" id="dnavNetflix">
-      <span class="ottrang-drawer-dot" style="background:#e50914;"></span>넷플릭스<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span class="ottrang-drawer-dot" style="background:#e50914;"></span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">넷플릭스</span>
+        <span class="ottrang-drawer-nav-en">NETFLIX</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
     <a class="ottrang-drawer-nav-item" href="/boxoffice.html" id="dnavBoxoffice">
-      <span class="ottrang-drawer-dot" style="background:#f0b429;"></span>박스오피스<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span class="ottrang-drawer-dot" style="background:#f0b429;"></span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">박스오피스</span>
+        <span class="ottrang-drawer-nav-en">BOX OFFICE</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
     <a class="ottrang-drawer-nav-item" href="/tving.html" id="dnavTving">
-      <span class="ottrang-drawer-dot" style="background:#ff153c;"></span>티빙<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span class="ottrang-drawer-dot" style="background:#ff153c;"></span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">티빙</span>
+        <span class="ottrang-drawer-nav-en">TVING</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
     <a class="ottrang-drawer-nav-item" href="/disneyplus.html" id="dnavDisney">
-      <span class="ottrang-drawer-dot" style="background:#06b6d4;"></span>디즈니+<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span class="ottrang-drawer-dot" style="background:#06b6d4;"></span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">디즈니+</span>
+        <span class="ottrang-drawer-nav-en">DISNEY+</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
     <a class="ottrang-drawer-nav-item" href="/coupangplay.html" id="dnavCoupang">
-      <span class="ottrang-drawer-dot" style="background:#1ac44d;"></span>쿠팡플레이<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span class="ottrang-drawer-dot" style="background:#1ac44d;"></span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">쿠팡플레이</span>
+        <span class="ottrang-drawer-nav-en">COUPANG PLAY</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
     <a class="ottrang-drawer-nav-item" href="/wavve.html" id="dnavWavve">
-      <span class="ottrang-drawer-dot" style="background:#0070f3;"></span>웨이브<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span class="ottrang-drawer-dot" style="background:#0070f3;"></span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">웨이브</span>
+        <span class="ottrang-drawer-nav-en">WAVVE</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
     <a class="ottrang-drawer-nav-item" href="/community.html" id="dnavComm">
-      <span class="ottrang-drawer-dot" style="background:#a0a0bc;"></span>커뮤니티<span class="ottrang-drawer-nav-arrow">&#8250;</span>
+      <span class="ottrang-drawer-dot" style="background:#a0a0bc;"></span>
+      <div class="ottrang-drawer-nav-text">
+        <span class="ottrang-drawer-nav-ko">커뮤니티</span>
+        <span class="ottrang-drawer-nav-en">평점후기 · 해외반응</span>
+      </div>
+      <span class="ottrang-drawer-nav-arrow">&#8250;</span>
     </a>
   </nav>
   <div class="ottrang-drawer-footer" id="ottrangDrawerFooter" style="display:none;">
@@ -1038,6 +1153,55 @@ function initHeader(){
       el.innerHTML='<div class="ottrang-sr-empty">검색 중 오류가 발생했습니다</div>';
     }
   }
+
+  // 드로어 검색 — _mobRunSearch 재사용, 결과를 드로어 내 div에 출력
+  window._drawerSearchRun = function(q, immediate) {
+    clearTimeout(window._drawerSrTimer);
+    const el = document.getElementById('ottrangDrawerSearchResults');
+    if(!el) return;
+    if(!q || q.length < 2){ el.innerHTML=''; return; }
+    el.innerHTML='<div class="ottrang-sr-loading">검색 중...</div>';
+    const run = async () => {
+      // _mobRunSearch와 동일 로직이나 el을 드로어 결과로 교체
+      const API='https://ottrank-api.tdidream.workers.dev';
+      const TMDB='https://tmdb-proxy.tdidream.workers.dev/tmdb';
+      const IMG='https://image.tmdb.org/t/p/w92';
+      const _slug=id=>`/title/1-${new Date().getFullYear()}${id}`;
+      const _h=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const _wi=(w,db)=>{
+        const poster=w.poster_path?`<img class="ottrang-sr-poster" src="${IMG}${w.poster_path}" alt="" loading="lazy">`:`<div class="ottrang-sr-poster-ph">🎬</div>`;
+        const t=w.title_ko||w.title||w.name||'';
+        const te=w.title_en||w.original_title||w.original_name||'';
+        const yr=(w.release_year||(w.first_air_date||w.release_date||'').slice(0,4))||'';
+        const mt=w.media_type||w._type||'';
+        const tl=mt==='movie'?'영화':'TV';
+        const tc=mt==='movie'?'rgba(240,180,41,.8)':'rgba(55,138,221,.8)';
+        const sl=w.tmdb_id?_slug(w.tmdb_id):'#';
+        const go=w.tmdb_id?`(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${w.tmdb_id},type:'${mt||'tv'}',platform:'',rank:1,title:'${t.replace(/'/g,'').replace(/"/g,'')}',season:1,year:${new Date().getFullYear()}}));location.href='${sl}';})()`:`location.href='#'`;
+        return `<div class="ottrang-sr-item" onclick="${go}">${poster}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_h(t)}</div><div class="ottrang-sr-meta">${_h(te)}${yr?` · ${yr}`:''}</div></div><span class="ottrang-sr-type" style="background:${tc};color:#fff">${tl}</span>${db?'<span class="ottrang-sr-db">DB</span>':''}</div>`;
+      };
+      try{
+        const [dr,tr,mr,pr]=await Promise.allSettled([
+          fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=5`),
+          fetch(`${TMDB}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+          fetch(`${TMDB}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+          fetch(`${TMDB}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
+        ]);
+        let dw=[];if(dr.status==='fulfilled'&&dr.value.ok){const j=await dr.value.json();dw=(j.data||[]).slice(0,5);}
+        const di=new Set(dw.map(w=>w.tmdb_id));
+        let tv=[];if(tr.status==='fulfilled'&&tr.value.ok){const j=await tr.value.json();tv=(j.results||[]).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'tv',tmdb_id:r.id}));}
+        let mv=[];if(mr.status==='fulfilled'&&mr.value.ok){const j=await mr.value.json();mv=(j.results||[]).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'movie',tmdb_id:r.id}));}
+        let ps=[];if(pr.status==='fulfilled'&&pr.value.ok){const j=await pr.value.json();ps=(j.results||[]).slice(0,2);}
+        if(!dw.length&&!tv.length&&!mv.length&&!ps.length){el.innerHTML='<div class="ottrang-sr-empty">검색 결과가 없습니다</div>';return;}
+        let h='';
+        if(dw.length)h+='<div class="ottrang-sr-section">🗄️ 추천</div>'+dw.map(w=>_wi(w,true)).join('');
+        const ta=[...tv,...mv];if(ta.length)h+='<div class="ottrang-sr-section">🎬 작품</div>'+ta.map(w=>_wi(w,false)).join('');
+        if(ps.length)h+='<div class="ottrang-sr-section">👤 인물</div>'+ps.map(p=>{const pf=p.profile_path?`<img class="ottrang-sr-profile" src="${IMG}${p.profile_path}" alt="" loading="lazy">`:`<div class="ottrang-sr-profile-ph">👤</div>`;return`<div class="ottrang-sr-item" onclick="location.href='/person.html?id=${p.id}'">${pf}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_h(p.name||'')}</div><div class="ottrang-sr-meta">${p.known_for_department||''}</div></div></div>`;}).join('');
+        el.innerHTML=h;
+      }catch(e){el.innerHTML='<div class="ottrang-sr-empty">검색 중 오류가 발생했습니다</div>';}
+    };
+    if(immediate){ run(); } else { window._drawerSrTimer=setTimeout(run,350); }
+  };
 
 } // initHeader 끝
 /* 헤더가 직접 삽입된 경우 자동 초기화 */
