@@ -78,12 +78,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   display: flex; align-items: center; gap: 10px;
   padding: 20px 0 14px;
 }
-/* 데스크톱: row1/row2를 inline으로 — 기존 flex-row 유지 */
+/* 데스크톱: row1은 flex 인라인, row2는 숨김 */
 .featured-hd-row1 {
-  display: contents; /* 자식들이 부모 flex에 직접 참여 */
+  display: contents; /* 자식들이 부모 .featured-hd flex에 직접 참여 */
 }
 .featured-hd-row2 {
-  display: contents;
+  display: none;     /* 데스크톱에서는 row2 완전 숨김 */
 }
 .featured-top-badge {
   font-family: var(--disp); font-size: 20px; letter-spacing: 1px; color: var(--muted);
@@ -447,38 +447,43 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     padding:0 0 16px;
     border-bottom:1px solid var(--border);
   }
-  /* Featured 헤더 — 2줄 구조로 재설계 */
+  /* Featured 헤더 — 모바일 1줄 */
   .featured-hd{
-    padding:14px 16px 10px;
-    flex-direction:column;     /* 세로 배치 */
-    align-items:flex-start;
-    gap:4px;
+    padding:14px 16px 8px;
+    flex-direction:row;
+    align-items:center;
+    flex-wrap:nowrap;
+    gap:6px;
   }
-  /* 1줄: 넷플릭스 뱃지 + 타이틀 */
+  /* row1: 가로 1줄 (display:contents로 자식들이 .featured-hd flex에 직접 참여) */
   .featured-hd-row1{
-    display:flex;align-items:center;gap:8px;width:100%;
+    display:contents;
   }
   .featured-badge{
     font-size:9px;padding:2px 7px;letter-spacing:1.5px;flex-shrink:0;
   }
   .featured-title{
-    font-size:15px;letter-spacing:0.5px;
+    font-size:13px;letter-spacing:0;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     flex:1;min-width:0;
   }
-  /* 2줄: TOP N + 날짜 */
-  .featured-hd-row2{
-    display:flex;align-items:center;gap:8px;
-  }
   .featured-top-badge{
-    font-family:var(--disp);font-size:18px;letter-spacing:1px;
-    color:#E50914;line-height:1;
-  }
-  .featured-date{
-    font-family:var(--mono);font-size:10px;color:var(--muted);
+    font-family:var(--disp);font-size:14px;letter-spacing:0.5px;
+    color:#E50914;line-height:1;flex-shrink:0;
   }
   .featured-more{
-    display:none;              /* 모바일에서 featured 더보기 숨김 */
+    display:none;              /* 모바일에서 더보기 숨김 */
+  }
+  /* row2: 날짜 — 슬라이드 트랙 아래에 별도 표시 (display:flex 유지) */
+  .featured-hd-row2{
+    display:none;              /* 헤더에서는 숨기고 슬라이드 하단에 표시 */
+  }
+  /* 날짜를 슬라이드 섹션 하단 오른쪽에 표시 */
+  .featured-date-bottom{
+    display:block;
+    text-align:right;
+    padding:4px 16px 8px;
+    font-family:var(--mono);font-size:10px;color:var(--muted);
   }
   /* 섹션 헤더 업데이트 정보 숨김 */
   .featured-hd .update-info{ display:none; }
@@ -1232,15 +1237,15 @@ function renderFeatured(featuredGroups) {
     return `
       <div class="featured-section">
         <div class="featured-hd">
-          <!-- 1줄: 넷플릭스 뱃지 + 타이틀 -->
+          <!-- row1: 뱃지 + 타이틀 + TOP N (데스크톱 1줄 / 모바일 1줄) -->
           <div class="featured-hd-row1">
             <a href="/netflix.html" class="featured-badge" style="text-decoration:none">넷플릭스</a>
             <span class="featured-title">${_escFt(group.display_name || '')}</span>
+            ${topLabel ? `<span class="featured-top-badge">${topLabel}</span>` : ''}
             <a href="/netflix.html" class="featured-more">더보기 →</a>
           </div>
-          <!-- 2줄: TOP N + 날짜 (모바일에서 명확하게) -->
+          <!-- row2: 날짜 — 모바일에서만 표시 (데스크톱 display:none) -->
           <div class="featured-hd-row2">
-            ${topLabel ? `<span class="featured-top-badge">${topLabel}</span>` : ''}
             <span class="featured-date">${dateStr}</span>
           </div>
         </div>
@@ -1256,6 +1261,8 @@ function renderFeatured(featuredGroups) {
           </div>
           <button class="ft-btn next" onclick="ftScrollTrack('${trackId}',1)">›</button>
         </div>
+        <!-- 날짜 — 모바일에서 슬라이드 하단 오른쪽 표시 -->
+        <div class="featured-date-bottom">${dateStr}</div>
       </div>`;
   }).join('');
 
