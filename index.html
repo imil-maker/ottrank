@@ -668,39 +668,38 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   /* ── period-tabs 반응형 — 일간/주간/월간 위치 ── */
   /* 섹션 헤더가 flex-wrap:wrap이므로 자동 처리됨 */
 
-  /* ── 모바일 섹션 화살표 래퍼 ── */
-  .mob-swipe-wrap{
-    display:block;          /* PC의 display:contents 해제 → 블록 */
+  /* ── 모바일 섹션 화살표 ── */
+  .mob-arr-wrap{
+    display:block;
     position:relative;
-    margin:0;
   }
-  .mob-swipe-btn{
-    display:flex;
+  .mob-arr-btn{
+    display:flex !important;
     align-items:center;
     justify-content:center;
     position:absolute;
-    top:35%;
+    top:38%;
     transform:translateY(-50%);
-    width:30px;height:30px;
+    width:28px; height:28px;
     border-radius:50%;
     background:var(--bg2);
     border:1px solid rgba(255,255,255,0.15);
     color:var(--text);
-    font-size:18px;
-    cursor:pointer;
+    font-size:16px;
     z-index:10;
-    opacity:1;
     transition:opacity .2s;
+    cursor:pointer;
   }
-  .mob-swipe-btn:disabled{ opacity:0 !important; pointer-events:none; }
-  .mob-swipe-prev{ left:4px; }
-  .mob-swipe-next{ right:4px; }
+  .mob-arr-btn.prev-btn{ left:4px; }
+  .mob-arr-btn.next-btn{ right:4px; }
+  .mob-arr-btn:disabled{ opacity:0 !important; pointer-events:none; }
 
 }
 
-/* ── 모바일 섹션 화살표 버튼 (mob-swipe-wrap) ── */
-.mob-swipe-wrap{ display:contents; }  /* PC: 투명 래퍼 */
-.mob-swipe-btn{ display:none; }       /* PC: 숨김 */
+
+/* ── 모바일 섹션 화살표 — JS로 동적 생성 ── */
+.mob-arr-wrap{ display:none; }          /* PC: 숨김 */
+.mob-arr-btn{ display:none; }           /* PC: 숨김 */
 </style>
 <style>
 /* ── 공용 헤더 컨테이너 sticky (fetch 삽입 후에도 동작) ── */
@@ -744,34 +743,63 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       };
     })
     .catch(()=>{ /* 헤더 fetch 실패 시 무시 (로컬 개발환경) */ });
-/* ── 모바일 섹션 화살표 스크롤 ── */
-function mobScrollGrid(gridId, dir) {
+
+
+
+
+
+
+/* ── 모바일 화살표 동적 생성 ── */
+function addMobArrows(gridId) {
+  if (window.innerWidth > 768) return;
   const grid = document.getElementById(gridId);
-  if (!grid) return;
-  const cardW = grid.firstElementChild?.offsetWidth || 160;
-  grid.scrollBy({ left: dir * (cardW + 12) * 2, behavior: 'smooth' });
-  setTimeout(() => updateMobBtns(gridId), 350);
+  if (!grid || grid.dataset.arrAdded) return;
+
+  // 부모에 relative wrap 클래스 추가
+  const parent = grid.parentElement;
+  parent.classList.add('mob-arr-wrap');
+
+  // 이전 버튼
+  const prev = document.createElement('button');
+  prev.className = 'mob-arr-btn prev-btn';
+  prev.innerHTML = '‹';
+  prev.setAttribute('aria-label', '이전');
+  prev.onclick = () => {
+    const cardW = grid.firstElementChild?.offsetWidth || 160;
+    grid.scrollBy({ left: -(cardW + 12) * 2, behavior: 'smooth' });
+    setTimeout(() => updateMobArr(grid, prev, next), 350);
+  };
+
+  // 다음 버튼
+  const next = document.createElement('button');
+  next.className = 'mob-arr-btn next-btn';
+  next.innerHTML = '›';
+  next.setAttribute('aria-label', '다음');
+  next.onclick = () => {
+    const cardW = grid.firstElementChild?.offsetWidth || 160;
+    grid.scrollBy({ left: (cardW + 12) * 2, behavior: 'smooth' });
+    setTimeout(() => updateMobArr(grid, prev, next), 350);
+  };
+
+  parent.appendChild(prev);
+  parent.appendChild(next);
+  grid.dataset.arrAdded = '1';
+
+  // 초기 상태 + scroll 이벤트
+  updateMobArr(grid, prev, next);
+  grid.addEventListener('scroll', () => updateMobArr(grid, prev, next), { passive: true });
 }
 
-function updateMobBtns(gridId) {
-  const grid = document.getElementById(gridId);
-  const wrap = document.getElementById('msw-' + gridId);
-  if (!grid || !wrap) return;
-  const prev = wrap.querySelector('.mob-swipe-prev');
-  const next = wrap.querySelector('.mob-swipe-next');
+function updateMobArr(grid, prev, next) {
   const atStart = grid.scrollLeft <= 4;
   const atEnd   = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 4;
-  if (prev) prev.disabled = atStart;
-  if (next) next.disabled = atEnd;
+  prev.disabled = atStart;
+  next.disabled = atEnd;
 }
 
-function initMobBtns() {
-  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
-    const grid = document.getElementById(id);
-    if (!grid) return;
-    updateMobBtns(id);
-    grid.addEventListener('scroll', () => updateMobBtns(id), { passive:true });
-  });
+function initAllMobArrows() {
+  if (window.innerWidth > 768) return;
+  ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(addMobArrows);
 }
 
 })();
@@ -807,9 +835,6 @@ function initMobBtns() {
       <span id="updateTxt">업데이트 중...</span>
     </div>
   </div>
-  <div class="mob-swipe-wrap" id="msw-tvGrid">
-  <button class="mob-swipe-btn mob-swipe-prev" onclick="mobScrollGrid('tvGrid',-1)" aria-label="이전">‹</button>
-  <button class="mob-swipe-btn mob-swipe-next" onclick="mobScrollGrid('tvGrid',1)" aria-label="다음">›</button>
   <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
   <!-- 오늘의 AI 추천 — 일단 비활성화 -->
   <div style="display:none">
@@ -880,9 +905,6 @@ function initMobBtns() {
     <a href="/contents.html" class="sec-more">전체보기 →</a>
   </div>
   <!-- 스켈레톤 로딩 -->
-  <div class="mob-swipe-wrap" id="msw-contentsPreview">
-  <button class="mob-swipe-btn mob-swipe-prev" onclick="mobScrollGrid('contentsPreview',-1)" aria-label="이전">‹</button>
-  <button class="mob-swipe-btn mob-swipe-next" onclick="mobScrollGrid('contentsPreview',1)" aria-label="다음">›</button>
   <div id="contentsPreview" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:20px">
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
@@ -904,9 +926,6 @@ function initMobBtns() {
       <span id="updateTxt2"></span>
     </div>
   </div>
-  <div class="mob-swipe-wrap" id="msw-movieGrid">
-  <button class="mob-swipe-btn mob-swipe-prev" onclick="mobScrollGrid('movieGrid',-1)" aria-label="이전">‹</button>
-  <button class="mob-swipe-btn mob-swipe-next" onclick="mobScrollGrid('movieGrid',1)" aria-label="다음">›</button>
   <div class="ott-grid" id="movieGrid"></div>
 
   <!-- ══ 최근 평점 후기 ══ -->
@@ -917,9 +936,6 @@ function initMobBtns() {
     <a href="/my_review.html" class="sec-more">전체보기 →</a>
   </div>
   <!-- 스켈레톤 5개 -->
-  <div class="mob-swipe-wrap" id="msw-reviewGrid">
-  <button class="mob-swipe-btn mob-swipe-prev" onclick="mobScrollGrid('reviewGrid',-1)" aria-label="이전">‹</button>
-  <button class="mob-swipe-btn mob-swipe-next" onclick="mobScrollGrid('reviewGrid',1)" aria-label="다음">›</button>
   <div class="review-grid" id="reviewGrid">
     <div class="rv-card" style="pointer-events:none">
       <div style="display:flex;align-items:center;gap:9px">
@@ -977,9 +993,6 @@ function initMobBtns() {
       <span id="updateTxt3"></span>
     </div>
   </div>
-  <div class="mob-swipe-wrap" id="msw-ytGrid">
-  <button class="mob-swipe-btn mob-swipe-prev" onclick="mobScrollGrid('ytGrid',-1)" aria-label="이전">‹</button>
-  <button class="mob-swipe-btn mob-swipe-next" onclick="mobScrollGrid('ytGrid',1)" aria-label="다음">›</button>
   <div class="yt-grid" id="ytGrid"></div>
 </div>
 
@@ -1263,7 +1276,8 @@ function renderCard(p,items){
 const curCat='tv';
 function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
   // 화살표 초기화
-  if(window.innerWidth<=768){ setTimeout(initMobBtns, 150); }
+
+  setTimeout(initAllMobArrows, 200);
 }
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
