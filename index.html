@@ -483,9 +483,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     flex:1;min-width:0;
   }
-  .featured-top-badge{
-    font-family:var(--disp);font-size:14px;letter-spacing:0.5px;
-    color:#E50914;line-height:1;flex-shrink:0;
+  /* TOP N — 타이틀 텍스트 바로 옆에 인라인으로 */
+  .featured-title .featured-top-badge{
+    font-family:var(--disp);font-size:13px;letter-spacing:0.5px;
+    color:#E50914;line-height:1;
+    display:inline;     /* 글자 옆에 그냥 붙음 */
+    margin-left:5px;
+    vertical-align:middle;
   }
   .featured-more{
     display:none;              /* 모바일에서 더보기 숨김 */
@@ -1259,11 +1263,10 @@ function renderFeatured(featuredGroups) {
     return `
       <div class="featured-section">
         <div class="featured-hd">
-          <!-- row1: 뱃지 + 타이틀 + TOP N -->
+          <!-- row1: 뱃지 + 타이틀(TOP N 포함) -->
           <div class="featured-hd-row1">
             <a href="/netflix.html" class="featured-badge" style="text-decoration:none">넷플릭스</a>
-            <span class="featured-title">${_escFt(group.display_name || '')}</span>
-            ${topLabel ? `<span class="featured-top-badge">${topLabel}</span>` : ''}
+            <span class="featured-title">${_escFt(group.display_name || '')}${topLabel ? ` <span class="featured-top-badge">${topLabel}</span>` : ''}</span>
           </div>
           <!-- 데스크톱 전용: live-dot + 날짜 — row1 밖에 배치해서 display:contents 영향 차단 -->
           <div class="featured-hd-update">
