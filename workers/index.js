@@ -5,8 +5,8 @@
    - 404 처리
 
    라우트 모듈 목록:
-   rankings.js  : /rankings/*, /latest-date, /platforms
-   videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*
+   rankings.js  : /rankings/*, /latest-date, /platforms, /sitemap.xml
+   videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*, /kmrb/*
    reactions.js : /reactions/*, /admin/reactions*
    auth.js      : /auth/*
    user.js      : /wishlist/*, /reviews/*, /mypage/*, /user/*, /grade-settings, /life-works/*, /pick-lists/*
@@ -71,22 +71,24 @@ export default {
       res = await handleAuth(path, request, env, headers);
     }
 
-    // 3. 랭킹
+    // 3. 랭킹 (사이트맵 포함)
     if (!res && (
       path.startsWith("/rankings") ||
       path === "/latest-date" ||
-      path === "/platforms"
+      path === "/platforms" ||
+      path === "/sitemap.xml"
     )) {
       res = await handleRankings(path, request, env, url, headers);
     }
 
-    // 4. 영상 / IMDb / YouTube / works
+    // 4. 영상 / IMDb / YouTube / works / kmrb
     if (!res && (
       path.startsWith("/videos/") ||
       path.startsWith("/admin/videos") ||
       path.startsWith("/imdb/") ||
       path.startsWith("/youtube/") ||
-      path.startsWith("/works/")
+      path.startsWith("/works/") ||
+      path.startsWith("/kmrb/")
     )) {
       res = await handleVideos(path, request, env, ctx, url, headers);
     }
