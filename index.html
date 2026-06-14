@@ -749,7 +749,8 @@ function _minit() {
   ['tvGrid','movieGrid','contentsPreview','reviewGrid','ytGrid'].forEach(id => {
     const g = document.getElementById(id);
     if(!g) return;
-    _mupd(g);
+    // 초기 _mupd 호출 제거 — 버튼은 enabled 상태로 시작
+    // 실제 스크롤 발생 시에만 갱신
     g.addEventListener('scroll', () => _mupd(g), { passive:true });
   });
 }
