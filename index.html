@@ -85,7 +85,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .featured-hd-row2 {
   display: none;     /* 데스크톱에서는 row2 완전 숨김 */
 }
-/* 데스크톱 전용: 헤더 안 update-info 오른쪽 정렬 */
+/* 데스크톱: featured-hd-update — margin-left:auto로 오른쪽 정렬 */
 .featured-hd-update {
   margin-left: auto;
   display: flex;
@@ -94,6 +94,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   font-family: var(--mono);
   font-size: 12px;
   color: var(--muted);
+  flex-shrink: 0;
 }
 .featured-top-badge {
   font-family: var(--disp); font-size: 20px; letter-spacing: 1px; color: var(--muted);
@@ -465,9 +466,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     flex-wrap:nowrap;
     gap:6px;
   }
-  /* row1: 가로 1줄 (display:contents로 자식들이 .featured-hd flex에 직접 참여) */
+  /* row1: 가로 1줄 — 뱃지+타이틀+TOP N */
   .featured-hd-row1{
-    display:contents;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex:1;           /* 남은 공간 차지 → update-info가 자연스럽게 오른쪽 */
+    min-width:0;
+    overflow:hidden;
   }
   .featured-badge{
     font-size:9px;padding:2px 7px;letter-spacing:1.5px;flex-shrink:0;
@@ -488,7 +494,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .featured-hd-row2{
     display:none;              /* 헤더에서는 숨기고 슬라이드 하단에 표시 */
   }
-  /* 데스크톱 헤더 안 날짜 — 모바일에서 숨김 */
+  /* 데스크톱 날짜 — 모바일에서 숨김 (row1 밖에 있으므로 display:none 확실 적용) */
   .featured-hd-update{ display:none !important; }
 
   /* 슬라이드 하단 날짜 — 모바일 전용 */
@@ -1253,19 +1259,17 @@ function renderFeatured(featuredGroups) {
     return `
       <div class="featured-section">
         <div class="featured-hd">
-          <!-- row1: 뱃지 + 타이틀 + TOP N (데스크톱 1줄 / 모바일 1줄) -->
+          <!-- row1: 뱃지 + 타이틀 + TOP N -->
           <div class="featured-hd-row1">
             <a href="/netflix.html" class="featured-badge" style="text-decoration:none">넷플릭스</a>
             <span class="featured-title">${_escFt(group.display_name || '')}</span>
             ${topLabel ? `<span class="featured-top-badge">${topLabel}</span>` : ''}
-            <!-- 데스크톱 전용: live-dot + 날짜 (모바일에서는 하단에 표시) -->
-            <div class="update-info featured-hd-update">
-              <div class="live-dot"></div>
-              <span>${dateStr}</span>
-            </div>
           </div>
-          <!-- row2: 모바일 전용 (데스크톱 display:none) — 현재 비어있음 -->
-          <div class="featured-hd-row2"></div>
+          <!-- 데스크톱 전용: live-dot + 날짜 — row1 밖에 배치해서 display:contents 영향 차단 -->
+          <div class="featured-hd-update">
+            <div class="live-dot"></div>
+            <span>${dateStr}</span>
+          </div>
         </div>
         <div class="ft-swipe-wrap">
           <button class="ft-btn prev" onclick="ftScrollTrack('${trackId}',-1)">‹</button>
