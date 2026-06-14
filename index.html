@@ -740,7 +740,8 @@ function _mupd(g) {
   if(!w) return;
   const p = w.querySelector('.msb.prev');
   const n = w.querySelector('.msb.next');
-  if(p) p.disabled = g.scrollLeft <= 4;
+  // padding:0 16px 때문에 scrollLeft 기준을 20px으로 설정
+  if(p) p.disabled = g.scrollLeft <= 20;
   if(n) n.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
 }
 
