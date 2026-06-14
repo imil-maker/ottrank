@@ -207,54 +207,57 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* 540x960 기준 작성 → html2canvas scale:2 → 1080x1920 출력 */
 #shareCard{
   position:fixed;left:-9999px;top:0;
-  width:540px;height:960px;
-  border-radius:0;overflow:hidden;
+  width:540px;min-height:960px;
+  border-radius:0;
   font-family:'Noto Sans KR',sans-serif;
-  display:flex;flex-direction:column;
+  overflow:hidden;
   background:#13131a;
 }
-/* 상단 — 포스터 영역 */
-#shareCardPosterWrap{
-  position:relative;height:600px;overflow:hidden;flex-shrink:0;
-  background:#1a1a24;
-}
+/* 포스터 풀배경 — object-position:center top 으로 비율 유지 */
 #shareCardPoster{
-  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  position:absolute;top:0;left:0;width:100%;height:560px;
+  object-fit:cover;object-position:center top;display:block;
 }
-#shareCardPosterFade{
-  position:absolute;bottom:0;left:0;right:0;height:50%;
-  background:linear-gradient(180deg,transparent,#13131a);
+/* 포스터 없을 때 대체 배경 */
+#shareCardPosterFallback{
+  position:absolute;top:0;left:0;width:100%;height:560px;
+  background:linear-gradient(135deg,#3a2e22 0%,#6b4a2e 45%,#d4a05a 100%);
+  display:none;
 }
+/* 하단 그라디언트 — 포스터에서 정보 영역으로 자연스럽게 전환 */
+#shareCardFade{
+  position:absolute;top:260px;left:0;width:100%;height:380px;
+  background:linear-gradient(180deg,transparent 0%,#13131a 85%);
+}
+/* 좌상단 — 오뜨랑 리뷰 뱃지 */
 #shareCardBadgeRow{
-  position:absolute;top:28px;left:0;right:0;
-  display:flex;align-items:center;justify-content:space-between;padding:0 32px;
+  position:absolute;top:28px;left:32px;
+  display:flex;align-items:center;gap:10px;z-index:2;
 }
-#shareCardBadgeLeft{display:flex;align-items:center;gap:10px}
 #shareCardLogoBox{
   width:40px;height:40px;border-radius:10px;
   background:linear-gradient(135deg,#e63946,#f0b429);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 #shareCardLogoBox i{font-size:24px;color:#1a1410}
-#shareCardBadgeText{font-size:26px;font-weight:500;color:#fff}
-#shareCardAdmit{font-size:18px;letter-spacing:3px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace}
-/* 상단 영역 하단 — 작품명 오버레이 */
-#shareCardOverlay{position:absolute;bottom:28px;left:32px;right:32px}
-#shareCardEyebrow{font-size:20px;letter-spacing:6px;color:rgba(255,255,255,.55);font-family:'DM Mono',monospace;margin-bottom:10px}
-#shareCardEnTitle{font-size:56px;font-weight:700;letter-spacing:8px;color:#fff;line-height:1;word-break:break-all}
+#shareCardBadgeText{font-size:26px;font-weight:500;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.5)}
 
-/* 하단 — 정보 영역 */
-#shareCardInner{flex:1;padding:32px;display:flex;flex-direction:column;color:#ededf0;min-height:0}
-#shareCardTitle{font-size:36px;font-weight:700;margin-bottom:8px;line-height:1.25;word-break:break-all}
-#shareCardMeta{font-size:20px;color:#7a7a96;font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:22px}
+/* 정보 영역 — 포스터 배경 위에 떠 있음 */
+#shareCardInner{
+  position:relative;z-index:2;
+  margin-top:340px;padding:0 32px 32px;
+  display:flex;flex-direction:column;color:#ededf0;
+}
+#shareCardTitle{font-size:40px;font-weight:700;margin-bottom:8px;line-height:1.25;word-break:break-all;text-shadow:0 2px 16px rgba(0,0,0,.6)}
+#shareCardMeta{font-size:20px;color:rgba(255,255,255,.6);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:22px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
 #shareCardScoreRow{display:flex;align-items:baseline;gap:16px;margin-bottom:22px}
-#shareCardStars{font-size:36px;letter-spacing:4px;color:#f0b429;line-height:1}
-#shareCardScore{font-size:40px;font-weight:700;color:#f0b429;font-family:'DM Mono',monospace;line-height:1}
-#shareCardDivider{height:2px;background:rgba(255,255,255,.08);margin-bottom:22px}
-#shareCardText{font-size:26px;line-height:1.65;color:rgba(255,255,255,.9);font-style:italic;word-break:keep-all;margin-bottom:22px}
-#shareCardTags{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:auto}
+#shareCardStars{font-size:36px;letter-spacing:4px;color:#f0b429;line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+#shareCardScore{font-size:40px;font-weight:700;color:#f0b429;font-family:'DM Mono',monospace;line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+#shareCardDivider{height:2px;background:rgba(255,255,255,.12);margin-bottom:22px}
+#shareCardText{font-size:26px;line-height:1.65;color:rgba(255,255,255,.92);font-style:italic;word-break:keep-all;margin-bottom:22px}
+#shareCardTags{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:28px}
 #shareCardTags span{font-size:22px;padding:6px 20px;border-radius:30px;font-family:'Noto Sans KR',sans-serif}
-#shareCardFooter{display:flex;align-items:center;justify-content:space-between;border-top:2px solid rgba(255,255,255,.08);padding-top:24px;margin-top:24px}
+#shareCardFooter{display:flex;align-items:center;justify-content:space-between;border-top:2px solid rgba(255,255,255,.12);padding-top:24px}
 #shareCardNick{font-size:24px;color:#a0a0bc}
 #shareCardBrand{font-size:24px;letter-spacing:2px;color:rgba(255,255,255,.32);font-family:'DM Mono',monospace}
 
@@ -381,23 +384,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <!-- 공유 카드 (이미지 생성용 — 화면에는 숨김) -->
 <div id="shareCard">
-  <!-- 상단: 포스터 영역 -->
-  <div id="shareCardPosterWrap">
-    <img id="shareCardPoster" src="" alt="">
-    <div id="shareCardPosterFade"></div>
-    <div id="shareCardBadgeRow">
-      <div id="shareCardBadgeLeft">
-        <div id="shareCardLogoBox"><i class="ti ti-movie" aria-hidden="true"></i></div>
-        <span id="shareCardBadgeText">오뜨랑 리뷰</span>
-      </div>
-      <span id="shareCardAdmit">ADMIT ONE</span>
-    </div>
-    <div id="shareCardOverlay">
-      <div id="shareCardEyebrow">DESTINY ARRIVES</div>
-      <div id="shareCardEnTitle"></div>
-    </div>
+  <img id="shareCardPoster" src="" alt="">
+  <div id="shareCardPosterFallback"></div>
+  <div id="shareCardFade"></div>
+  <div id="shareCardBadgeRow">
+    <div id="shareCardLogoBox"><i class="ti ti-movie" aria-hidden="true"></i></div>
+    <span id="shareCardBadgeText">오뜨랑 리뷰</span>
   </div>
-  <!-- 하단: 정보 영역 -->
   <div id="shareCardInner">
     <div id="shareCardTitle"></div>
     <div id="shareCardMeta"></div>
@@ -699,23 +692,20 @@ async function shareReviewCard(){
       }catch(e){posterDataUrl='';}
     }
 
-    const posterWrap=document.getElementById('shareCardPosterWrap');
     const posterEl=document.getElementById('shareCardPoster');
+    const fallbackEl=document.getElementById('shareCardPosterFallback');
     if(posterDataUrl){
       posterEl.src=posterDataUrl;
       posterEl.style.display='block';
-      posterWrap.style.background='#1a1a24';
+      fallbackEl.style.display='none';
     }else{
       // 포스터 없을 때 — 브랜드 그라디언트로 대체
       posterEl.style.display='none';
-      posterWrap.style.background='linear-gradient(135deg,#3a2e22 0%,#6b4a2e 45%,#d4a05a 100%)';
+      fallbackEl.style.display='block';
     }
 
-    // 작품명 (한글/영문 동일하게 사용, 길면 줄임)
-    const title=RDATA.title||'';
-    document.getElementById('shareCardTitle').textContent=title;
-    document.getElementById('shareCardEnTitle').textContent=
-      title.length>10?title.slice(0,10):title;
+    // 작품명
+    document.getElementById('shareCardTitle').textContent=RDATA.title||'';
 
     const platformLabel={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'}[RDATA.platform]||'';
     document.getElementById('shareCardMeta').textContent=
