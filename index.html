@@ -779,7 +779,9 @@ function mainScroll(gridId, dir) {
   <div class="main-swipe-wrap">
     <button class="main-swipe-btn prev" onclick="mainScroll('tvGrid',-1)">&#8249;</button>
     <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
-  <!-- 오늘의 AI 추천 — 일단 비활성화 -->
+  <!-- 오늘의 AI
+    <button class="main-swipe-btn next" onclick="mainScroll('tvGrid',1)">&#8250;</button>
+  </div> 추천 — 일단 비활성화 -->
   <div style="display:none">
   <div class="sec-hd">
     <span class="sec-icon">✨</span>
@@ -857,6 +859,8 @@ function mainScroll(gridId, dir) {
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
     <div class="skel-ct-card"><div class="skel-ct-thumb"></div><div class="skel-ct-line"></div><div class="skel-ct-line short"></div></div>
   </div>
+    <button class="main-swipe-btn next" onclick="mainScroll('contentsPreview',1)">&#8250;</button>
+  </div>
 
   <!-- 영화 -->
   <div class="sec-hd" id="movie">
@@ -871,15 +875,13 @@ function mainScroll(gridId, dir) {
       <span id="updateTxt2"></span>
     </div>
   </div>
-    <button class="main-swipe-btn next" onclick="mainScroll('tvGrid',1)">&#8250;</button>
-  </div><!-- /tvGrid wrap -->
   <div class="main-swipe-wrap">
     <button class="main-swipe-btn prev" onclick="mainScroll('movieGrid',-1)">&#8249;</button>
     <div class="ott-grid" id="movieGrid"></div>
-    <button class="main-swipe-btn next" onclick="mainScroll('movieGrid',1)">&#8250;</button>
-  </div><!-- /movieGrid wrap -->
 
-  <!-- ══ 최근 평점 후기 ══ -->
+  <!-- ══ 최근 평점
+    <button class="main-swipe-btn next" onclick="mainScroll('movieGrid',1)">&#8250;</button>
+  </div> 후기 ══ -->
   <div class="sec-hd" id="recentReviews">
     <span class="sec-icon">⭐</span>
     <span class="sec-title">최근 평점 후기</span>
@@ -936,6 +938,8 @@ function mainScroll(gridId, dir) {
       <div class="rv-skel" style="height:52px;width:100%"></div>
     </div>
   </div>
+    <button class="main-swipe-btn next" onclick="mainScroll('reviewGrid',1)">&#8250;</button>
+  </div>
 
   <!-- ══ 유튜브 급상승 ══ -->
   <div class="sec-hd" id="youtube">
@@ -949,11 +953,11 @@ function mainScroll(gridId, dir) {
   <div class="main-swipe-wrap">
     <button class="main-swipe-btn prev" onclick="mainScroll('ytGrid',-1)">&#8249;</button>
     <div class="yt-grid" id="ytGrid"></div>
-    <button class="main-swipe-btn next" onclick="mainScroll('ytGrid',1)">&#8250;</button>
-  </div><!-- /ytGrid wrap -->
 </div>
 
-<!-- ══ 공용 푸터 (footer.html에서 동적 로드) ══ -->
+<!-- ══ 공용 푸터
+    <button class="main-swipe-btn next" onclick="mainScroll('ytGrid',1)">&#8250;</button>
+  </div> (footer.html에서 동적 로드) ══ -->
 <div id="ottrang-footer"></div>
 <script>
 (function(){
