@@ -236,7 +236,14 @@ body {
   .hero { padding:32px 0 28px }
   .hero-title { font-size:38px }
   .hero-logo { font-size:120px; opacity:.5 }
-  .rk-card { min-width:160px; max-width:180px }
+  /* 카드 + 스켈레톤 동일 크기 — 스켈레톤→실제 카드 깜빡임 방지 */
+  .rk-card,
+  .skel-card{
+    flex:0 0 62vw;
+    min-width:0;
+    max-width:260px;
+    scroll-snap-align:start;
+  }
   .hero-sub { display:none }
 
   /* ── 섹션 헤더 1줄화 ── */
