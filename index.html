@@ -215,7 +215,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ft-skel-line.short { width: 50%; height: 9px; margin-top: 0; }
 @media(max-width:768px) {
   .ft-card { min-width: 150px; max-width: 170px; }
-  .ft-btn { display: none; }
+  /* ft-btn: 모바일 표시는 아래 블록에서 처리 */
 }
 .period-tabs{display:flex;gap:2px;margin-left:12px}
 .pb{height:28px;padding:0 12px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
@@ -525,7 +525,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     min-width:0;
     max-width:none;
   }
-  .ft-btn{ display:none; }     /* 화살표 버튼 숨김 */
+  /* ft-btn: 아래 .ft-swipe-wrap .ft-btn 으로 제어 */
 
   /* ── 2. TV/영화 OTT 그리드 → 슬라이드 ── */
   /* ott-grid를 flex 슬라이드로 전환 */
@@ -758,21 +758,23 @@ function _mobAddArrow(gridId) {
   if(!grid || grid._ma) return;
   grid._ma = 1;
 
-  const par = grid.parentElement;
-  if(getComputedStyle(par).position === 'static')
-    par.style.position = 'relative';
+  /* grid를 wrap div로 감싸서 position:relative 적용 */
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;display:block;';
+  grid.parentNode.insertBefore(wrap, grid);
+  wrap.appendChild(grid);
 
   const make = (isLeft) => {
     const b = document.createElement('button');
     b.className = 'main-arr-btn';
-    b.innerHTML = isLeft ? '‹' : '›';
+    b.innerHTML = isLeft ? '&#8249;' : '&#8250;';
     b.style[isLeft ? 'left' : 'right'] = '2px';
     b.onclick = () => {
       const w = (grid.firstElementChild?.offsetWidth || 150) + 12;
       grid.scrollBy({ left: (isLeft ? -1 : 1) * w * 2, behavior:'smooth' });
       setTimeout(() => _mobUpdBtn(grid, prev, next), 350);
     };
-    par.appendChild(b);
+    wrap.appendChild(b);
     return b;
   };
 
