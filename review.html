@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 /* ── CSS 변수 (header.html / mypage.html 완전 동일) ── */
 :root{
@@ -201,6 +202,58 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .star-wrap .s-full,.star-wrap .s-half{font-size:36px}
   .star-label{line-height:40px}
 }
+
+/* ══ 공유 카드 (이미지 생성용 — 화면에는 숨김) ══ */
+#shareCard{
+  position:fixed;left:-9999px;top:0;
+  width:400px;background:#0c0c10;
+  border-radius:16px;overflow:hidden;
+  font-family:'Noto Sans KR',sans-serif;
+}
+#shareCardBg{
+  position:absolute;inset:0;
+  background-size:cover;background-position:center;
+  filter:blur(24px) brightness(.35);transform:scale(1.15);
+}
+#shareCardInner{position:relative;z-index:1;padding:28px 24px}
+#shareCardTop{display:flex;gap:16px;margin-bottom:20px}
+#shareCardPoster{width:80px;height:120px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#1a1a24}
+#shareCardTitle{font-size:22px;font-weight:700;color:#ededf0;line-height:1.3;margin-bottom:6px;word-break:break-all}
+#shareCardOrigTitle{font-size:12px;color:rgba(255,255,255,.45);margin-bottom:4px;font-family:'DM Mono',monospace}
+#shareCardMeta{font-size:12px;color:rgba(255,255,255,.4);font-family:'DM Mono',monospace}
+#shareCardScoreRow{display:flex;align-items:baseline;gap:8px;margin-bottom:16px}
+#shareCardStars{font-size:22px;color:#f0b429;letter-spacing:3px;line-height:1}
+#shareCardScore{font-size:28px;font-weight:700;color:#f0b429;font-family:'DM Mono',monospace;line-height:1}
+#shareCardOutOf{font-size:13px;color:rgba(255,255,255,.4);font-family:'DM Mono',monospace}
+#shareCardDivider{height:1px;background:rgba(255,255,255,.12);margin-bottom:16px}
+#shareCardText{font-size:15px;color:rgba(255,255,255,.88);line-height:1.7;margin-bottom:16px;font-style:italic;word-break:keep-all}
+#shareCardTags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:22px}
+#shareCardTags span{font-size:12px;padding:4px 12px;border-radius:20px;font-family:var(--font-sans)}
+#shareCardFooter{display:flex;align-items:center;justify-content:space-between}
+#shareCardNick{font-size:13px;color:rgba(255,255,255,.5)}
+#shareCardBrand{font-size:13px;color:rgba(255,255,255,.32);font-family:'DM Mono',monospace;letter-spacing:.5px}
+
+/* ── 공유 버튼 (제출 후 노출) ── */
+.share-row{display:none;margin-top:12px}
+.share-row.show{display:block}
+.share-btn{
+  width:100%;padding:13px;border-radius:var(--r);
+  border:.5px solid var(--info-border);background:var(--info-bg);
+  color:var(--info);font-size:14px;font-weight:600;cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.share-btn:hover{background:rgba(55,138,221,.2)}
+.share-btn:disabled{opacity:.5;cursor:default}
+
+/* ── 공유 완료 모달 (PC 다운로드 시 미리보기) ── */
+.share-preview-modal{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
+.share-preview-modal.show{display:flex}
+.share-preview-box{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r-lg);max-width:360px;width:100%;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.7)}
+.share-preview-img{width:100%;display:block}
+.share-preview-actions{padding:14px 16px;display:flex;gap:8px}
+.share-preview-close{flex:1;padding:10px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font-sans)}
+.share-preview-close:hover{background:var(--bg3);color:var(--text)}
 </style>
 </head>
 <body>
@@ -283,8 +336,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   <!-- 제출 -->
   <div class="submit-row">
-    <button class="cancel-btn" onclick="goBack()">취소</button>
+    <button class="cancel-btn" id="cancelBtn" onclick="goBack()">취소</button>
     <button class="submit-btn" id="submitBtn" onclick="submitReview()">후기 등록</button>
+  </div>
+
+  <!-- 공유하기 (등록 완료 후 노출) -->
+  <div class="share-row" id="shareRow">
+    <button class="share-btn" id="shareBtn" onclick="shareReviewCard()">
+      <i class="ti ti-share-2" style="font-size:16px"></i> 후기 이미지로 공유하기
+    </button>
   </div>
 
   <!-- 기존 후기 있을 때 삭제 버튼 -->
@@ -292,6 +352,46 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <i class="ti ti-trash" style="font-size:14px"></i> 내 후기 삭제
   </button>
 
+</div>
+
+<!-- 공유 카드 (이미지 생성용 — 화면에는 숨김) -->
+<div id="shareCard">
+  <div id="shareCardBg"></div>
+  <div id="shareCardInner">
+    <div id="shareCardTop">
+      <img id="shareCardPoster" src="" alt="">
+      <div style="min-width:0">
+        <div id="shareCardTitle"></div>
+        <div id="shareCardOrigTitle"></div>
+        <div id="shareCardMeta"></div>
+      </div>
+    </div>
+    <div id="shareCardScoreRow">
+      <span id="shareCardStars"></span>
+      <span id="shareCardScore"></span>
+      <span id="shareCardOutOf">/10</span>
+    </div>
+    <div id="shareCardDivider"></div>
+    <div id="shareCardText"></div>
+    <div id="shareCardTags"></div>
+    <div id="shareCardFooter">
+      <span id="shareCardNick"></span>
+      <span id="shareCardBrand">ottrank.kr</span>
+    </div>
+  </div>
+</div>
+
+<!-- 공유 이미지 미리보기 모달 (PC) -->
+<div class="share-preview-modal" id="sharePreviewModal">
+  <div class="share-preview-box">
+    <img class="share-preview-img" id="sharePreviewImg" src="" alt="공유 이미지">
+    <div class="share-preview-actions">
+      <button class="share-preview-close" onclick="closeSharePreview()">닫기</button>
+      <a class="share-btn" id="sharePreviewDownload" download="" href="" style="text-decoration:none;flex:1">
+        <i class="ti ti-download" style="font-size:16px"></i> 이미지 저장
+      </a>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -319,6 +419,7 @@ const REVIEW_API=OTTRANK_API;
 /* ══ 작품 데이터 로드 ══ */
 let RDATA=null;
 let myStars=0,hoverVal=0,selectedEval='',MY_REVIEW=null;
+let LAST_REVIEW=null; // 공유 카드용 — 제출 성공 시 채워짐
 
 (function init(){
   const sid=localStorage.getItem('ottrang_sid');
@@ -509,11 +610,14 @@ async function submitReview(){
       }
     }
 
+    // 공유 카드용 데이터 저장
+    LAST_REVIEW={score:myStars,emotions,text:txt};
+
     showToast('후기가 등록됐어요! 🎉');
-    setTimeout(()=>{
-      const backUrl=(RDATA?.back_url||'/')+'#myReviewBox';
-      location.href=backUrl;
-    },1200);
+    btn.textContent='등록 완료 ✓';
+    document.getElementById('cancelBtn').textContent='돌아가기';
+    document.getElementById('shareRow').classList.add('show');
+    document.getElementById('deleteBtn').style.display='block';
   }catch(e){showToast('네트워크 오류');btn.disabled=false;btn.textContent='후기 등록';}
 }
 
@@ -529,11 +633,105 @@ async function deleteReview(){
   }catch(e){showToast('네트워크 오류');}
 }
 
+/* ══ 공유 이미지 카드 ══ */
+const EVAL_TAGS=['강추해요','추천해요','평범해요','별로예요'];
+
+async function shareReviewCard(){
+  if(!LAST_REVIEW){showToast('먼저 후기를 등록해주세요');return;}
+  const shareBtn=document.getElementById('shareBtn');
+  shareBtn.disabled=true;
+  shareBtn.innerHTML='<i class="ti ti-loader-2" style="font-size:16px"></i> 이미지 생성 중...';
+
+  try{
+    // ── 카드 데이터 채우기 ──
+    const posterUrl=RDATA.poster_path&&RDATA.poster_path.includes('image.tmdb.org')?RDATA.poster_path:'';
+
+    document.getElementById('shareCardBg').style.backgroundImage=posterUrl?`url(${posterUrl})`:'';
+    const posterEl=document.getElementById('shareCardPoster');
+    if(posterUrl){posterEl.src=posterUrl;posterEl.style.display='block';}
+    else{posterEl.style.display='none';}
+
+    document.getElementById('shareCardTitle').textContent=RDATA.title||'';
+    document.getElementById('shareCardOrigTitle').textContent='';
+    const platformLabel={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'}[RDATA.platform]||'';
+    document.getElementById('shareCardMeta').textContent=
+      [RDATA.year,platformLabel].filter(Boolean).join(' · ');
+
+    // 별점 (myStars: 0.5~5 → score10: 1~10)
+    const score10=LAST_REVIEW.score*2;
+    const fullStars=Math.floor(LAST_REVIEW.score);
+    const halfStar=(LAST_REVIEW.score%1)>=0.5?1:0;
+    const emptyStars=5-fullStars-halfStar;
+    document.getElementById('shareCardStars').textContent=
+      '★'.repeat(fullStars)+(halfStar?'½':'')+'☆'.repeat(Math.max(0,emptyStars));
+    document.getElementById('shareCardScore').textContent=score10;
+
+    // 한줄 감상
+    const text=LAST_REVIEW.text||'';
+    document.getElementById('shareCardText').textContent=
+      text.length>80?'"'+text.slice(0,80)+'…"':'"'+text+'"';
+
+    // 감정 태그 (최대 4개)
+    const tagsHtml=(LAST_REVIEW.emotions||[]).slice(0,4).map(e=>{
+      const isEval=EVAL_TAGS.includes(e);
+      const bg=isEval?'rgba(240,180,41,.15)':'rgba(55,138,221,.12)';
+      const fg=isEval?'#f0b429':'#378ADD';
+      const bd=isEval?'rgba(240,180,41,.35)':'rgba(55,138,221,.35)';
+      return `<span style="background:${bg};color:${fg};border:.5px solid ${bd}">${e}</span>`;
+    }).join('');
+    document.getElementById('shareCardTags').innerHTML=tagsHtml;
+
+    // 닉네임
+    const nick=window.__ottrangUser__?.nickname||localStorage.getItem('ottrang_nick')||'오뜨랑 유저';
+    document.getElementById('shareCardNick').textContent=nick+'의 리뷰';
+
+    // ── 이미지 생성 ──
+    const card=document.getElementById('shareCard');
+    const canvas=await html2canvas(card,{
+      scale:2,
+      useCORS:true,
+      backgroundColor:'#0c0c10',
+      logging:false,
+    });
+
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
+    const fileName=`ottrank_${(RDATA.title||'review').replace(/[^\w가-힣]/g,'')}.png`;
+    const file=new File([blob],fileName,{type:'image/png'});
+
+    // ── 공유 (모바일 우선) ──
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({
+        files:[file],
+        title:`${RDATA.title} 후기 | 오뜨랑`,
+        text:`오뜨랑에서 ${RDATA.title} 후기를 남겼어요!`,
+      });
+    }else{
+      // PC: 미리보기 모달 + 다운로드
+      const url=URL.createObjectURL(blob);
+      document.getElementById('sharePreviewImg').src=url;
+      const dl=document.getElementById('sharePreviewDownload');
+      dl.href=url;dl.download=fileName;
+      document.getElementById('sharePreviewModal').classList.add('show');
+    }
+  }catch(e){
+    // 사용자가 공유 취소한 경우(AbortError)는 에러 표시 안 함
+    if(e.name!=='AbortError')showToast('이미지 생성에 실패했어요');
+  }finally{
+    shareBtn.disabled=false;
+    shareBtn.innerHTML='<i class="ti ti-share-2" style="font-size:16px"></i> 후기 이미지로 공유하기';
+  }
+}
+
+function closeSharePreview(){
+  document.getElementById('sharePreviewModal').classList.remove('show');
+}
+
 /* ══ 유틸 ══ */
 function _safeParseArr(v){if(!v)return[];try{const r=JSON.parse(v);return Array.isArray(r)?r:[];}catch(e){return[];}}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 function goBack(){
-  const backUrl=RDATA?.back_url||'/';
+  let backUrl=RDATA?.back_url||'/';
+  if(LAST_REVIEW)backUrl+='#myReviewBox';
   location.href=backUrl;
 }
 </script>
