@@ -178,9 +178,15 @@ async function getContentsList(url, env, headers) {
 // GET /contents/pinned
 // ─────────────────────────────────────────────
 async function getPinnedContents(env, headers) {
+  // ⚠️ 2026-06-20 수정: SELECT에 is_pinned, sort_order 추가.
+  // 기존엔 WHERE/ORDER BY에서만 쓰고 SELECT 목록엔 빠져있어서,
+  // 프론트(index.html)가 item.is_pinned로 분기하는 정렬 로직에서
+  // 모든 항목이 undefined(=비고정) 취급되어 어드민에서 설정한
+  // sort_order가 메인페이지에 전혀 반영되지 않던 원인이었음.
   const { results } = await env.DB.prepare(
     `SELECT id, youtube_id, platform, type, title, work_title,
-            tmdb_id, tmdb_type, thumbnail, published_at, view_count
+            tmdb_id, tmdb_type, thumbnail, published_at, view_count,
+            is_pinned, sort_order
      FROM ott_contents
      WHERE is_pinned = 1 AND is_hidden = 0
      ORDER BY sort_order ASC
