@@ -4173,6 +4173,11 @@ async function savePinnedOrder(){
     const data = await res.json();
     if(data.ok){ showToast('✅ 고정 순서 저장 완료', 'ok'); }
     else        { showToast(data.error||'저장 실패', 'err'); }
+    // ⚠️ 2026-06-20 추가: 성공/실패와 무관하게 서버 실제 상태를 다시 불러옴.
+    // 기존엔 저장 후에도 드래그로 바뀐 로컬 pinnedItems를 그대로 화면에
+    // 남겨뒀기 때문에, 서버 저장이 실제로 실패해도 화면은 마치 저장된
+    //것처럼 보이는 문제가 있었음(새로고침 전까지 알아챌 방법이 없었음).
+    await loadPinned();
   } catch(e){ showToast(e.message,'err'); }
   finally { if(btn){ btn.disabled=false; btn.textContent='순서 저장'; } }
 }
