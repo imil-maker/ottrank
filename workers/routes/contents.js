@@ -546,11 +546,27 @@ async function adminCreateContent(request, env, headers) {
 
     // TMDB 매칭된 작품이 있으면 works 테이블에도 자동 등록
     // INSERT OR IGNORE → 이미 있으면 기존 데이터 보호, 없으면 신규 추가
+    //
+    // ⚠️ 2026-06-20 수정: 컬럼명 category → media_type
+    // works 테이블에는 'category' 컬럼이 존재하지 않음(실제 컬럼은 media_type).
+    // 이 오타 때문에 tmdb_id + work_title이 함께 오는 모든 등록 요청이
+    // "no such column: category" 에러로 throw되어 ott_contents에는 이미
+    // INSERT된 뒤에도 전체 요청이 500으로 응답 — 크롤러가 매번 실패로
+    // 인식하는 원인이었음.
+    //
+    // 또한 이 works 자동등록은 부가 기능(있으면 좋은 것)이지 핵심 기능이
+    // 아니므로, 여기서 또 다른 예기치 못한 에러가 나더라도 ott_contents
+    // 등록 자체(핵심 기능)는 절대 막히지 않도록 try/catch로 격리한다.
     if (tmdb_id && work_title) {
-      await env.DB.prepare(
-        `INSERT OR IGNORE INTO works (tmdb_id, category, title_ko, match_source)
-         VALUES (?, 'tv', ?, 'crawler')`
-      ).bind(tmdb_id, work_title).run();
+      try {
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO works (tmdb_id, media_type, title_ko, match_source)
+           VALUES (?, 'tv', ?, 'crawler')`
+        ).bind(tmdb_id, work_title).run();
+      } catch (worksErr) {
+        // works 자동등록 실패는 로그만 남기고 무시 — ott_contents 등록은 이미 성공했음
+        console.error("[contents] works 자동등록 실패(무시):", worksErr.message);
+      }
     }
 
     return json({ ok: true, id: result.meta?.last_row_id }, 200, headers);
