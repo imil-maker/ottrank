@@ -63,6 +63,43 @@
       font-size:13px; color:var(--muted2); text-decoration:none;
     }
     .back:hover { color:var(--text); }
+
+    /* ── 로딩 상태 ── */
+    .btn-social.loading {
+      opacity:0.7; pointer-events:none; cursor:not-allowed;
+      position:relative;
+    }
+    .btn-social.active-loading {
+      opacity:1 !important; pointer-events:none;
+      box-shadow:0 0 0 3px rgba(255,255,255,0.5);
+      transform:scale(0.98);
+    }
+    .btn-kakao.active-loading { box-shadow:0 0 0 3px #c8a800; }
+    .btn-naver.active-loading  { box-shadow:0 0 0 3px #029a47; }
+    .btn-google.active-loading { box-shadow:0 0 0 3px #4285F4; }
+
+    /* 스피너 */
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .btn-spinner {
+      width:18px; height:18px; border-radius:50%;
+      border:2.5px solid rgba(0,0,0,0.2);
+      border-top-color:currentColor;
+      animation:spin .7s linear infinite;
+      flex-shrink:0;
+    }
+    .btn-kakao .btn-spinner  { border-top-color:#000; }
+    .btn-naver .btn-spinner  { border-top-color:#fff; }
+    .btn-google .btn-spinner { border-top-color:#4285F4; }
+
+    /* 전체 로딩 오버레이 */
+    .page-overlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.4); z-index:999;
+      align-items:center; justify-content:center;
+      flex-direction:column; gap:12px;
+    }
+    .page-overlay.show { display:flex; }
+    .overlay-text { color:#fff; font-size:14px; font-family:var(--sans); }
   </style>
 </head>
 <body>
@@ -92,13 +129,44 @@
 
     <a class="back" href="/">← 메인으로 돌아가기</a>
 
+  <!-- 로딩 오버레이 -->
+  <div class="page-overlay" id="pageOverlay">
+    <div style="width:36px;height:36px;border-radius:50%;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;animation:spin .7s linear infinite;"></div>
+    <div class="overlay-text" id="overlayText">로그인 중...</div>
+  </div>
+
   <script>
     const API = 'https://ottrank-api.tdidream.workers.dev';
     const redirect = new URLSearchParams(location.search).get('redirect') || '';
     const r = redirect ? '?redirect=' + encodeURIComponent(redirect) : '';
-    document.getElementById('btnKakao').href = `${API}/auth/kakao${r}`;
-    document.getElementById('btnNaver').href = `${API}/auth/naver${r}`;
-    document.getElementById('btnGoogle').href = `${API}/auth/google${r}`;
+
+    const btnKakao  = document.getElementById('btnKakao');
+    const btnNaver  = document.getElementById('btnNaver');
+    const btnGoogle = document.getElementById('btnGoogle');
+
+    btnKakao.href  = `${API}/auth/kakao${r}`;
+    btnNaver.href  = `${API}/auth/naver${r}`;
+    btnGoogle.href = `${API}/auth/google${r}`;
+
+    const BTNS = [
+      { el: btnKakao,  loadingLabel: '카카오 연결 중...' },
+      { el: btnNaver,  loadingLabel: '네이버 연결 중...' },
+      { el: btnGoogle, loadingLabel: '구글 연결 중...'  },
+    ];
+
+    BTNS.forEach(({ el, loadingLabel }) => {
+      el.addEventListener('click', function() {
+        // 클릭된 버튼 — 활성 로딩 (스피너 + 텍스트 교체)
+        el.classList.add('active-loading');
+        el.innerHTML = `<div class="btn-spinner"></div><span>${loadingLabel}</span>`;
+        // 나머지 버튼 비활성화
+        BTNS.forEach(b => { if (b.el !== el) b.el.classList.add('loading'); });
+        // 1초 후 전체 오버레이 표시
+        setTimeout(() => {
+          document.getElementById('pageOverlay').classList.add('show');
+        }, 1000);
+      });
+    });
   </script>
   </div>
 </body>
