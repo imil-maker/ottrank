@@ -22,6 +22,7 @@
 ══════════════════════════════════════════════════════════════ */
 
 import { _getSessionCookie, _recalcGrade } from "../utils/authUtils.js";
+import { _addOttPoints } from "./admin.js";
 
 export async function handleUser(path, request, env, ctx, headers) {
 
@@ -76,6 +77,8 @@ export async function handleUser(path, request, env, ctx, headers) {
         await env.DB.prepare(
           "INSERT INTO wishlist (user_id, tmdb_id, title_ko, poster_path, release_year, category) VALUES (?, ?, ?, ?, ?, ?)"
         ).bind(session.user_id, parseInt(tmdb_id), title_ko || "", poster_path || "", release_year || "", category || "movie").run();
+        // 찜 등록 시 +1 오뜨 (삭제 시 차감 없음)
+        ctx.waitUntil(_addOttPoints(session.user_id, 1, 'wishlist', env));
         ctx.waitUntil(_recalcGrade(session.user_id, env));
         return new Response(JSON.stringify({ ok: true, wishlisted: true }), { headers });
       }
@@ -483,16 +486,18 @@ export async function handleUser(path, request, env, ctx, headers) {
       ).bind(session.user_id, parseInt(tmdb_id)).first();
 
       if (existing) {
-        // 이미 있으면 제거
+        // 이미 있으면 제거 (차감 없음)
         await env.DB.prepare(
           "DELETE FROM life_works WHERE user_id = ? AND tmdb_id = ?"
         ).bind(session.user_id, parseInt(tmdb_id)).run();
         return new Response(JSON.stringify({ ok: true, saved: false }), { headers });
       } else {
-        // 없으면 추가
+        // 없으면 추가 + +2 오뜨
         await env.DB.prepare(
           "INSERT INTO life_works (user_id, tmdb_id, title_ko, poster_path, media_type) VALUES (?, ?, ?, ?, ?)"
         ).bind(session.user_id, parseInt(tmdb_id), title_ko || "", poster_path || "", media_type || "tv").run();
+        // 인생작품 등록 시 +2 오뜨 (삭제 시 차감 없음)
+        ctx.waitUntil(_addOttPoints(session.user_id, 2, 'life_work', env));
         return new Response(JSON.stringify({ ok: true, saved: true }), { headers });
       }
     } catch (e) {
@@ -578,6 +583,9 @@ export async function handleUser(path, request, env, ctx, headers) {
       const newRow = await env.DB.prepare(
         "SELECT id FROM pick_lists WHERE user_id = ? ORDER BY id DESC LIMIT 1"
       ).bind(session.user_id).first();
+
+      // 추천작품 컬렉션 생성 시 +2 오뜨
+      ctx.waitUntil(_addOttPoints(session.user_id, 2, 'pick_list', env));
 
       return new Response(JSON.stringify({ ok: true, id: newRow?.id || null }), { headers });
     } catch (e) {
