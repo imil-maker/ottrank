@@ -14,7 +14,7 @@
    POST   /auth/logout
 ══════════════════════════════════════════════════════════════ */
 
-import { _getSessionCookie } from "../utils/authUtils.js";
+import { _getSessionCookie, _addOttPoints } from "../utils/authUtils.js";
 
 // ── 랜덤 닉네임 생성용 형용사 목록 ────────────────────────────
 const ADJECTIVES = [
@@ -96,11 +96,19 @@ export async function handleAuth(path, request, env, headers) {
 
       const googleState = url.searchParams.get("state") || "";
       const googleAfter = googleState ? decodeURIComponent(googleState) : "";
-      const googleBase  = googleAfter ? `https://ottrank.kr${googleAfter}` : "https://ottrank.kr/";
+
+      // 기존 로그인 시 1일 1회 +3 오뜨
+      if (!isNew) {
+        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const alreadyLogin = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
+        ).bind(userRow.id, todayKST).first();
+        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+      }
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (googleAfter ? `&redirect=${encodeURIComponent(googleAfter)}` : "")
-        : `${googleBase}${googleBase.includes("?") ? "&" : "?"}sid=${sessionId}`;
+        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -187,11 +195,19 @@ export async function handleAuth(path, request, env, headers) {
       let naverAfter   = "";
       try { naverAfter = naverState ? decodeURIComponent(naverState) : ""; } catch (e) {}
       if (!naverAfter.startsWith("/")) naverAfter = "";
-      const naverBase = naverAfter ? `https://ottrank.kr${naverAfter}` : "https://ottrank.kr/";
+
+      // 기존 로그인 시 1일 1회 +3 오뜨
+      if (!isNew) {
+        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const alreadyLogin = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
+        ).bind(userRow.id, todayKST).first();
+        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+      }
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (naverAfter ? `&redirect=${encodeURIComponent(naverAfter)}` : "")
-        : `${naverBase}${naverBase.includes("?") ? "&" : "?"}sid=${sessionId}`;
+        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -274,11 +290,19 @@ export async function handleAuth(path, request, env, headers) {
 
       const stateParam = url.searchParams.get("state") || "";
       const afterLogin = stateParam ? decodeURIComponent(stateParam) : "";
-      const baseUrl    = afterLogin ? `https://ottrank.kr${afterLogin}` : "https://ottrank.kr/";
+
+      // 기존 로그인 시 1일 1회 +3 오뜨
+      if (!isNew) {
+        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const alreadyLogin = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
+        ).bind(userRow.id, todayKST).first();
+        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+      }
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (afterLogin ? `&redirect=${encodeURIComponent(afterLogin)}` : "")
-        : `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}sid=${sessionId}`;
+        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -413,6 +437,24 @@ export async function handleAuth(path, request, env, headers) {
         "UPDATE users SET nickname = ?, mbti = ? WHERE id = ?"
       ).bind(nickname.trim(), finalMbti, session.user_id).run();
 
+      // 회원가입 완료 +30 오뜨 (최초 1회)
+      const alreadySignup = await env.DB.prepare(
+        "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'signup' LIMIT 1"
+      ).bind(session.user_id).first();
+      if (!alreadySignup) {
+        await _addOttPoints(session.user_id, 30, 'signup', env);
+      }
+
+      // MBTI 선택 시 +20 오뜨 (최초 1회)
+      if (finalMbti) {
+        const alreadyMbti = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'mbti_register' LIMIT 1"
+        ).bind(session.user_id).first();
+        if (!alreadyMbti) {
+          await _addOttPoints(session.user_id, 20, 'mbti_register', env);
+        }
+      }
+
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
@@ -525,9 +567,28 @@ export async function handleAuth(path, request, env, headers) {
       ];
       const finalMbti = mbti && VALID_MBTI.includes(mbti) ? mbti : null;
 
+      // 변경 전 현재 MBTI 조회
+      const currentUser = await env.DB.prepare(
+        "SELECT mbti FROM users WHERE id = ?"
+      ).bind(session.user_id).first();
+
       await env.DB.prepare(
         "UPDATE users SET mbti = ? WHERE id = ?"
       ).bind(finalMbti, session.user_id).run();
+
+      // 오뜨 처리
+      const hadMbti = !!currentUser?.mbti;
+      const hasMbti = !!finalMbti;
+      if (!hadMbti && hasMbti) {
+        // 최초 등록 +20 오뜨 (1회)
+        const alreadyGiven = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'mbti_register' LIMIT 1"
+        ).bind(session.user_id).first();
+        if (!alreadyGiven) await _addOttPoints(session.user_id, 20, 'mbti_register', env);
+      } else if (hadMbti && !hasMbti) {
+        // 해제 시 -20 오뜨
+        await _addOttPoints(session.user_id, -20, 'mbti_unregister', env);
+      }
 
       return new Response(JSON.stringify({ ok: true, mbti: finalMbti }), { headers });
     } catch (e) {
