@@ -284,11 +284,8 @@
         const data = await res.json();
 
         if (data.ok) {
-          // 성공 시 redirect 파라미터 또는 메인으로 이동
-          const redirect = new URLSearchParams(location.search).get('redirect') || '';
-          location.href  = redirect
-            ? redirect + (redirect.includes('?') ? '&' : '?') + 'sid=' + sid
-            : '/';
+          // 신규 가입 완료 → 오뜨 안내 페이지로 이동
+          location.href = `/ott_intro.html?sid=${sid}`;
         } else {
           errMsg.textContent  = data.message || '오류가 발생했어요. 다시 시도해주세요.';
           errMsg.style.display = 'block';
