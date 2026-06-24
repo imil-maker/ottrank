@@ -28,6 +28,7 @@
    PUT    /admin/grade-settings
    POST   /admin/grade-settings/assign
    GET    /admin/users
+   POST   /admin/ott-points/adjust
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
@@ -1077,20 +1078,18 @@ export async function handleAdmin(path, request, env, url, headers) {
       for (const g of grades) {
         await env.DB.prepare(`
           INSERT INTO grade_settings
-            (grade_key, grade_name, emoji_url, min_reviews, min_wishlist, min_likes, is_special, sort_order)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (grade_key, grade_name, emoji_url, min_ott_points, is_special, sort_order)
+          VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(grade_key) DO UPDATE SET
-            grade_name   = excluded.grade_name,
-            emoji_url    = excluded.emoji_url,
-            min_reviews  = excluded.min_reviews,
-            min_wishlist = excluded.min_wishlist,
-            min_likes    = excluded.min_likes,
-            is_special   = excluded.is_special,
-            sort_order   = excluded.sort_order
+            grade_name     = excluded.grade_name,
+            emoji_url      = excluded.emoji_url,
+            min_ott_points = excluded.min_ott_points,
+            is_special     = excluded.is_special,
+            sort_order     = excluded.sort_order
         `).bind(
           g.grade_key, g.grade_name, g.emoji_url || "",
-          g.min_reviews  || 0, g.min_wishlist || 0, g.min_likes || 0,
-          g.is_special   ? 1 : 0, g.sort_order || 0
+          g.min_ott_points || 0,
+          g.is_special ? 1 : 0, g.sort_order || 0
         ).run();
       }
       return new Response(JSON.stringify({ ok: true }), { headers });
@@ -1129,7 +1128,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       let query = `
         SELECT u.id, u.nickname, u.provider, u.grade, u.total_likes_received,
-          u.created_at, u.last_login,
+          u.created_at, u.last_login, u.ott_points,
           gs.grade_name, gs.emoji_url as grade_emoji_url,
           (SELECT COUNT(*) FROM reviews  WHERE user_id = u.id) as review_count,
           (SELECT COUNT(*) FROM wishlist WHERE user_id = u.id) as wishlist_count,
@@ -1149,5 +1148,94 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
+  // ── POST /admin/ott-points/adjust ─────────────────────────
+  // 관리자 수동 오뜨 조정 (지급/차감)
+  if (path === "/admin/ott-points/adjust" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const { user_id, points, reason } = await request.json();
+      if (!user_id || points === undefined || !reason) {
+        return new Response(JSON.stringify({ ok: false, message: "user_id, points, reason 필수" }), { status: 400, headers });
+      }
+      // 1. 내역 로그 기록
+      await env.DB.prepare(
+        `INSERT INTO user_point_logs (user_id, points, reason) VALUES (?, ?, ?)`
+      ).bind(user_id, points, reason).run();
+      // 2. users.ott_points 캐시 업데이트
+      await env.DB.prepare(
+        `UPDATE users SET ott_points = MAX(0, COALESCE(ott_points, 0) + ?) WHERE id = ?`
+      ).bind(points, user_id).run();
+      // 3. 레벨 자동 재계산
+      const user = await env.DB.prepare(
+        `SELECT ott_points FROM users WHERE id = ?`
+      ).bind(user_id).first();
+      if (user) {
+        const newGrade = await _calcGrade(user.ott_points, env);
+        if (newGrade) {
+          await env.DB.prepare(
+            `UPDATE users SET grade = ? WHERE id = ? AND (grade IS NULL OR grade NOT IN (SELECT grade_key FROM grade_settings WHERE is_special = 1))`
+          ).bind(newGrade, user_id).run();
+        }
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   return null;
+}
+
+// ════════════════════════════════════════════════════
+// 오뜨 포인트 공용 유틸 함수
+// 다른 Worker 파일(auth.js, user.js 등)에서 import해서 사용
+// ════════════════════════════════════════════════════
+
+// 오뜨 적립/차감 + 레벨 자동 재계산
+export async function _addOttPoints(userId, points, reason, env) {
+  try {
+    // 1. 내역 로그 기록
+    await env.DB.prepare(
+      `INSERT INTO user_point_logs (user_id, points, reason) VALUES (?, ?, ?)`
+    ).bind(userId, points, reason).run();
+    // 2. users.ott_points 캐시 업데이트 (0 미만으로 내려가지 않도록)
+    await env.DB.prepare(
+      `UPDATE users SET ott_points = MAX(0, COALESCE(ott_points, 0) + ?) WHERE id = ?`
+    ).bind(points, userId).run();
+    // 3. 레벨 자동 재계산 (특별 등급 보호)
+    const user = await env.DB.prepare(
+      `SELECT ott_points FROM users WHERE id = ?`
+    ).bind(userId).first();
+    if (user) {
+      const newGrade = await _calcGrade(user.ott_points, env);
+      if (newGrade) {
+        await env.DB.prepare(
+          `UPDATE users SET grade = ? WHERE id = ?
+           AND (grade IS NULL OR grade NOT IN
+             (SELECT grade_key FROM grade_settings WHERE is_special = 1))`
+        ).bind(newGrade, userId).run();
+      }
+    }
+    return true;
+  } catch (e) {
+    console.error("[_addOttPoints] 오류:", e.message);
+    return false;
+  }
+}
+
+// 오뜨 점수 기준으로 해당 등급 key 계산
+async function _calcGrade(ottPoints, env) {
+  try {
+    // min_ott_points 내림차순 → 가장 높은 달성 등급 반환
+    const { results } = await env.DB.prepare(
+      `SELECT grade_key FROM grade_settings
+       WHERE is_special = 0 AND min_ott_points <= ?
+       ORDER BY min_ott_points DESC LIMIT 1`
+    ).bind(ottPoints).all();
+    return results[0]?.grade_key || null;
+  } catch (e) {
+    return null;
+  }
 }
