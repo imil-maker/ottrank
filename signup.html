@@ -230,6 +230,10 @@
           // 공백이 있으면 공백 이전까지만 사용 (영화 제목에 공백 포함 방지)
           const rawNick = data.nickname || '';
           input.value = rawNick.includes(' ') ? rawNick.split(' ')[0] : rawNick;
+          // 브라우저 자동완성 스타일 덮어쓰기 방지 — JS로 직접 강제 적용
+          input.style.setProperty('color', '#ededf0', 'important');
+          input.style.setProperty('-webkit-text-fill-color', '#ededf0', 'important');
+          input.style.setProperty('background-color', '#1a1a24', 'important');
         }
       } catch(e) {
         // 네트워크 오류 시 조용히 실패 (input 비워두기)
@@ -311,8 +315,22 @@
       }
     }
 
+    // ── 입력창 색상 강제 유지 (브라우저 자동완성 덮어쓰기 대응)
+    const nicknameInput = document.getElementById('nickname');
+    function forceInputStyle() {
+      nicknameInput.style.setProperty('color', '#ededf0', 'important');
+      nicknameInput.style.setProperty('-webkit-text-fill-color', '#ededf0', 'important');
+      nicknameInput.style.setProperty('background-color', '#1a1a24', 'important');
+    }
+    nicknameInput.addEventListener('input', forceInputStyle);
+    nicknameInput.addEventListener('focus', forceInputStyle);
+    nicknameInput.addEventListener('animationstart', forceInputStyle);
+    forceInputStyle();
+    setTimeout(forceInputStyle, 300);
+    setTimeout(forceInputStyle, 800);
+
     // ── 엔터키 제출 ───────────────────────────────────────────
-    document.getElementById('nickname').addEventListener('keydown', e => {
+    nicknameInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') submitNickname();
     });
   </script>
