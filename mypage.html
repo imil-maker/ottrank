@@ -276,10 +276,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .rv-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.45;margin-bottom:7px}
 .rv-desc{font-size:12px;color:var(--muted2);line-height:1.65;margin-bottom:12px}
 
-/* 버튼 2개 */
-.rv-btns{display:flex;gap:7px}
+/* 버튼 2개 — 기본 세로 배치 */
+.rv-btns{display:flex;flex-direction:column;gap:7px}
 .rv-btn{
-  flex:1;display:flex;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:8px;
   background:var(--bg3);border:.5px solid var(--border2);
   border-radius:10px;padding:9px 10px;cursor:pointer;
   transition:border-color .15s;text-decoration:none;
@@ -295,8 +295,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .rv-btn-act{font-size:10px;color:var(--muted);display:block;margin-bottom:1px}
 .rv-btn-amt{font-size:12px;font-weight:700;color:var(--gold);display:block}
 
-/* 우측 리뷰 샘플 목업 */
-.rv-right{width:82px;flex-shrink:0}
+/* 우측 리뷰 샘플 이미지 — 버튼 세로배치에 맞게 넓게 */
+.rv-right{width:110px;flex-shrink:0}
 .rv-sample-lbl{font-size:9px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:var(--font-mono)}
 .rv-poster-mock{
   border-radius:10px;overflow:hidden;
@@ -556,8 +556,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .wish-privacy-desc{display:none}
   .wish-privacy-row{margin-left:auto}
 
-  /* 리뷰 배너 — 모바일에서 버튼 간격 */
-  .rv-btns{gap:5px}
+  /* 리뷰 배너 — 모바일에서 버튼 간격 + 이미지 크기 원복 */
+  .rv-btns{flex-direction:row;gap:5px}
   .rv-right{width:72px}
 
   /* 섹션 패딩 조정 */
@@ -573,14 +573,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* ══ PC 전용 스타일 (601px 이상) ══ */
 @media(min-width:601px){
-  /* edit-chip-row 숨김 (모바일 전용) */
-  .edit-chip-row{display:none !important}
+  /* edit-chip-row — PC에서도 표시 (모바일과 동일 방식) */
+  .edit-chip-row{display:flex !important}
+  /* PC용 개별 edit-btn 숨김 */
+  #nicknameEditBtn{display:none !important}
 
-  /* 프로필 카드 여백 확대 */
-  .profile-card{padding:24px}
-  .profile-emoji-wrap{width:72px;height:72px}
-  .profile-emoji-wrap .no-emoji{font-size:32px}
-  .profile-nickname{font-size:22px}
+  /* 프로필 카드 — 모바일과 동일한 컴팩트 스타일 유지 */
+  .profile-card{padding:16px}
+  .profile-emoji-wrap{width:56px;height:56px;border-radius:14px}
+  .profile-emoji-wrap .no-emoji{font-size:26px}
+  .profile-nickname{font-size:18px}
 
   /* ── PC 2컬럼 그리드 행 ── */
   .pc-row-2{
@@ -819,7 +821,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
           <div class="rv-title">내 평점과 리뷰가 멋진<br>작품 카드로 만들어집니다.</div>
           <div class="rv-desc">리뷰를 작성하면 포스터 카드가 자동 생성되고, SNS에 바로 공유할 수 있어요.</div>
           <div class="rv-btns">
-            <a href="/reviews.html" class="rv-btn">
+            <!-- 리뷰 작성: 작품 검색 모달 → review.html 이동 -->
+            <div class="rv-btn" onclick="openWorkSearchModal('review', null)" style="cursor:pointer">
               <div class="rv-btn-ic">
                 <i class="ti ti-pencil"></i>
               </div>
@@ -828,7 +831,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
                 <!-- OTT_EARN.review 값이 JS로 삽입됨 -->
                 <span class="rv-btn-amt" id="rvEarnReview">+10 오뜨</span>
               </div>
-            </a>
+            </div>
             <div class="rv-btn" onclick="showToast('작품 리뷰 후 카드를 공유할 수 있어요!')">
               <div class="rv-btn-ic">
                 <i class="ti ti-share"></i>
@@ -1368,10 +1371,10 @@ async function delWish(tmdb_id, btn) {
 }
 
 /* ══════════════════════════════════════
-   평점·후기 (기존 코드 유지, 최신 3개)
+   평점·후기 (기존 코드 유지, 최신 2개)
 ═══════════════════════════════════════ */
 function renderReviews() {
-  const PREVIEW = 3;
+  const PREVIEW = 2;  // 마이페이지에서는 2개만 미리보기
   document.getElementById('reviewCount').textContent = `${ALL_REVIEWS.length}개`;
   const el = document.getElementById('reviewArea');
   const moreBtn = document.getElementById('reviewMoreBtn');
@@ -1562,6 +1565,8 @@ function openWorkSearchModal(mode, listId) {
   _workSearchListId = listId;
   const modal = document.getElementById('workSearchModal');
   const inp = document.getElementById('workSearchInp');
+  /* 모드별 placeholder 변경 */
+  inp.placeholder = mode === 'review' ? '리뷰 작성할 작품 검색...' : '작품명 검색...';
   document.getElementById('workSearchResults').innerHTML =
     '<div class="work-search-empty">작품명을 입력해주세요</div>';
   inp.value = '';
@@ -1628,6 +1633,17 @@ async function selectWork(tmdb_id, title_ko, poster_path, media_type) {
   const sid = localStorage.getItem('ottrang_sid'); if (!sid) return;
   closeWorkSearchModal();
   try {
+    /* ── 리뷰 작성 모드: sessionStorage에 저장 후 review.html 이동 ── */
+    if (_workSearchMode === 'review') {
+      sessionStorage.setItem('ottrang_review_data', JSON.stringify({
+        tmdb_id,
+        title: title_ko,
+        poster_path,
+        type: media_type || 'tv',
+      }));
+      location.href = '/review.html';
+      return;
+    }
     if (_workSearchMode === 'life') {
       const res = await fetch(`${API}/life-works`, {
         method: 'POST',
