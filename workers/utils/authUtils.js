@@ -19,14 +19,14 @@ export function _getSessionCookie(request) {
   return match ? match[1] : null;
 }
 
-/** 회원 등급 자동 재계산
- *  - 평점 + 게시글 수, 찜 수, 받은 좋아요 기준
- *  - is_special 등급(연출부 등)은 건드리지 않음
+/** 오뜨 포인트 기준 등급 자동 재계산
+ *  - users.ott_points 기준으로 grade_settings.min_ott_points 비교
+ *  - is_special 등급(관리자 수동 지정)은 건드리지 않음
  */
 export async function _recalcGrade(userId, env) {
   try {
     const user = await env.DB.prepare(
-      "SELECT grade, total_likes_received FROM users WHERE id = ?"
+      "SELECT grade, ott_points FROM users WHERE id = ?"
     ).bind(userId).first();
     if (!user) return;
 
@@ -36,36 +36,15 @@ export async function _recalcGrade(userId, env) {
     ).bind(user.grade || "rookie").first();
     if (currentGrade?.is_special) return;
 
-    // 활동 집계
-    const reviewCountRow = await env.DB.prepare(
-      "SELECT COUNT(*) as cnt FROM reviews WHERE user_id = ?"
-    ).bind(userId).first();
-    const postCountRow = await env.DB.prepare(
-      "SELECT COUNT(*) as cnt FROM posts WHERE user_id = ?"
-    ).bind(userId).first();
-    const wishlistCountRow = await env.DB.prepare(
-      "SELECT COUNT(*) as cnt FROM wishlist WHERE user_id = ?"
-    ).bind(userId).first();
-
-    const activityCount = (reviewCountRow?.cnt || 0) + (postCountRow?.cnt || 0);
-    const wishlistCount = wishlistCountRow?.cnt || 0;
-    const likesReceived = user.total_likes_received || 0;
-
-    // 일반 등급 목록 (sort_order 내림차순 = 높은 등급부터)
+    // 오뜨 포인트 기준으로 달성 가능한 가장 높은 등급 조회
     const { results: grades } = await env.DB.prepare(
-      "SELECT * FROM grade_settings WHERE is_special = 0 ORDER BY sort_order DESC"
-    ).all();
+      `SELECT grade_key FROM grade_settings
+       WHERE is_special = 0 AND min_ott_points <= ?
+       ORDER BY min_ott_points DESC LIMIT 1`
+    ).bind(user.ott_points || 0).all();
 
-    let newGrade = "rookie";
-    for (const g of grades) {
-      const ok =
-        activityCount >= (g.min_reviews  || 0) &&
-        wishlistCount >= (g.min_wishlist || 0) &&
-        likesReceived >= (g.min_likes    || 0);
-      if (ok) { newGrade = g.grade_key; break; }
-    }
-
-    if (newGrade !== user.grade) {
+    const newGrade = grades[0]?.grade_key || null;
+    if (newGrade && newGrade !== user.grade) {
       await env.DB.prepare(
         "UPDATE users SET grade = ? WHERE id = ?"
       ).bind(newGrade, userId).run();
