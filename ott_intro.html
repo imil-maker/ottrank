@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오뜨 소개 — 오뜨랑</title>
+  <link rel="icon" href="/img/icon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    :root {
+      --bg:#0d0d18; --bg2:#141424; --bg3:#1e1e2e;
+      --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.14);
+      --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+      --accent:#e63946; --gold:#e8a020;
+      --font-sans:'Noto Sans KR',sans-serif;
+      --font-mono:'DM Mono',monospace;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      background:var(--bg); color:var(--text);
+      font-family:var(--font-sans); min-height:100vh;
+    }
+
+    /* ── 전체 래퍼 — PC에서 중앙 카드처럼 보이도록 ── */
+    .page-wrap {
+      max-width:460px; margin:0 auto;
+      min-height:100vh; background:var(--bg);
+    }
+
+    /* ── 히어로 ── */
+    .hero {
+      position:relative; overflow:hidden;
+      padding:32px 24px 28px; min-height:180px;
+    }
+    .hero-svg {
+      position:absolute; top:0; right:0;
+      width:160px; height:100%; pointer-events:none;
+    }
+    .hero-title {
+      font-size:26px; font-weight:500; color:#fff;
+      line-height:1.3; margin-bottom:10px;
+      position:relative; z-index:3; max-width:200px;
+    }
+    .hero-title .acc { color:var(--gold); }
+    .hero-sub {
+      font-size:13px; color:#777; line-height:1.6;
+      position:relative; z-index:3; max-width:200px;
+    }
+    .hero-sub .hl { color:var(--gold); font-weight:500; }
+
+    /* ── 구분선 ── */
+    .divider { height:1px; background:#1a1a28; margin:0 20px; }
+
+    /* ── 섹션 공통 ── */
+    .sec { padding:20px 24px; }
+    .sec-label { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+    .sec-dot { width:5px; height:5px; background:var(--gold); border-radius:50%; }
+    .sec-lbl { font-size:10px; color:var(--gold); font-weight:500; letter-spacing:0.6px; }
+    .sec-title { font-size:14px; font-weight:500; color:#fff; line-height:1.45; margin-bottom:14px; }
+
+    /* ── 리뷰 카드 섹션 ── */
+    .review-layout { display:flex; gap:14px; align-items:flex-start; }
+    .review-left { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
+    .review-sec-title { font-size:14px; font-weight:500; color:#fff; line-height:1.5; }
+    .card-desc { font-size:12px; color:#888; line-height:1.65; }
+    .earn-row { display:flex; gap:8px; }
+    .earn-chip {
+      flex:1; display:flex; align-items:center; gap:7px;
+      background:#141424; border:1px solid #1e1e2e;
+      border-radius:10px; padding:8px 10px;
+    }
+    .earn-ic {
+      width:22px; height:22px; background:#1a1200;
+      border:1px solid #3a2800; border-radius:6px;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .earn-act { font-size:10px; color:#777; margin-bottom:1px; }
+    .earn-amt { font-size:12px; font-weight:500; color:var(--gold); }
+    .review-right { width:104px; flex-shrink:0; }
+    .sample-label { font-size:10px; color:#555; text-align:center; margin-bottom:5px; letter-spacing:0.3px; }
+    .poster-card { border-radius:10px; overflow:hidden; border:1px solid #252535; background:#16162a; }
+    .poster-card img { width:100%; display:block; border-radius:10px; }
+
+    /* ── 레벨 시스템 ── */
+    .level-grid {
+      display:grid; grid-template-columns:repeat(5,1fr);
+      gap:8px; margin-bottom:12px;
+    }
+    .lv { display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .lv-badge {
+      width:46px; height:46px; border-radius:50%;
+      border:1.5px solid #1e1e2e; background:#141424;
+      display:flex; align-items:center; justify-content:center; font-size:20px;
+    }
+    .lv-badge.active { border-color:var(--gold); background:#1a1200; }
+    .lv-name { font-size:9px; color:#555; text-align:center; }
+    .lv-name.active { color:var(--gold); }
+    .progress-card {
+      background:#141424; border:1px solid #1e1e2e;
+      border-radius:12px; padding:12px 14px;
+    }
+    .progress-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .progress-current { font-size:12px; font-weight:500; color:#fff; }
+    .progress-next { font-size:10px; color:#555; }
+    .pbar-bg { width:100%; height:3px; background:#1e1e2e; border-radius:2px; overflow:hidden; margin-bottom:7px; }
+    .pbar-fill { height:100%; background:var(--gold); border-radius:2px; transition:width .4s ease; }
+    .progress-sub { font-size:10px; color:#555; }
+    .progress-sub span { color:var(--gold); }
+
+    /* ── MBTI 섹션 ── */
+    .mbti-card { background:#141424; border:1px solid #1e1e2e; border-radius:12px; padding:14px; }
+    .mbti-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:12px; }
+    .mbti-desc { font-size:12px; color:#888; line-height:1.6; flex:1; }
+    .mbti-earn {
+      background:#1a1200; border:1px solid #3a2800;
+      border-radius:8px; padding:6px 10px; text-align:center; flex-shrink:0;
+    }
+    .mbti-earn-num { font-size:14px; font-weight:500; color:var(--gold); }
+    .mbti-earn-lbl { font-size:9px; color:#aa7000; }
+    .mbti-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+    .mc {
+      font-size:11px; padding:5px 0; border-radius:14px;
+      border:1px solid #1e1e2e; color:#555;
+      background:#0d0d1a; text-align:center;
+      font-family:var(--font-mono);
+    }
+
+    /* ── CTA 버튼 ── */
+    .cta-area { padding:20px 24px 24px; }
+    .btn-p {
+      width:100%; padding:14px; border-radius:12px;
+      background:var(--gold); color:#0d0d18;
+      font-size:15px; font-weight:700; border:none;
+      cursor:pointer; display:block; text-align:center;
+      text-decoration:none; font-family:var(--font-sans);
+      transition:opacity .15s;
+    }
+    .btn-p:hover { opacity:0.9; }
+
+    /* ── 안내사항 ── */
+    .notice { padding:16px 24px 40px; border-top:1px solid #141424; }
+    .notice-ttl { font-size:12px; font-weight:500; color:#3a3a4a; margin-bottom:8px; }
+    .ni {
+      font-size:11px; color:#2e2e3e; line-height:1.9;
+      padding-left:12px; position:relative;
+    }
+    .ni::before { content:"·"; position:absolute; left:0; color:#3a3a4a; }
+
+    /* ── PC 배경 처리 ── */
+    @media (min-width:461px) {
+      body { background:#080810; }
+      .page-wrap { box-shadow:0 0 60px rgba(0,0,0,0.6); }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- 히어로 -->
+  <div class="hero">
+    <svg class="hero-svg" viewBox="0 0 160 180" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMid meet">
+      <defs>
+        <linearGradient id="fadeL" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#0d0d18" stop-opacity="1"/>
+          <stop offset="45%" stop-color="#0d0d18" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="fadeT" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#0d0d18" stop-opacity="0.9"/>
+          <stop offset="25%" stop-color="#0d0d18" stop-opacity="0"/>
+          <stop offset="75%" stop-color="#0d0d18" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#0d0d18" stop-opacity="0.9"/>
+        </linearGradient>
+      </defs>
+      <rect x="30" y="0" width="130" height="180" fill="#161626"/>
+      <rect x="30" y="0" width="18" height="180" fill="#111120"/>
+      <rect x="112" y="0" width="18" height="180" fill="#111120"/>
+      <rect x="34" y="8"   width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="28"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="48"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="68"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="88"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="108" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="128" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="148" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="34" y="168" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="8"   width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="28"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="48"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="68"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="88"  width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="108" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="128" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="148" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="116" y="168" width="10" height="14" rx="2" fill="#0d0d18"/>
+      <rect x="52" y="6"   width="56" height="36" rx="3" fill="#1e1e30"/>
+      <rect x="52" y="48"  width="56" height="36" rx="3" fill="#1e1e30"/>
+      <rect x="52" y="90"  width="56" height="36" rx="3" fill="#1e1e30"/>
+      <rect x="52" y="132" width="56" height="36" rx="3" fill="#1e1e30"/>
+      <text x="80" y="28"  text-anchor="middle" font-size="8" font-weight="700" fill="#e50914" opacity="0.6" font-family="sans-serif" letter-spacing="1.5">NETFLIX</text>
+      <text x="80" y="70"  text-anchor="middle" font-size="8" font-weight="700" fill="#6699ff" opacity="0.55" font-family="sans-serif" letter-spacing="1">DISNEY+</text>
+      <text x="80" y="112" text-anchor="middle" font-size="8" font-weight="700" fill="#ff3377" opacity="0.55" font-family="sans-serif" letter-spacing="1.5">TVING</text>
+      <text x="80" y="154" text-anchor="middle" font-size="8" font-weight="700" fill="#3deb6e" opacity="0.5"  font-family="sans-serif" letter-spacing="1.5">WAVVE</text>
+      <rect x="30" y="0" width="42" height="180" fill="url(#fadeL)"/>
+      <rect x="30" y="0" width="130" height="180" fill="url(#fadeT)"/>
+    </svg>
+    <div class="hero-title">오뜨랑의 <span class="acc">오뜨</span>를<br>소개합니다!</div>
+    <div class="hero-sub"><span class="hl">"오뜨"</span>를 쌓아서<br>막내에서 명감독까지 성장하세요</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 리뷰 카드 섹션 -->
+  <div class="sec">
+    <div class="review-layout">
+      <div class="review-left">
+        <div class="sec-label"><div class="sec-dot"></div><span class="sec-lbl">리뷰 카드</span></div>
+        <div class="review-sec-title">내 평점과 리뷰가<br>멋진 작품 카드로 만들어집니다.</div>
+        <div class="card-desc">리뷰를 작성하면 포스터 카드가 자동 생성되고, SNS에 바로 공유할 수 있어요.</div>
+        <div class="earn-row">
+          <div class="earn-chip">
+            <div class="earn-ic"><i class="ti ti-pencil" style="color:#e8a020;font-size:12px;" aria-hidden="true"></i></div>
+            <div><div class="earn-act">리뷰 작성</div><div class="earn-amt">+10 오뜨</div></div>
+          </div>
+          <div class="earn-chip">
+            <div class="earn-ic"><i class="ti ti-share" style="color:#e8a020;font-size:12px;" aria-hidden="true"></i></div>
+            <div><div class="earn-act">카드 공유</div><div class="earn-amt">+10 오뜨</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="review-right">
+        <div class="sample-label">리뷰 샘플</div>
+        <div class="poster-card">
+          <img src="/img/review-sample.jpg" alt="리뷰 카드 샘플"
+            onerror="this.style.display='none';this.parentNode.innerHTML='<svg viewBox=\'0 0 104 162\' xmlns=\'http://www.w3.org/2000/svg\' width=\'104\'><rect width=\'104\' height=\'162\' fill=\'%230a0818\'/><rect width=\'104\' height=\'100\' fill=\'%231a0a30\'/><text x=\'52\' y=\'58\' text-anchor=\'middle\' font-size=\'26\' font-weight=\'700\' fill=\'%23fff\' font-family=\'sans-serif\'>듄</text><text x=\'52\' y=\'74\' text-anchor=\'middle\' font-size=\'8\' fill=\'%23888\' font-family=\'sans-serif\'>Dune: Part Two</text><rect y=\'100\' width=\'104\' height=\'62\' fill=\'%23111122\'/><text x=\'9\' y=\'117\' font-size=\'9\' font-weight=\'600\' fill=\'%23fff\' font-family=\'sans-serif\'>듄: 파트 2</text><text x=\'9\' y=\'130\' font-size=\'8\' fill=\'%23888\' font-family=\'sans-serif\'>2024</text><text x=\'9\' y=\'144\' font-size=\'10\' fill=\'%23e8a020\' font-family=\'sans-serif\'>★★★★★ 10</text><text x=\'9\' y=\'156\' font-size=\'6\' fill=\'%23555\' font-family=\'sans-serif\'>나홍진짜야의 리뷰</text></svg>';" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 레벨 시스템 -->
+  <div class="sec">
+    <div class="sec-label"><div class="sec-dot"></div><span class="sec-lbl">레벨 시스템</span></div>
+    <div class="sec-title">막내에서 명감독까지, 10단계로 성장하세요.</div>
+    <div class="level-grid">
+      <div class="lv"><div class="lv-badge active" id="lvBadge0">🍿</div><div class="lv-name active" id="lvName0">막내</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge1">🎞️</div><div class="lv-name" id="lvName1">서드</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge2">🎬</div><div class="lv-name" id="lvName2">조감독</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge3">📓</div><div class="lv-name" id="lvName3">비평가</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge4">📟</div><div class="lv-name" id="lvName4">연출부</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge5">🎥</div><div class="lv-name" id="lvName5">제작자</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge6">📣</div><div class="lv-name" id="lvName6">PD</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge7">📝</div><div class="lv-name" id="lvName7">작가</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge8">🪑</div><div class="lv-name" id="lvName8">감독</div></div>
+      <div class="lv"><div class="lv-badge" id="lvBadge9">🏆</div><div class="lv-name" id="lvName9">명감독</div></div>
+    </div>
+    <div class="progress-card">
+      <div class="progress-top">
+        <span class="progress-current" id="progressCurrent">🍿 막내</span>
+        <span class="progress-next" id="progressNext">서드까지 30 오뜨 남음</span>
+      </div>
+      <div class="pbar-bg"><div class="pbar-fill" id="progressBar" style="width:0%"></div></div>
+      <div class="progress-sub">가입 완료로 <span>+30 오뜨</span> 획득했어요! 🎉</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- MBTI 추천 -->
+  <div class="sec">
+    <div class="sec-label"><div class="sec-dot"></div><span class="sec-lbl">MBTI 추천</span></div>
+    <div class="sec-title">내 MBTI에 딱 맞는 작품을 추천해드려요.</div>
+    <div class="mbti-card">
+      <div class="mbti-top">
+        <div class="mbti-desc">MBTI 유형별로 선호하는 장르를 분석해 작품을 추천해드려요. 등록만 해도 오뜨 획득!</div>
+        <div class="mbti-earn">
+          <div class="mbti-earn-num">+20</div>
+          <div class="mbti-earn-lbl">오뜨</div>
+        </div>
+      </div>
+      <div class="mbti-grid" id="mbtiGrid">
+        <span class="mc">INTJ</span><span class="mc">INTP</span><span class="mc">ENTJ</span><span class="mc">ENTP</span>
+        <span class="mc">INFJ</span><span class="mc">INFP</span><span class="mc">ENFJ</span><span class="mc">ENFP</span>
+        <span class="mc">ISTJ</span><span class="mc">ISFJ</span><span class="mc">ESTJ</span><span class="mc">ESFJ</span>
+        <span class="mc">ISTP</span><span class="mc">ISFP</span><span class="mc">ESTP</span><span class="mc">ESFP</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- CTA -->
+  <div class="cta-area">
+    <a class="btn-p" id="btnGo" href="/mypage.html">오뜨 받으러 가기 ›</a>
+  </div>
+
+  <!-- 안내사항 -->
+  <div class="notice">
+    <div class="notice-ttl">안내사항</div>
+    <div class="ni">오뜨는 오뜨랑 회원에게만 제공되는 혜택입니다.</div>
+    <div class="ni">MBTI 등록 오뜨는 최초 1회만 지급됩니다.</div>
+    <div class="ni">획득한 오뜨로 이벤트 응모 및 혜택 이용이 가능합니다.</div>
+    <div class="ni">오뜨 운영 정책은 서비스 상황에 따라 변경될 수 있습니다.</div>
+  </div>
+
+</div>
+
+<script>
+  const API = 'https://ottrank-api.tdidream.workers.dev';
+
+  // ── URL에서 sid 받아서 localStorage에 저장 ────────────────
+  const sid = new URLSearchParams(location.search).get('sid');
+  if (sid) localStorage.setItem('ottrang_sid', sid);
+
+  // ── mypage 버튼에 sid 붙이기 ─────────────────────────────
+  const btnGo = document.getElementById('btnGo');
+  if (sid) btnGo.href = `/mypage.html?sid=${sid}`;
+
+  // ── 등급 정보 (grade_settings 기준) ──────────────────────
+  const GRADES = [
+    { key:'rookie',   name:'막내',   ott:0,     emoji:'🍿', idx:0 },
+    { key:'third',    name:'서드',   ott:60,    emoji:'🎞️', idx:1 },
+    { key:'asst_dir', name:'조감독', ott:150,   emoji:'🎬', idx:2 },
+    { key:'critic',   name:'비평가', ott:300,   emoji:'📓', idx:3 },
+    { key:'staff',    name:'연출부', ott:500,   emoji:'📟', idx:4 },
+    { key:'producer', name:'제작자', ott:750,   emoji:'🎥', idx:5 },
+    { key:'pd',       name:'PD',     ott:1000,  emoji:'📣', idx:6 },
+    { key:'writer',   name:'작가',   ott:1500,  emoji:'📝', idx:7 },
+    { key:'director', name:'감독',   ott:2500,  emoji:'🪑', idx:8 },
+    { key:'legend',   name:'명감독', ott:5000,  emoji:'🏆', idx:9 },
+  ];
+
+  // ── 실제 유저 오뜨 포인트로 진행바 업데이트 ──────────────
+  async function initProgress() {
+    const storedSid = sid || localStorage.getItem('ottrang_sid');
+    if (!storedSid) return;
+    try {
+      const res  = await fetch(`${API}/auth/me`, { headers: { Authorization: 'Bearer ' + storedSid } });
+      const data = await res.json();
+      if (!data.ok || !data.user) return;
+
+      const ottPoints = data.user.ott_points || 30; // 가입 완료 기본 30
+      const userMbti  = data.user.mbti;
+
+      // MBTI 하이라이트
+      if (userMbti) {
+        document.querySelectorAll('#mbtiGrid .mc').forEach(el => {
+          if (el.textContent === userMbti) el.style.cssText = 'background:#16103a;color:#9977ff;border-color:#4433aa;';
+        });
+      }
+
+      // 현재 등급 찾기
+      let curGrade = GRADES[0];
+      let nextGrade = GRADES[1];
+      for (let i = GRADES.length - 1; i >= 0; i--) {
+        if (ottPoints >= GRADES[i].ott) { curGrade = GRADES[i]; nextGrade = GRADES[i + 1] || null; break; }
+      }
+
+      // 진행바 계산
+      const curOtt  = curGrade.ott;
+      const nextOtt = nextGrade ? nextGrade.ott : curOtt;
+      const pct     = nextGrade ? Math.min(100, Math.round((ottPoints - curOtt) / (nextOtt - curOtt) * 100)) : 100;
+
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressCurrent').textContent = `${curGrade.emoji} ${curGrade.name}`;
+      document.getElementById('progressNext').textContent = nextGrade
+        ? `${nextGrade.name}까지 ${nextOtt - ottPoints} 오뜨 남음`
+        : '최고 등급 달성! 🎉';
+
+      // 현재 등급 뱃지 활성화
+      GRADES.forEach((g, i) => {
+        const badge = document.getElementById(`lvBadge${i}`);
+        const name  = document.getElementById(`lvName${i}`);
+        if (i <= curGrade.idx) {
+          badge.classList.add('active');
+          name.classList.add('active');
+        } else {
+          badge.classList.remove('active');
+          name.classList.remove('active');
+        }
+      });
+
+    } catch(e) { /* 조용히 실패 — 기본값 표시 유지 */ }
+  }
+
+  // ── 페이지 로드 시 실행 ───────────────────────────────────
+  window.addEventListener('DOMContentLoaded', initProgress);
+</script>
+</body>
+</html>
