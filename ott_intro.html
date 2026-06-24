@@ -320,17 +320,18 @@
   if (sid) btnGo.href = `/mypage.html?sid=${sid}`;
 
   // ── 등급 정보 (grade_settings 기준) ──────────────────────
+  // DB grade_settings 기준 (sort_order 순서)
   const GRADES = [
     { key:'rookie',   name:'막내',   ott:0,     emoji:'🍿', idx:0 },
     { key:'third',    name:'서드',   ott:60,    emoji:'🎞️', idx:1 },
     { key:'asst_dir', name:'조감독', ott:150,   emoji:'🎬', idx:2 },
     { key:'critic',   name:'비평가', ott:300,   emoji:'📓', idx:3 },
     { key:'staff',    name:'연출부', ott:500,   emoji:'📟', idx:4 },
-    { key:'producer', name:'제작자', ott:750,   emoji:'🎥', idx:5 },
-    { key:'pd',       name:'PD',     ott:1000,  emoji:'📣', idx:6 },
-    { key:'writer',   name:'작가',   ott:1500,  emoji:'📝', idx:7 },
-    { key:'director', name:'감독',   ott:2500,  emoji:'🪑', idx:8 },
-    { key:'legend',   name:'명감독', ott:5000,  emoji:'🏆', idx:9 },
+    { key:'pd',       name:'PD',     ott:1000,  emoji:'📣', idx:5 },
+    { key:'writer',   name:'작가',   ott:1500,  emoji:'📝', idx:6 },
+    { key:'director', name:'감독',   ott:2500,  emoji:'🪑', idx:7 },
+    { key:'legend',   name:'명감독', ott:5000,  emoji:'🏆', idx:8 },
+    { key:'producer', name:'제작자', ott:10000, emoji:'🎥', idx:9 },
   ];
 
   // ── 실제 유저 오뜨 포인트로 진행바 업데이트 ──────────────
