@@ -60,14 +60,22 @@
       display:flex; gap:8px; align-items:center;
     }
     input[type=text] {
-      flex:1; height:48px; background:var(--bg3);
+      flex:1; height:48px; background:#1a1a24 !important;
       border:1px solid var(--border2); border-radius:10px;
-      padding:0 16px; color:#ededf0; font-family:var(--sans);
+      padding:0 16px; color:#ededf0 !important; font-family:var(--sans);
       font-size:16px; outline:none; transition:border-color .2s;
-      -webkit-text-fill-color:#ededf0;
+      -webkit-text-fill-color:#ededf0 !important;
+      caret-color:#ededf0;
     }
     input[type=text]:focus { border-color:var(--accent); }
-    input[type=text]::placeholder { color:var(--muted); -webkit-text-fill-color:var(--muted); }
+    input[type=text]::placeholder { color:#7a7a96 !important; -webkit-text-fill-color:#7a7a96 !important; }
+    input[type=text]:-webkit-autofill,
+    input[type=text]:-webkit-autofill:hover,
+    input[type=text]:-webkit-autofill:focus {
+      -webkit-text-fill-color:#ededf0 !important;
+      -webkit-box-shadow:0 0 0px 1000px #1a1a24 inset !important;
+      transition:background-color 5000s ease-in-out 0s;
+    }
 
     /* 🎲 랜덤 버튼 */
     .btn-random {
@@ -219,7 +227,9 @@
         const res  = await fetch(`${API}/auth/random-nickname`);
         const data = await res.json();
         if (data.ok && data.nickname) {
-          input.value = data.nickname;
+          // 공백이 있으면 공백 이전까지만 사용 (영화 제목에 공백 포함 방지)
+          const rawNick = data.nickname || '';
+          input.value = rawNick.includes(' ') ? rawNick.split(' ')[0] : rawNick;
         }
       } catch(e) {
         // 네트워크 오류 시 조용히 실패 (input 비워두기)
@@ -264,7 +274,7 @@
         return;
       }
       if (!/^[가-힣a-zA-Z0-9]+$/.test(nickname)) {
-        errMsg.textContent = '한글, 영문, 숫자만 사용할 수 있어요.';
+        errMsg.textContent = '공백이 없는 한글, 영문, 숫자만 사용할 수 있어요.';
         errMsg.style.display = 'block';
         return;
       }
