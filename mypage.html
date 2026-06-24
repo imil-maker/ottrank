@@ -573,12 +573,63 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* ══ PC 전용 스타일 (601px 이상) ══ */
 @media(min-width:601px){
-  /* PC에서 edit-chip-row 숨김 (기존 edit-btn 사용) */
+  /* edit-chip-row 숨김 (모바일 전용) */
   .edit-chip-row{display:none !important}
+
+  /* 프로필 카드 여백 확대 */
   .profile-card{padding:24px}
   .profile-emoji-wrap{width:72px;height:72px}
   .profile-emoji-wrap .no-emoji{font-size:32px}
   .profile-nickname{font-size:22px}
+
+  /* ── PC 2컬럼 그리드 행 ── */
+  .pc-row-2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-bottom:12px;
+    /* 같은 행 안의 카드들 높이 동일하게 */
+    align-items:stretch;
+  }
+  /* 행1(프로필+오뜨): 프로필이 더 낮을 수 있으므로 stretch */
+  .pc-row-top{ align-items:stretch }
+  /* 행2(리뷰+평점): 평점후기 내용량이 많을 수 있으므로 stretch */
+  .pc-row-mid{ align-items:stretch }
+
+  /* pc-col: 그리드 셀 안에서 꽉 채우기 */
+  .pc-col{
+    margin-bottom:0;  /* 행 래퍼가 gap으로 간격 관리 */
+    height:100%;
+    box-sizing:border-box;
+  }
+
+  /* 행2의 review-banner는 margin-bottom 제거 */
+  .pc-row-mid .review-banner{
+    margin-bottom:0;
+  }
+
+  /* 평점후기 섹션 (행2 두번째 컬럼) — margin 제거 */
+  #reviewSecWrap{
+    margin-bottom:0;
+  }
+
+  /* 프로필 카드 — PC에서 margin 제거 (행 래퍼가 처리) */
+  .pc-row-top .profile-card{
+    margin-bottom:0;
+  }
+  /* 오뜨 카드 — PC에서 margin 제거 */
+  .pc-row-top .ott-card{
+    margin-bottom:0;
+  }
+
+  /* 찜 그리드 PC: 포스터 넓게 */
+  .wish-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
+
+  /* 섹션 패딩 PC */
+  .sec-wrap{padding:20px 22px 16px;margin-bottom:12px}
+
+  /* 오뜨 점수 PC */
+  .ott-score{font-size:36px}
 }
 </style>
 </head>
@@ -613,8 +664,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <!-- 마이페이지 본문 -->
   <div id="mypageContent" style="display:none">
 
+    <!-- ══ PC 행1: 프로필 | 오뜨 2컬럼 ══ -->
+    <div class="pc-row-2 pc-row-top">
+
     <!-- ── 1. 프로필 카드 ── -->
-    <div class="profile-card">
+    <div class="profile-card pc-col">
       <!-- 아바타 + 기본 정보 -->
       <div class="profile-top">
         <div class="profile-emoji-wrap" id="profileEmoji">
@@ -707,7 +761,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
 
     <!-- ── 2. 오뜨 레벨 카드 ── -->
-    <div class="ott-card" id="ottCard" style="display:none">
+    <div class="ott-card pc-col" id="ottCard" style="display:none">
       <!-- 라벨 -->
       <div class="ott-label-row">
         <span class="ott-label-dot"></span>
@@ -745,10 +799,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         전체 내역 &amp; 레벨 안내 보기
         <i class="ti ti-chevron-right" style="font-size:13px"></i>
       </a>
-    </div>
+    </div><!-- /ott-card -->
+
+    </div><!-- /pc-row-top (행1: 프로필|오뜨) -->
+
+    <!-- ══ PC 행2: 리뷰카드 | 평점·후기 2컬럼 ══ -->
+    <div class="pc-row-2 pc-row-mid">
 
     <!-- ── 3. 리뷰 카드 홍보 배너 (본인만 노출) ── -->
-    <div class="review-banner" id="reviewBanner" style="display:none">
+    <div class="review-banner pc-col" id="reviewBanner" style="display:none">
       <div class="rv-label-row">
         <span class="rv-label-dot"></span>
         <span class="rv-label-txt">리뷰 카드</span>
@@ -794,9 +853,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
           </div>
         </div>
       </div>
+    </div><!-- /review-banner -->
+
+    <!-- ── 5. 평점·후기 (행2 두번째 컬럼) ── -->
+    <div class="sec-wrap pc-col" id="reviewSecWrap">
+      <div class="sec-header">
+        <i class="ti ti-star" style="font-size:16px;color:var(--gold)"></i>
+        <span class="sec-title">평점·후기</span>
+        <span class="sec-count" id="reviewCount">0개</span>
+        <!-- 오뜨 적립 뱃지 (OTT_EARN.review 기준) -->
+        <span class="sec-ott-badge" id="secOttReview"></span>
+        <a class="sec-more-btn" id="reviewMoreBtn" href="/my_review.html"
+          style="display:none">&gt;&gt; 더보기</a>
+      </div>
+      <div id="reviewArea"></div>
     </div>
 
-    <!-- ── 4. 찜한 작품 ── -->
+    </div><!-- /pc-row-mid (행2: 리뷰카드|평점후기) -->
+
+    <!-- ── 4. 찜한 작품 (풀워스) ── -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-heart" style="font-size:16px;color:var(--accent)"></i>
@@ -812,20 +887,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       </div>
       <div id="wishArea"></div>
       <div class="pagination" id="wishPager"></div>
-    </div>
-
-    <!-- ── 5. 평점·후기 ── -->
-    <div class="sec-wrap">
-      <div class="sec-header">
-        <i class="ti ti-star" style="font-size:16px;color:var(--gold)"></i>
-        <span class="sec-title">평점·후기</span>
-        <span class="sec-count" id="reviewCount">0개</span>
-        <!-- 오뜨 적립 뱃지 (OTT_EARN.review 기준) -->
-        <span class="sec-ott-badge" id="secOttReview"></span>
-        <a class="sec-more-btn" id="reviewMoreBtn" href="/my_review.html"
-          style="display:none">&gt;&gt; 더보기</a>
-      </div>
-      <div id="reviewArea"></div>
     </div>
 
     <!-- ── 6. 인생작품 ── -->
