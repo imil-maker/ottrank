@@ -1617,7 +1617,7 @@ async function _runWorkSearch(q) {
       const typeColor = w.media_type === 'movie' ? 'rgba(240,180,41,.8)' : 'rgba(77,157,224,.8)';
       const typeLabel = w.media_type === 'movie' ? '영화' : 'TV';
       return `<div class="work-search-item"
-        onclick="selectWork(${w.tmdb_id},'${_esc(w.title_ko)}','${w.poster_path || ''}','${w.media_type || 'tv'}')">
+        onclick="selectWork(${w.tmdb_id},'${_esc(w.title_ko)}','${w.poster_path || ''}','${w.media_type || 'tv'}','${w.release_year || ''}')">
         <div class="work-search-poster">${poster}</div>
         <div class="work-search-info">
           <div class="work-search-title">${_esc(w.title_ko)}</div>
@@ -1629,17 +1629,25 @@ async function _runWorkSearch(q) {
   } catch (e) { el.innerHTML = '<div class="work-search-empty">검색 중 오류가 발생했어요</div>'; }
 }
 
-async function selectWork(tmdb_id, title_ko, poster_path, media_type) {
+async function selectWork(tmdb_id, title_ko, poster_path, media_type, release_year) {
   const sid = localStorage.getItem('ottrang_sid'); if (!sid) return;
   closeWorkSearchModal();
   try {
     /* ── 리뷰 작성 모드: sessionStorage에 저장 후 review.html 이동 ── */
     if (_workSearchMode === 'review') {
+      // review.html은 poster_path에 풀 URL(image.tmdb.org 포함)을 기대함
+      // mypage 검색 결과의 poster_path는 '/abc.jpg' 경로만 오므로 풀 URL로 변환
+      const fullPoster = poster_path
+        ? (poster_path.startsWith('http')
+            ? poster_path
+            : `https://image.tmdb.org/t/p/w300${poster_path}`)
+        : '';
       sessionStorage.setItem('ottrang_review_data', JSON.stringify({
         tmdb_id,
-        title: title_ko,
-        poster_path,
-        type: media_type || 'tv',
+        title:       title_ko,
+        poster_path: fullPoster,   // review.html이 includes('image.tmdb.org') 체크함
+        type:        media_type || 'tv',
+        year:        release_year || null,
       }));
       location.href = '/review.html';
       return;
