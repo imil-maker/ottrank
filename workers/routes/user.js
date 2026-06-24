@@ -22,8 +22,7 @@
    POST   /reviews/share               리뷰 카드 공유 오뜨 +10 (1일 1회)
 ══════════════════════════════════════════════════════════════ */
 
-import { _getSessionCookie, _recalcGrade } from "../utils/authUtils.js";
-import { _addOttPoints } from "./admin.js";
+import { _getSessionCookie, _recalcGrade, _addOttPoints } from "../utils/authUtils.js";
 
 export async function handleUser(path, request, env, ctx, headers) {
 
