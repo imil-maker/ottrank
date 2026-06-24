@@ -824,6 +824,17 @@ async function shareReviewCard(){
             title:`${RDATA.title} 후기 | 오뜨랑`,
             text:`오뜨랑에서 ${RDATA.title} 후기를 남겼어요!`,
           });
+          // 공유 성공 시 오뜨 +10 (1일 1회)
+          const sid=localStorage.getItem('ottrang_sid');
+          if(sid){
+            const r=await fetch(`${API}/reviews/share`,{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid},
+            }).then(r=>r.json()).catch(()=>null);
+            if(r?.ok && !r?.already) showToast('🎉 공유 완료! +10 오뜨 획득');
+            else if(r?.already) showToast('공유 완료! (오뜨는 1일 1회)');
+            else showToast('공유 완료!');
+          }
         }catch(e){
           if(e.name!=='AbortError')showToast('공유에 실패했어요');
         }
