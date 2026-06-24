@@ -8,15 +8,13 @@
    GET    /auth/kakao/callback
    GET    /auth/me
    GET    /auth/random-nickname   ← 신규: 랜덤 닉네임 생성
-   POST   /auth/nickname          ← 오뜨 +30 (회원가입 완료)
+   POST   /auth/nickname          ← 변경: mbti 파라미터 추가
    PUT    /auth/nickname
    DELETE /auth/withdraw
    POST   /auth/logout
-   PATCH  /auth/mbti              ← 오뜨 +20 (최초 등록) / -20 (해제)
 ══════════════════════════════════════════════════════════════ */
 
 import { _getSessionCookie } from "../utils/authUtils.js";
-import { _addOttPoints } from "./admin.js";
 
 // ── 랜덤 닉네임 생성용 형용사 목록 ────────────────────────────
 const ADJECTIVES = [
@@ -98,19 +96,11 @@ export async function handleAuth(path, request, env, headers) {
 
       const googleState = url.searchParams.get("state") || "";
       const googleAfter = googleState ? decodeURIComponent(googleState) : "";
-
-      // 기존 로그인 시 1일 1회 +3 오뜨 적립
-      if (!isNew) {
-        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const alreadyLogin = await env.DB.prepare(
-          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
-        ).bind(userRow.id, todayKST).first();
-        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
-      }
+      const googleBase  = googleAfter ? `https://ottrank.kr${googleAfter}` : "https://ottrank.kr/";
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (googleAfter ? `&redirect=${encodeURIComponent(googleAfter)}` : "")
-        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
+        : `${googleBase}${googleBase.includes("?") ? "&" : "?"}sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -197,19 +187,11 @@ export async function handleAuth(path, request, env, headers) {
       let naverAfter   = "";
       try { naverAfter = naverState ? decodeURIComponent(naverState) : ""; } catch (e) {}
       if (!naverAfter.startsWith("/")) naverAfter = "";
-
-      // 기존 로그인 시 1일 1회 +3 오뜨 적립
-      if (!isNew) {
-        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const alreadyLogin = await env.DB.prepare(
-          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
-        ).bind(userRow.id, todayKST).first();
-        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
-      }
+      const naverBase = naverAfter ? `https://ottrank.kr${naverAfter}` : "https://ottrank.kr/";
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (naverAfter ? `&redirect=${encodeURIComponent(naverAfter)}` : "")
-        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
+        : `${naverBase}${naverBase.includes("?") ? "&" : "?"}sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -292,19 +274,11 @@ export async function handleAuth(path, request, env, headers) {
 
       const stateParam = url.searchParams.get("state") || "";
       const afterLogin = stateParam ? decodeURIComponent(stateParam) : "";
-
-      // 기존 로그인 시 1일 1회 +3 오뜨 적립
-      if (!isNew) {
-        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const alreadyLogin = await env.DB.prepare(
-          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
-        ).bind(userRow.id, todayKST).first();
-        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
-      }
+      const baseUrl    = afterLogin ? `https://ottrank.kr${afterLogin}` : "https://ottrank.kr/";
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (afterLogin ? `&redirect=${encodeURIComponent(afterLogin)}` : "")
-        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
+        : `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -332,9 +306,9 @@ export async function handleAuth(path, request, env, headers) {
       ).bind(sessionId).first();
       if (!session) return new Response(JSON.stringify({ ok: false }), { headers });
 
-      // mbti 컬럼 포함하여 조회
+      // mbti, ott_points 컬럼 포함하여 조회
       const user = await env.DB.prepare(
-        "SELECT id, nickname, email, avatar_url, provider, grade, total_likes_received, mbti, created_at FROM users WHERE id = ?"
+        "SELECT id, nickname, email, avatar_url, provider, grade, total_likes_received, mbti, ott_points, created_at FROM users WHERE id = ?"
       ).bind(session.user_id).first();
       if (!user) return new Response(JSON.stringify({ ok: false }), { headers });
 
@@ -438,12 +412,6 @@ export async function handleAuth(path, request, env, headers) {
       await env.DB.prepare(
         "UPDATE users SET nickname = ?, mbti = ? WHERE id = ?"
       ).bind(nickname.trim(), finalMbti, session.user_id).run();
-
-      // ── 오뜨 적립: 회원가입 완료 +30 ──────────────────────
-      // 닉네임이 처음 설정되는 경우에만 지급 (중복 방지)
-      // nickname이 이미 있던 유저는 PUT /auth/nickname 사용하므로
-      // POST는 최초 가입 시에만 호출됨 → 항상 지급
-      await _addOttPoints(session.user_id, 30, 'signup', env);
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
@@ -557,33 +525,9 @@ export async function handleAuth(path, request, env, headers) {
       ];
       const finalMbti = mbti && VALID_MBTI.includes(mbti) ? mbti : null;
 
-      // 변경 전 현재 MBTI 상태 조회 (오뜨 처리 판단용)
-      const currentUser = await env.DB.prepare(
-        "SELECT mbti FROM users WHERE id = ?"
-      ).bind(session.user_id).first();
-
       await env.DB.prepare(
         "UPDATE users SET mbti = ? WHERE id = ?"
       ).bind(finalMbti, session.user_id).run();
-
-      // ── 오뜨 처리 ──────────────────────────────────────────
-      const hadMbti = !!currentUser?.mbti;   // 기존에 MBTI 있었는지
-      const hasMbti = !!finalMbti;           // 지금 MBTI 설정하는지
-
-      if (!hadMbti && hasMbti) {
-        // 기존 없음 → 신규 등록: 최초 1회만 지급
-        // user_point_logs에 signup 이후 mbti 지급 이력 확인
-        const alreadyGiven = await env.DB.prepare(
-          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'mbti_register' LIMIT 1"
-        ).bind(session.user_id).first();
-        if (!alreadyGiven) {
-          await _addOttPoints(session.user_id, 20, 'mbti_register', env);
-        }
-      } else if (hadMbti && !hasMbti) {
-        // 기존 있음 → 해제: -20 오뜨 차감
-        await _addOttPoints(session.user_id, -20, 'mbti_unregister', env);
-      }
-      // 기존 있음 → 다른 MBTI로 변경: 오뜨 변동 없음
 
       return new Response(JSON.stringify({ ok: true, mbti: finalMbti }), { headers });
     } catch (e) {
