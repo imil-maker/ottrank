@@ -19,6 +19,7 @@
    DELETE /pick-lists/:id              추천작품 컬렉션 삭제
    POST   /pick-lists/:id/works        컬렉션에 작품 추가/제거 토글
    GET    /pick-lists/check/:tmdb_id   작품이 담긴 컬렉션 목록 확인
+   POST   /reviews/share               리뷰 카드 공유 오뜨 +10 (1일 1회)
 ══════════════════════════════════════════════════════════════ */
 
 import { _getSessionCookie, _recalcGrade } from "../utils/authUtils.js";
@@ -169,6 +170,12 @@ export async function handleUser(path, request, env, ctx, headers) {
         return new Response(JSON.stringify({ ok: false, message: "별점을 선택해주세요 (0.5~10)" }), { status: 400, headers });
       }
 
+      // 신규 작성인지 수정인지 판단 (오뜨 중복 지급 방지)
+      const existingReview = await env.DB.prepare(
+        "SELECT id FROM reviews WHERE tmdb_id = ? AND user_id = ?"
+      ).bind(tmdb_id, session.user_id).first();
+      const isNew = !existingReview;
+
       await env.DB.prepare(`
         INSERT INTO reviews (tmdb_id, user_id, score, emotions, custom_tags, text, spoiler)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -187,6 +194,8 @@ export async function handleUser(path, request, env, ctx, headers) {
         spoiler ? 1 : 0
       ).run();
 
+      // 신규 작성 시에만 +10 오뜨 (수정 시 미지급)
+      if (isNew) ctx.waitUntil(_addOttPoints(session.user_id, 10, 'review', env));
       ctx.waitUntil(_recalcGrade(session.user_id, env));
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
@@ -208,6 +217,8 @@ export async function handleUser(path, request, env, ctx, headers) {
         await env.DB.prepare(
           "UPDATE users SET total_likes_received = total_likes_received + 1 WHERE id = ?"
         ).bind(review.user_id).run();
+        // 좋아요 받은 유저 +1 오뜨
+        ctx.waitUntil(_addOttPoints(review.user_id, 1, 'like_received', env));
         ctx.waitUntil(_recalcGrade(review.user_id, env));
       }
       return new Response(JSON.stringify({ ok: true }), { headers });
@@ -728,6 +739,38 @@ export async function handleUser(path, request, env, ctx, headers) {
         "SELECT * FROM grade_settings ORDER BY sort_order ASC"
       ).all();
       return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /reviews/share — 리뷰 카드 공유 +10 오뜨 (1일 1회) ─
+  if (path === "/reviews/share" && request.method === "POST") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      // 1일 1회 제한 — 오늘 날짜(KST) 기준
+      const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000)
+        .toISOString().slice(0, 10);
+      const alreadyShared = await env.DB.prepare(
+        `SELECT id FROM user_point_logs
+         WHERE user_id = ? AND reason = 'share'
+         AND DATE(created_at) = ?
+         LIMIT 1`
+      ).bind(session.user_id, todayKST).first();
+
+      if (alreadyShared) {
+        return new Response(JSON.stringify({ ok: true, already: true, message: "오늘은 이미 공유 오뜨를 받았어요" }), { headers });
+      }
+
+      await _addOttPoints(session.user_id, 10, 'share', env);
+      return new Response(JSON.stringify({ ok: true, already: false, points: 10 }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
