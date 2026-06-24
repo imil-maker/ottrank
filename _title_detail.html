@@ -2066,7 +2066,7 @@ async function likeComment(id){
 }
 function shareComment(id,user){
   const url=`${getShareUrl()}#cmt_${id}`;
-  if(navigator.share)navigator.share({title:`${WORK.title} 후기 | 오뜨랑`,text:`오뜨랑에서 "${WORK.title}" ${user}님의 후기를 확인해보세요!`,url}).catch(()=>{});
+  if(navigator.share)navigator.share({title:`${WORK.title} 후기 | 오뜨랑`,text:`오뜨랑에서 "${WORK.title}" ${user}님의 후기를 확인해보세요!`,url}).then(()=>_claimShareOtt()).catch(()=>{});
   else navigator.clipboard.writeText(url).then(()=>showToast('후기 링크가 복사됐어요!'));
 }
 function renderPagination(){
@@ -2084,8 +2084,16 @@ function goPage(p){const t=Math.ceil(ALL_COMMENTS.length/PER_PAGE);if(p<1||p>t)r
 function getShareUrl(){const s=WORK.season||1,y=WORK.year||new Date().getFullYear(),tid=WORK.tmdb_id||'';return`https://ottrank.kr/title/${s}-${y}${tid}`;}
 function shareNative(){
   const url=getShareUrl();const title=document.getElementById('mainTitle').textContent||WORK.title;
-  if(navigator.share)navigator.share({title:`${title} | 오뜨랑`,text:`"${title}" OTT 평점·후기를 오뜨랑에서 확인해보세요!`,url}).catch(()=>{});
+  if(navigator.share)navigator.share({title:`${title} | 오뜨랑`,text:`"${title}" OTT 평점·후기를 오뜨랑에서 확인해보세요!`,url}).then(()=>_claimShareOtt()).catch(()=>{});
   else navigator.clipboard.writeText(url).then(()=>showToast('링크가 복사됐어요!'));
+}
+async function _claimShareOtt(){
+  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
+  try{
+    const r=await fetch(`${API}/reviews/share`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid}}).then(r=>r.json());
+    if(r?.ok&&!r?.already)showToast('🎉 공유 완료! +10 오뜨 획득');
+    else showToast('공유 완료!');
+  }catch(e){}
 }
 function showToast(msg){const t=document.getElementById('shareToast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 
