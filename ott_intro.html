@@ -67,17 +67,17 @@
     .card-desc { font-size:12px; color:#888; line-height:1.65; }
     .earn-row { display:flex; gap:8px; }
     .earn-chip {
-      flex:1; display:flex; align-items:center; gap:7px;
+      flex:1; display:flex; align-items:center; gap:5px;
       background:#141424; border:1px solid #1e1e2e;
-      border-radius:10px; padding:8px 10px;
+      border-radius:10px; padding:7px 8px;
     }
     .earn-ic {
-      width:22px; height:22px; background:#1a1200;
-      border:1px solid #3a2800; border-radius:6px;
+      width:18px; height:18px; background:#1a1200;
+      border:1px solid #3a2800; border-radius:5px;
       display:flex; align-items:center; justify-content:center; flex-shrink:0;
     }
-    .earn-act { font-size:10px; color:#777; margin-bottom:1px; }
-    .earn-amt { font-size:12px; font-weight:500; color:var(--gold); }
+    .earn-act { font-size:9px; color:#777; margin-bottom:1px; white-space:nowrap; }
+    .earn-amt { font-size:11px; font-weight:500; color:var(--gold); white-space:nowrap; }
     .review-right { width:104px; flex-shrink:0; }
     .sample-label { font-size:10px; color:#555; text-align:center; margin-bottom:5px; letter-spacing:0.3px; }
     .poster-card { border-radius:10px; overflow:hidden; border:1px solid #252535; background:#16162a; }
@@ -263,7 +263,7 @@
         <span class="progress-next" id="progressNext">서드까지 30 오뜨 남음</span>
       </div>
       <div class="pbar-bg"><div class="pbar-fill" id="progressBar" style="width:0%"></div></div>
-      <div class="progress-sub">가입 완료로 <span>+30 오뜨</span> 획득했어요! 🎉</div>
+      <div class="progress-sub" id="progressSub">가입 완료로 <span>+30 오뜨</span> 획득했어요! 🎉</div>
     </div>
   </div>
 
@@ -344,6 +344,16 @@
 
       const ottPoints = data.user.ott_points || 30; // 가입 완료 기본 30
       const userMbti  = data.user.mbti;
+
+      // MBTI 설정 여부에 따라 하단 안내 문구 동적 변경
+      const subEl = document.getElementById('progressSub');
+      if (subEl) {
+        if (userMbti) {
+          subEl.innerHTML = '가입 완료 <span>+30 오뜨</span> · MBTI 등록 <span>+20 오뜨</span> 획득했어요! 🎉';
+        } else {
+          subEl.innerHTML = '가입 완료로 <span>+30 오뜨</span> 획득했어요! MBTI 등록하면 <span>+20 오뜨</span> 추가!';
+        }
+      }
 
       // MBTI 하이라이트
       if (userMbti) {
