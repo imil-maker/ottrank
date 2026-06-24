@@ -98,11 +98,19 @@ export async function handleAuth(path, request, env, headers) {
 
       const googleState = url.searchParams.get("state") || "";
       const googleAfter = googleState ? decodeURIComponent(googleState) : "";
-      const googleBase  = googleAfter ? `https://ottrank.kr${googleAfter}` : "https://ottrank.kr/";
+
+      // 기존 로그인 시 1일 1회 +3 오뜨 적립
+      if (!isNew) {
+        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const alreadyLogin = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
+        ).bind(userRow.id, todayKST).first();
+        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+      }
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (googleAfter ? `&redirect=${encodeURIComponent(googleAfter)}` : "")
-        : `${googleBase}${googleBase.includes("?") ? "&" : "?"}sid=${sessionId}`;
+        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -189,11 +197,19 @@ export async function handleAuth(path, request, env, headers) {
       let naverAfter   = "";
       try { naverAfter = naverState ? decodeURIComponent(naverState) : ""; } catch (e) {}
       if (!naverAfter.startsWith("/")) naverAfter = "";
-      const naverBase = naverAfter ? `https://ottrank.kr${naverAfter}` : "https://ottrank.kr/";
+
+      // 기존 로그인 시 1일 1회 +3 오뜨 적립
+      if (!isNew) {
+        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const alreadyLogin = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
+        ).bind(userRow.id, todayKST).first();
+        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+      }
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (naverAfter ? `&redirect=${encodeURIComponent(naverAfter)}` : "")
-        : `${naverBase}${naverBase.includes("?") ? "&" : "?"}sid=${sessionId}`;
+        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -276,11 +292,19 @@ export async function handleAuth(path, request, env, headers) {
 
       const stateParam = url.searchParams.get("state") || "";
       const afterLogin = stateParam ? decodeURIComponent(stateParam) : "";
-      const baseUrl    = afterLogin ? `https://ottrank.kr${afterLogin}` : "https://ottrank.kr/";
+
+      // 기존 로그인 시 1일 1회 +3 오뜨 적립
+      if (!isNew) {
+        const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const alreadyLogin = await env.DB.prepare(
+          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
+        ).bind(userRow.id, todayKST).first();
+        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+      }
 
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (afterLogin ? `&redirect=${encodeURIComponent(afterLogin)}` : "")
-        : `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}sid=${sessionId}`;
+        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
