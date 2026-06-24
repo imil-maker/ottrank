@@ -19,6 +19,33 @@ export function _getSessionCookie(request) {
   return match ? match[1] : null;
 }
 
+/** 오뜨 포인트 적립/차감 + 레벨 자동 재계산
+ *  @param {number} userId - 유저 ID
+ *  @param {number} points - 적립(+) 또는 차감(-) 포인트
+ *  @param {string} reason - 적립 사유 (signup, mbti_register, review, share 등)
+ *  @param {object} env   - Cloudflare env (env.DB 포함)
+ */
+export async function _addOttPoints(userId, points, reason, env) {
+  try {
+    // 1. 내역 로그 기록
+    await env.DB.prepare(
+      "INSERT INTO user_point_logs (user_id, points, reason) VALUES (?, ?, ?)"
+    ).bind(userId, points, reason).run();
+
+    // 2. users.ott_points 캐시 업데이트 (0 미만으로 내려가지 않도록)
+    await env.DB.prepare(
+      "UPDATE users SET ott_points = MAX(0, COALESCE(ott_points, 0) + ?) WHERE id = ?"
+    ).bind(points, userId).run();
+
+    // 3. 레벨 자동 재계산
+    await _recalcGrade(userId, env);
+    return true;
+  } catch (e) {
+    console.error("[_addOttPoints] 오류:", e.message);
+    return false;
+  }
+}
+
 /** 오뜨 포인트 기준 등급 자동 재계산
  *  - users.ott_points 기준으로 grade_settings.min_ott_points 비교
  *  - is_special 등급(관리자 수동 지정)은 건드리지 않음
