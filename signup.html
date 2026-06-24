@@ -62,11 +62,12 @@
     input[type=text] {
       flex:1; height:48px; background:var(--bg3);
       border:1px solid var(--border2); border-radius:10px;
-      padding:0 16px; color:var(--text); font-family:var(--sans);
+      padding:0 16px; color:#ededf0; font-family:var(--sans);
       font-size:16px; outline:none; transition:border-color .2s;
+      -webkit-text-fill-color:#ededf0;
     }
     input[type=text]:focus { border-color:var(--accent); }
-    input[type=text]::placeholder { color:var(--muted); }
+    input[type=text]::placeholder { color:var(--muted); -webkit-text-fill-color:var(--muted); }
 
     /* 🎲 랜덤 버튼 */
     .btn-random {
