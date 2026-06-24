@@ -8,21 +8,41 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
+/* ══════════════════════════════════════
+   CSS 변수 — onboarding 스타일로 통일
+   기존 --accent(레드) 유지, 골드 계열 추가
+═══════════════════════════════════════ */
 :root{
-  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
-  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
-  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
-  --accent:#e63946;--gold:#f0b429;--green:#34d399;
-  --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
-  --warn-bg:rgba(240,180,41,.12);--warn-border:rgba(240,180,41,.35);
+  /* 배경 — 블루다크 계열로 통일 */
+  --bg:#0d0d18;--bg2:#13131f;--bg3:#0f0f1c;--card:#13131f;
+  /* 보더 */
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.13);
+  /* 텍스트 */
+  --text:#ededf0;--muted:#555568;--muted2:#888899;
+  /* 액센트 */
+  --accent:#e63946;
+  /* 골드 (오뜨 포인트 전용) */
+  --gold:#e8a020;--gold-bg:#1a1200;--gold-border:#2e2000;--gold-muted:#8a6a00;
+  /* 그린 */
+  --green:#34d399;
+  /* 인포 (블루) */
+  --info:#4d9de0;--info-bg:rgba(77,157,224,.12);--info-border:rgba(77,157,224,.3);
+  /* 경고 (골드) */
+  --warn-bg:rgba(232,160,32,.1);--warn-border:rgba(232,160,32,.25);
+  /* 타이포 */
   --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
-  --r:10px;--r-lg:14px;--content-w:860px;
+  /* 레이아웃 */
+  --r:10px;--r-lg:16px;--content-w:860px;
 }
+
+/* ══ 리셋 & 베이스 ══ */
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
 .page-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
+
+/* ══ 로딩 / 빈 화면 ══ */
 .loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px}
-.loading-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.loading-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-wrap p{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
 .empty-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;text-align:center}
@@ -30,157 +50,448 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .empty-prompt h2{font-size:20px;font-weight:700}
 .empty-prompt p{font-size:14px;color:var(--muted2)}
 .empty-btn{margin-top:8px;padding:12px 32px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans)}
-/* 프로필 */
-.profile-card{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%);border:.5px solid var(--border2);border-radius:var(--r-lg);padding:28px 24px;margin-bottom:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
-.profile-card::before{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(230,57,70,.08),transparent 70%);pointer-events:none}
-.profile-emoji-wrap{width:80px;height:80px;border-radius:var(--r-lg);background:var(--bg3);border:.5px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+
+/* ══════════════════════════════════════
+   프로필 카드 — onboarding 스타일
+═══════════════════════════════════════ */
+.profile-card{
+  background:var(--bg2);
+  border:.5px solid var(--border2);
+  border-radius:var(--r-lg);
+  padding:20px;
+  margin-bottom:12px;
+  position:relative;overflow:hidden;
+}
+/* 배경 장식 */
+.profile-card::before{
+  content:'';position:absolute;top:-30px;right:-30px;
+  width:140px;height:140px;border-radius:50%;
+  background:radial-gradient(circle,rgba(232,160,32,.05),transparent 70%);
+  pointer-events:none;
+}
+.profile-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+
+/* 아바타 (등급 이모지 이미지) */
+.profile-emoji-wrap{
+  width:60px;height:60px;border-radius:14px;
+  background:var(--bg3);border:.5px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;flex-shrink:0;
+}
 .profile-emoji-wrap img{width:100%;height:100%;object-fit:cover}
-.profile-emoji-wrap .no-emoji{font-size:36px}
+.profile-emoji-wrap .no-emoji{font-size:28px}
+
 .profile-info{flex:1;min-width:0}
-.profile-grade-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--warn-bg);color:#c89a10;border:.5px solid var(--warn-border);font-family:var(--font-mono);font-weight:600;display:inline-block;margin-bottom:6px}
-.profile-grade-badge.special{background:rgba(230,57,70,.12);color:var(--accent);border-color:rgba(230,57,70,.3)}
-.profile-nickname{font-size:22px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.edit-btn{background:none;border:.5px solid var(--border2);border-radius:6px;color:var(--muted2);font-size:11px;font-family:var(--font-mono);padding:3px 10px;cursor:pointer;transition:all .15s}
-.edit-btn:hover{border-color:var(--info);color:var(--info)}
-.profile-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted2)}
-.profile-meta-item{display:flex;align-items:center;gap:5px}
-.profile-meta-item b{color:var(--text);font-weight:600}
-.logout-btn{padding:9px 18px;border-radius:var(--r);border:.5px solid var(--border2);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font-sans);transition:all .15s;display:flex;align-items:center;gap:6px}
+
+/* 등급 뱃지 행 */
+.badge-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap}
+.profile-grade-badge{
+  font-size:10px;padding:2px 10px;border-radius:20px;
+  background:var(--gold-bg);color:var(--gold);
+  border:.5px solid var(--gold-border);
+  font-family:var(--font-mono);font-weight:600;display:inline-block;
+}
+.profile-grade-badge.special{
+  background:rgba(230,57,70,.12);color:var(--accent);
+  border-color:rgba(230,57,70,.3);
+}
+/* MBTI 뱃지 */
+.mbti-badge{
+  font-size:10px;padding:2px 10px;border-radius:20px;
+  background:var(--info-bg);color:var(--info);
+  border:.5px solid var(--info-border);
+  font-family:var(--font-mono);font-weight:600;
+  display:inline-flex;align-items:center;gap:4px;
+  cursor:pointer;transition:all .15s;
+}
+.mbti-badge:hover{background:rgba(77,157,224,.2)}
+.mbti-badge.empty{background:var(--bg3);color:var(--muted);border-color:var(--border2)}
+
+/* 닉네임 행 */
+.profile-nickname-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.profile-nickname{font-size:20px;font-weight:700;line-height:1.2}
+
+/* 로그아웃 버튼 — 닉네임 옆에 작게 */
+.logout-btn{
+  padding:4px 12px;border-radius:var(--r);
+  border:.5px solid var(--border2);background:transparent;
+  color:var(--muted);font-size:11px;cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;
+  display:inline-flex;align-items:center;gap:5px;
+}
 .logout-btn:hover{border-color:var(--accent);color:var(--accent)}
-.nickname-edit-row{display:none;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+
+/* 프로필 메타 정보 */
+.profile-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted2)}
+.profile-meta-item{display:flex;align-items:center;gap:4px}
+.profile-meta-item b{color:var(--text);font-weight:600}
+
+/* 닉네임 수정 행 */
+.nickname-edit-row{display:none;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .nickname-edit-row.show{display:flex}
-.nickname-inp{background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:14px;padding:8px 14px;outline:none;width:200px}
+.nickname-inp{
+  background:var(--bg3);border:.5px solid var(--border2);
+  border-radius:var(--r);color:var(--text);font-size:14px;
+  padding:8px 14px;outline:none;width:200px;
+}
 .nickname-inp:focus{border-color:var(--info)}
 .nickname-save-btn{padding:8px 16px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer}
 .nickname-cancel-btn{padding:8px 14px;border-radius:var(--r);background:transparent;color:var(--muted2);font-size:13px;border:.5px solid var(--border);cursor:pointer}
-/* 등급 프로그레스 */
-.next-grade-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;margin-bottom:24px}
-.next-grade-title{font-size:13px;color:var(--muted2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.next-grade-title b{color:var(--text)}
-.progress-item{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.progress-label{font-size:12px;color:var(--muted);font-family:var(--font-mono);min-width:80px}
-.progress-bar-bg{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
-.progress-bar-fill{height:100%;border-radius:3px;background:var(--info);transition:width .4s}
-.progress-bar-fill.done{background:var(--green)}
-.progress-val{font-size:11px;color:var(--muted2);font-family:var(--font-mono);min-width:60px;text-align:right}
-.progress-val.done{color:var(--green)}
-/* 더보기 버튼 */
-.sec-more-btn{margin-left:auto;font-size:12px;color:var(--muted2);font-family:var(--font-mono);text-decoration:none;padding:3px 10px;border-radius:6px;border:.5px solid var(--border);transition:all .15s;white-space:nowrap}
-.sec-more-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
-/* 섹션 */
-.sec-wrap{margin-bottom:28px}
+
+/* 수정 칩 버튼 행 (모바일 편의용) */
+.edit-chip-row{display:none;gap:8px;margin-top:12px}
+.edit-chip{
+  flex:1;background:var(--bg3);border:.5px solid var(--border2);
+  border-radius:var(--r);padding:8px 12px;font-size:12px;
+  color:var(--muted2);text-align:center;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all .15s;
+}
+.edit-chip:hover{border-color:var(--info);color:var(--info)}
+
+/* MBTI 수정 행 */
+.mbti-edit-row{display:none;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap}
+.mbti-edit-row.show{display:flex}
+.mbti-grid-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:100%}
+.mbti-mini-btn{
+  height:34px;background:var(--bg3);
+  border:.5px solid var(--border2);border-radius:6px;
+  color:var(--muted2);font-family:var(--font-mono);font-size:12px;
+  cursor:pointer;transition:all .15s;
+}
+.mbti-mini-btn:hover{border-color:var(--info);color:var(--text)}
+.mbti-mini-btn.selected{border-color:var(--info);color:var(--info);background:var(--info-bg);font-weight:700}
+.mbti-edit-actions{display:flex;gap:6px;margin-top:6px;width:100%}
+.mbti-save-btn{flex:1;padding:7px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer}
+.mbti-cancel-btn{padding:7px 14px;border-radius:var(--r);background:transparent;color:var(--muted2);font-size:13px;border:.5px solid var(--border);cursor:pointer}
+
+/* ══════════════════════════════════════
+   오뜨 레벨 카드 (신규)
+═══════════════════════════════════════ */
+.ott-card{
+  background:var(--bg2);
+  border:.5px solid var(--gold-border);
+  border-radius:var(--r-lg);
+  padding:16px 18px;
+  margin-bottom:12px;
+  position:relative;overflow:hidden;
+}
+.ott-card::before{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:130px;height:130px;border-radius:50%;
+  background:radial-gradient(circle,rgba(232,160,32,.06),transparent 70%);
+  pointer-events:none;
+}
+
+/* 라벨 */
+.ott-label-row{display:flex;align-items:center;gap:5px;margin-bottom:12px}
+.ott-label-dot{width:5px;height:5px;background:var(--gold);border-radius:50%}
+.ott-label-txt{font-size:10px;color:var(--gold);font-weight:600;letter-spacing:.5px;font-family:var(--font-mono)}
+
+/* 메인 점수 + 등급 */
+.ott-main-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:10px}
+.ott-score-block{}
+.ott-score{font-size:32px;font-weight:700;color:var(--gold);line-height:1;letter-spacing:-1px}
+.ott-score-unit{font-size:13px;color:var(--gold-muted);margin-left:4px}
+.ott-next-hint{font-size:11px;color:var(--muted);margin-top:4px}
+.ott-next-hint b{color:var(--gold-muted)}
+.ott-grade-block{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.ott-grade-emoji{
+  width:40px;height:40px;border-radius:10px;
+  background:var(--gold-bg);border:.5px solid var(--gold-border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;overflow:hidden;
+}
+.ott-grade-emoji img{width:100%;height:100%;object-fit:cover}
+.ott-grade-name{font-size:12px;font-weight:600;color:var(--gold);font-family:var(--font-mono)}
+
+/* 프로그레스바 */
+.ott-pbar-wrap{margin-bottom:12px}
+.ott-pbar-labels{display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px;font-family:var(--font-mono)}
+.ott-pbar-labels span:first-child{color:var(--muted)}
+.ott-pbar-labels span:last-child{color:var(--gold-muted)}
+.ott-pbar-bg{width:100%;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.ott-pbar-fill{height:100%;background:var(--gold);border-radius:3px;transition:width .6s ease}
+
+/* 최근 적립 내역 (2개 미리보기) */
+.ott-recent-list{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.ott-log-item{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg3);border-radius:var(--r);padding:8px 12px;
+}
+.ott-log-left{display:flex;align-items:center;gap:10px}
+.ott-log-icon{
+  width:26px;height:26px;border-radius:7px;
+  background:var(--gold-bg);border:.5px solid var(--gold-border);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold);font-size:13px;flex-shrink:0;
+}
+.ott-log-reason{font-size:12px;color:var(--muted2)}
+.ott-log-date{font-size:10px;color:var(--muted);font-family:var(--font-mono)}
+.ott-log-pt{font-size:12px;font-weight:700;color:var(--gold);font-family:var(--font-mono)}
+.ott-log-pt.minus{color:var(--muted2)}
+
+/* 전체 내역 버튼 */
+.ott-more-btn{
+  width:100%;background:var(--bg3);
+  border:.5px solid var(--gold-border);border-radius:var(--r);
+  padding:9px 14px;font-size:12px;color:var(--gold-muted);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  cursor:pointer;transition:all .15s;text-decoration:none;
+  font-family:var(--font-sans);
+}
+.ott-more-btn:hover{background:var(--gold-bg);color:var(--gold)}
+
+/* 최상위 등급 메시지 */
+.ott-max-msg{
+  text-align:center;padding:8px;
+  font-size:12px;color:var(--gold-muted);
+  font-family:var(--font-mono);
+}
+
+/* ══════════════════════════════════════
+   리뷰 카드 홍보 배너 (신규)
+   — 업로드 이미지 레이아웃 기준
+═══════════════════════════════════════ */
+.review-banner{
+  background:var(--bg2);
+  border:.5px solid var(--border2);
+  border-radius:var(--r-lg);
+  padding:16px 18px;
+  margin-bottom:12px;
+}
+.rv-label-row{display:flex;align-items:center;gap:5px;margin-bottom:10px}
+.rv-label-dot{width:5px;height:5px;background:var(--gold);border-radius:50%}
+.rv-label-txt{font-size:10px;color:var(--gold);font-weight:600;letter-spacing:.5px;font-family:var(--font-mono)}
+
+/* 좌우 레이아웃 */
+.rv-layout{display:flex;gap:14px;align-items:flex-start}
+.rv-left{flex:1;min-width:0}
+.rv-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.45;margin-bottom:7px}
+.rv-desc{font-size:12px;color:var(--muted2);line-height:1.65;margin-bottom:12px}
+
+/* 버튼 2개 */
+.rv-btns{display:flex;gap:7px}
+.rv-btn{
+  flex:1;display:flex;align-items:center;gap:8px;
+  background:var(--bg3);border:.5px solid var(--border2);
+  border-radius:10px;padding:9px 10px;cursor:pointer;
+  transition:border-color .15s;text-decoration:none;
+}
+.rv-btn:hover{border-color:var(--gold-border)}
+.rv-btn-ic{
+  width:26px;height:26px;border-radius:7px;
+  background:var(--gold-bg);border:.5px solid var(--gold-border);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold);font-size:14px;flex-shrink:0;
+}
+.rv-btn-label{display:flex;flex-direction:column}
+.rv-btn-act{font-size:10px;color:var(--muted);display:block;margin-bottom:1px}
+.rv-btn-amt{font-size:12px;font-weight:700;color:var(--gold);display:block}
+
+/* 우측 리뷰 샘플 목업 */
+.rv-right{width:82px;flex-shrink:0}
+.rv-sample-lbl{font-size:9px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:var(--font-mono)}
+.rv-poster-mock{
+  border-radius:10px;overflow:hidden;
+  border:.5px solid var(--border2);
+  background:#0a0a14;
+  aspect-ratio:9/16;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding:8px 6px 6px;
+}
+.rv-mock-gradient{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-end;height:100%;padding-top:60%;
+  background:linear-gradient(0deg,rgba(10,10,20,1) 0%,rgba(10,10,20,0) 100%);
+}
+.rv-mock-stars{font-size:9px;color:var(--gold);letter-spacing:.5px;margin-bottom:3px}
+.rv-mock-title{font-size:8px;color:var(--muted2);text-align:center;line-height:1.4}
+
+/* ══════════════════════════════════════
+   섹션 공통
+═══════════════════════════════════════ */
+.sec-wrap{
+  margin-bottom:12px;
+  background:var(--bg2);
+  border:.5px solid var(--border2);
+  border-radius:var(--r-lg);
+  padding:16px 18px 14px;
+}
 .sec-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-.sec-title{font-size:16px;font-weight:600}
+.sec-title{font-size:14px;font-weight:600}
 .sec-count{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
-.sec-empty{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:36px 20px;text-align:center;font-size:13px;color:var(--muted)}
-.sec-empty i{font-size:28px;opacity:.3;display:block;margin-bottom:8px}
+.sec-empty{
+  background:var(--bg3);border:.5px solid var(--border);
+  border-radius:var(--r);padding:32px 20px;
+  text-align:center;font-size:13px;color:var(--muted);
+}
+.sec-empty i{font-size:26px;opacity:.25;display:block;margin-bottom:8px}
+
+/* 더보기 / 추가 버튼 */
+.sec-more-btn{
+  margin-left:auto;font-size:11px;color:var(--muted2);
+  font-family:var(--font-mono);text-decoration:none;
+  padding:3px 10px;border-radius:6px;border:.5px solid var(--border);
+  transition:all .15s;white-space:nowrap;
+}
+.sec-more-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
+.sec-add-btn{
+  font-size:11px;color:var(--info);font-family:var(--font-mono);
+  padding:3px 10px;border-radius:6px;
+  border:.5px solid var(--info-border);background:var(--info-bg);
+  cursor:pointer;transition:all .15s;white-space:nowrap;margin-left:auto;
+}
+.sec-add-btn:hover{background:rgba(77,157,224,.2);color:#fff}
+
 /* 찜 공개/비공개 */
 .wish-privacy-row{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
-.wish-toggle-btn{padding:4px 14px;border-radius:20px;font-size:11px;font-family:var(--font-mono);cursor:pointer;border:.5px solid;transition:all .2s;font-weight:600}
-.wish-toggle-btn.public{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.35)}
-.wish-toggle-btn.public:hover{background:rgba(52,211,153,.22)}
+.wish-toggle-btn{
+  padding:3px 12px;border-radius:20px;font-size:11px;
+  font-family:var(--font-mono);cursor:pointer;border:.5px solid;
+  transition:all .2s;font-weight:600;
+}
+.wish-toggle-btn.public{background:rgba(52,211,153,.1);color:var(--green);border-color:rgba(52,211,153,.3)}
+.wish-toggle-btn.public:hover{background:rgba(52,211,153,.18)}
 .wish-toggle-btn.private{background:var(--bg3);color:var(--muted2);border-color:var(--border2)}
 .wish-privacy-desc{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+
 /* 찜 그리드 */
-.wish-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
-.wish-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .15s,transform .15s;position:relative}
+.wish-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}
+.wish-card{
+  background:var(--bg3);border:.5px solid var(--border);
+  border-radius:var(--r);overflow:hidden;
+  transition:border-color .15s,transform .15s;position:relative;
+}
 .wish-card:hover{border-color:var(--border2);transform:translateY(-2px)}
 .wish-card-link{text-decoration:none;display:block}
 .wish-poster{aspect-ratio:2/3;background:var(--bg3);overflow:hidden}
 .wish-poster img{width:100%;height:100%;object-fit:cover;display:block}
-.wish-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px}
-.wish-title{padding:6px 8px;font-size:11px;color:var(--muted2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.wish-del-btn{position:absolute;top:5px;right:5px;background:rgba(0,0,0,.75);color:#fff;border:none;border-radius:4px;font-size:10px;padding:3px 7px;cursor:pointer;font-family:var(--font-mono);display:none;transition:background .15s}
+.wish-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px}
+.wish-title{padding:5px 7px;font-size:10px;color:var(--muted2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wish-del-btn{
+  position:absolute;top:4px;right:4px;
+  background:rgba(0,0,0,.75);color:#fff;
+  border:none;border-radius:4px;font-size:9px;padding:2px 6px;
+  cursor:pointer;font-family:var(--font-mono);display:none;transition:background .15s;
+}
 .wish-del-btn:hover{background:var(--accent)}
 .wish-card:hover .wish-del-btn{display:block}
+
 /* 후기 */
 .review-list{display:flex;flex-direction:column;gap:10px}
-.review-item{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;transition:border-color .15s;display:flex;gap:14px;align-items:flex-start}
+.review-item{
+  background:var(--bg3);border:.5px solid var(--border);
+  border-radius:var(--r-lg);padding:12px 14px;
+  transition:border-color .15s;display:flex;gap:12px;align-items:flex-start;
+}
 .review-item:hover{border-color:var(--border2)}
 .review-poster-link{text-decoration:none;flex-shrink:0}
-.review-poster{width:48px;height:72px;border-radius:6px;background:var(--bg3);overflow:hidden}
+.review-poster{width:44px;height:66px;border-radius:6px;background:var(--bg3);overflow:hidden}
 .review-poster img{width:100%;height:100%;object-fit:cover;display:block}
-.review-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px}
+.review-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px}
 .review-body{flex:1;min-width:0}
 .review-title-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;flex-wrap:wrap}
 .review-work-link{text-decoration:none}
-.review-work-title{font-size:14px;font-weight:600;color:var(--text)}
+.review-work-title{font-size:13px;font-weight:600;color:var(--text)}
 .review-work-title:hover{color:var(--accent)}
+
 /* 10점 별점 */
 .stars-wrap{display:flex;align-items:center;gap:1px;margin-left:auto;flex-shrink:0}
-.star{font-size:13px;color:var(--gold);line-height:1}
+.star{font-size:12px;color:var(--gold);line-height:1}
 .star.half{position:relative;color:var(--border2)}
 .star.half::before{content:'★';position:absolute;left:0;top:0;width:50%;overflow:hidden;color:var(--gold)}
 .star.off{color:var(--border2)}
-.score-num{font-size:12px;color:var(--gold);font-family:var(--font-mono);margin-left:4px}
-.review-text{font-size:13px;color:var(--muted2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.score-num{font-size:11px;color:var(--gold);font-family:var(--font-mono);margin-left:4px}
+.review-text{font-size:12px;color:var(--muted2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .review-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.review-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
-.review-time{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
-.review-likes{font-size:11px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
-.del-btn{margin-left:auto;background:none;border:.5px solid rgba(230,57,70,.3);color:var(--accent);font-size:11px;font-family:var(--font-mono);padding:2px 10px;border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0}
+.review-badge{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--info-bg);color:var(--info);font-family:var(--font-mono)}
+.review-time{font-size:10px;color:var(--muted);font-family:var(--font-mono)}
+.review-likes{font-size:10px;color:var(--muted);font-family:var(--font-mono);display:flex;align-items:center;gap:3px}
+.del-btn{
+  margin-left:auto;background:none;
+  border:.5px solid rgba(230,57,70,.3);color:var(--accent);
+  font-size:10px;font-family:var(--font-mono);padding:2px 8px;
+  border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0;
+}
 .del-btn:hover{background:rgba(230,57,70,.1)}
+
 /* 페이지네이션 */
-.pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap}
-.page-btn{width:34px;height:34px;border-radius:8px;border:.5px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;font-family:var(--font-mono);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap}
+.page-btn{
+  width:34px;height:34px;border-radius:8px;
+  border:.5px solid var(--border);background:transparent;
+  color:var(--muted2);font-size:13px;font-family:var(--font-mono);
+  cursor:pointer;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;
+}
 .page-btn:hover{border-color:var(--border2);color:var(--text)}
 .page-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .page-btn.arrow{font-size:16px}
+
 /* 토스트 */
-.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
-.toast.show{opacity:1}
-/* 추천작품 컬렉션 카드 */
-.pick-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px;transition:border-color .15s}
-.pick-card:hover{border-color:var(--border2)}
-.pick-card-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.pick-card-title{font-size:15px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pick-card-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0}
-.pick-card-del{background:none;border:.5px solid rgba(230,57,70,.3);color:var(--accent);font-size:11px;font-family:var(--font-mono);padding:3px 10px;border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0}
-.pick-card-del:hover{background:rgba(230,57,70,.1)}
-/* 추천작품 포스터 썸네일 행 */
-.pick-thumb-row{display:flex;gap:6px;flex-wrap:wrap}
-.pick-thumb{width:52px;height:78px;border-radius:5px;background:var(--bg3);overflow:hidden;flex-shrink:0;border:.5px solid var(--border)}
-.pick-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.pick-thumb-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px}
-.pick-thumb-more{width:52px;height:78px;border-radius:5px;background:var(--bg3);border:.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0}
-@media(max-width:600px){
-  .profile-card{flex-direction:column;align-items:flex-start}
-  .wish-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
-  .wish-privacy-row{margin-left:0;width:100%}
+.toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+  background:rgba(20,20,32,.97);color:#fff;font-size:13px;
+  padding:11px 22px;border-radius:22px;z-index:9999;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+  font-family:var(--font-mono);border:.5px solid var(--border2);
+  white-space:nowrap;
 }
-/* 헤더 검색 드롭다운이 페이지 콘텐츠 위에 뜨도록 */
-#headerArea{position:relative;z-index:200}
-.page-wrap{position:relative;z-index:1}
-/* + 추가 버튼 */
-.sec-add-btn{font-size:12px;color:var(--info);font-family:var(--font-mono);padding:3px 10px;border-radius:6px;border:.5px solid var(--info-border);background:var(--info-bg);cursor:pointer;transition:all .15s;white-space:nowrap;margin-left:auto}
-.sec-add-btn:hover{background:rgba(55,138,221,.2);color:#fff}
-/* 추천작품 새 컬렉션 인풋 행 */
-.pick-new-row{display:flex;gap:8px;margin-bottom:14px}
-.pick-new-inp{flex:1;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 12px;outline:none;font-family:var(--font-sans)}
-.pick-new-inp:focus{border-color:var(--info)}
-.pick-new-btn{padding:8px 16px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)}
-/* 컬렉션 카드 내 작품 추가 버튼 */
-.pick-card-add{font-size:11px;color:var(--info);font-family:var(--font-mono);padding:3px 10px;border-radius:4px;border:.5px solid var(--info-border);background:transparent;cursor:pointer;transition:all .15s;flex-shrink:0}
+.toast.show{opacity:1}
+
+/* 추천작품 컬렉션 */
+.pick-card{
+  background:var(--bg3);border:.5px solid var(--border);
+  border-radius:var(--r-lg);padding:14px 16px;margin-bottom:10px;
+  transition:border-color .15s;
+}
+.pick-card:hover{border-color:var(--border2)}
+.pick-card-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.pick-card-title{font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick-card-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0}
+.pick-card-del{
+  background:none;border:.5px solid rgba(230,57,70,.3);
+  color:var(--accent);font-size:11px;font-family:var(--font-mono);
+  padding:2px 8px;border-radius:4px;cursor:pointer;transition:all .15s;flex-shrink:0;
+}
+.pick-card-del:hover{background:rgba(230,57,70,.1)}
+.pick-card-add{
+  font-size:11px;color:var(--info);font-family:var(--font-mono);
+  padding:2px 8px;border-radius:4px;
+  border:.5px solid var(--info-border);background:transparent;
+  cursor:pointer;transition:all .15s;flex-shrink:0;
+}
 .pick-card-add:hover{background:var(--info-bg)}
-/* MBTI 뱃지 */
-.mbti-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(55,138,221,.12);color:var(--info);border:.5px solid rgba(55,138,221,.35);font-family:var(--font-mono);font-weight:600;display:inline-flex;align-items:center;gap:5px;cursor:pointer;transition:all .15s;margin-left:4px}
-.mbti-badge:hover{background:rgba(55,138,221,.22)}
-.mbti-badge.empty{background:var(--bg3);color:var(--muted);border-color:var(--border2)}
-/* MBTI 수정 행 */
-.mbti-edit-row{display:none;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
-.mbti-edit-row.show{display:flex}
-.mbti-grid-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:100%}
-.mbti-mini-btn{height:34px;background:var(--bg3);border:.5px solid var(--border2);border-radius:6px;color:var(--muted2);font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s}
-.mbti-mini-btn:hover{border-color:var(--info);color:var(--text)}
-.mbti-mini-btn.selected{border-color:var(--info);color:var(--info);background:rgba(55,138,221,.12);font-weight:700}
-.mbti-edit-actions{display:flex;gap:6px;margin-top:6px;width:100%}
-.mbti-save-btn{flex:1;padding:7px;border-radius:var(--r);background:var(--info);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer}
-.mbti-cancel-btn{padding:7px 14px;border-radius:var(--r);background:transparent;color:var(--muted2);font-size:13px;border:.5px solid var(--border);cursor:pointer}
-/* 빈 섹션 구분 강화 */
-.sec-wrap{margin-bottom:28px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r-lg);padding:18px 18px 14px}
-.sec-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-.sec-empty{background:var(--bg3);border:.5px solid var(--border);border-radius:var(--r);padding:36px 20px;text-align:center;font-size:13px;color:var(--muted)}
-.sec-empty i{font-size:28px;opacity:.3;display:block;margin-bottom:8px}
+.pick-thumb-row{display:flex;gap:5px;flex-wrap:wrap}
+.pick-thumb{width:48px;height:72px;border-radius:5px;background:var(--bg3);overflow:hidden;flex-shrink:0;border:.5px solid var(--border)}
+.pick-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pick-thumb-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:14px}
+.pick-thumb-more{width:48px;height:72px;border-radius:5px;background:var(--bg3);border:.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0}
+
+/* 새 컬렉션 인풋 */
+.pick-new-row{display:flex;gap:8px;margin-bottom:12px}
+.pick-new-inp{
+  flex:1;background:var(--bg3);border:.5px solid var(--border2);
+  border-radius:var(--r);color:var(--text);font-size:13px;
+  padding:8px 12px;outline:none;font-family:var(--font-sans);
+}
+.pick-new-inp:focus{border-color:var(--info)}
+.pick-new-btn{
+  padding:8px 16px;border-radius:var(--r);background:var(--info);
+  color:#fff;font-size:13px;font-weight:600;border:none;
+  cursor:pointer;white-space:nowrap;font-family:var(--font-sans);
+}
+
+/* 회원탈퇴 */
+.withdraw-area{text-align:right;padding:6px 4px 0;margin-top:4px}
+.withdraw-btn{
+  background:none;border:none;color:var(--muted);
+  font-size:11px;font-family:var(--font-mono);
+  cursor:pointer;text-decoration:underline;opacity:.4;
+}
+.withdraw-btn:hover{opacity:.7}
+
 /* 작품 검색 모달 */
 .work-search-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
 .work-search-modal.show{display:flex}
@@ -202,122 +513,316 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .work-search-type{font-size:10px;padding:2px 6px;border-radius:3px;font-family:var(--font-mono);font-weight:600;flex-shrink:0}
 .work-search-empty{padding:32px;text-align:center;font-size:13px;color:var(--muted)}
 .work-search-loading{padding:20px;text-align:center;font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+
+/* ══ 헤더 검색 드롭다운 z-index ══ */
+#headerArea{position:relative;z-index:200}
+.page-wrap{position:relative;z-index:1}
+
+/* ══════════════════════════════════════
+   반응형 — 모바일 (600px 이하)
+═══════════════════════════════════════ */
+@media(max-width:600px){
+  .page-wrap{padding:14px 12px 80px}
+
+  /* 프로필 — 모바일 레이아웃 */
+  .profile-top{gap:12px}
+  .profile-emoji-wrap{width:52px;height:52px;border-radius:12px}
+  .profile-emoji-wrap .no-emoji{font-size:24px}
+  .profile-nickname{font-size:18px}
+  /* 닉네임/MBTI 수정 버튼 → 칩 형태로 표시 */
+  .edit-chip-row{display:flex}
+  /* PC용 닉네임 옆 edit-btn 숨김 */
+  #nicknameEditBtn{display:none !important}
+
+  /* 찜 그리드 모바일 최적화 */
+  .wish-grid{grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px}
+
+  /* 찜 공개/비공개 설명 텍스트 모바일에서 숨김 */
+  .wish-privacy-desc{display:none}
+  .wish-privacy-row{margin-left:auto}
+
+  /* 리뷰 배너 — 모바일에서 버튼 간격 */
+  .rv-btns{gap:5px}
+  .rv-right{width:72px}
+
+  /* 섹션 패딩 조정 */
+  .sec-wrap{padding:14px 14px 12px;margin-bottom:10px}
+
+  /* 오뜨 카드 점수 크기 조정 */
+  .ott-score{font-size:28px}
+
+  /* 픽 썸네일 크기 조정 */
+  .pick-thumb{width:44px;height:66px}
+  .pick-thumb-more{width:44px;height:66px}
+}
+
+/* ══ PC 전용 스타일 (601px 이상) ══ */
+@media(min-width:601px){
+  /* PC에서 edit-chip-row 숨김 (기존 edit-btn 사용) */
+  .edit-chip-row{display:none !important}
+  .profile-card{padding:24px}
+  .profile-emoji-wrap{width:72px;height:72px}
+  .profile-emoji-wrap .no-emoji{font-size:32px}
+  .profile-nickname{font-size:22px}
+}
 </style>
 </head>
 <body>
+<!-- 헤더: 기존 header.html fetch 연결 -->
 <div id="headerArea"></div>
+
 <div class="page-wrap">
+
+  <!-- 로딩 -->
   <div class="loading-wrap" id="loadingWrap">
     <div class="loading-spinner"></div>
     <p>불러오는 중...</p>
   </div>
+
+  <!-- 로그인 필요 -->
   <div class="empty-prompt" id="loginPrompt" style="display:none">
     <div class="empty-icon">🎬</div>
     <h2>로그인이 필요해요</h2>
     <p>마이페이지는 로그인 후 이용할 수 있어요.</p>
     <button class="empty-btn" onclick="location.href='/login.html?redirect=/mypage.html'">로그인 / 가입하기</button>
   </div>
+
+  <!-- 유저 없음 -->
   <div class="empty-prompt" id="notFoundPrompt" style="display:none">
     <div class="empty-icon">🔍</div>
     <h2>유저를 찾을 수 없어요</h2>
     <p>존재하지 않는 유저이거나 탈퇴한 계정이에요.</p>
     <button class="empty-btn" onclick="location.href='/'">홈으로</button>
   </div>
+
+  <!-- 마이페이지 본문 -->
   <div id="mypageContent" style="display:none">
-    <!-- 프로필 카드 -->
+
+    <!-- ── 1. 프로필 카드 ── -->
     <div class="profile-card">
-      <div class="profile-emoji-wrap" id="profileEmoji"><span class="no-emoji">🎬</span></div>
-      <div class="profile-info">
-        <div><span class="profile-grade-badge" id="profileGradeBadge">막내</span><span class="mbti-badge empty" id="mbtiBadge" style="display:none" onclick="IS_OWN&&toggleMbtiEdit()">✦ MBTI</span></div>
-        <div class="profile-nickname">
-          <span id="profileNickname">—</span>
-          <button class="edit-btn" id="nicknameEditBtn" style="display:none" onclick="toggleNicknameEdit()">
-            <i class="ti ti-pencil" style="font-size:11px"></i> 닉네임 수정
-          </button>
+      <!-- 아바타 + 기본 정보 -->
+      <div class="profile-top">
+        <div class="profile-emoji-wrap" id="profileEmoji">
+          <span class="no-emoji">🎬</span>
         </div>
-        <div class="nickname-edit-row" id="nicknameEditRow">
-          <input class="nickname-inp" type="text" id="nicknameInp" placeholder="새 닉네임" maxlength="20" onkeydown="if(event.key==='Enter')saveNickname()">
-          <button class="nickname-save-btn" onclick="saveNickname()">저장</button>
-          <button class="nickname-cancel-btn" onclick="toggleNicknameEdit()">취소</button>
-        </div>
-        <!-- MBTI 수정 UI -->
-        <div class="mbti-edit-row" id="mbtiEditRow">
-          <div class="mbti-grid-mini" id="mbtiGridMini">
-            <button class="mbti-mini-btn" data-mbti="INTJ" onclick="selectMbtiMini(this)">INTJ</button>
-            <button class="mbti-mini-btn" data-mbti="INTP" onclick="selectMbtiMini(this)">INTP</button>
-            <button class="mbti-mini-btn" data-mbti="ENTJ" onclick="selectMbtiMini(this)">ENTJ</button>
-            <button class="mbti-mini-btn" data-mbti="ENTP" onclick="selectMbtiMini(this)">ENTP</button>
-            <button class="mbti-mini-btn" data-mbti="INFJ" onclick="selectMbtiMini(this)">INFJ</button>
-            <button class="mbti-mini-btn" data-mbti="INFP" onclick="selectMbtiMini(this)">INFP</button>
-            <button class="mbti-mini-btn" data-mbti="ENFJ" onclick="selectMbtiMini(this)">ENFJ</button>
-            <button class="mbti-mini-btn" data-mbti="ENFP" onclick="selectMbtiMini(this)">ENFP</button>
-            <button class="mbti-mini-btn" data-mbti="ISTJ" onclick="selectMbtiMini(this)">ISTJ</button>
-            <button class="mbti-mini-btn" data-mbti="ISFJ" onclick="selectMbtiMini(this)">ISFJ</button>
-            <button class="mbti-mini-btn" data-mbti="ESTJ" onclick="selectMbtiMini(this)">ESTJ</button>
-            <button class="mbti-mini-btn" data-mbti="ESFJ" onclick="selectMbtiMini(this)">ESFJ</button>
-            <button class="mbti-mini-btn" data-mbti="ISTP" onclick="selectMbtiMini(this)">ISTP</button>
-            <button class="mbti-mini-btn" data-mbti="ISFP" onclick="selectMbtiMini(this)">ISFP</button>
-            <button class="mbti-mini-btn" data-mbti="ESTP" onclick="selectMbtiMini(this)">ESTP</button>
-            <button class="mbti-mini-btn" data-mbti="ESFP" onclick="selectMbtiMini(this)">ESFP</button>
+        <div class="profile-info">
+          <!-- 등급 뱃지 + MBTI 뱃지 -->
+          <div class="badge-row">
+            <span class="profile-grade-badge" id="profileGradeBadge">막내</span>
+            <span class="mbti-badge empty" id="mbtiBadge" style="display:none"
+              onclick="IS_OWN&&toggleMbtiEdit()">✦ MBTI</span>
           </div>
-          <div class="mbti-edit-actions">
-            <button class="mbti-save-btn" onclick="saveMbti()">저장</button>
-            <button class="mbti-cancel-btn" onclick="toggleMbtiEdit()">취소</button>
-          </div>
-        </div>
-        <div class="profile-meta">
-          <div class="profile-meta-item"><i class="ti ti-heart" style="color:var(--accent);font-size:13px"></i>받은 좋아요 <b id="profileLikes">0</b>개</div>
-          <div class="profile-meta-item"><i class="ti ti-calendar" style="color:var(--muted);font-size:13px"></i>가입 <b id="profileJoinDate">—</b></div>
-          <div class="profile-meta-item" id="providerItem" style="display:none">
-            <i class="ti ti-user" style="color:var(--muted);font-size:13px" id="providerIcon"></i>
-            <span id="providerLabel" style="color:var(--muted)">—</span>
+          <!-- 닉네임 + 로그아웃(PC) -->
+          <div class="profile-nickname-row">
+            <span class="profile-nickname" id="profileNickname">—</span>
+            <!-- PC: 닉네임 옆 수정 버튼 -->
+            <button class="edit-btn" id="nicknameEditBtn" style="display:none"
+              onclick="toggleNicknameEdit()">
+              <i class="ti ti-pencil" style="font-size:11px"></i> 닉네임 수정
+            </button>
+            <!-- 로그아웃 버튼 -->
+            <button class="logout-btn" id="logoutBtn" style="display:none"
+              onclick="doLogout()">
+              <i class="ti ti-logout" style="font-size:13px"></i> 로그아웃
+            </button>
           </div>
         </div>
       </div>
-      <div id="profileActions" style="display:none">
-        <button class="logout-btn" onclick="doLogout()"><i class="ti ti-logout" style="font-size:14px"></i> 로그아웃</button>
+
+      <!-- 닉네임 수정 인풋 행 -->
+      <div class="nickname-edit-row" id="nicknameEditRow">
+        <input class="nickname-inp" type="text" id="nicknameInp"
+          placeholder="새 닉네임" maxlength="20"
+          onkeydown="if(event.key==='Enter')saveNickname()">
+        <button class="nickname-save-btn" onclick="saveNickname()">저장</button>
+        <button class="nickname-cancel-btn" onclick="toggleNicknameEdit()">취소</button>
+      </div>
+
+      <!-- MBTI 수정 그리드 -->
+      <div class="mbti-edit-row" id="mbtiEditRow">
+        <div class="mbti-grid-mini" id="mbtiGridMini">
+          <button class="mbti-mini-btn" data-mbti="INTJ" onclick="selectMbtiMini(this)">INTJ</button>
+          <button class="mbti-mini-btn" data-mbti="INTP" onclick="selectMbtiMini(this)">INTP</button>
+          <button class="mbti-mini-btn" data-mbti="ENTJ" onclick="selectMbtiMini(this)">ENTJ</button>
+          <button class="mbti-mini-btn" data-mbti="ENTP" onclick="selectMbtiMini(this)">ENTP</button>
+          <button class="mbti-mini-btn" data-mbti="INFJ" onclick="selectMbtiMini(this)">INFJ</button>
+          <button class="mbti-mini-btn" data-mbti="INFP" onclick="selectMbtiMini(this)">INFP</button>
+          <button class="mbti-mini-btn" data-mbti="ENFJ" onclick="selectMbtiMini(this)">ENFJ</button>
+          <button class="mbti-mini-btn" data-mbti="ENFP" onclick="selectMbtiMini(this)">ENFP</button>
+          <button class="mbti-mini-btn" data-mbti="ISTJ" onclick="selectMbtiMini(this)">ISTJ</button>
+          <button class="mbti-mini-btn" data-mbti="ISFJ" onclick="selectMbtiMini(this)">ISFJ</button>
+          <button class="mbti-mini-btn" data-mbti="ESTJ" onclick="selectMbtiMini(this)">ESTJ</button>
+          <button class="mbti-mini-btn" data-mbti="ESFJ" onclick="selectMbtiMini(this)">ESFJ</button>
+          <button class="mbti-mini-btn" data-mbti="ISTP" onclick="selectMbtiMini(this)">ISTP</button>
+          <button class="mbti-mini-btn" data-mbti="ISFP" onclick="selectMbtiMini(this)">ISFP</button>
+          <button class="mbti-mini-btn" data-mbti="ESTP" onclick="selectMbtiMini(this)">ESTP</button>
+          <button class="mbti-mini-btn" data-mbti="ESFP" onclick="selectMbtiMini(this)">ESFP</button>
+        </div>
+        <div class="mbti-edit-actions">
+          <button class="mbti-save-btn" onclick="saveMbti()">저장</button>
+          <button class="mbti-cancel-btn" onclick="toggleMbtiEdit()">취소</button>
+        </div>
+      </div>
+
+      <!-- 프로필 메타 정보 -->
+      <div class="profile-meta" id="profileMeta">
+        <!-- 좋아요: likes >= 1 일 때만 JS로 삽입 -->
+        <div class="profile-meta-item" id="profileLikesItem" style="display:none">
+          <i class="ti ti-heart" style="color:var(--accent);font-size:12px"></i>
+          받은 좋아요 <b id="profileLikes">0</b>개
+        </div>
+        <div class="profile-meta-item">
+          <i class="ti ti-calendar" style="color:var(--muted);font-size:12px"></i>
+          가입 <b id="profileJoinDate">—</b>
+        </div>
+        <div class="profile-meta-item" id="providerItem" style="display:none">
+          <i class="ti ti-user" style="color:var(--muted);font-size:12px" id="providerIcon"></i>
+          <span id="providerLabel" style="color:var(--muted2)">—</span>
+        </div>
+      </div>
+
+      <!-- 모바일 전용 수정 칩 버튼 행 (JS로 is_own 시 활성화) -->
+      <div class="edit-chip-row" id="editChipRow">
+        <button class="edit-chip" onclick="toggleNicknameEdit()">
+          <i class="ti ti-pencil" style="font-size:13px"></i> 닉네임 수정
+        </button>
+        <button class="edit-chip" id="mbtiChipBtn" onclick="toggleMbtiEdit()">
+          <i class="ti ti-mood-smile" style="font-size:13px"></i> MBTI 설정
+        </button>
       </div>
     </div>
-    <!-- 다음 등급 프로그레스 -->
-    <div class="next-grade-card" id="nextGradeCard" style="display:none">
-      <div class="next-grade-title"><i class="ti ti-trending-up" style="font-size:14px;color:var(--gold)"></i>다음 등급 <b id="nextGradeName"></b> 까지</div>
-      <div id="progressList"></div>
+
+    <!-- ── 2. 오뜨 레벨 카드 ── -->
+    <div class="ott-card" id="ottCard" style="display:none">
+      <!-- 라벨 -->
+      <div class="ott-label-row">
+        <span class="ott-label-dot"></span>
+        <span class="ott-label-txt">내 오뜨 포인트</span>
+      </div>
+      <!-- 점수 + 등급 -->
+      <div class="ott-main-row">
+        <div class="ott-score-block">
+          <div>
+            <span class="ott-score" id="ottScore">0</span>
+            <span class="ott-score-unit">오뜨</span>
+          </div>
+          <div class="ott-next-hint" id="ottNextHint"></div>
+        </div>
+        <div class="ott-grade-block">
+          <div class="ott-grade-emoji" id="ottGradeEmoji">🍿</div>
+          <span class="ott-grade-name" id="ottGradeName">막내</span>
+        </div>
+      </div>
+      <!-- 프로그레스바 -->
+      <div class="ott-pbar-wrap" id="ottPbarWrap">
+        <div class="ott-pbar-labels">
+          <span id="ottPbarLabel">다음 등급까지</span>
+          <span id="ottPbarVal">0 / 0</span>
+        </div>
+        <div class="ott-pbar-bg">
+          <div class="ott-pbar-fill" id="ottPbarFill" style="width:0%"></div>
+        </div>
+      </div>
+      <!-- 최근 적립 내역 2개 미리보기 -->
+      <div class="ott-recent-list" id="ottRecentList"></div>
+      <!-- 전체 내역 버튼 → /my_ott.html -->
+      <a href="/my_ott.html" class="ott-more-btn">
+        <i class="ti ti-list-details" style="font-size:14px"></i>
+        전체 내역 &amp; 레벨 안내 보기
+        <i class="ti ti-chevron-right" style="font-size:13px"></i>
+      </a>
     </div>
-    <!-- 찜한 작품 -->
+
+    <!-- ── 3. 리뷰 카드 홍보 배너 (본인만 노출) ── -->
+    <div class="review-banner" id="reviewBanner" style="display:none">
+      <div class="rv-label-row">
+        <span class="rv-label-dot"></span>
+        <span class="rv-label-txt">리뷰 카드</span>
+      </div>
+      <div class="rv-layout">
+        <!-- 좌: 텍스트 + 버튼 -->
+        <div class="rv-left">
+          <div class="rv-title">내 평점과 리뷰가<br>멋진 작품 카드로<br>만들어집니다.</div>
+          <div class="rv-desc">리뷰를 작성하면 포스터 카드가 자동 생성되고, SNS에 바로 공유할 수 있어요.</div>
+          <div class="rv-btns">
+            <a href="/reviews.html" class="rv-btn">
+              <div class="rv-btn-ic">
+                <i class="ti ti-pencil"></i>
+              </div>
+              <div class="rv-btn-label">
+                <span class="rv-btn-act">리뷰 작성</span>
+                <span class="rv-btn-amt">+10 오뜨</span>
+              </div>
+            </a>
+            <div class="rv-btn" onclick="showToast('작품 리뷰 후 카드를 공유할 수 있어요!')">
+              <div class="rv-btn-ic">
+                <i class="ti ti-share"></i>
+              </div>
+              <div class="rv-btn-label">
+                <span class="rv-btn-act">카드 공유</span>
+                <span class="rv-btn-amt">+10 오뜨</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 우: 리뷰 샘플 목업 -->
+        <div class="rv-right">
+          <div class="rv-sample-lbl">리뷰 샘플</div>
+          <div class="rv-poster-mock">
+            <div class="rv-mock-gradient">
+              <div class="rv-mock-stars">★★★★☆</div>
+              <div class="rv-mock-title">나의 리뷰<br>카드</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 4. 찜한 작품 ── -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-heart" style="font-size:16px;color:var(--accent)"></i>
         <span class="sec-title">찜한 작품</span>
         <span class="sec-count" id="wishCount">0개</span>
         <div class="wish-privacy-row" id="wishPrivacyRow" style="display:none">
-          <button class="wish-toggle-btn public" id="wishToggleBtn" onclick="toggleWishPrivacy()">🔓 공개</button>
+          <button class="wish-toggle-btn public" id="wishToggleBtn"
+            onclick="toggleWishPrivacy()">🔓 공개</button>
           <span class="wish-privacy-desc" id="wishPrivacyDesc">다른 사용자들이 찜 목록을 볼 수 있습니다</span>
         </div>
       </div>
       <div id="wishArea"></div>
       <div class="pagination" id="wishPager"></div>
     </div>
-    <!-- 평점·후기 -->
+
+    <!-- ── 5. 평점·후기 ── -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-star" style="font-size:16px;color:var(--gold)"></i>
         <span class="sec-title">평점·후기</span>
         <span class="sec-count" id="reviewCount">0개</span>
-        <a class="sec-more-btn" id="reviewMoreBtn" href="/my_review.html" style="display:none">&gt;&gt; 더보기</a>
+        <a class="sec-more-btn" id="reviewMoreBtn" href="/my_review.html"
+          style="display:none">&gt;&gt; 더보기</a>
       </div>
       <div id="reviewArea"></div>
     </div>
-    <!-- 인생작품 -->
+
+    <!-- ── 6. 인생작품 ── -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-crown" style="font-size:16px;color:var(--gold)"></i>
         <span class="sec-title">인생작품</span>
         <span class="sec-count" id="lifeCount">0개</span>
-        <button class="sec-add-btn" id="lifeAddBtn" style="display:none" onclick="openWorkSearchModal('life',null)">+ 추가</button>
+        <button class="sec-add-btn" id="lifeAddBtn" style="display:none"
+          onclick="openWorkSearchModal('life',null)">+ 추가</button>
       </div>
-      <div id="lifeArea"><div class="sec-empty"><i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요</div></div>
+      <div id="lifeArea">
+        <div class="sec-empty">
+          <i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요
+        </div>
+      </div>
     </div>
-    <!-- 추천작품 -->
+
+    <!-- ── 7. 추천작품 ── -->
     <div class="sec-wrap">
       <div class="sec-header">
         <i class="ti ti-playlist" style="font-size:16px;color:var(--info)"></i>
@@ -326,649 +831,31 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       </div>
       <!-- 새 컬렉션 만들기 인풋 (본인만) -->
       <div class="pick-new-row" id="pickNewRow" style="display:none">
-        <input class="pick-new-inp" type="text" id="pickNewTitle" placeholder="새 컬렉션 제목 입력" maxlength="50"
+        <input class="pick-new-inp" type="text" id="pickNewTitle"
+          placeholder="새 컬렉션 제목 입력" maxlength="50"
           onkeydown="if(event.key==='Enter')createPickListFromMypage()">
         <button class="pick-new-btn" onclick="createPickListFromMypage()">만들기</button>
       </div>
-      <div id="pickArea"><div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 추천작품을 만들어보세요</div></div>
-    </div>
-    <!-- 회원탈퇴 (내 페이지 전용, 맨 아래 아주 작게) -->
-    <div id="withdrawArea" style="display:none;text-align:right;padding:8px 4px 0;margin-top:8px">
-      <button onclick="doWithdraw()" style="background:none;border:none;color:var(--muted);font-size:12px;font-family:var(--font-mono);cursor:pointer;text-decoration:underline;opacity:.5">
-        회원탈퇴
-      </button>
+      <div id="pickArea">
+        <div class="sec-empty">
+          <i class="ti ti-playlist"></i>주제를 정해 나만의 추천작품을 만들어보세요
+        </div>
+      </div>
     </div>
 
-  </div>
-</div>
+    <!-- ── 8. 회원탈퇴 (본인만, 우측 하단 작게) ── -->
+    <div id="withdrawArea" style="display:none">
+      <div class="withdraw-area">
+        <button class="withdraw-btn" onclick="doWithdraw()">회원탈퇴</button>
+      </div>
+    </div>
+
+  </div><!-- /mypageContent -->
+</div><!-- /page-wrap -->
+
 <div class="toast" id="toast"></div>
-<script>
-const API='https://ottrank-api.tdidream.workers.dev';
-const IMG='https://image.tmdb.org/t/p/w300';
-let ALL_WISH=[],ALL_REVIEWS=[],ALL_GRADES=[],ALL_LIFE_WORKS=[],ALL_PICK_LISTS=[];
-let IS_OWN=false,WISH_PUBLIC=true;
-let wishPage=1;
-const WISH_PER=12;
 
-fetch('/header.html').then(r=>r.text()).then(html=>{
-  document.getElementById('headerArea').innerHTML=html;
-  document.querySelectorAll('#headerArea script').forEach(s=>{const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);});
-}).catch(()=>{});
-
-async function init(){
-  const params=new URLSearchParams(location.search);
-  const targetUid=params.get('uid');
-  const sid=localStorage.getItem('ottrang_sid');
-  try{
-    const gradeRes=await fetch(`${API}/grade-settings`);
-    ALL_GRADES=(await gradeRes.json()).data||[];
-    if(targetUid){
-      IS_OWN=false;
-      const json=await(await fetch(`${API}/user/${targetUid}`)).json();
-      if(!json.ok){show('loadingWrap','none');show('notFoundPrompt','flex');return;}
-      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];
-      ALL_LIFE_WORKS=json.life_works||[];ALL_PICK_LISTS=json.pick_lists||[];
-      renderProfile(json.user,json.stats,false);
-      renderWishlist(1,false,json.wishlist_hidden);
-      renderReviews();
-      renderLifeWorks();
-      renderPickLists();
-    }else{
-      if(!sid){show('loadingWrap','none');show('loginPrompt','flex');return;}
-      IS_OWN=true;
-      const json=await(await fetch(`${API}/mypage`,{headers:{Authorization:'Bearer '+sid}})).json();
-      if(!json.ok){localStorage.removeItem('ottrang_sid');show('loadingWrap','none');show('loginPrompt','flex');return;}
-      ALL_WISH=json.wishlist||[];ALL_REVIEWS=json.reviews||[];
-      ALL_LIFE_WORKS=json.life_works||[];ALL_PICK_LISTS=json.pick_lists||[];
-      WISH_PUBLIC=json.user?.wishlist_public!==0;
-      renderProfile(json.user,json.stats,true);
-      renderNextGrade(json.user,json.stats);
-      renderWishlist(1,true,false);
-      renderReviews();
-      renderLifeWorks();
-      renderPickLists();
-      document.getElementById('nicknameEditBtn').style.display='inline-flex';
-      document.getElementById('profileActions').style.display='block';
-      document.getElementById('providerItem').style.display='flex';
-      document.getElementById('wishPrivacyRow').style.display='flex';
-      document.getElementById('withdrawArea').style.display='block';
-      document.getElementById('lifeAddBtn').style.display='inline-flex';
-      document.getElementById('pickNewRow').style.display='flex';
-      updateWishToggleUI(WISH_PUBLIC);
-    }
-    show('loadingWrap','none');show('mypageContent','block');
-  }catch(e){document.getElementById('loadingWrap').innerHTML=`<p style="color:var(--accent)">오류: ${e.message}</p>`;}
-}
-
-function renderProfile(user,stats,isOwn){
-  if(!user)return;
-  const ep=document.getElementById('profileEmoji');
-  ep.innerHTML=user.grade_emoji_url?`<img src="${user.grade_emoji_url}" alt="" onerror="this.parentNode.innerHTML='<span class=\\'no-emoji\\'>🎬</span>'">`:`<span class="no-emoji">🎬</span>`;
-  const gb=document.getElementById('profileGradeBadge');
-  gb.textContent=user.grade_name||user.grade||'막내';
-  if(user.grade_is_special)gb.classList.add('special');
-  document.getElementById('profileNickname').textContent=user.nickname||'닉네임 없음';
-  if(isOwn)document.getElementById('nicknameInp').value=user.nickname||'';
-  document.getElementById('profileLikes').textContent=(user.total_likes_received||0).toLocaleString();
-  document.getElementById('profileJoinDate').textContent=user.created_at?user.created_at.slice(0,10).replace(/-/g,'.'):'—';
-  if(isOwn&&user.provider){
-    const pm={kakao:'카카오',google:'구글',naver:'네이버'};
-    const im={kakao:'ti-brand-kakao',google:'ti-brand-google',naver:'ti-brand-naver'};
-    document.getElementById('providerLabel').textContent=pm[user.provider]||user.provider;
-    document.getElementById('providerIcon').className=`ti ${im[user.provider]||'ti-user'}`;
-  }
-  if(!isOwn)document.title=`${user.nickname||'유저'} 프로필 | 오뜨랑`;
-
-  // MBTI 뱃지 렌더링
-  const mbtiBadge=document.getElementById('mbtiBadge');
-  mbtiBadge.style.display='inline-flex';
-  if(user.mbti){
-    mbtiBadge.textContent=`✦ ${user.mbti}`;
-    mbtiBadge.classList.remove('empty');
-    // MBTI 수정 그리드 초기 선택 표시
-    document.querySelectorAll('.mbti-mini-btn').forEach(b=>{
-      b.classList.toggle('selected',b.dataset.mbti===user.mbti);
-    });
-  } else {
-    mbtiBadge.textContent=isOwn?'✦ MBTI 설정':'';
-    mbtiBadge.classList.add('empty');
-    if(!isOwn)mbtiBadge.style.display='none';
-  }
-  // 본인 페이지에만 MBTI 클릭 가능 표시
-  if(isOwn){mbtiBadge.title='클릭하여 MBTI 설정';}
-  else{mbtiBadge.style.cursor='default';}
-}
-
-function renderNextGrade(user,stats){
-  if(!user||!ALL_GRADES.length||user.grade_is_special)return;
-  const cur=ALL_GRADES.find(g=>g.grade_key===user.grade);
-  const next=ALL_GRADES.filter(g=>!g.is_special&&g.sort_order>(cur?.sort_order||1)).sort((a,b)=>a.sort_order-b.sort_order)[0];
-  if(!next)return;
-  document.getElementById('nextGradeName').textContent=next.grade_name;
-  document.getElementById('nextGradeCard').style.display='block';
-  const act=(stats?.review_count||0)+(stats?.post_count||0);
-  const wish=stats?.wishlist_count||0,likes=stats?.likes_received||0;
-  const items=[];
-  if(next.min_reviews>0)items.push({label:'평점+게시글',cur:act,max:next.min_reviews});
-  if(next.min_wishlist>0)items.push({label:'찜한 작품',cur:wish,max:next.min_wishlist});
-  if(next.min_likes>0)items.push({label:'받은 좋아요',cur:likes,max:next.min_likes});
-  document.getElementById('progressList').innerHTML=items.map(item=>{
-    const pct=Math.min(100,Math.round(item.cur/item.max*100)),done=item.cur>=item.max;
-    return `<div class="progress-item"><span class="progress-label">${item.label}</span><div class="progress-bar-bg"><div class="progress-bar-fill ${done?'done':''}" style="width:${pct}%"></div></div><span class="progress-val ${done?'done':''}">${item.cur}/${item.max}${done?' ✓':''}</span></div>`;
-  }).join('');
-}
-
-/* ══ URL 생성 ══ */
-// _title_detail.html의 parseSlug 형식에 맞춰야 함
-// 새 URL 형식: /title/{시즌}-{연도}{tmdb_id} — data-* 속성으로 안전하게 전달
-function goTitle(el){
-  const tmdb_id=parseInt(el.dataset.tmdbId);
-  const title_ko=el.dataset.titleKo||'';
-  const category=el.dataset.category||'tv';
-  const release_year=el.dataset.releaseYear||null;
-  if(!tmdb_id) return;
-  const s=1;
-  const y=release_year ? String(release_year).slice(0,4) : String(new Date().getFullYear());
-  const url='/title/'+s+'-'+y+tmdb_id;
-  sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id, type:category, platform:'', rank:'—',
-    title:title_ko, season:s, year:parseInt(y)
-  }));
-  sessionStorage.setItem('ottrang_slug', url);
-  location.href=url;
-}
-
-/* ══ 찜한 작품 ══ */
-function renderWishlist(page,isOwn,isHidden){
-  wishPage=page;
-  document.getElementById('wishCount').textContent=isHidden?'비공개':`${ALL_WISH.length}개`;
-  const el=document.getElementById('wishArea');
-  if(!isOwn&&isHidden){el.innerHTML=`<div class="sec-empty"><i class="ti ti-lock"></i>비공개 목록이에요</div>`;document.getElementById('wishPager').innerHTML='';return;}
-  if(!ALL_WISH.length){el.innerHTML=`<div class="sec-empty"><i class="ti ti-heart"></i>${isOwn?'아직 찜한 작품이 없어요':'찜한 작품이 없어요'}</div>`;document.getElementById('wishPager').innerHTML='';return;}
-  const total=ALL_WISH.length,pages=Math.ceil(total/WISH_PER);
-  const slice=ALL_WISH.slice((page-1)*WISH_PER,page*WISH_PER);
-  el.innerHTML=`<div class="wish-grid">${slice.map(w=>{
-    return `<div class="wish-card">
-      <div class="wish-card-link"
-        data-tmdb-id="${w.tmdb_id}"
-        data-title-ko="${(w.title_ko||'').replace(/"/g,'&quot;')}"
-        data-category="${w.category||'tv'}"
-        data-release-year="${w.release_year||''}"
-        onclick="goTitle(this)" style="cursor:pointer">
-        <div class="wish-poster">${w.poster_path?`<img src="${IMG}${w.poster_path}" alt="${(w.title_ko||'').replace(/"/g,'')}" loading="lazy">`:`<div class="wish-poster-ph">🎬</div>`}</div>
-        <div class="wish-title">${w.title_ko}</div>
-      </div>
-      ${isOwn?`<button class="wish-del-btn" onclick="delWish(${w.tmdb_id},this)">찜해제</button>`:''}
-    </div>`;
-  }).join('')}</div>`;
-  renderPager('wishPager',page,pages,p=>renderWishlist(p,IS_OWN,false));
-}
-
-async function delWish(tmdb_id,btn){
-  const sid=localStorage.getItem('ottrang_sid');
-  if(!sid)return;
-  if(!confirm('찜 목록에서 제거할까요?'))return;
-  try{
-    const res=await fetch(`${API}/wishlist`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({tmdb_id})});
-    const json=await res.json();
-    if(json.ok&&!json.wishlisted){
-      ALL_WISH=ALL_WISH.filter(w=>w.tmdb_id!==tmdb_id);
-      renderWishlist(wishPage,true,false);
-      showToast('찜 목록에서 제거됐어요');
-    }
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-/* ══ 평점·후기 — 최신 3개만 표시 ══ */
-function renderReviews(){
-  const PREVIEW=3;
-  document.getElementById('reviewCount').textContent=`${ALL_REVIEWS.length}개`;
-  const el=document.getElementById('reviewArea');
-  const moreBtn=document.getElementById('reviewMoreBtn');
-  if(!ALL_REVIEWS.length){
-    el.innerHTML=`<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;
-    if(moreBtn) moreBtn.style.display='none';
-    return;
-  }
-  // 최신 3개만 슬라이스
-  const slice=ALL_REVIEWS.slice(0,PREVIEW);
-  // 3개 초과 시 더보기 버튼 노출
-  if(moreBtn){
-    if(ALL_REVIEWS.length>PREVIEW){
-      moreBtn.style.display='inline-flex';
-      const uid=new URLSearchParams(location.search).get('uid');
-      moreBtn.href=uid?`/my_review.html?uid=${uid}`:'/my_review.html';
-    } else {
-      moreBtn.style.display='none';
-    }
-  }
-  el.innerHTML=`<div class="review-list">${slice.map(r=>{
-    // API가 score를 절반값(5점 기준)으로 내려보내므로 × 2 보정
-    const score=Math.round((parseFloat(r.score)||0) * 2 * 10) / 10;
-    const emotions=_json(r.emotions,[]);
-    // 10점 만점 별점 (별 1개 = 2점, 별 반개 = 1점)
-    const stars=renderStars(score);
-    const _goAttr=`data-tmdb-id="${r.tmdb_id}" data-title-ko="${(r.title_ko||'').replace(/"/g,'&quot;')}" data-category="${r.category||'tv'}" data-release-year="${r.release_year||''}" onclick="goTitle(this)" style="cursor:pointer"`;
-    return `<div class="review-item">
-      <div class="review-poster-link" ${_goAttr}>
-        <div class="review-poster">${r.poster_path?`<img src="${IMG}${r.poster_path}" alt="" loading="lazy">`:`<div class="review-poster-ph">🎬</div>`}</div>
-      </div>
-      <div class="review-body">
-        <div class="review-title-row">
-          <span class="review-work-link" ${_goAttr}><span class="review-work-title">${r.title_ko||'작품 #'+r.tmdb_id}</span></span>
-          <div class="stars-wrap">${stars}<span class="score-num">${score}</span></div>
-        </div>
-        ${r.text?`<div class="review-text">${r.text}</div>`:''}
-        <div class="review-footer">
-          ${emotions.slice(0,3).map(e=>`<span class="review-badge">${e}</span>`).join('')}
-          <span class="review-likes"><i class="ti ti-heart" style="font-size:11px"></i>${r.likes||0}</span>
-          <span class="review-time">${_date(r.created_at)}</span>
-          ${IS_OWN?`<button class="del-btn" onclick="delReview(${r.tmdb_id},${r.id})">삭제</button>`:''}
-        </div>
-      </div>
-    </div>`;
-  }).join('')}</div>`;
-}
-
-/* ══ 인생작품 ══ */
-function renderLifeWorks(){
-  document.getElementById('lifeCount').textContent=`${ALL_LIFE_WORKS.length}개`;
-  const el=document.getElementById('lifeArea');
-  if(!ALL_LIFE_WORKS.length){
-    el.innerHTML=`<div class="sec-empty"><i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요</div>`;
-    return;
-  }
-  el.innerHTML=`<div class="wish-grid">${ALL_LIFE_WORKS.map(w=>`
-    <div class="wish-card">
-      <div class="wish-card-link"
-        data-tmdb-id="${w.tmdb_id}"
-        data-title-ko="${(w.title_ko||'').replace(/"/g,'&quot;')}"
-        data-category="${w.media_type||'tv'}"
-        data-release-year=""
-        onclick="goTitle(this)" style="cursor:pointer">
-        <div class="wish-poster">${w.poster_path
-          ?`<img src="${IMG}${w.poster_path}" alt="${(w.title_ko||'').replace(/"/g,'')}" loading="lazy">`
-          :`<div class="wish-poster-ph">🎬</div>`}</div>
-        <div class="wish-title">${w.title_ko||'제목 없음'}</div>
-      </div>
-      ${IS_OWN?`<button class="wish-del-btn" onclick="delLifeWork(${w.tmdb_id})">해제</button>`:''}
-    </div>`).join('')}</div>`;
-}
-
-async function delLifeWork(tmdb_id){
-  if(!confirm('인생작품에서 제거할까요?'))return;
-  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
-  try{
-    const res=await fetch(`${API}/life-works`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
-      body:JSON.stringify({tmdb_id}),
-    });
-    const json=await res.json();
-    if(json.ok&&!json.saved){
-      ALL_LIFE_WORKS=ALL_LIFE_WORKS.filter(w=>w.tmdb_id!==tmdb_id);
-      renderLifeWorks();
-      showToast('인생작품에서 제거됐어요');
-    }
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-/* ══ 추천작품 새 컬렉션 만들기 (마이페이지) ══ */
-async function createPickListFromMypage(){
-  const inp=document.getElementById('pickNewTitle');
-  const title=(inp?.value||'').trim();
-  if(!title){showToast('컬렉션 제목을 입력해주세요');return;}
-  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
-  try{
-    const res=await fetch(`${API}/pick-lists`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
-      body:JSON.stringify({title}),
-    });
-    const data=await res.json();
-    if(data.ok){
-      inp.value='';
-      // 새 컬렉션을 목록에 즉시 추가
-      ALL_PICK_LISTS.unshift({id:data.id,title,work_count:0,works:[],is_public:1});
-      renderPickLists();
-      showToast(`📋 "${title}" 컬렉션이 만들어졌어요`);
-    }else showToast(data.message||'생성 실패');
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-/* ══ 작품 검색 모달 ══ */
-let _workSearchMode='life';   // 'life' | 'pick'
-let _workSearchListId=null;   // pick 모드일 때 컬렉션 id
-let _workSearchTimer=null;
-const IMG_SEARCH='https://image.tmdb.org/t/p/w92';
-const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
-
-function openWorkSearchModal(mode, listId){
-  _workSearchMode=mode;
-  _workSearchListId=listId;
-  const modal=document.getElementById('workSearchModal');
-  const inp=document.getElementById('workSearchInp');
-  document.getElementById('workSearchResults').innerHTML='<div class="work-search-empty">작품명을 입력해주세요</div>';
-  inp.value='';
-  modal.classList.add('show');
-  setTimeout(()=>inp.focus(),100);
-}
-function closeWorkSearchModal(){
-  document.getElementById('workSearchModal').classList.remove('show');
-  clearTimeout(_workSearchTimer);
-}
-// 모달 배경 클릭 시 닫기
-document.getElementById('workSearchModal')?.addEventListener('click',function(e){
-  if(e.target===this)closeWorkSearchModal();
-});
-
-function onWorkSearch(q){
-  clearTimeout(_workSearchTimer);
-  const el=document.getElementById('workSearchResults');
-  if(!q||q.length<2){
-    el.innerHTML='<div class="work-search-empty">작품명을 입력해주세요</div>';
-    return;
-  }
-  el.innerHTML='<div class="work-search-loading">검색 중...</div>';
-  _workSearchTimer=setTimeout(()=>_runWorkSearch(q),350);
-}
-
-async function _runWorkSearch(q){
-  const el=document.getElementById('workSearchResults');
-  try{
-    const [dbRes,tvRes,mvRes]=await Promise.allSettled([
-      fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=5`).then(r=>r.json()),
-      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`).then(r=>r.json()),
-      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`).then(r=>r.json()),
-    ]);
-    const dbWorks=(dbRes.status==='fulfilled'?dbRes.value.data||[]:[]).slice(0,5);
-    const dbIds=new Set(dbWorks.map(w=>w.tmdb_id));
-    const tvWorks=(tvRes.status==='fulfilled'?(tvRes.value.results||[]):[])
-      .filter(r=>!dbIds.has(r.id)).slice(0,4)
-      .map(r=>({tmdb_id:r.id,title_ko:r.name||r.title||'',title_en:r.original_name||'',poster_path:r.poster_path||'',media_type:'tv',release_year:(r.first_air_date||'').slice(0,4)}));
-    const mvWorks=(mvRes.status==='fulfilled'?(mvRes.value.results||[]):[])
-      .filter(r=>!dbIds.has(r.id)).slice(0,3)
-      .map(r=>({tmdb_id:r.id,title_ko:r.title||r.name||'',title_en:r.original_title||'',poster_path:r.poster_path||'',media_type:'movie',release_year:(r.release_date||'').slice(0,4)}));
-    const all=[...dbWorks,...tvWorks,...mvWorks];
-    if(!all.length){el.innerHTML='<div class="work-search-empty">검색 결과가 없어요</div>';return;}
-    el.innerHTML=all.map(w=>{
-      const poster=w.poster_path
-        ?`<img src="${IMG_SEARCH}${w.poster_path}" alt="" loading="lazy">`
-        :`<div class="work-search-poster-ph">🎬</div>`;
-      const typeColor=w.media_type==='movie'?'rgba(240,180,41,.8)':'rgba(55,138,221,.8)';
-      const typeLabel=w.media_type==='movie'?'영화':'TV';
-      return `<div class="work-search-item" onclick="selectWork(${w.tmdb_id},'${_esc(w.title_ko)}','${w.poster_path||''}','${w.media_type||'tv'}')">
-        <div class="work-search-poster">${poster}</div>
-        <div class="work-search-info">
-          <div class="work-search-title">${_esc(w.title_ko)}</div>
-          <div class="work-search-meta">${_esc(w.title_en||'')}${w.release_year?' · '+w.release_year:''}</div>
-        </div>
-        <span class="work-search-type" style="background:${typeColor};color:#fff">${typeLabel}</span>
-      </div>`;
-    }).join('');
-  }catch(e){el.innerHTML='<div class="work-search-empty">검색 중 오류가 발생했어요</div>';}
-}
-
-async function selectWork(tmdb_id, title_ko, poster_path, media_type){
-  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
-  closeWorkSearchModal();
-  try{
-    if(_workSearchMode==='life'){
-      // 인생작품 추가
-      const res=await fetch(`${API}/life-works`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
-        body:JSON.stringify({tmdb_id,title_ko,poster_path,media_type}),
-      });
-      const data=await res.json();
-      if(data.ok&&data.saved){
-        ALL_LIFE_WORKS.unshift({tmdb_id,title_ko,poster_path,media_type});
-        renderLifeWorks();
-        showToast('👑 인생작품으로 저장됐어요');
-      }else if(data.ok&&!data.saved){
-        showToast('이미 등록된 인생작품이에요');
-      }else showToast(data.message||'저장 실패');
-    }else if(_workSearchMode==='pick'&&_workSearchListId){
-      // 추천작품 컬렉션에 추가
-      const res=await fetch(`${API}/pick-lists/${_workSearchListId}/works`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
-        body:JSON.stringify({tmdb_id,title_ko,poster_path,media_type}),
-      });
-      const data=await res.json();
-      if(data.ok&&data.added){
-        // 해당 컬렉션에 작품 추가 후 재렌더
-        const list=ALL_PICK_LISTS.find(l=>l.id===_workSearchListId);
-        if(list){
-          list.works.push({tmdb_id,title_ko,poster_path,media_type});
-          list.work_count=(list.work_count||0)+1;
-        }
-        renderPickLists();
-        showToast('📋 추천작품에 추가됐어요');
-      }else if(data.ok&&!data.added){
-        showToast('이미 추가된 작품이에요');
-      }else showToast(data.message||'추가 실패');
-    }
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-
-function renderPickLists(){
-  document.getElementById('pickCount').textContent=`${ALL_PICK_LISTS.length}개`;
-  const el=document.getElementById('pickArea');
-  if(!ALL_PICK_LISTS.length){
-    el.innerHTML=`<div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 추천작품을 만들어보세요</div>`;
-    return;
-  }
-  el.innerHTML=ALL_PICK_LISTS.map(list=>{
-    // 포스터 썸네일 최대 6개 + 나머지 수
-    const thumbs=list.works||[];
-    const shown=thumbs.slice(0,6);
-    const extra=thumbs.length-shown.length;
-    const thumbHtml=shown.map(w=>
-      `<div class="pick-thumb"
-        data-tmdb-id="${w.tmdb_id}"
-        data-title-ko="${(w.title_ko||'').replace(/"/g,'&quot;')}"
-        data-category="${w.media_type||'tv'}"
-        data-release-year=""
-        onclick="goTitle(this)"
-        style="cursor:pointer;transition:opacity .15s"
-        onmouseover="this.style.opacity='.75'"
-        onmouseout="this.style.opacity='1'"
-        title="${(w.title_ko||'').replace(/"/g,'&quot;')}">${w.poster_path
-        ?`<img src="${IMG}${w.poster_path}" alt="" loading="lazy">`
-        :`<div class="pick-thumb-ph">🎬</div>`}</div>`
-    ).join('')+(extra>0?`<div class="pick-thumb-more">+${extra}</div>`:'');
-
-    return `<div class="pick-card">
-      <div class="pick-card-header">
-        <span class="pick-card-title">📋 ${_esc(list.title)}</span>
-        <span class="pick-card-count">${list.work_count||0}개</span>
-        ${IS_OWN?`<button class="pick-card-add" onclick="openWorkSearchModal('pick',${list.id})">+ 작품 추가</button>`:''}
-        ${IS_OWN?`<button class="pick-card-del" onclick="delPickList(${list.id})">삭제</button>`:''}
-      </div>
-      <div class="pick-thumb-row">${thumbHtml||'<span style="font-size:12px;color:var(--muted)">작품이 없어요</span>'}</div>
-    </div>`;
-  }).join('');
-}
-
-async function delPickList(list_id){
-  if(!confirm('이 추천작품 컬렉션을 삭제할까요?\n컬렉션 안의 작품 목록도 모두 삭제됩니다.'))return;
-  const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
-  try{
-    const res=await fetch(`${API}/pick-lists/${list_id}`,{
-      method:'DELETE',
-      headers:{Authorization:'Bearer '+sid},
-    });
-    const json=await res.json();
-    if(json.ok){
-      ALL_PICK_LISTS=ALL_PICK_LISTS.filter(l=>l.id!==list_id);
-      renderPickLists();
-      showToast('추천작품이 삭제됐어요');
-    }else showToast(json.message||'삭제 실패');
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-function _esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-function renderStars(score){
-  // 10점 만점 → 별 5개 표현
-  // 별 1개 = 2점, 별 반개 = 1점
-  // score=4 → 별 2개, score=3.5 → 별 1개+반개+3개off
-  let html='';
-  for(let i=1;i<=5;i++){
-    const threshold=i*2;        // 이 별을 채우려면 필요한 점수 (2,4,6,8,10)
-    if(score>=threshold){
-      html+=`<span class="star">★</span>`;          // 꽉 찬 별
-    } else if(score>=threshold-1){
-      html+=`<span class="star half">★</span>`;     // 반 별 (threshold-1 ~ threshold 사이)
-    } else {
-      html+=`<span class="star off">★</span>`;      // 빈 별
-    }
-  }
-  return html;
-}
-
-async function delReview(tmdb_id,review_id){
-  const sid=localStorage.getItem('ottrang_sid');
-  if(!confirm('후기를 삭제할까요?'))return;
-  try{
-    const res=await fetch(`${API}/reviews/${tmdb_id}`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
-    const json=await res.json();
-    if(json.ok){
-      ALL_REVIEWS=ALL_REVIEWS.filter(r=>r.id!==review_id);
-      renderReviews();
-      showToast('후기가 삭제됐어요');
-    }else showToast(json.message||'삭제 실패');
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-
-/* ══ 페이지네이션 ══ */
-function renderPager(elId,cur,total,cb){
-  const el=document.getElementById(elId);
-  if(total<=1){el.innerHTML='';return;}
-  let html='';
-  if(cur>1)html+=`<button class="page-btn arrow" onclick="(${cb.toString()})(${cur-1})">‹</button>`;
-  for(let i=1;i<=total;i++){
-    html+=`<button class="page-btn ${i===cur?'on':''}" onclick="(${cb.toString()})(${i})">${i}</button>`;
-  }
-  if(cur<total)html+=`<button class="page-btn arrow" onclick="(${cb.toString()})(${cur+1})">›</button>`;
-  el.innerHTML=html;
-}
-
-/* ══ 찜 공개/비공개 ══ */
-function updateWishToggleUI(isPublic){
-  const btn=document.getElementById('wishToggleBtn'),desc=document.getElementById('wishPrivacyDesc');
-  if(isPublic){btn.textContent='🔓 공개';btn.className='wish-toggle-btn public';desc.textContent='다른 사용자들이 찜 목록을 볼 수 있습니다';}
-  else{btn.textContent='🔒 비공개';btn.className='wish-toggle-btn private';desc.textContent='다른 사용자들이 찜 목록을 볼 수 없습니다';}
-}
-async function toggleWishPrivacy(){
-  const sid=localStorage.getItem('ottrang_sid');
-  const newP=!WISH_PUBLIC;
-  try{
-    const res=await fetch(`${API}/mypage/wishlist-public`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({wishlist_public:newP})});
-    const json=await res.json();
-    if(json.ok){WISH_PUBLIC=newP;updateWishToggleUI(WISH_PUBLIC);showToast(WISH_PUBLIC?'찜 목록이 공개로 변경됐어요':'찜 목록이 비공개로 변경됐어요');}
-    else showToast(json.message||'변경 실패');
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-/* ══ 닉네임 수정 ══ */
-function toggleNicknameEdit(){const row=document.getElementById('nicknameEditRow');const s=row.classList.toggle('show');if(s)document.getElementById('nicknameInp').focus();}
-async function saveNickname(){
-  const sid=localStorage.getItem('ottrang_sid');
-  const nickname=document.getElementById('nicknameInp').value.trim();
-  if(!nickname){showToast('닉네임을 입력해주세요');return;}
-  try{
-    const res=await fetch(`${API}/auth/nickname`,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},body:JSON.stringify({nickname})});
-    const json=await res.json();
-    if(json.ok){document.getElementById('profileNickname').textContent=nickname;document.getElementById('nicknameEditRow').classList.remove('show');showToast('✅ 닉네임이 변경됐어요!');}
-    else showToast(json.message||'변경 실패');
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-/* ══ MBTI 수정 ══ */
-let _selectedMbtiEdit=null;
-
-function toggleMbtiEdit(){
-  const row=document.getElementById('mbtiEditRow');
-  row.classList.toggle('show');
-}
-
-function selectMbtiMini(el){
-  const mbti=el.dataset.mbti;
-  // 이미 선택된 버튼 다시 누르면 해제
-  if(_selectedMbtiEdit===mbti){
-    el.classList.remove('selected');
-    _selectedMbtiEdit=null;
-    return;
-  }
-  document.querySelectorAll('.mbti-mini-btn').forEach(b=>b.classList.remove('selected'));
-  el.classList.add('selected');
-  _selectedMbtiEdit=mbti;
-}
-
-async function saveMbti(){
-  const sid=localStorage.getItem('ottrang_sid');
-  if(!sid)return;
-  try{
-    const res=await fetch(`${API}/auth/mbti`,{
-      method:'PATCH',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sid},
-      body:JSON.stringify({mbti:_selectedMbtiEdit}),
-    });
-    const json=await res.json();
-    if(json.ok){
-      const mbtiBadge=document.getElementById('mbtiBadge');
-      if(_selectedMbtiEdit){
-        mbtiBadge.textContent=`✦ ${_selectedMbtiEdit}`;
-        mbtiBadge.classList.remove('empty');
-      } else {
-        mbtiBadge.textContent='✦ MBTI 설정';
-        mbtiBadge.classList.add('empty');
-      }
-      document.getElementById('mbtiEditRow').classList.remove('show');
-      showToast(`✅ MBTI가 ${_selectedMbtiEdit||'해제'}됐어요!`);
-    } else showToast(json.message||'저장 실패');
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-/* ══ 로그아웃 ══ */
-async function doLogout(){
-  const sid=localStorage.getItem('ottrang_sid');
-  try{await fetch(`${API}/auth/logout`,{method:'POST',headers:{Authorization:'Bearer '+sid}});}catch(e){}
-  localStorage.removeItem('ottrang_sid');location.href='/';
-}
-
-/* ══ 회원탈퇴 ══ */
-async function doWithdraw(){
-  const nickname=document.getElementById('profileNickname').textContent||'';
-  const confirmed=confirm(`${nickname}님의 찜 목록, 게시글, 평점 후기가 전부 삭제됩니다.\n\n정말 탈퇴하시겠습니까?`);
-  if(!confirmed)return;
-  const sid=localStorage.getItem('ottrang_sid');
-  try{
-    const res=await fetch(`${API}/auth/withdraw`,{method:'DELETE',headers:{Authorization:'Bearer '+sid}});
-    const json=await res.json();
-    if(json.ok){
-      localStorage.removeItem('ottrang_sid');
-      alert('탈퇴가 완료됐습니다. 이용해 주셔서 감사합니다.');
-      location.href='/';
-    }else{
-      showToast(json.message||'탈퇴 처리 중 오류가 발생했습니다');
-    }
-  }catch(e){showToast('오류: '+e.message);}
-}
-
-/* ══ 유틸 ══ */
-function show(id,disp){document.getElementById(id).style.display=disp;}
-function _json(str,fb){try{return JSON.parse(str);}catch(e){return fb;}}
-function _date(d){if(!d)return'';const k=new Date(new Date(d).getTime()+9*60*60*1000);return`${k.getFullYear()}.${String(k.getMonth()+1).padStart(2,'0')}.${String(k.getDate()).padStart(2,'0')}`;}
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
-
-init();
-</script>
-<!-- 작품 검색 모달 (인생작품/추천작품 추가용) -->
+<!-- ── 작품 검색 모달 (인생작품/추천작품 추가용) ── -->
 <div class="work-search-modal" id="workSearchModal">
   <div class="work-search-box">
     <div class="work-search-head">
@@ -983,13 +870,877 @@ init();
   </div>
 </div>
 
-<!-- 푸터 -->
+<!-- 푸터: 기존 footer.html fetch 연결 -->
 <div id="ottrang-footer"></div>
+
 <script>
+/* ══════════════════════════════════════
+   상수 & 전역 상태
+═══════════════════════════════════════ */
+const API = 'https://ottrank-api.tdidream.workers.dev';
+const IMG = 'https://image.tmdb.org/t/p/w300';
+const IMG_SEARCH = 'https://image.tmdb.org/t/p/w92';
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const WISH_PER = 12;
+
+let ALL_WISH = [], ALL_REVIEWS = [], ALL_GRADES = [];
+let ALL_LIFE_WORKS = [], ALL_PICK_LISTS = [];
+let IS_OWN = false, WISH_PUBLIC = true;
+let wishPage = 1;
+
+/* ══ 헤더 / 푸터 로드 ══ */
+fetch('/header.html')
+  .then(r => r.text())
+  .then(html => {
+    document.getElementById('headerArea').innerHTML = html;
+    // 헤더 내 script 태그 재실행
+    document.querySelectorAll('#headerArea script').forEach(s => {
+      const ns = document.createElement('script');
+      ns.textContent = s.textContent;
+      document.body.appendChild(ns);
+    });
+  }).catch(() => {});
+
 fetch('/footer.html')
-  .then(r=>r.ok?r.text():Promise.reject())
-  .then(h=>{ document.getElementById('ottrang-footer').innerHTML=h; })
-  .catch(()=>{});
+  .then(r => r.ok ? r.text() : Promise.reject())
+  .then(h => { document.getElementById('ottrang-footer').innerHTML = h; })
+  .catch(() => {});
+
+/* ══════════════════════════════════════
+   초기화
+═══════════════════════════════════════ */
+async function init() {
+  const params = new URLSearchParams(location.search);
+  const targetUid = params.get('uid');
+  const sid = localStorage.getItem('ottrang_sid');
+
+  try {
+    // 등급 설정 로드
+    const gradeRes = await fetch(`${API}/grade-settings`);
+    ALL_GRADES = (await gradeRes.json()).data || [];
+
+    if (targetUid) {
+      /* ── 타인 프로필 보기 ── */
+      IS_OWN = false;
+      const json = await (await fetch(`${API}/user/${targetUid}`)).json();
+      if (!json.ok) {
+        show('loadingWrap', 'none'); show('notFoundPrompt', 'flex'); return;
+      }
+      ALL_WISH = json.wishlist || [];
+      ALL_REVIEWS = json.reviews || [];
+      ALL_LIFE_WORKS = json.life_works || [];
+      ALL_PICK_LISTS = json.pick_lists || [];
+      renderProfile(json.user, json.stats, false);
+      renderWishlist(1, false, json.wishlist_hidden);
+      renderReviews();
+      renderLifeWorks();
+      renderPickLists();
+
+    } else {
+      /* ── 내 마이페이지 ── */
+      if (!sid) {
+        show('loadingWrap', 'none'); show('loginPrompt', 'flex'); return;
+      }
+      IS_OWN = true;
+      const json = await (await fetch(`${API}/mypage`, {
+        headers: { Authorization: 'Bearer ' + sid }
+      })).json();
+
+      if (!json.ok) {
+        localStorage.removeItem('ottrang_sid');
+        show('loadingWrap', 'none'); show('loginPrompt', 'flex'); return;
+      }
+      ALL_WISH = json.wishlist || [];
+      ALL_REVIEWS = json.reviews || [];
+      ALL_LIFE_WORKS = json.life_works || [];
+      ALL_PICK_LISTS = json.pick_lists || [];
+      WISH_PUBLIC = json.user?.wishlist_public !== 0;
+
+      renderProfile(json.user, json.stats, true);
+      renderOttCard(json.user, json.recent_point_logs || []);
+      renderWishlist(1, true, false);
+      renderReviews();
+      renderLifeWorks();
+      renderPickLists();
+      updateWishToggleUI(WISH_PUBLIC);
+
+      // 본인 전용 UI 노출
+      document.getElementById('nicknameEditBtn').style.display = 'inline-flex';
+      document.getElementById('logoutBtn').style.display = 'inline-flex';
+      document.getElementById('providerItem').style.display = 'flex';
+      document.getElementById('wishPrivacyRow').style.display = 'flex';
+      document.getElementById('withdrawArea').style.display = 'block';
+      document.getElementById('lifeAddBtn').style.display = 'inline-flex';
+      document.getElementById('pickNewRow').style.display = 'flex';
+      document.getElementById('editChipRow').style.display = 'flex';
+      document.getElementById('reviewBanner').style.display = 'block';
+    }
+
+    show('loadingWrap', 'none');
+    show('mypageContent', 'block');
+
+  } catch (e) {
+    document.getElementById('loadingWrap').innerHTML =
+      `<p style="color:var(--accent)">오류: ${e.message}</p>`;
+  }
+}
+
+/* ══════════════════════════════════════
+   프로필 렌더링
+═══════════════════════════════════════ */
+function renderProfile(user, stats, isOwn) {
+  if (!user) return;
+
+  // 아바타 (등급 이모지 URL 있으면 img, 없으면 이모지)
+  const ep = document.getElementById('profileEmoji');
+  ep.innerHTML = user.grade_emoji_url
+    ? `<img src="${user.grade_emoji_url}" alt="" onerror="this.parentNode.innerHTML='<span class=\\'no-emoji\\'>🎬</span>'">`
+    : `<span class="no-emoji">🎬</span>`;
+
+  // 등급 뱃지
+  const gb = document.getElementById('profileGradeBadge');
+  gb.textContent = user.grade_name || user.grade || '막내';
+  if (user.grade_is_special) gb.classList.add('special');
+
+  // 닉네임
+  document.getElementById('profileNickname').textContent = user.nickname || '닉네임 없음';
+  if (isOwn) document.getElementById('nicknameInp').value = user.nickname || '';
+
+  // 좋아요 — 1개 이상일 때만 표시
+  const likes = user.total_likes_received || 0;
+  const likesItem = document.getElementById('profileLikesItem');
+  if (likes >= 1) {
+    document.getElementById('profileLikes').textContent = likes.toLocaleString();
+    likesItem.style.display = 'flex';
+  } else {
+    likesItem.style.display = 'none';
+  }
+
+  // 가입일
+  document.getElementById('profileJoinDate').textContent =
+    user.created_at ? user.created_at.slice(0, 10).replace(/-/g, '.') : '—';
+
+  // 소셜 로그인 제공자 (본인만)
+  if (isOwn && user.provider) {
+    const pm = { kakao: '카카오', google: '구글', naver: '네이버' };
+    const im = { kakao: 'ti-brand-kakao', google: 'ti-brand-google', naver: 'ti-brand-naver' };
+    document.getElementById('providerLabel').textContent = pm[user.provider] || user.provider;
+    document.getElementById('providerIcon').className = `ti ${im[user.provider] || 'ti-user'}`;
+  }
+
+  // 페이지 타이틀 (타인 프로필)
+  if (!isOwn) document.title = `${user.nickname || '유저'} 프로필 | 오뜨랑`;
+
+  // MBTI 뱃지
+  const mbtiBadge = document.getElementById('mbtiBadge');
+  mbtiBadge.style.display = 'inline-flex';
+  if (user.mbti) {
+    mbtiBadge.textContent = `✦ ${user.mbti}`;
+    mbtiBadge.classList.remove('empty');
+    document.querySelectorAll('.mbti-mini-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.mbti === user.mbti);
+    });
+  } else {
+    mbtiBadge.textContent = isOwn ? '✦ MBTI 설정' : '';
+    mbtiBadge.classList.add('empty');
+    if (!isOwn) mbtiBadge.style.display = 'none';
+  }
+  if (isOwn) mbtiBadge.title = '클릭하여 MBTI 설정';
+  else mbtiBadge.style.cursor = 'default';
+}
+
+/* ══════════════════════════════════════
+   오뜨 레벨 카드 렌더링 (신규)
+═══════════════════════════════════════ */
+function renderOttCard(user, recentLogs) {
+  if (!user) return;
+
+  const ottPoints = user.ott_points || 0;
+  const card = document.getElementById('ottCard');
+  card.style.display = 'block';
+
+  // 점수
+  document.getElementById('ottScore').textContent = ottPoints.toLocaleString();
+
+  // 등급 이모지 / 이름
+  const gradeEmoji = document.getElementById('ottGradeEmoji');
+  const gradeName = document.getElementById('ottGradeName');
+  gradeName.textContent = user.grade_name || user.grade || '막내';
+
+  if (user.grade_emoji_url) {
+    gradeEmoji.innerHTML = `<img src="${user.grade_emoji_url}" alt=""
+      style="width:100%;height:100%;object-fit:cover;border-radius:8px"
+      onerror="this.parentNode.textContent='🍿'">`;
+  } else {
+    // 등급별 기본 이모지 폴백
+    const gradeEmojiFallback = {
+      rookie: '🍿', third: '🎬', asst_dir: '🎥', critic: '📝',
+      staff: '🎞', pd: '📺', writer: '✍️', director: '🎬',
+      legend: '🏆', producer: '👑', admin: '⭐'
+    };
+    gradeEmoji.textContent = gradeEmojiFallback[user.grade] || '🍿';
+  }
+
+  // 프로그레스바 계산 (is_special = 0 등급만)
+  const cur = ALL_GRADES.find(g => g.grade_key === user.grade);
+  const next = ALL_GRADES
+    .filter(g => !g.is_special && g.sort_order > (cur?.sort_order || 0))
+    .sort((a, b) => a.sort_order - b.sort_order)[0];
+
+  const pbarWrap = document.getElementById('ottPbarWrap');
+  const nextHint = document.getElementById('ottNextHint');
+
+  if (!next || user.grade_is_special) {
+    // 최상위 등급이거나 스페셜
+    pbarWrap.style.display = 'none';
+    nextHint.textContent = '';
+  } else {
+    pbarWrap.style.display = 'block';
+    const nextPts = next.min_ott_points || 0;
+    const curPts = cur?.min_ott_points || 0;
+    const progress = nextPts > curPts
+      ? Math.min(100, Math.round((ottPoints - curPts) / (nextPts - curPts) * 100))
+      : 100;
+    const remain = Math.max(0, nextPts - ottPoints);
+
+    document.getElementById('ottPbarFill').style.width = progress + '%';
+    document.getElementById('ottPbarLabel').textContent =
+      `${next.grade_name}까지`;
+    document.getElementById('ottPbarVal').textContent =
+      `${ottPoints.toLocaleString()} / ${nextPts.toLocaleString()}`;
+
+    nextHint.innerHTML = remain > 0
+      ? `<b>${next.grade_name}</b>까지 <b>${remain.toLocaleString()} 오뜨</b> 남음`
+      : `<b>${next.grade_name}</b> 달성 직전이에요! 🎉`;
+  }
+
+  // 최근 적립 내역 2개 미리보기
+  renderOttRecentLogs(recentLogs);
+}
+
+/* 오뜨 로그 아이콘 매핑 */
+const OTT_LOG_ICON = {
+  signup:        { icon: 'ti-user-check', label: '가입 완료' },
+  mbti_register: { icon: 'ti-mood-smile', label: 'MBTI 등록' },
+  mbti_unregister:{ icon: 'ti-mood-sad',  label: 'MBTI 해제' },
+  review:        { icon: 'ti-star',       label: '리뷰 작성' },
+  share:         { icon: 'ti-share',      label: '카드 공유' },
+  wishlist:      { icon: 'ti-heart',      label: '찜 등록' },
+  life_work:     { icon: 'ti-crown',      label: '인생작품 등록' },
+  pick_list:     { icon: 'ti-playlist',   label: '추천작품 생성' },
+  like_received: { icon: 'ti-thumb-up',   label: '좋아요 받음' },
+  login:         { icon: 'ti-login',      label: '출석 보너스' },
+  admin_adjust:  { icon: 'ti-settings',   label: '관리자 조정' },
+};
+
+function renderOttRecentLogs(logs) {
+  const el = document.getElementById('ottRecentList');
+  if (!logs || !logs.length) {
+    el.innerHTML = '';
+    return;
+  }
+  // 최신 2개만 표시
+  const recent = logs.slice(0, 2);
+  el.innerHTML = recent.map(log => {
+    const info = OTT_LOG_ICON[log.reason] || { icon: 'ti-plus', label: log.reason };
+    const isPlus = log.points > 0;
+    const ptClass = isPlus ? '' : 'minus';
+    const ptText = (isPlus ? '+' : '') + log.points + ' 오뜨';
+    const dateStr = log.created_at ? log.created_at.slice(0, 10).replace(/-/g, '.') : '';
+    return `<div class="ott-log-item">
+      <div class="ott-log-left">
+        <div class="ott-log-icon"><i class="ti ${info.icon}"></i></div>
+        <div>
+          <div class="ott-log-reason">${info.label}</div>
+          <div class="ott-log-date">${dateStr}</div>
+        </div>
+      </div>
+      <span class="ott-log-pt ${ptClass}">${ptText}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
+   URL 생성 (기존 코드 유지)
+═══════════════════════════════════════ */
+function goTitle(el) {
+  const tmdb_id = parseInt(el.dataset.tmdbId);
+  const title_ko = el.dataset.titleKo || '';
+  const category = el.dataset.category || 'tv';
+  const release_year = el.dataset.releaseYear || null;
+  if (!tmdb_id) return;
+  const s = 1;
+  const y = release_year ? String(release_year).slice(0, 4) : String(new Date().getFullYear());
+  const url = '/title/' + s + '-' + y + tmdb_id;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id, type: category, platform: '', rank: '—',
+    title: title_ko, season: s, year: parseInt(y)
+  }));
+  sessionStorage.setItem('ottrang_slug', url);
+  location.href = url;
+}
+
+/* ══════════════════════════════════════
+   찜한 작품 (기존 코드 유지)
+═══════════════════════════════════════ */
+function renderWishlist(page, isOwn, isHidden) {
+  wishPage = page;
+  document.getElementById('wishCount').textContent =
+    isHidden ? '비공개' : `${ALL_WISH.length}개`;
+  const el = document.getElementById('wishArea');
+  if (!isOwn && isHidden) {
+    el.innerHTML = `<div class="sec-empty"><i class="ti ti-lock"></i>비공개 목록이에요</div>`;
+    document.getElementById('wishPager').innerHTML = '';
+    return;
+  }
+  if (!ALL_WISH.length) {
+    el.innerHTML = `<div class="sec-empty"><i class="ti ti-heart"></i>${isOwn ? '아직 찜한 작품이 없어요' : '찜한 작품이 없어요'}</div>`;
+    document.getElementById('wishPager').innerHTML = '';
+    return;
+  }
+  const total = ALL_WISH.length;
+  const pages = Math.ceil(total / WISH_PER);
+  const slice = ALL_WISH.slice((page - 1) * WISH_PER, page * WISH_PER);
+  el.innerHTML = `<div class="wish-grid">${slice.map(w => {
+    return `<div class="wish-card">
+      <div class="wish-card-link"
+        data-tmdb-id="${w.tmdb_id}"
+        data-title-ko="${(w.title_ko || '').replace(/"/g, '&quot;')}"
+        data-category="${w.category || 'tv'}"
+        data-release-year="${w.release_year || ''}"
+        onclick="goTitle(this)" style="cursor:pointer">
+        <div class="wish-poster">${w.poster_path
+          ? `<img src="${IMG}${w.poster_path}" alt="${(w.title_ko || '').replace(/"/g, '')}" loading="lazy">`
+          : `<div class="wish-poster-ph">🎬</div>`}</div>
+        <div class="wish-title">${w.title_ko}</div>
+      </div>
+      ${isOwn ? `<button class="wish-del-btn" onclick="delWish(${w.tmdb_id},this)">찜해제</button>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+  renderPager('wishPager', page, pages, p => renderWishlist(p, IS_OWN, false));
+}
+
+async function delWish(tmdb_id, btn) {
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!sid) return;
+  if (!confirm('찜 목록에서 제거할까요?')) return;
+  try {
+    const res = await fetch(`${API}/wishlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ tmdb_id })
+    });
+    const json = await res.json();
+    if (json.ok && !json.wishlisted) {
+      ALL_WISH = ALL_WISH.filter(w => w.tmdb_id !== tmdb_id);
+      renderWishlist(wishPage, true, false);
+      showToast('찜 목록에서 제거됐어요');
+    }
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   평점·후기 (기존 코드 유지, 최신 3개)
+═══════════════════════════════════════ */
+function renderReviews() {
+  const PREVIEW = 3;
+  document.getElementById('reviewCount').textContent = `${ALL_REVIEWS.length}개`;
+  const el = document.getElementById('reviewArea');
+  const moreBtn = document.getElementById('reviewMoreBtn');
+  if (!ALL_REVIEWS.length) {
+    el.innerHTML = `<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;
+    if (moreBtn) moreBtn.style.display = 'none';
+    return;
+  }
+  const slice = ALL_REVIEWS.slice(0, PREVIEW);
+  if (moreBtn) {
+    if (ALL_REVIEWS.length > PREVIEW) {
+      moreBtn.style.display = 'inline-flex';
+      const uid = new URLSearchParams(location.search).get('uid');
+      moreBtn.href = uid ? `/my_review.html?uid=${uid}` : '/my_review.html';
+    } else {
+      moreBtn.style.display = 'none';
+    }
+  }
+  el.innerHTML = `<div class="review-list">${slice.map(r => {
+    const score = Math.round((parseFloat(r.score) || 0) * 2 * 10) / 10;
+    const emotions = _json(r.emotions, []);
+    const stars = renderStars(score);
+    const _goAttr = `data-tmdb-id="${r.tmdb_id}"
+      data-title-ko="${(r.title_ko || '').replace(/"/g, '&quot;')}"
+      data-category="${r.category || 'tv'}"
+      data-release-year="${r.release_year || ''}"
+      onclick="goTitle(this)" style="cursor:pointer"`;
+    return `<div class="review-item">
+      <div class="review-poster-link" ${_goAttr}>
+        <div class="review-poster">${r.poster_path
+          ? `<img src="${IMG}${r.poster_path}" alt="" loading="lazy">`
+          : `<div class="review-poster-ph">🎬</div>`}</div>
+      </div>
+      <div class="review-body">
+        <div class="review-title-row">
+          <span class="review-work-link" ${_goAttr}>
+            <span class="review-work-title">${r.title_ko || '작품 #' + r.tmdb_id}</span>
+          </span>
+          <div class="stars-wrap">${stars}<span class="score-num">${score}</span></div>
+        </div>
+        ${r.text ? `<div class="review-text">${r.text}</div>` : ''}
+        <div class="review-footer">
+          ${emotions.slice(0, 3).map(e => `<span class="review-badge">${e}</span>`).join('')}
+          <span class="review-likes">
+            <i class="ti ti-heart" style="font-size:10px"></i>${r.likes || 0}
+          </span>
+          <span class="review-time">${_date(r.created_at)}</span>
+          ${IS_OWN ? `<button class="del-btn" onclick="delReview(${r.tmdb_id},${r.id})">삭제</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ══════════════════════════════════════
+   인생작품 (기존 코드 유지)
+═══════════════════════════════════════ */
+function renderLifeWorks() {
+  document.getElementById('lifeCount').textContent = `${ALL_LIFE_WORKS.length}개`;
+  const el = document.getElementById('lifeArea');
+  if (!ALL_LIFE_WORKS.length) {
+    el.innerHTML = `<div class="sec-empty"><i class="ti ti-crown"></i>아직 등록한 인생작품이 없어요</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="wish-grid">${ALL_LIFE_WORKS.map(w => `
+    <div class="wish-card">
+      <div class="wish-card-link"
+        data-tmdb-id="${w.tmdb_id}"
+        data-title-ko="${(w.title_ko || '').replace(/"/g, '&quot;')}"
+        data-category="${w.media_type || 'tv'}"
+        data-release-year=""
+        onclick="goTitle(this)" style="cursor:pointer">
+        <div class="wish-poster">${w.poster_path
+          ? `<img src="${IMG}${w.poster_path}" alt="${(w.title_ko || '').replace(/"/g, '')}" loading="lazy">`
+          : `<div class="wish-poster-ph">🎬</div>`}</div>
+        <div class="wish-title">${w.title_ko || '제목 없음'}</div>
+      </div>
+      ${IS_OWN ? `<button class="wish-del-btn" onclick="delLifeWork(${w.tmdb_id})">해제</button>` : ''}
+    </div>`).join('')}</div>`;
+}
+
+async function delLifeWork(tmdb_id) {
+  if (!confirm('인생작품에서 제거할까요?')) return;
+  const sid = localStorage.getItem('ottrang_sid'); if (!sid) return;
+  try {
+    const res = await fetch(`${API}/life-works`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ tmdb_id }),
+    });
+    const json = await res.json();
+    if (json.ok && !json.saved) {
+      ALL_LIFE_WORKS = ALL_LIFE_WORKS.filter(w => w.tmdb_id !== tmdb_id);
+      renderLifeWorks();
+      showToast('인생작품에서 제거됐어요');
+    }
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   추천작품 (기존 코드 유지)
+═══════════════════════════════════════ */
+async function createPickListFromMypage() {
+  const inp = document.getElementById('pickNewTitle');
+  const title = (inp?.value || '').trim();
+  if (!title) { showToast('컬렉션 제목을 입력해주세요'); return; }
+  const sid = localStorage.getItem('ottrang_sid'); if (!sid) return;
+  try {
+    const res = await fetch(`${API}/pick-lists`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ title }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      inp.value = '';
+      ALL_PICK_LISTS.unshift({ id: data.id, title, work_count: 0, works: [], is_public: 1 });
+      renderPickLists();
+      showToast(`📋 "${title}" 컬렉션이 만들어졌어요`);
+    } else showToast(data.message || '생성 실패');
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+function renderPickLists() {
+  document.getElementById('pickCount').textContent = `${ALL_PICK_LISTS.length}개`;
+  const el = document.getElementById('pickArea');
+  if (!ALL_PICK_LISTS.length) {
+    el.innerHTML = `<div class="sec-empty"><i class="ti ti-playlist"></i>주제를 정해 나만의 추천작품을 만들어보세요</div>`;
+    return;
+  }
+  el.innerHTML = ALL_PICK_LISTS.map(list => {
+    const thumbs = list.works || [];
+    const shown = thumbs.slice(0, 6);
+    const extra = thumbs.length - shown.length;
+    const thumbHtml = shown.map(w =>
+      `<div class="pick-thumb"
+        data-tmdb-id="${w.tmdb_id}"
+        data-title-ko="${(w.title_ko || '').replace(/"/g, '&quot;')}"
+        data-category="${w.media_type || 'tv'}"
+        data-release-year=""
+        onclick="goTitle(this)"
+        style="cursor:pointer;transition:opacity .15s"
+        onmouseover="this.style.opacity='.75'"
+        onmouseout="this.style.opacity='1'"
+        title="${(w.title_ko || '').replace(/"/g, '&quot;')}">${w.poster_path
+          ? `<img src="${IMG}${w.poster_path}" alt="" loading="lazy">`
+          : `<div class="pick-thumb-ph">🎬</div>`}</div>`
+    ).join('') + (extra > 0 ? `<div class="pick-thumb-more">+${extra}</div>` : '');
+
+    return `<div class="pick-card">
+      <div class="pick-card-header">
+        <span class="pick-card-title">📋 ${_esc(list.title)}</span>
+        <span class="pick-card-count">${list.work_count || 0}개</span>
+        ${IS_OWN ? `<button class="pick-card-add" onclick="openWorkSearchModal('pick',${list.id})">+ 작품 추가</button>` : ''}
+        ${IS_OWN ? `<button class="pick-card-del" onclick="delPickList(${list.id})">삭제</button>` : ''}
+      </div>
+      <div class="pick-thumb-row">${thumbHtml || '<span style="font-size:12px;color:var(--muted)">작품이 없어요</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function delPickList(list_id) {
+  if (!confirm('이 추천작품 컬렉션을 삭제할까요?\n컬렉션 안의 작품 목록도 모두 삭제됩니다.')) return;
+  const sid = localStorage.getItem('ottrang_sid'); if (!sid) return;
+  try {
+    const res = await fetch(`${API}/pick-lists/${list_id}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + sid },
+    });
+    const json = await res.json();
+    if (json.ok) {
+      ALL_PICK_LISTS = ALL_PICK_LISTS.filter(l => l.id !== list_id);
+      renderPickLists();
+      showToast('추천작품이 삭제됐어요');
+    } else showToast(json.message || '삭제 실패');
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   작품 검색 모달 (기존 코드 유지)
+═══════════════════════════════════════ */
+let _workSearchMode = 'life';
+let _workSearchListId = null;
+let _workSearchTimer = null;
+
+function openWorkSearchModal(mode, listId) {
+  _workSearchMode = mode;
+  _workSearchListId = listId;
+  const modal = document.getElementById('workSearchModal');
+  const inp = document.getElementById('workSearchInp');
+  document.getElementById('workSearchResults').innerHTML =
+    '<div class="work-search-empty">작품명을 입력해주세요</div>';
+  inp.value = '';
+  modal.classList.add('show');
+  setTimeout(() => inp.focus(), 100);
+}
+function closeWorkSearchModal() {
+  document.getElementById('workSearchModal').classList.remove('show');
+  clearTimeout(_workSearchTimer);
+}
+document.getElementById('workSearchModal')?.addEventListener('click', function (e) {
+  if (e.target === this) closeWorkSearchModal();
+});
+
+function onWorkSearch(q) {
+  clearTimeout(_workSearchTimer);
+  const el = document.getElementById('workSearchResults');
+  if (!q || q.length < 2) {
+    el.innerHTML = '<div class="work-search-empty">작품명을 입력해주세요</div>';
+    return;
+  }
+  el.innerHTML = '<div class="work-search-loading">검색 중...</div>';
+  _workSearchTimer = setTimeout(() => _runWorkSearch(q), 350);
+}
+
+async function _runWorkSearch(q) {
+  const el = document.getElementById('workSearchResults');
+  try {
+    const [dbRes, tvRes, mvRes] = await Promise.allSettled([
+      fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`).then(r => r.json()),
+      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`).then(r => r.json()),
+    ]);
+    const dbWorks = (dbRes.status === 'fulfilled' ? dbRes.value.data || [] : []).slice(0, 5);
+    const dbIds = new Set(dbWorks.map(w => w.tmdb_id));
+    const tvWorks = (tvRes.status === 'fulfilled' ? (tvRes.value.results || []) : [])
+      .filter(r => !dbIds.has(r.id)).slice(0, 4)
+      .map(r => ({ tmdb_id: r.id, title_ko: r.name || r.title || '', title_en: r.original_name || '', poster_path: r.poster_path || '', media_type: 'tv', release_year: (r.first_air_date || '').slice(0, 4) }));
+    const mvWorks = (mvRes.status === 'fulfilled' ? (mvRes.value.results || []) : [])
+      .filter(r => !dbIds.has(r.id)).slice(0, 3)
+      .map(r => ({ tmdb_id: r.id, title_ko: r.title || r.name || '', title_en: r.original_title || '', poster_path: r.poster_path || '', media_type: 'movie', release_year: (r.release_date || '').slice(0, 4) }));
+    const all = [...dbWorks, ...tvWorks, ...mvWorks];
+    if (!all.length) { el.innerHTML = '<div class="work-search-empty">검색 결과가 없어요</div>'; return; }
+    el.innerHTML = all.map(w => {
+      const poster = w.poster_path
+        ? `<img src="${IMG_SEARCH}${w.poster_path}" alt="" loading="lazy">`
+        : `<div class="work-search-poster-ph">🎬</div>`;
+      const typeColor = w.media_type === 'movie' ? 'rgba(240,180,41,.8)' : 'rgba(77,157,224,.8)';
+      const typeLabel = w.media_type === 'movie' ? '영화' : 'TV';
+      return `<div class="work-search-item"
+        onclick="selectWork(${w.tmdb_id},'${_esc(w.title_ko)}','${w.poster_path || ''}','${w.media_type || 'tv'}')">
+        <div class="work-search-poster">${poster}</div>
+        <div class="work-search-info">
+          <div class="work-search-title">${_esc(w.title_ko)}</div>
+          <div class="work-search-meta">${_esc(w.title_en || '')}${w.release_year ? ' · ' + w.release_year : ''}</div>
+        </div>
+        <span class="work-search-type" style="background:${typeColor};color:#fff">${typeLabel}</span>
+      </div>`;
+    }).join('');
+  } catch (e) { el.innerHTML = '<div class="work-search-empty">검색 중 오류가 발생했어요</div>'; }
+}
+
+async function selectWork(tmdb_id, title_ko, poster_path, media_type) {
+  const sid = localStorage.getItem('ottrang_sid'); if (!sid) return;
+  closeWorkSearchModal();
+  try {
+    if (_workSearchMode === 'life') {
+      const res = await fetch(`${API}/life-works`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+        body: JSON.stringify({ tmdb_id, title_ko, poster_path, media_type }),
+      });
+      const data = await res.json();
+      if (data.ok && data.saved) {
+        ALL_LIFE_WORKS.unshift({ tmdb_id, title_ko, poster_path, media_type });
+        renderLifeWorks();
+        showToast('👑 인생작품으로 저장됐어요');
+      } else if (data.ok && !data.saved) {
+        showToast('이미 등록된 인생작품이에요');
+      } else showToast(data.message || '저장 실패');
+    } else if (_workSearchMode === 'pick' && _workSearchListId) {
+      const res = await fetch(`${API}/pick-lists/${_workSearchListId}/works`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+        body: JSON.stringify({ tmdb_id, title_ko, poster_path, media_type }),
+      });
+      const data = await res.json();
+      if (data.ok && data.added) {
+        const list = ALL_PICK_LISTS.find(l => l.id === _workSearchListId);
+        if (list) {
+          list.works.push({ tmdb_id, title_ko, poster_path, media_type });
+          list.work_count = (list.work_count || 0) + 1;
+        }
+        renderPickLists();
+        showToast('📋 추천작품에 추가됐어요');
+      } else if (data.ok && !data.added) {
+        showToast('이미 추가된 작품이에요');
+      } else showToast(data.message || '추가 실패');
+    }
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   닉네임 수정 (기존 코드 유지)
+═══════════════════════════════════════ */
+function toggleNicknameEdit() {
+  const row = document.getElementById('nicknameEditRow');
+  const s = row.classList.toggle('show');
+  if (s) document.getElementById('nicknameInp').focus();
+}
+async function saveNickname() {
+  const sid = localStorage.getItem('ottrang_sid');
+  const nickname = document.getElementById('nicknameInp').value.trim();
+  if (!nickname) { showToast('닉네임을 입력해주세요'); return; }
+  try {
+    const res = await fetch(`${API}/auth/nickname`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ nickname })
+    });
+    const json = await res.json();
+    if (json.ok) {
+      document.getElementById('profileNickname').textContent = nickname;
+      document.getElementById('nicknameEditRow').classList.remove('show');
+      showToast('✅ 닉네임이 변경됐어요!');
+    } else showToast(json.message || '변경 실패');
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   MBTI 수정 (기존 코드 유지)
+═══════════════════════════════════════ */
+let _selectedMbtiEdit = null;
+
+function toggleMbtiEdit() {
+  const row = document.getElementById('mbtiEditRow');
+  row.classList.toggle('show');
+}
+function selectMbtiMini(el) {
+  const mbti = el.dataset.mbti;
+  if (_selectedMbtiEdit === mbti) {
+    el.classList.remove('selected');
+    _selectedMbtiEdit = null;
+    return;
+  }
+  document.querySelectorAll('.mbti-mini-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  _selectedMbtiEdit = mbti;
+}
+async function saveMbti() {
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!sid) return;
+  try {
+    const res = await fetch(`${API}/auth/mbti`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ mbti: _selectedMbtiEdit }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      const mbtiBadge = document.getElementById('mbtiBadge');
+      if (_selectedMbtiEdit) {
+        mbtiBadge.textContent = `✦ ${_selectedMbtiEdit}`;
+        mbtiBadge.classList.remove('empty');
+      } else {
+        mbtiBadge.textContent = '✦ MBTI 설정';
+        mbtiBadge.classList.add('empty');
+      }
+      document.getElementById('mbtiEditRow').classList.remove('show');
+      showToast(`✅ MBTI가 ${_selectedMbtiEdit || '해제'}됐어요!`);
+    } else showToast(json.message || '저장 실패');
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   로그아웃 / 회원탈퇴 (기존 코드 유지)
+═══════════════════════════════════════ */
+async function doLogout() {
+  const sid = localStorage.getItem('ottrang_sid');
+  try { await fetch(`${API}/auth/logout`, { method: 'POST', headers: { Authorization: 'Bearer ' + sid } }); } catch (e) {}
+  localStorage.removeItem('ottrang_sid');
+  location.href = '/';
+}
+async function doWithdraw() {
+  const nickname = document.getElementById('profileNickname').textContent || '';
+  const confirmed = confirm(`${nickname}님의 찜 목록, 게시글, 평점 후기가 전부 삭제됩니다.\n\n정말 탈퇴하시겠습니까?`);
+  if (!confirmed) return;
+  const sid = localStorage.getItem('ottrang_sid');
+  try {
+    const res = await fetch(`${API}/auth/withdraw`, {
+      method: 'DELETE', headers: { Authorization: 'Bearer ' + sid }
+    });
+    const json = await res.json();
+    if (json.ok) {
+      localStorage.removeItem('ottrang_sid');
+      alert('탈퇴가 완료됐습니다. 이용해 주셔서 감사합니다.');
+      location.href = '/';
+    } else { showToast(json.message || '탈퇴 처리 중 오류가 발생했습니다'); }
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   찜 공개/비공개 (기존 코드 유지)
+═══════════════════════════════════════ */
+function updateWishToggleUI(isPublic) {
+  const btn = document.getElementById('wishToggleBtn');
+  const desc = document.getElementById('wishPrivacyDesc');
+  if (isPublic) {
+    btn.textContent = '🔓 공개'; btn.className = 'wish-toggle-btn public';
+    desc.textContent = '다른 사용자들이 찜 목록을 볼 수 있습니다';
+  } else {
+    btn.textContent = '🔒 비공개'; btn.className = 'wish-toggle-btn private';
+    desc.textContent = '다른 사용자들이 찜 목록을 볼 수 없습니다';
+  }
+}
+async function toggleWishPrivacy() {
+  const sid = localStorage.getItem('ottrang_sid');
+  const newP = !WISH_PUBLIC;
+  try {
+    const res = await fetch(`${API}/mypage/wishlist-public`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ wishlist_public: newP })
+    });
+    const json = await res.json();
+    if (json.ok) {
+      WISH_PUBLIC = newP;
+      updateWishToggleUI(WISH_PUBLIC);
+      showToast(WISH_PUBLIC ? '찜 목록이 공개로 변경됐어요' : '찜 목록이 비공개로 변경됐어요');
+    } else showToast(json.message || '변경 실패');
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   페이지네이션 (기존 코드 유지)
+═══════════════════════════════════════ */
+function renderPager(elId, cur, total, cb) {
+  const el = document.getElementById(elId);
+  if (total <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  if (cur > 1) html += `<button class="page-btn arrow" onclick="(${cb.toString()})(${cur - 1})">‹</button>`;
+  for (let i = 1; i <= total; i++) {
+    html += `<button class="page-btn ${i === cur ? 'on' : ''}" onclick="(${cb.toString()})(${i})">${i}</button>`;
+  }
+  if (cur < total) html += `<button class="page-btn arrow" onclick="(${cb.toString()})(${cur + 1})">›</button>`;
+  el.innerHTML = html;
+}
+
+/* ══════════════════════════════════════
+   별점 렌더링 (기존 코드 유지)
+═══════════════════════════════════════ */
+function renderStars(score) {
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    const threshold = i * 2;
+    if (score >= threshold) {
+      html += `<span class="star">★</span>`;
+    } else if (score >= threshold - 1) {
+      html += `<span class="star half">★</span>`;
+    } else {
+      html += `<span class="star off">★</span>`;
+    }
+  }
+  return html;
+}
+
+/* ══════════════════════════════════════
+   후기 삭제 (기존 코드 유지)
+═══════════════════════════════════════ */
+async function delReview(tmdb_id, review_id) {
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!confirm('후기를 삭제할까요?')) return;
+  try {
+    const res = await fetch(`${API}/reviews/${tmdb_id}`, {
+      method: 'DELETE', headers: { Authorization: 'Bearer ' + sid }
+    });
+    const json = await res.json();
+    if (json.ok) {
+      ALL_REVIEWS = ALL_REVIEWS.filter(r => r.id !== review_id);
+      renderReviews();
+      showToast('후기가 삭제됐어요');
+    } else showToast(json.message || '삭제 실패');
+  } catch (e) { showToast('오류: ' + e.message); }
+}
+
+/* ══════════════════════════════════════
+   유틸 함수
+═══════════════════════════════════════ */
+function show(id, disp) { document.getElementById(id).style.display = disp; }
+function _json(str, fb) { try { return JSON.parse(str); } catch (e) { return fb; } }
+function _date(d) {
+  if (!d) return '';
+  const k = new Date(new Date(d).getTime() + 9 * 60 * 60 * 1000);
+  return `${k.getFullYear()}.${String(k.getMonth() + 1).padStart(2, '0')}.${String(k.getDate()).padStart(2, '0')}`;
+}
+function _esc(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+/* 시작 */
+init();
 </script>
 </body>
 </html>
