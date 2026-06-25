@@ -723,14 +723,25 @@ export async function handleUser(path, request, env, ctx, headers) {
   // ── GET /reviews/recent — 최근 평점 후기 (공개 API, 인증 불필요) ──
   if (path === "/reviews/recent" && request.method === "GET") {
     try {
-      const limit = Math.min(parseInt(new URL(request.url).searchParams.get('limit') || '5'), 20);
+      const params = new URL(request.url).searchParams;
+      // limit: 메인페이지는 5, 커뮤니티는 20 — 최대 20으로 제한
+      const limit  = Math.min(parseInt(params.get('limit') || '5'), 20);
+      // page: 1부터 시작, 커뮤니티 페이지네이션용
+      const page   = Math.max(1, parseInt(params.get('page') || '1'));
+      const offset = (page - 1) * limit;
+
+      // 전체 리뷰 수 (페이지네이션 UI 계산용)
+      const countRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS total FROM reviews`
+      ).first();
+      const total = countRow?.total || 0;
+
       const { results } = await env.DB.prepare(`
         SELECT r.id, r.user_id, r.tmdb_id, r.score, r.text AS body,
                r.emotions, r.created_at,
                COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
                wk.media_type AS media_type,
                wk.poster_path AS poster_path,
-               wk.platform AS platform,
                u.nickname, u.profile_image, u.mbti
         FROM reviews r
         JOIN users u ON u.id = r.user_id
@@ -740,9 +751,16 @@ export async function handleUser(path, request, env, ctx, headers) {
           FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
         ORDER BY r.created_at DESC
-        LIMIT ?
-      `).bind(limit).all();
-      return new Response(JSON.stringify({ ok: true, reviews: results || [] }), { headers });
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      return new Response(JSON.stringify({
+        ok:      true,
+        reviews: results || [],
+        total,
+        page,
+        limit,
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
