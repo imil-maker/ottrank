@@ -3,15 +3,14 @@
    사용처: index.html / mypage.html / community.html
 
    카드 구조:
-     rc-card (높이 자동 — flex column)
-       ├── rc-poster (aspect-ratio:2/3 — 포스터 비율 유지)
-       │     ├── rc-poster-bg  (배경 이미지)
-       │     ├── rc-poster-ph  (이미지 없을 때 🎬)
-       │     ├── rc-poster-fade (45%부터 그라디언트)
-       │     ├── rc-platform-badge (좌상단 플랫폼)
-       │     └── rc-poster-score   (우상단 별점)
-       └── rc-content (margin-top:-50% 로 포스터와 50% 겹침, 이후 자연스럽게 늘어남)
-             작품명 / 별점 / 구분선 / 한줄감상 / 태그 / 푸터
+     rc-card
+       └── rc-poster (aspect-ratio:2/3, overflow:visible)
+             ├── rc-poster-bg  (배경 이미지)
+             ├── rc-poster-ph  (이미지 없을 때 🎬)
+             ├── rc-poster-fade (45%부터 그라디언트)
+             ├── rc-platform-badge (좌상단 플랫폼)
+             ├── rc-poster-score   (우상단 별점)
+             └── rc-content (position:absolute, top:50% — 50%부터 시작, 내용 길면 포스터 밖으로 늘어남)
    ══════════════════════════════════════════════ */
 
 const ReviewCard = (() => {
@@ -71,7 +70,7 @@ const ReviewCard = (() => {
     const pfColor   = PF_COLOR[rv.platform] || (rv.media_type === 'movie' ? '#f0b429' : '#e50914');
     const pfLabel   = PF_LABEL[rv.platform] || '';
 
-    // 포스터 URL — w300 사용 (200~300px 카드에 충분)
+    // 포스터 URL — w300 사용
     const posterUrl = rv.poster_path && rv.poster_path.includes('image.tmdb.org')
       ? rv.poster_path.replace('/w92/', '/w300/').replace('/w500/', '/w300/').replace('/w780/', '/w300/')
       : '';
@@ -99,44 +98,43 @@ const ReviewCard = (() => {
 
     return `
 <div class="rc-card" onclick="${clickFn}">
-
-  <!-- 포스터 영역 (aspect-ratio:2/3, 그라디언트 포함) -->
   <div class="rc-poster">
+
+    <!-- 포스터 배경 이미지 or 플레이스홀더 -->
     ${posterUrl
       ? `<div class="rc-poster-bg" style="background-image:url('${posterUrl}')"></div>`
       : `<div class="rc-poster-ph">🎬</div>`
     }
+
+    <!-- 포스터 45%부터 그라디언트 -->
     <div class="rc-poster-fade"></div>
+
+    <!-- 좌상단 플랫폼 뱃지 -->
     ${pfLabel ? `<div class="rc-platform-badge" style="background:${pfColor}">${pfLabel}</div>` : ''}
+
+    <!-- 우상단 별점 -->
     ${scoreNum ? `<div class="rc-poster-score">★ ${scoreNum}</div>` : ''}
-  </div>
 
-  <!-- 콘텐츠 (margin-top:-50%로 포스터와 50% 겹쳐서 시작, 이후 자연스럽게 늘어남) -->
-  <div class="rc-content">
-
-    <div class="rc-title">${title}</div>
-
-    <div class="rc-stars-row">
-      <span class="rc-stars">${stars}</span>
-      ${scoreNum ? `<span class="rc-score-num">${scoreNum}/10</span>` : ''}
-    </div>
-
-    <div class="rc-divider"></div>
-
-    ${bodyHtml}
-
-    ${(evalBadge || emoTags)
-      ? `<div class="rc-tags">${evalBadge}${emoTags}</div>`
-      : ''
-    }
-
-    <div class="rc-footer">
-      <span class="rc-nick">${nick}</span>
-      <span class="rc-time">${time}</span>
+    <!-- 콘텐츠 — 포스터 50% 지점에서 시작, 내용 길면 포스터 밖으로 늘어남 -->
+    <div class="rc-content">
+      <div class="rc-title">${title}</div>
+      <div class="rc-stars-row">
+        <span class="rc-stars">${stars}</span>
+        ${scoreNum ? `<span class="rc-score-num">${scoreNum}/10</span>` : ''}
+      </div>
+      <div class="rc-divider"></div>
+      ${bodyHtml}
+      ${(evalBadge || emoTags)
+        ? `<div class="rc-tags">${evalBadge}${emoTags}</div>`
+        : ''
+      }
+      <div class="rc-footer">
+        <span class="rc-nick">${nick}</span>
+        <span class="rc-time">${time}</span>
+      </div>
     </div>
 
   </div>
-
 </div>`;
   }
 
@@ -160,16 +158,16 @@ const ReviewCard = (() => {
   <div class="rc-poster">
     <div class="rc-skel" style="position:absolute;inset:0;border-radius:0"></div>
     <div class="rc-poster-fade"></div>
-  </div>
-  <div class="rc-content">
-    <div class="rc-skel" style="height:18px;width:75%"></div>
-    <div class="rc-skel" style="height:13px;width:50%"></div>
-    <div class="rc-divider"></div>
-    <div class="rc-skel" style="height:13px;width:90%"></div>
-    <div class="rc-skel" style="height:13px;width:70%"></div>
-    <div class="rc-footer">
-      <div class="rc-skel" style="height:12px;width:40%"></div>
-      <div class="rc-skel" style="height:10px;width:22%"></div>
+    <div class="rc-content">
+      <div class="rc-skel" style="height:18px;width:75%"></div>
+      <div class="rc-skel" style="height:13px;width:50%"></div>
+      <div class="rc-divider"></div>
+      <div class="rc-skel" style="height:13px;width:90%"></div>
+      <div class="rc-skel" style="height:13px;width:70%"></div>
+      <div class="rc-footer">
+        <div class="rc-skel" style="height:12px;width:40%"></div>
+        <div class="rc-skel" style="height:10px;width:22%"></div>
+      </div>
     </div>
   </div>
 </div>`).join('');
