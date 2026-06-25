@@ -1131,7 +1131,7 @@ function initHeader(){
   function _closeMobSearch() {
     _headerInner?.classList.remove('search-mode');
     if(_headerSrInput)  _headerSrInput.value = '';
-    if(_headerSrRes)  { _headerSrRes.innerHTML = ''; _headerSrRes.classList.remove('show'); }
+    if(_headerSrRes)  { _headerSrRes.innerHTML = ''; _headerSrRes.style.display = 'none'; }
   }
   document.getElementById('ottrangHeaderSearchBack')?.addEventListener('click', _closeMobSearch);
 
@@ -1139,7 +1139,7 @@ function initHeader(){
   _headerSrInput?.addEventListener('input', function() {
     const q = this.value.trim();
     if(!q || q.length < 2) {
-      if(_headerSrRes) { _headerSrRes.innerHTML = ''; _headerSrRes.classList.remove('show'); }
+      if(_headerSrRes) { _headerSrRes.innerHTML = ''; _headerSrRes.style.display = 'none'; }
       return;
     }
     clearTimeout(window._hdrSrTimer);
@@ -1233,8 +1233,10 @@ function initHeader(){
       if(tmdbAll.length){ html+='<div class="ottrang-sr-section">🎬 작품</div>'+tmdbAll.map(w=>_workItem(w,false)).join(''); }
       if(persons.length){ html+='<div class="ottrang-sr-section">👤 인물</div>'+persons.map(p=>_personItem(p)).join(''); }
       el.innerHTML=html;
+      el.style.display='block'; // 헤더 검색결과 표시
     } catch(e){
       el.innerHTML='<div class="ottrang-sr-empty">검색 중 오류가 발생했습니다</div>';
+      el.style.display='block';
     }
   }
 
