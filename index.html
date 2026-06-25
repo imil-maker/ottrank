@@ -1672,6 +1672,16 @@ function fmtViews(n){
 }
 
 init();
+
+/* ── bfcache 복원 시 리뷰 섹션 재로드 ──
+   뒤로가기로 돌아올 때 브라우저가 페이지를 메모리에서 복원(bfcache)하면
+   DOMContentLoaded가 재실행되지 않아 reviewGrid가 비어 보이는 버그 방지
+   loadRecentReviews()만 재호출 — 가볍고 랭킹 등 다른 섹션에 영향 없음 */
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) {
+    loadRecentReviews();
+  }
+});
 </script>
 
 <!-- 유튜브 인라인 플레이어 -->
