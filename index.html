@@ -681,6 +681,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   z-index: 200;
 }
 </style>
+
+<!-- 리뷰 카드 공통 컴포넌트 -->
+<link rel="stylesheet" href="/components/review-card.css">
 </head>
 <body>
 
@@ -791,54 +794,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <span class="sec-sub">LATEST REVIEWS</span>
     <a href="/my_review.html" class="sec-more">전체보기 →</a>
   </div>
-  <!-- 스켈레톤 5개 -->
-  <div class="review-grid" id="reviewGrid">
-    <div class="rv-card" style="pointer-events:none">
-      <div style="display:flex;align-items:center;gap:9px">
-        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
-        <div style="flex:1"><div class="rv-skel" style="height:11px;width:70%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:45%"></div></div>
-      </div>
-      <div class="rv-skel" style="height:10px;width:80%"></div>
-      <div class="rv-skel" style="height:13px;width:55%"></div>
-      <div class="rv-skel" style="height:52px;width:100%"></div>
-    </div>
-    <div class="rv-card" style="pointer-events:none">
-      <div style="display:flex;align-items:center;gap:9px">
-        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
-        <div style="flex:1"><div class="rv-skel" style="height:11px;width:60%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:40%"></div></div>
-      </div>
-      <div class="rv-skel" style="height:10px;width:75%"></div>
-      <div class="rv-skel" style="height:13px;width:50%"></div>
-      <div class="rv-skel" style="height:52px;width:100%"></div>
-    </div>
-    <div class="rv-card" style="pointer-events:none">
-      <div style="display:flex;align-items:center;gap:9px">
-        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
-        <div style="flex:1"><div class="rv-skel" style="height:11px;width:65%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:35%"></div></div>
-      </div>
-      <div class="rv-skel" style="height:10px;width:85%"></div>
-      <div class="rv-skel" style="height:13px;width:60%"></div>
-      <div class="rv-skel" style="height:52px;width:100%"></div>
-    </div>
-    <div class="rv-card" style="pointer-events:none">
-      <div style="display:flex;align-items:center;gap:9px">
-        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
-        <div style="flex:1"><div class="rv-skel" style="height:11px;width:55%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:42%"></div></div>
-      </div>
-      <div class="rv-skel" style="height:10px;width:70%"></div>
-      <div class="rv-skel" style="height:13px;width:48%"></div>
-      <div class="rv-skel" style="height:52px;width:100%"></div>
-    </div>
-    <div class="rv-card" style="pointer-events:none">
-      <div style="display:flex;align-items:center;gap:9px">
-        <div class="rv-skel" style="width:36px;height:36px;border-radius:50%"></div>
-        <div style="flex:1"><div class="rv-skel" style="height:11px;width:72%;margin-bottom:5px"></div><div class="rv-skel" style="height:10px;width:38%"></div></div>
-      </div>
-      <div class="rv-skel" style="height:10px;width:78%"></div>
-      <div class="rv-skel" style="height:13px;width:52%"></div>
-      <div class="rv-skel" style="height:52px;width:100%"></div>
-    </div>
-  </div>
+  <!-- 리뷰 카드 그리드 (rc-grid 컴포넌트) -->
+  <div class="rc-grid" id="reviewGrid"></div>
 
   <!-- ══ 유튜브 급상승 ══ -->
   <div class="sec-hd" id="youtube">
@@ -1476,10 +1433,10 @@ const RV_PF_COLOR = {
 };
 
 async function loadRecentReviews() {
+  // 로딩 중 스켈레톤 표시
+  ReviewCard.skeleton('reviewGrid', 5);
   try {
-    // GET /reviews/recent?limit=5 — 최근 평점 후기 5개 반환
-    // 인증 불필요 (공개 API), 응답: { ok, reviews: [...] }
-    const sid = localStorage.getItem('ottrang_sid');
+    const sid  = localStorage.getItem('ottrang_sid');
     const opts = sid
       ? { credentials: 'include', headers: { Authorization: `Bearer ${sid}` } }
       : { credentials: 'include' };
@@ -1487,83 +1444,16 @@ async function loadRecentReviews() {
     const data = await res.json();
 
     if (!data.ok || !data.reviews?.length) {
-      // 데이터 없을 때 섹션 자체를 숨김 (빈 상태보다 깔끔)
       document.getElementById('recentReviews')?.style.setProperty('display', 'none');
       document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
       return;
     }
-    renderRecentReviews(data.reviews);
+    // ReviewCard 컴포넌트로 렌더링
+    ReviewCard.renderGrid(data.reviews, 'reviewGrid');
   } catch(e) {
-    // API 오류 시 섹션 숨김
     document.getElementById('recentReviews')?.style.setProperty('display', 'none');
     document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
   }
-}
-
-function renderRecentReviews(reviews) {
-  const grid = document.getElementById('reviewGrid');
-  if (!grid) return;
-
-  // 플랫폼 색상: works 테이블에 platform 필드가 없을 수 있으므로 media_type으로 폴백 처리
-  grid.innerHTML = reviews.map(rv => {
-    const nick    = rv.nickname || '익명';
-    const initial = nick.charAt(0);
-
-    // 아바타: 프로필 이미지 있으면 img, 없으면 이니셜
-    const avatar = rv.profile_image
-      ? `<img src="${rv.profile_image}" alt="${nick}" loading="lazy"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-             style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%">
-         <span style="display:none;font-size:15px;font-weight:700">${initial}</span>`
-      : `<span style="font-size:15px;font-weight:700">${initial}</span>`;
-
-    // MBTI 뱃지 (있을 때만 표시)
-    const mbtiBadge = rv.mbti
-      ? `<span class="rv-mbti">✦ ${rv.mbti}</span>`
-      : '';
-
-    // 별점: ★ 5개 기준 표시 / 숫자는 ×2해서 10점 기준으로 표시
-    const stars    = renderStars(rv.score);
-    const scoreNum = rv.score ? `<span class="rv-score-num">${(parseFloat(rv.score) * 2).toFixed(1).replace(/\.0$/, '')}</span>` : '';
-
-    // 평가 태그 — evaluation 컬럼이 있을 때만 표시
-    const evalTags = ['강추해요','추천해요','평범해요','별로예요'];
-    const evalBadge = rv.evaluation && evalTags.includes(rv.evaluation)
-      ? `<div class="rv-eval">${rv.evaluation}</div>`
-      : '';
-
-    // 플랫폼 색상: platform 필드 우선, 없으면 media_type으로 구분
-    const pfColor = RV_PF_COLOR[rv.platform] || (rv.media_type === 'movie' ? '#f0b429' : '#e50914');
-
-    // 작품 상세 이동 함수 활용
-    // 작품 페이지 사용자 후기 섹션(#userReviews)으로 바로 이동
-    const clickFn = rv.tmdb_id
-      ? `goDetailReview(${rv.tmdb_id},'${rv.media_type||'tv'}','${(rv.title_ko||'').replace(/'/g,'')}',1,'')`
-      : '';
-
-    return `<div class="rv-card" onclick="${clickFn}">
-      <!-- 유저 정보 -->
-      <div class="rv-card-top">
-        <div class="rv-avatar">${avatar}</div>
-        <div class="rv-user">
-          <div class="rv-nick">${nick}${mbtiBadge ? ' ' + mbtiBadge : ''}</div>
-          <div class="rv-time">${relTimeRv(rv.created_at)}</div>
-        </div>
-      </div>
-      <!-- 작품명 + 플랫폼 점 -->
-      <div class="rv-work">
-        <span class="rv-pf-dot" style="background:${pfColor}"></span>
-        <span class="rv-work-title">${rv.title_ko || '작품명 미확인'}</span>
-      </div>
-      <!-- 별점 -->
-      <div>
-        <span class="rv-stars">${stars}</span>${scoreNum}
-        ${evalBadge}
-      </div>
-      <!-- 후기 본문 -->
-      <div class="rv-body">${rv.body ? rv.body.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '<span style="color:var(--muted);font-size:12px">평점만 남긴 후기입니다.</span>'}</div>
-    </div>`;
-  }).join('');
 }
 
 async function init(){
@@ -1751,5 +1641,8 @@ init();
     </div>
   </div>
 </div>
+
+<!-- 리뷰 카드 공통 컴포넌트 JS -->
+<script src="/components/review-card.js"></script>
 
 </body></html>
