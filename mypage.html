@@ -586,6 +586,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     min-width: unset !important;
     scroll-snap-align: unset !important;
   }
+  /* 카드 포스터 높이 20px 추가 */
+  #reviewArea .rc-poster {
+    aspect-ratio: unset !important;
+    height: calc((100vw - 40px) / 2 * 1.5 + 20px) !important;
+  }
 }
 
 /* ══ PC 전용 스타일 (601px 이상) ══ */
