@@ -196,7 +196,7 @@
   text-decoration:none;
 }
 .ottrang-btn-user:hover { background:var(--bg3); }
-.ottrang-btn-user .u-nick { font-weight:500; }
+.ottrang-btn-user .u-nick { font-weight:600; color:#f0b429; font-size:14px; }
 
 /* 슬로건 배너 */
 .ottrang-banner {
@@ -520,9 +520,9 @@
       <div class="ottrang-search-results" id="ottrangSearchResults"></div>
     </div>
     <div class="ottrang-hright" id="ottrangHright">
-      <button class="ottrang-btn-login" id="ottrangBtnLogin">로그인</button>
-      <button class="ottrang-btn-join" id="ottrangBtnJoin">1초 가입</button>
-      <a class="ottrang-btn-user" id="ottrangBtnUser" href="/mypage.html">
+      <button class="ottrang-btn-login" id="ottrangBtnLogin" style="display:none">로그인</button>
+      <button class="ottrang-btn-join" id="ottrangBtnJoin" style="display:none">1초 가입</button>
+      <a class="ottrang-btn-user" id="ottrangBtnUser" href="/mypage.html" style="display:none">
         <span class="u-nick" id="ottrangNick"></span>
       </a>
     </div>
@@ -740,6 +740,16 @@ function initHeader(){
       if(data.ok && data.user){
         // 로그인 상태 — 전역에 유저 저장
         window.__ottrangUser__ = data.user;
+
+        // 닉네임 없는 유저 → signup.html로 강제 이동 (signup.html 자체는 제외)
+        const currentPath = location.pathname;
+        const isSignupPage = currentPath === '/signup.html' || currentPath === '/ott_intro.html';
+        if (!data.user.nickname && !isSignupPage) {
+          const sid = localStorage.getItem('ottrang_sid');
+          location.href = `/signup.html${sid ? '?sid=' + sid : ''}`;
+          return;
+        }
+
         if(btnLogin) btnLogin.style.display='none';
         if(btnJoin)  btnJoin.style.display='none';
         if(btnUser){ btnUser.style.display='flex'; }
