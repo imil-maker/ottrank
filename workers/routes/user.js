@@ -267,6 +267,7 @@ export async function handleUser(path, request, env, ctx, headers) {
       const user = await env.DB.prepare(`
         SELECT u.id, u.nickname, u.provider, u.email, u.avatar_url,
           u.grade, u.total_likes_received, u.created_at, u.wishlist_public, u.mbti,
+          u.ott_points,
           gs.grade_name, gs.emoji_url as grade_emoji_url, gs.sort_order as grade_order,
           gs.is_special as grade_is_special
         FROM users u
@@ -335,9 +336,23 @@ export async function handleUser(path, request, env, ctx, headers) {
         return { ...list, works, work_count: works.length };
       }));
 
+      // 오뜨 최근 적립 내역 (최근 20개)
+      const { results: recent_point_logs } = await env.DB.prepare(`
+        SELECT points, reason, created_at
+        FROM user_point_logs
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 20
+      `).bind(uid).all();
+
+      // 등급 설정 목록 (진행바 계산용)
+      const { results: grade_settings } = await env.DB.prepare(
+        "SELECT grade_key, grade_name, min_ott_points, emoji_url, is_special, sort_order FROM grade_settings ORDER BY sort_order ASC"
+      ).all();
+
       return new Response(JSON.stringify({
         ok: true, is_own: true, user, reviews, wishlist, posts,
-        life_works, pick_lists,
+        life_works, pick_lists, recent_point_logs, grade_settings,
         stats: {
           review_count:    reviews.length,
           wishlist_count:  wishlist.length,
