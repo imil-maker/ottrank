@@ -84,8 +84,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--font-mono)}
 .toast.show{opacity:1}
 
+/* PC: rc-content 하단 패딩 추가 — 삭제 버튼 잘림 방지 */
+@media(min-width:601px){
+  #reviewArea .rc-content {
+    padding-bottom: 60px;
+  }
+}
+
 @media(max-width:600px){
   .page-wrap{padding:24px 16px 60px}
+
+  /* 모바일 — 2열 그리드로 전환 */
+  #reviewArea .rc-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow-x: unset !important;
+    scroll-snap-type: unset !important;
+    padding: 0 !important;
+    row-gap: 16px !important;
+  }
+  #reviewArea .rc-card {
+    flex: unset !important;
+    min-width: unset !important;
+    scroll-snap-align: unset !important;
+  }
+  /* 모바일 rc-poster 높이 20px 추가 */
+  #reviewArea .rc-poster {
+    aspect-ratio: unset !important;
+    height: calc((100vw - 40px) / 2 * 1.5 + 20px) !important;
+  }
 }
 </style>
 </head>
@@ -125,7 +152,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <script>
 const API  = 'https://ottrank-api.tdidream.workers.dev';
 const IMG  = 'https://image.tmdb.org/t/p/w300';
-const PER  = 20; // 한 페이지당 후기 수
+const PER  = 20; // 한 페이지당 후기 수 (PC 20개, 모바일은 동일 적용)
 
 let ALL_REVIEWS = [];
 let IS_OWN      = false;
