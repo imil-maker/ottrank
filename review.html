@@ -236,12 +236,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   overflow:hidden;
   background:#13131a;
 }
-/* 포스터 — 카드 상단 55%, 중앙 크롭 */
+/* 포스터 — background-image 방식으로 중앙 크롭 (html2canvas 호환) */
 #shareCardPoster{
   position:absolute;top:0;left:0;
   width:100%;height:400px;
-  object-fit:cover;
-  object-position:center center;
+  background-size:cover;
+  background-position:center center;
+  background-repeat:no-repeat;
   display:block;
 }
 /* 포스터 없을 때 대체 배경 */
@@ -499,7 +500,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <!-- 공유 카드 (이미지 생성용 — 화면에는 숨김) -->
 <div id="shareCard">
-  <img id="shareCardPoster" src="" alt="" width="540" height="400" style="object-fit:cover;object-position:center center">
+  <div id="shareCardPoster"></div>
   <div id="shareCardPosterFallback"></div>
   <div id="shareCardFade"></div>
   <div id="shareCardBadgeRow">
@@ -846,7 +847,8 @@ async function shareReviewCard(){
     const posterEl=document.getElementById('shareCardPoster');
     const fallbackEl=document.getElementById('shareCardPosterFallback');
     if(posterDataUrl){
-      posterEl.src=posterDataUrl;
+      // background-image 방식 — html2canvas에서 object-fit:cover 버그 우회
+      posterEl.style.backgroundImage=`url(${posterDataUrl})`;
       posterEl.style.display='block';
       fallbackEl.style.display='none';
     }else{
