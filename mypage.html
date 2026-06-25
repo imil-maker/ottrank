@@ -571,6 +571,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   /* 픽 썸네일 크기 조정 */
   .pick-thumb{width:44px;height:66px}
   .pick-thumb-more{width:44px;height:66px}
+
+  /* 리뷰 카드 — 모바일 2열 그리드 오버라이드 (community.html과 동일) */
+  #reviewArea .rc-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow-x: unset !important;
+    scroll-snap-type: unset !important;
+    padding: 0 !important;
+    row-gap: 16px !important;
+  }
+  #reviewArea .rc-card {
+    flex: unset !important;
+    min-width: unset !important;
+    scroll-snap-align: unset !important;
+  }
 }
 
 /* ══ PC 전용 스타일 (601px 이상) ══ */
