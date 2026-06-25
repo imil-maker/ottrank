@@ -585,9 +585,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     scroll-snap-align:start;
   }
 
-  /* ── 4. 최근 평점 후기 ── */
-  /* review-card.css 모바일 기본값 그대로 사용
-     (가로 슬라이드, 카드 너비 200px — 닉네임까지 모두 표시됨) */
+  /* ── 4. 최근 평점 후기 — community.html과 동일한 2열 그리드 ── */
+  #reviewGrid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow-x: unset !important;
+    scroll-snap-type: unset !important;
+    padding: 0 12px 12px !important;
+    row-gap: 27px !important;
+  }
+  #reviewGrid .rc-card {
+    flex: unset !important;
+    min-width: unset !important;
+    scroll-snap-align: unset !important;
+  }
 
   /* ── 5. 유튜브 급상승 ── */
   .yt-grid{
