@@ -63,7 +63,7 @@
     /* ── 리뷰 카드 섹션 ── */
     .review-layout { display:flex; gap:14px; align-items:flex-start; }
     .review-left { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
-    .review-sec-title { font-size:14px; font-weight:500; color:#fff; line-height:1.5; }
+    .review-sec-title { font-size:17px; font-weight:700; color:#fff; line-height:1.45; }
     .card-desc { font-size:12px; color:#888; line-height:1.65; }
     .earn-row { display:flex; gap:8px; }
     .earn-chip {
@@ -294,7 +294,13 @@
 
   <!-- CTA -->
   <div class="cta-area">
-    <a class="btn-p" id="btnGo" href="/mypage.html">오뜨 받으러 가기 ›</a>
+    <div style="display:flex;gap:10px;">
+      <a class="btn-p" id="btnGo" href="/mypage.html" style="flex:1;">오뜨 획득하기 ›</a>
+      <a class="btn-p" id="btnMypage" href="/mypage.html"
+        style="flex:1;background:transparent;color:var(--gold);border:1.5px solid var(--gold);">
+        마이페이지 ›
+      </a>
+    </div>
   </div>
 
   <!-- 안내사항 -->
@@ -317,7 +323,11 @@
 
   // ── mypage 버튼에 sid 붙이기 ─────────────────────────────
   const btnGo = document.getElementById('btnGo');
-  if (sid) btnGo.href = `/mypage.html?sid=${sid}`;
+  const btnMypage = document.getElementById('btnMypage');
+  if (sid) {
+    btnGo.href = `/mypage.html?sid=${sid}`;
+    btnMypage.href = `/mypage.html?sid=${sid}`;
+  }
 
   // ── 등급 정보 (grade_settings 기준) ──────────────────────
   // DB grade_settings 기준 (sort_order 순서)
