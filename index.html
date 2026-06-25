@@ -585,22 +585,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     scroll-snap-align:start;
   }
 
-  /* ── 4. 최근 평점 후기 — community.html과 동일한 2열 그리드 오버라이드 ── */
-  /* review-card.css 기본 모바일은 가로 슬라이드지만,
-     메인/커뮤니티 모두 2열 그리드로 전환 (!important 필수) */
-  #reviewGrid {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    overflow-x: unset !important;
-    scroll-snap-type: unset !important;
-    padding: 0 12px 12px !important;
-    row-gap: 27px !important;
-  }
-  #reviewGrid .rc-card {
-    flex: unset !important;
-    min-width: unset !important;
-    scroll-snap-align: unset !important;
-  }
+  /* ── 4. 최근 평점 후기 ── */
+  /* review-card.css 모바일 기본값 그대로 사용
+     (가로 슬라이드, 카드 너비 200px — 닉네임까지 모두 표시됨) */
 
   /* ── 5. 유튜브 급상승 ── */
   .yt-grid{
@@ -787,7 +774,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <div class="ott-grid" id="movieGrid"></div>
 
   <!-- ══ 최근 평점 후기 ══ -->
-  <div class="sec-hd" id="recentReviews">
+  <div class="sec-hd" id="reviewSecHd">
     <span class="sec-icon">⭐</span>
     <span class="sec-title">최근 평점 후기</span>
     <span class="sec-sub">LATEST REVIEWS</span>
@@ -1470,8 +1457,7 @@ async function loadRecentReviews() {
     const data = await res.json();
 
     if (!data.ok || !data.reviews?.length) {
-      // 리뷰 없으면 섹션 전체 숨김
-      document.getElementById('recentReviews')?.style.setProperty('display', 'none');
+      // 리뷰 없으면 그리드만 숨김 (섹션 헤더는 항상 표시)
       document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
       return;
     }
@@ -1490,7 +1476,7 @@ async function loadRecentReviews() {
     }
 
     if (!unique.length) {
-      document.getElementById('recentReviews')?.style.setProperty('display', 'none');
+      // 유효한 리뷰 없으면 그리드만 숨김 (섹션 헤더는 항상 표시)
       document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
       return;
     }
@@ -1500,8 +1486,7 @@ async function loadRecentReviews() {
     ReviewCard.renderGrid(reviews, 'reviewGrid');
 
   } catch(e) {
-    // API 오류 시 섹션 숨김
-    document.getElementById('recentReviews')?.style.setProperty('display', 'none');
+    // API 오류 시 그리드만 숨김 (섹션 헤더는 항상 표시)
     document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
   }
 }
