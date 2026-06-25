@@ -251,10 +251,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   background:linear-gradient(135deg,#3a2e22 0%,#6b4a2e 45%,#d4a05a 100%);
   display:none;
 }
-/* 그라디언트 — 포스터 하단 30% 지점(427px)부터 자연스럽게 페이드 */
+/* 그라디언트 — 포스터 하단 30% 지점(427px)부터 카드 끝까지 자연스럽게 페이드 */
 #shareCardFade{
-  position:absolute;top:427px;left:0;width:100%;height:240px;
-  background:linear-gradient(180deg,transparent 0%,rgba(13,13,20,.7) 50%,#13131a 100%);
+  position:absolute;top:427px;left:0;width:100%;height:533px;
+  background:linear-gradient(180deg,
+    transparent 0%,
+    rgba(13,13,20,.5) 25%,
+    rgba(13,13,20,.85) 50%,
+    #13131a 70%,
+    #13131a 100%
+  );
 }
 /* 좌상단 — 오뜨랑 리뷰 뱃지 */
 #shareCardBadgeRow{
