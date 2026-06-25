@@ -219,17 +219,7 @@
 .ottrang-mob-ham-btn    { display:none; }
 
 /* ══ 모바일 검색 오버레이 ══ */
-.ottrang-mob-search-overlay {
-  display:none;
-  position:fixed;
-  top:0;left:0;right:0;bottom:0;
-  z-index:10000;
-  background:transparent; /* 본문 그대로 보임 */
-  flex-direction:column;
-  align-items:stretch;
-  pointer-events:none; /* 배경 클릭 통과 */
-}
-.ottrang-mob-search-overlay.show { display:flex; pointer-events:auto; }
+.ottrang-mob-search-overlay { display:none !important; } /* 오버레이 방식 미사용 */
 .ottrang-mob-search-bar {
   background:rgba(12,12,16,0.96);
   backdrop-filter:blur(16px);
@@ -486,6 +476,47 @@
 
   /* 모바일 버튼 표시 */
   .ottrang-mob-search-btn { display:flex; }
+
+  /* ── 헤더 검색 모드 ── */
+  .ottrang-header-inner.search-mode .ottrang-logo   { display:none; }
+  .ottrang-header-inner.search-mode .ottrang-hright { display:none !important; }
+  .ottrang-header-inner.search-mode .ottrang-mob-right { display:none; }
+  .ottrang-header-search-mode {
+    display:none;
+    flex:1;align-items:center;gap:8px;
+  }
+  .ottrang-header-inner.search-mode .ottrang-header-search-mode { display:flex; }
+  .ottrang-mob-search-back-btn {
+    width:36px;height:36px;flex-shrink:0;
+    border-radius:50%;background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.1);
+    color:#a0a0bc;font-size:18px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .ottrang-header-search-input {
+    flex:1;height:40px;
+    background:var(--bg3);border:1px solid rgba(255,255,255,0.12);
+    border-radius:22px;padding:0 18px;
+    color:#ededf0;font-family:var(--sans);font-size:15px;
+    outline:none;
+    -webkit-text-fill-color:#ededf0;
+  }
+  .ottrang-header-search-input:focus { border-color:rgba(230,57,70,0.5); }
+  .ottrang-header-search-input::placeholder { color:#7a7a96; }
+  /* 검색 결과 드롭다운 — 헤더 바로 아래 */
+  .ottrang-header-search-results {
+    display:none;
+    position:fixed;
+    top:64px;left:0;right:0;
+    max-height:calc(100vh - 64px);
+    overflow-y:auto;
+    background:rgba(12,12,16,0.97);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    z-index:9999;
+    border-top:1px solid rgba(255,255,255,0.07);
+  }
+  .ottrang-header-search-results.show { display:block; }
   .ottrang-mob-ham-btn    { display:flex; }
 
   /* 슬로건 배너 숨김 */
@@ -536,8 +567,16 @@
       </a>
     </div>
 
+    <!-- ── 모바일 검색 모드 (헤더 내부 전환) ── -->
+    <div class="ottrang-header-search-mode" id="ottrangHeaderSearchMode">
+      <button class="ottrang-mob-search-back-btn" id="ottrangHeaderSearchBack">&#8592;</button>
+      <input class="ottrang-header-search-input" id="ottrangHeaderSearchInput"
+        type="text" placeholder="작품, 배우, 감독 검색"
+        autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+
     <!-- ── 모바일 전용: 검색 아이콘 + 햄버거 버튼 ── -->
-    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;" class="ottrang-mob-right">
       <!-- 검색 아이콘 (원형) -->
       <button class="ottrang-mob-search-btn" id="ottrangMobSearchBtn"
         aria-label="검색"
@@ -567,6 +606,9 @@
   </div>
 </div>
 <!-- ══ 모바일 검색 오버레이 ══ -->
+<!-- ── 헤더 검색 결과 드롭다운 ── -->
+<div class="ottrang-header-search-results" id="ottrangHeaderSearchResults"></div>
+
 <div class="ottrang-mob-search-overlay" id="ottrangMobSearchOverlay">
   <div class="ottrang-mob-search-bar">
     <button class="ottrang-mob-search-back" id="ottrangMobSearchBack" aria-label="검색 닫기">&#8592;</button>
@@ -1074,28 +1116,85 @@ function initHeader(){
     }
   }
 
-  // 모바일 검색 오버레이 열기
+  // ── 모바일 헤더 검색 모드 전환 ──────────────────────────────
+  const _headerInner   = document.querySelector('.ottrang-header-inner');
+  const _headerSrInput = document.getElementById('ottrangHeaderSearchInput');
+  const _headerSrRes   = document.getElementById('ottrangHeaderSearchResults');
+
+  // 검색 모드 열기
   document.getElementById('ottrangMobSearchBtn')?.addEventListener('click', () => {
-    const overlay = document.getElementById('ottrangMobSearchOverlay');
-    const input   = document.getElementById('ottrangMobSearchInput');
-    if(!overlay) return;
-    overlay.classList.add('show');
-    document.body.style.overflow = 'hidden';
-    // 즉시 포커스 — 키보드 자동 올라옴
-    setTimeout(() => input?.focus(), 80);
+    _headerInner?.classList.add('search-mode');
+    setTimeout(() => _headerSrInput?.focus(), 80);
   });
 
-  // 모바일 검색 오버레이 닫기
+  // 검색 모드 닫기
   function _closeMobSearch() {
-    const overlay = document.getElementById('ottrangMobSearchOverlay');
-    const input   = document.getElementById('ottrangMobSearchInput');
-    const results = document.getElementById('ottrangMobSearchResults');
-    if(!overlay) return;
-    overlay.classList.remove('show');
-    document.body.style.overflow = '';
-    if(input)   input.value = '';
-    if(results) results.innerHTML = '';
+    _headerInner?.classList.remove('search-mode');
+    if(_headerSrInput)  _headerSrInput.value = '';
+    if(_headerSrRes)  { _headerSrRes.innerHTML = ''; _headerSrRes.classList.remove('show'); }
   }
+  document.getElementById('ottrangHeaderSearchBack')?.addEventListener('click', _closeMobSearch);
+
+  // 검색 입력 — 결과 표시
+  _headerSrInput?.addEventListener('input', function() {
+    const q = this.value.trim();
+    if(!q || q.length < 2) {
+      if(_headerSrRes) { _headerSrRes.innerHTML = ''; _headerSrRes.classList.remove('show'); }
+      return;
+    }
+    clearTimeout(window._hdrSrTimer);
+    window._hdrSrTimer = setTimeout(() => _hdrRunSearch(q), 350);
+  });
+  _headerSrInput?.addEventListener('keydown', function(e) {
+    if(e.key === 'Enter') {
+      clearTimeout(window._hdrSrTimer);
+      _hdrRunSearch(this.value.trim(), true);
+    }
+    if(e.key === 'Escape') _closeMobSearch();
+  });
+
+  // 모바일 헤더 검색 실행 (_mobRunSearch와 동일 로직, 컨테이너만 다름)
+  async function _hdrRunSearch(q) {
+    if(!q || q.length < 2) return;
+    if(_headerSrRes) { _headerSrRes.innerHTML = '<div class="ottrang-sr-loading">검색 중...</div>'; _headerSrRes.classList.add('show'); }
+    const API        = 'https://ottrank-api.tdidream.workers.dev';
+    const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+    const IMG        = 'https://image.tmdb.org/t/p/w92';
+    function _slug(tmdb_id){ return `/title/1-${new Date().getFullYear()}${tmdb_id}`; }
+    function _hesc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function _workItem(w, isDB){
+      const poster    = w.poster_path ? `<img class="ottrang-sr-poster" src="${IMG}${w.poster_path}" alt="" loading="lazy">` : `<div class="ottrang-sr-poster-ph">🎬</div>`;
+      const title     = w.title_ko||w.title||w.name||'';
+      const titleEn   = w.title_en||w.original_title||w.original_name||'';
+      const year      = (w.release_year||(w.first_air_date||w.release_date||'').slice(0,4))||'';
+      const mtype     = w.media_type||w._type||'';
+      const typeLabel = mtype==='movie'?'영화':'TV';
+      const typeColor = mtype==='movie'?'rgba(240,180,41,.8)':'rgba(55,138,221,.8)';
+      const dbBadge   = isDB?'<span class="ottrang-sr-db">DB</span>':'';
+      const slug      = w.tmdb_id?_slug(w.tmdb_id):'#';
+      const goWork    = w.tmdb_id
+        ? `(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${w.tmdb_id},type:'${mtype||'tv'}',platform:'',rank:1,title:'${title.replace(/'/g,'').replace(/"/g,'')}',season:1,year:${new Date().getFullYear()}}));location.href='${slug}';})()`
+        : `location.href='#'`;
+      return `<div class="ottrang-sr-item" onclick="${goWork}">${poster}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(title)}</div><div class="ottrang-sr-meta">${_hesc(titleEn)}${year?` · ${year}`:''}</div></div><span class="ottrang-sr-type" style="background:${typeColor};color:#fff">${typeLabel}</span>${dbBadge}</div>`;
+    }
+    try {
+      const [dbRes, tmdbRes] = await Promise.all([
+        fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`).then(r=>r.json()).catch(()=>({results:[]})),
+        fetch(`${TMDB_PROXY}/search/multi?query=${encodeURIComponent(q)}&language=ko-KR&page=1`).then(r=>r.json()).catch(()=>({results:[]})),
+      ]);
+      const dbItems   = (dbRes.results||[]).slice(0,3).map(w=>_workItem(w,true));
+      const tmdbItems = (tmdbRes.results||[]).filter(w=>w.media_type==='movie'||w.media_type==='tv').slice(0,5).map(w=>_workItem(w,false));
+      const html = [...dbItems, ...tmdbItems].join('');
+      if(_headerSrRes) {
+        _headerSrRes.innerHTML = html || '<div class="ottrang-sr-empty">검색 결과가 없어요</div>';
+        _headerSrRes.classList.add('show');
+      }
+    } catch(e) {
+      if(_headerSrRes) _headerSrRes.innerHTML = '<div class="ottrang-sr-empty">검색 중 오류가 발생했어요</div>';
+    }
+  }
+
+  // 기존 오버레이 닫기 함수 (호환성 유지)
   document.getElementById('ottrangMobSearchBack')?.addEventListener('click', _closeMobSearch);
 
   // 모바일 검색 — 기존 _runSearch 함수 재사용 (결과를 모바일 컨테이너에 출력)
