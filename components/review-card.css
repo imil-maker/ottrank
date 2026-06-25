@@ -11,10 +11,7 @@
   margin-bottom: 20px;
 }
 
-/* ── 카드 외곽 ──
-   높이 자동 — 포스터 + 콘텐츠 내용만큼 늘어남
-   aspect-ratio 제거 → rc-poster가 높이를 결정
-── */
+/* ── 카드 외곽 ── */
 .rc-card {
   position: relative;
   border-radius: var(--r);
@@ -23,8 +20,6 @@
   background: var(--bg2);
   border: .5px solid var(--border);
   transition: transform .2s, border-color .15s;
-  display: flex;
-  flex-direction: column;
 }
 .rc-card:hover {
   transform: translateY(-3px);
@@ -32,15 +27,16 @@
 }
 
 /* ── 포스터 영역 ──
-   aspect-ratio: 2/3 여기로 이동 — 포스터 비율 유지
-   position: relative — rc-content 오버레이 기준점
+   aspect-ratio:2/3 로 포스터 비율 유지
+   rc-content가 안에서 position:absolute 로 올라타므로
+   overflow:visible 로 콘텐츠가 밖으로 나올 수 있게
 ── */
 .rc-poster {
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
   background: var(--bg3);
-  flex-shrink: 0;
+  overflow: visible;
 }
 
 /* 포스터 배경 이미지 */
@@ -50,6 +46,8 @@
   background-size: cover;
   background-position: center 20%;
   background-repeat: no-repeat;
+  border-radius: var(--r) var(--r) 0 0;
+  overflow: hidden;
 }
 
 /* 포스터 없을 때 플레이스홀더 */
@@ -111,26 +109,24 @@
 }
 
 /* ── 콘텐츠 영역 ──
-   포스터 하단 50% 지점에 오버레이로 시작
-   rc-poster 높이의 50%만큼 위로 올라가서 겹침
-   rc-card는 높이 자동이므로 콘텐츠가 길면 카드도 늘어남
+   position:absolute, top:50% — 포스터 50% 지점에서 시작
+   height:auto — 내용이 길면 포스터 밖으로 자연스럽게 늘어남
 ── */
 .rc-content {
-  position: relative;
-  /* 포스터와 50% 겹치도록 위로 올림 */
-  margin-top: -50%;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
   padding: 14px 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 7px;
-  background: transparent;
   z-index: 2;
-  /* 포스터 그라디언트와 자연스럽게 이어지도록 배경 그라디언트 */
   background: linear-gradient(
     180deg,
     transparent        0%,
-    rgba(13,13,20,.97) 20%,
-    #13131a           35%
+    rgba(13,13,20,.97) 18%,
+    #13131a           30%
   );
 }
 
@@ -220,7 +216,6 @@
   justify-content: space-between;
   padding-top: 6px;
   border-top: .5px solid rgba(255,255,255,.12);
-  margin-top: auto;
 }
 /* 닉네임 — 14px */
 .rc-nick {
@@ -302,7 +297,7 @@
 
   /* 태그: 최대 2개만 표시 */
   .rc-tag:nth-child(n+3) { display: none; }
-  .rc-tag { font-size: 10px; padding: 2px 6px; }
+  .rc-tag  { font-size: 10px; padding: 2px 6px; }
 
   .rc-time { font-size: 10px; }
 }
