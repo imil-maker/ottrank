@@ -2,15 +2,16 @@
    오뜨랑 리뷰 카드 공통 컴포넌트
    사용처: index.html / mypage.html / community.html
 
-   사용법:
-     // 그리드 전체 렌더링
-     ReviewCard.renderGrid(reviews, 'reviewGrid');
-
-     // 단일 카드 HTML 반환
-     const html = ReviewCard.render(review);
-     
-     // 스켈레톤 n개 생성
-     ReviewCard.skeleton('reviewGrid', 5);
+   카드 구조:
+     rc-card (높이 자동 — flex column)
+       ├── rc-poster (aspect-ratio:2/3 — 포스터 비율 유지)
+       │     ├── rc-poster-bg  (배경 이미지)
+       │     ├── rc-poster-ph  (이미지 없을 때 🎬)
+       │     ├── rc-poster-fade (45%부터 그라디언트)
+       │     ├── rc-platform-badge (좌상단 플랫폼)
+       │     └── rc-poster-score   (우상단 별점)
+       └── rc-content (margin-top:-50% 로 포스터와 50% 겹침, 이후 자연스럽게 늘어남)
+             작품명 / 별점 / 구분선 / 한줄감상 / 태그 / 푸터
    ══════════════════════════════════════════════ */
 
 const ReviewCard = (() => {
@@ -59,21 +60,7 @@ const ReviewCard = (() => {
     return (str || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  /* ── 단일 카드 HTML 생성 ──
-     rv: {
-       tmdb_id, media_type, title_ko, platform, poster_path,
-       score, evaluation, emotions, body, nickname, created_at
-     }
-     구조:
-       rc-card (aspect-ratio:2/3, position:relative)
-         └── rc-poster (position:absolute, inset:0)
-               ├── rc-poster-bg  (배경 이미지)
-               ├── rc-poster-ph  (이미지 없을 때)
-               ├── rc-poster-fade (50%부터 그라디언트)
-               ├── rc-platform-badge (좌상단 플랫폼)
-               ├── rc-poster-score   (우상단 별점)
-               └── rc-content (position:absolute, top:50%, 오버레이)
-  ── */
+  /* ── 단일 카드 HTML 생성 ── */
   function render(rv) {
     const nick      = esc(rv.nickname || '익명');
     const title     = esc(rv.title_ko || '작품명 미확인');
@@ -90,7 +77,7 @@ const ReviewCard = (() => {
       : '';
 
     // 평가 태그
-    const evalTags = ['강추해요','추천해요','평범해요','별로예요'];
+    const evalTags  = ['강추해요','추천해요','평범해요','별로예요'];
     const evalBadge = rv.evaluation && evalTags.includes(rv.evaluation)
       ? `<span class="rc-tag eval">${esc(rv.evaluation)}</span>`
       : '';
@@ -105,69 +92,55 @@ const ReviewCard = (() => {
       ? `<div class="rc-body">"${esc(rv.body)}"</div>`
       : `<div class="rc-body rc-body-empty">평점만 남긴 후기</div>`;
 
-    // 클릭 시 작품 상세 → 유저 리뷰 섹션으로 이동
+    // 클릭 시 작품 상세로 이동
     const clickFn = rv.tmdb_id
       ? `ReviewCard.goDetail(${rv.tmdb_id},'${rv.media_type||'tv'}','${title.replace(/'/g,'')}',1,'')`
       : '';
 
     return `
 <div class="rc-card" onclick="${clickFn}">
-  <div class="rc-poster">
 
-    <!-- 포스터 배경 이미지 or 플레이스홀더 -->
+  <!-- 포스터 영역 (aspect-ratio:2/3, 그라디언트 포함) -->
+  <div class="rc-poster">
     ${posterUrl
       ? `<div class="rc-poster-bg" style="background-image:url('${posterUrl}')"></div>`
       : `<div class="rc-poster-ph">🎬</div>`
     }
-
-    <!-- 50% 지점부터 하단까지 그라디언트 -->
     <div class="rc-poster-fade"></div>
-
-    <!-- 좌상단 플랫폼 뱃지 -->
     ${pfLabel ? `<div class="rc-platform-badge" style="background:${pfColor}">${pfLabel}</div>` : ''}
-
-    <!-- 우상단 별점 -->
     ${scoreNum ? `<div class="rc-poster-score">★ ${scoreNum}</div>` : ''}
+  </div>
 
-    <!-- 콘텐츠 오버레이 (포스터 하단 50% 위치) -->
-    <div class="rc-content">
+  <!-- 콘텐츠 (margin-top:-50%로 포스터와 50% 겹쳐서 시작, 이후 자연스럽게 늘어남) -->
+  <div class="rc-content">
 
-      <!-- 작품명 -->
-      <div class="rc-title">${title}</div>
+    <div class="rc-title">${title}</div>
 
-      <!-- 별점 -->
-      <div class="rc-stars-row">
-        <span class="rc-stars">${stars}</span>
-        ${scoreNum ? `<span class="rc-score-num">${scoreNum}/10</span>` : ''}
-      </div>
+    <div class="rc-stars-row">
+      <span class="rc-stars">${stars}</span>
+      ${scoreNum ? `<span class="rc-score-num">${scoreNum}/10</span>` : ''}
+    </div>
 
-      <div class="rc-divider"></div>
+    <div class="rc-divider"></div>
 
-      <!-- 한줄 감상 -->
-      ${bodyHtml}
+    ${bodyHtml}
 
-      <!-- 태그 -->
-      ${(evalBadge || emoTags)
-        ? `<div class="rc-tags">${evalBadge}${emoTags}</div>`
-        : ''
-      }
+    ${(evalBadge || emoTags)
+      ? `<div class="rc-tags">${evalBadge}${emoTags}</div>`
+      : ''
+    }
 
-      <!-- 푸터: 닉네임 + 시간 -->
-      <div class="rc-footer">
-        <span class="rc-nick">${nick}</span>
-        <span class="rc-time">${time}</span>
-      </div>
+    <div class="rc-footer">
+      <span class="rc-nick">${nick}</span>
+      <span class="rc-time">${time}</span>
+    </div>
 
-    </div><!-- /rc-content -->
+  </div>
 
-  </div><!-- /rc-poster -->
 </div>`;
   }
 
-  /* ── 그리드 전체 렌더링 ──
-     reviews: 리뷰 배열
-     gridId:  대상 DOM id (기본값 'reviewGrid')
-  ── */
+  /* ── 그리드 전체 렌더링 ── */
   function renderGrid(reviews, gridId = 'reviewGrid') {
     const grid = document.getElementById(gridId);
     if (!grid) return;
@@ -187,16 +160,16 @@ const ReviewCard = (() => {
   <div class="rc-poster">
     <div class="rc-skel" style="position:absolute;inset:0;border-radius:0"></div>
     <div class="rc-poster-fade"></div>
-    <div class="rc-content">
-      <div class="rc-skel" style="height:18px;width:75%"></div>
-      <div class="rc-skel" style="height:13px;width:50%"></div>
-      <div class="rc-divider"></div>
-      <div class="rc-skel" style="height:14px;width:90%"></div>
-      <div class="rc-skel" style="height:14px;width:70%"></div>
-      <div class="rc-footer">
-        <div class="rc-skel" style="height:13px;width:40%"></div>
-        <div class="rc-skel" style="height:11px;width:22%"></div>
-      </div>
+  </div>
+  <div class="rc-content">
+    <div class="rc-skel" style="height:18px;width:75%"></div>
+    <div class="rc-skel" style="height:13px;width:50%"></div>
+    <div class="rc-divider"></div>
+    <div class="rc-skel" style="height:13px;width:90%"></div>
+    <div class="rc-skel" style="height:13px;width:70%"></div>
+    <div class="rc-footer">
+      <div class="rc-skel" style="height:12px;width:40%"></div>
+      <div class="rc-skel" style="height:10px;width:22%"></div>
     </div>
   </div>
 </div>`).join('');
@@ -204,12 +177,10 @@ const ReviewCard = (() => {
 
   /* ── 작품 상세 + 유저 리뷰 섹션으로 이동 ── */
   function goDetail(tmdbId, type, title, season, year) {
-    // goDetailReview가 전역에 있으면 사용, 없으면 직접 구현
     if (typeof goDetailReview === 'function') {
       goDetailReview(tmdbId, type, title, season, year);
       return;
     }
-    // 폴백: 직접 작품 상세 URL로 이동
     const slug = `${title.replace(/[^\w가-힣]/g, '-').toLowerCase()}-${tmdbId}`;
     location.href = `/${type === 'movie' ? 'movie' : 'tv'}/${slug}#userReviews`;
   }
