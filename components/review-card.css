@@ -8,7 +8,7 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   column-gap: 12px;
-  row-gap: 22px;  /* 줄 사이 여백 — 기존 12px + 10px 추가 */
+  row-gap: 27px;  /* 줄 사이 여백 */
   margin-bottom: 20px;
 }
 
@@ -29,15 +29,15 @@
 
 /* ── 포스터 영역 ──
    aspect-ratio:2/3 로 포스터 비율 유지
-   rc-content가 안에서 position:absolute 로 올라타므로
-   overflow:visible 로 콘텐츠가 밖으로 나올 수 있게
+   overflow:hidden — 포스터 이미지가 비율 밖으로 나오지 않게
+   rc-content는 position:absolute top:50%로 포스터 밖까지 늘어남
 ── */
 .rc-poster {
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
   background: var(--bg3);
-  overflow: visible;
+  overflow: hidden;
 }
 
 /* 포스터 배경 이미지 — rc-card overflow:hidden 없으므로 직접 border-radius 적용 */
@@ -171,7 +171,7 @@
 .rc-body {
   font-size: 14px;
   color: rgba(255,255,255,.9);
-  font-style: italic;
+  font-style: normal;
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
