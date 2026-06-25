@@ -34,7 +34,7 @@
   /* 타이포 */
   --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
   /* 레이아웃 */
-  --r:10px;--r-lg:16px;--content-w:860px;
+  --r:10px;--r-lg:16px;--content-w:1000px;
 }
 
 /* ══ 리셋 & 베이스 ══ */
@@ -634,6 +634,30 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   /* 오뜨 점수 PC */
   .ott-score{font-size:36px}
+
+  /* ── PC 폰트 전반 확대 ── */
+  /* 섹션 타이틀 통일 — sec-title / rv-label-txt / ott-label-txt 동일 크기 */
+  .sec-title         { font-size: 17px; }
+  .rv-label-txt      { font-size: 17px; letter-spacing: 0; }
+  .ott-label-txt     { font-size: 17px; letter-spacing: 0; }
+  /* 프로필 */
+  .profile-nickname  { font-size: 22px; }
+  .profile-meta      { font-size: 14px; }
+  .profile-grade-badge { font-size: 12px; }
+  .mbti-badge        { font-size: 12px; }
+  /* 섹션 카운트, 뱃지 */
+  .sec-count         { font-size: 13px; }
+  .sec-ott-badge     { font-size: 13px; }
+  /* 오뜨 카드 */
+  .ott-log-reason    { font-size: 13px; }
+  .ott-log-pt        { font-size: 13px; }
+  /* 리뷰 카드 내부 */
+  .rv-title          { font-size: 16px; }
+  .rv-desc           { font-size: 13px; }
+  .rv-btn-act        { font-size: 12px; }
+  .rv-btn-amt        { font-size: 13px; }
+  /* 찜 */
+  .wish-title        { font-size: 12px; }
 }
 </style>
 </head>
@@ -1409,81 +1433,78 @@ function renderReviews() {
 
   // rc-card 형태로 렌더링 — goTitle() 로직 완전 유지
   // data-* 속성 + onclick="goTitle(this)" 방식 그대로 사용
-  el.innerHTML = `<div class="rc-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:0">${slice.map(r => {
-    const score    = parseFloat(r.score) || 0;  // 5점 기준 그대로 (rc-card는 5점 기준 사용)
-    const scoreNum = score ? (score * 2).toFixed(1).replace(/\.0$/, '') : '';
-    const emotions = _json(r.emotions, []);
-    const EVAL_SET = ['강추해요','추천해요','평범해요','별로예요'];
+  const EVAL_SET = ['강추해요','추천해요','평범해요','별로예요'];
+  el.innerHTML = '<div class="rc-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:0">'
+    + slice.map(function(r) {
+      var score    = parseFloat(r.score) || 0;
+      var scoreNum = score ? (score * 2).toFixed(1).replace(/\.0$/, '') : '';
+      var emotions = _json(r.emotions, []);
 
-    // evaluation / emotions 분리
-    let evaluation = '';
-    let emoList = [...emotions];
-    if (emoList.length > 0 && EVAL_SET.includes(emoList[0])) {
-      evaluation = emoList.shift();
-    }
+      // evaluation / emotions 분리
+      var evaluation = '';
+      var emoList = emotions.slice();
+      if (emoList.length > 0 && EVAL_SET.indexOf(emoList[0]) !== -1) {
+        evaluation = emoList.shift();
+      }
 
-    // 별점 렌더링 (★½☆)
-    const full  = Math.floor(score);
-    const half  = (score - full) >= 0.5 ? 1 : 0;
-    const empty = 5 - full - half;
-    const stars = '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+      // 별점 렌더링 (★½☆)
+      var full  = Math.floor(score);
+      var half  = (score - full) >= 0.5 ? 1 : 0;
+      var empty = 5 - full - half;
+      var stars = '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
 
-    // 포스터 URL — poster_path가 경로만 있으면 풀 URL로
-    let posterUrl = r.poster_path || '';
-    if (posterUrl && !posterUrl.startsWith('http')) {
-      posterUrl = 'https://image.tmdb.org/t/p/w300' + posterUrl;
-    }
+      // 포스터 URL
+      var posterUrl = r.poster_path || '';
+      if (posterUrl && posterUrl.indexOf('http') !== 0) {
+        posterUrl = 'https://image.tmdb.org/t/p/w300' + posterUrl;
+      }
 
-    // 평가 태그
-    const evalBadge = evaluation
-      ? '<span class="rc-tag eval">' + evaluation + '</span>'
-      : '';
+      // 태그
+      var evalBadge = evaluation ? '<span class="rc-tag eval">' + evaluation + '</span>' : '';
+      var emoTags   = emoList.slice(0, 2).map(function(e) {
+        return '<span class="rc-tag emo">' + e + '</span>';
+      }).join('');
 
-    // 감정 태그 (최대 2개)
-    const emoTags = emoList.slice(0, 2)
-      .map(function(e) { return '<span class="rc-tag emo">' + e + '</span>'; })
-      .join('');
+      // 한줄 감상
+      var bodyHtml = r.text
+        ? '<div class="rc-body">"' + r.text + '"</div>'
+        : '<div class="rc-body rc-body-empty">평점만 남긴 후기</div>';
 
-    // 한줄 감상
-    const bodyHtml = r.text
-      ? '<div class="rc-body">"' + r.text + '"</div>'
-      : '<div class="rc-body rc-body-empty">평점만 남긴 후기</div>';
+      // 작품 이동 — 기존 goTitle() 방식 완전 유지
+      var goAttr = 'data-tmdb-id="' + r.tmdb_id + '"'
+        + ' data-title-ko="' + (r.title_ko || '').replace(/"/g, '&quot;') + '"'
+        + ' data-category="' + (r.category || 'tv') + '"'
+        + ' data-release-year="' + (r.release_year || '') + '"'
+        + ' onclick="goTitle(this)" style="cursor:pointer"';
 
-    // 작품 페이지 이동 — 기존 goTitle() 방식 완전 유지
-    const goAttr = 'data-tmdb-id="' + r.tmdb_id + '"'
-      + ' data-title-ko="' + (r.title_ko || '').replace(/"/g, '&quot;') + '"'
-      + ' data-category="' + (r.category || 'tv') + '"'
-      + ' data-release-year="' + (r.release_year || '') + '"'
-      + ' onclick="goTitle(this)"'
-      + ' style="cursor:pointer"';
+      // 삭제 버튼 (본인만)
+      var delBtn = IS_OWN
+        ? '<button class="del-btn" style="margin-top:6px;align-self:flex-start"'
+          + ' onclick="event.stopPropagation();delReview(' + r.tmdb_id + ',' + r.id + ')">삭제</button>'
+        : '';
 
-    // 삭제 버튼 (본인만)
-    const delBtnHtml = IS_OWN
-      ? '<button class="del-btn" style="margin-top:6px;align-self:flex-start"'
-        + ' onclick="event.stopPropagation();delReview(' + r.tmdb_id + ',' + r.id + ')">삭제</button>'
-      : '';
-
-    return '<div class="rc-card" ' + goAttr + '>'
-      + '<div class="rc-poster">'
-      + (posterUrl
-          ? '<div class="rc-poster-bg" style="background-image:url(\'' + posterUrl + '\')"></div>'
-          : '<div class="rc-poster-ph">🎬</div>')
-      + '<div class="rc-poster-fade"></div>'
-      + (scoreNum ? '<div class="rc-poster-score">★ ' + scoreNum + '</div>' : '')
-      + '<div class="rc-content">'
-      + '<div class="rc-title">' + (r.title_ko || '작품 #' + r.tmdb_id) + '</div>'
-      + '<div class="rc-stars-row">'
-      + '<span class="rc-stars">' + stars + '</span>'
-      + (scoreNum ? '<span class="rc-score-num">' + scoreNum + '/10</span>' : '')
-      + '</div>'
-      + '<div class="rc-divider"></div>'
-      + bodyHtml
-      + ((evalBadge || emoTags) ? '<div class="rc-tags">' + evalBadge + emoTags + '</div>' : '')
-      + delBtnHtml
-      + '</div>'
-      + '</div>'
-      + '</div>';
-  }).join('')}</div>`;
+      return '<div class="rc-card" ' + goAttr + '>'
+        + '<div class="rc-poster">'
+        + (posterUrl
+            ? '<div class="rc-poster-bg" style="background-image:url(\'' + posterUrl + '\')" ></div>'
+            : '<div class="rc-poster-ph">🎬</div>')
+        + '<div class="rc-poster-fade"></div>'
+        + (scoreNum ? '<div class="rc-poster-score">★ ' + scoreNum + '</div>' : '')
+        + '<div class="rc-content">'
+        + '<div class="rc-title">' + (r.title_ko || '작품 #' + r.tmdb_id) + '</div>'
+        + '<div class="rc-stars-row">'
+        + '<span class="rc-stars">' + stars + '</span>'
+        + (scoreNum ? '<span class="rc-score-num">' + scoreNum + '/10</span>' : '')
+        + '</div>'
+        + '<div class="rc-divider"></div>'
+        + bodyHtml
+        + ((evalBadge || emoTags) ? '<div class="rc-tags">' + evalBadge + emoTags + '</div>' : '')
+        + delBtn
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('')
+    + '</div>';
 }
 
 /* ══════════════════════════════════════
