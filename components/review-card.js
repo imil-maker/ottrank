@@ -91,7 +91,11 @@ const ReviewCard = (() => {
       ? `<div class="rc-body">"${esc(rv.body)}"</div>`
       : `<div class="rc-body rc-body-empty">평점만 남긴 후기</div>`;
 
-    // 클릭 시 작품 상세로 이동
+    // 닉네임 클릭 시 해당 유저 마이페이지로 이동 (작품 클릭과 별개)
+    const nickUrl   = rv.user_id ? `/mypage.html?uid=${rv.user_id}` : '#';
+    const nickLabel = `${nick} 리뷰`;
+
+    // 카드 클릭 시 작품 상세로 이동
     const clickFn = rv.tmdb_id
       ? `ReviewCard.goDetail(${rv.tmdb_id},'${rv.media_type||'tv'}','${title.replace(/'/g,'')}',1,'')`
       : '';
@@ -109,13 +113,14 @@ const ReviewCard = (() => {
     <!-- 포스터 45%부터 그라디언트 -->
     <div class="rc-poster-fade"></div>
 
-    <!-- 좌상단 플랫폼 뱃지 -->
-    ${pfLabel ? `<div class="rc-platform-badge" style="background:${pfColor}">${pfLabel}</div>` : ''}
+    <!-- 좌상단 닉네임 뱃지 — 클릭 시 해당 유저 마이페이지 이동 -->
+    <a class="rc-nick-badge" href="${nickUrl}"
+       onclick="event.stopPropagation()">${nickLabel}</a>
 
     <!-- 우상단 별점 -->
     ${scoreNum ? `<div class="rc-poster-score">★ ${scoreNum}</div>` : ''}
 
-    <!-- 콘텐츠 — 포스터 50% 지점에서 시작, 내용 길면 포스터 밖으로 늘어남 -->
+    <!-- 콘텐츠 — 포스터 50% 지점에서 시작 -->
     <div class="rc-content">
       <div class="rc-title">${title}</div>
       <div class="rc-stars-row">
@@ -128,10 +133,6 @@ const ReviewCard = (() => {
         ? `<div class="rc-tags">${evalBadge}${emoTags}</div>`
         : ''
       }
-      <div class="rc-footer">
-        <span class="rc-nick">${nick}</span>
-        <span class="rc-time">${time}</span>
-      </div>
     </div>
 
   </div>
