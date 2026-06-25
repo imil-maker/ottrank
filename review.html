@@ -973,6 +973,7 @@ async function shareReviewCard(skipModal=false){
     window.__shareFile__  = new File([blob],fileName,{type:'image/png'});
     window.__shareUrl__   = url;
     window.__shareFileName__ = fileName;
+    window.__cardDownloaded__ = false; // 새 카드 생성 시 다운로드 플래그 초기화
 
     // ── 미리보기 이미지 & 저장 링크 세팅 ──
     document.getElementById('sharePreviewImg').src=url;
@@ -1073,22 +1074,21 @@ function shareToInstagram(){
    모바일: kakaolink://home 앱 실행
    PC    : kakaotalk:// PC 앱 실행 ── */
 function shareToKakao(){
-  // 1. 이미지 자동 다운로드 트리거
-  const dl=document.getElementById('sharePreviewDownload');
-  if(dl && dl.href) dl.click();
+  // 1. 이미지 최초 1회만 다운로드 (중복 방지)
+  if(!window.__cardDownloaded__){
+    const dl=document.getElementById('sharePreviewDownload');
+    if(dl && dl.href) dl.click();
+    window.__cardDownloaded__=true;
+  }
 
-  // 2. 모바일/PC 분기해서 카카오톡 앱 실행
+  // 2. 카카오톡 앱 실행 (채팅 목록으로 바로 열기)
   setTimeout(()=>{
-    if(isMobile()){
-      window.location.href='kakaolink://home'; // 모바일 앱
-    } else {
-      window.location.href='kakaotalk://';     // PC 앱
-    }
+    window.location.href='kakaotalk://';
   }, 500);
 
-  // 3. 오뜨 적립
+  // 3. 오뜨 적립 + 안내 토스트
   claimShareOtt();
-  showToast('이미지 저장됐어요! 카카오톡에서 파일 첨부로 보내세요 📎');
+  showToast('이미지 저장됐어요! 채팅방에서 사진 첨부로 보내세요 📎');
 }
 
 /* ── 기타 공유
