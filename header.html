@@ -221,8 +221,11 @@
 /* ══ 모바일 검색 오버레이 ══ */
 .ottrang-mob-search-overlay {
   display:none;
-  position:fixed;inset:0;z-index:10000; /* 드로어보다 위 */
-  background:rgba(0,0,0,0.75);
+  position:fixed;
+  top:64px; /* 헤더 높이만큼 아래서 시작 */
+  left:0;right:0;bottom:0;
+  z-index:10000;
+  background:rgba(12,12,16,0.98);
   flex-direction:column;
   align-items:stretch;
 }
@@ -250,7 +253,7 @@
 .ottrang-mob-search-input::placeholder { color:var(--muted); }
 .ottrang-mob-search-input:focus { border-color:rgba(230,57,70,0.5); }
 .ottrang-mob-search-results {
-  flex:1;overflow-y:auto;background:#0c0c10;
+  flex:1;overflow-y:auto;background:transparent;
 }
 
 /* ══ 햄버거 드로어 ══ */
