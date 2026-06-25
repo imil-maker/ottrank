@@ -11,7 +11,10 @@
   margin-bottom: 20px;
 }
 
-/* ── 카드 외곽 ── */
+/* ── 카드 외곽 ──
+   포스터가 카드 전체 배경이 되는 구조
+   rc-poster가 카드를 꽉 채우고, rc-content가 그 위에 오버레이
+── */
 .rc-card {
   position: relative;
   border-radius: var(--r);
@@ -20,30 +23,27 @@
   background: var(--bg2);
   border: .5px solid var(--border);
   transition: transform .2s, border-color .15s;
-  display: flex;
-  flex-direction: column;
+  /* aspect-ratio로 카드 전체 높이 제어 — 포스터 비율 */
+  aspect-ratio: 2 / 3;
 }
 .rc-card:hover {
   transform: translateY(-3px);
   border-color: var(--border2);
 }
 
-/* ── 포스터 영역 — 2:3 비율 고정 ── */
+/* ── 포스터 영역 — 카드 전체를 덮는 배경 ── */
 .rc-poster {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 2 / 3;
+  position: absolute;
+  inset: 0;
   background: var(--bg3);
-  flex-shrink: 0;
-  overflow: hidden;
 }
 
-/* 포스터 배경 이미지 — background-size:cover 로 비율 유지 */
+/* 포스터 배경 이미지 */
 .rc-poster-bg {
   position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center 25%;
+  background-position: center 20%;
   background-repeat: no-repeat;
 }
 
@@ -54,92 +54,101 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 36px;
   background: linear-gradient(135deg, var(--bg3), var(--bg2));
 }
 
-/* 포스터 하단 그라디언트 — 콘텐츠 영역으로 자연스럽게 */
+/* 포스터 하단 그라디언트 — 50% 지점부터 완전 불투명으로
+   rc-content가 시작하는 지점과 일치 */
 .rc-poster-fade {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 60%;
+  inset: 0;
   background: linear-gradient(
     180deg,
-    transparent 0%,
-    rgba(13,13,20,.5) 50%,
-    rgba(13,13,20,.9) 80%,
-    #13131a 100%
+    transparent   0%,
+    transparent  45%,
+    rgba(13,13,20,.6)  55%,
+    rgba(13,13,20,.88) 65%,
+    rgba(13,13,20,.97) 78%,
+    #13131a       100%
   );
   pointer-events: none;
 }
 
-/* 포스터 위 플랫폼 뱃지 */
+/* 포스터 위 플랫폼 뱃지 (좌상단) */
 .rc-platform-badge {
   position: absolute;
-  top: 7px; left: 7px;
-  font-size: 9px;
+  top: 8px; left: 8px;
+  font-size: 10px;
   font-weight: 700;
   font-family: var(--mono);
   letter-spacing: .5px;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 3px;
   color: #fff;
-  z-index: 2;
+  z-index: 3;
 }
 
-/* 포스터 위 별점 (우하단) */
+/* 포스터 위 별점 (우상단) */
 .rc-poster-score {
   position: absolute;
-  bottom: 8px; right: 8px;
+  top: 8px; right: 8px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--gold);
-  background: rgba(0,0,0,.6);
-  padding: 2px 6px;
+  background: rgba(0,0,0,.65);
+  padding: 2px 7px;
   border-radius: 4px;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 3px;
 }
 
-/* ── 콘텐츠 영역 ── */
+/* ── 콘텐츠 영역 — 포스터 위 하단 50% 오버레이 ──
+   포스터 그라디언트와 자연스럽게 겹쳐짐
+── */
 .rc-content {
-  flex: 1;
-  padding: 8px 10px 10px;
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  /* 카드 높이의 50%부터 시작 */
+  top: 50%;
+  padding: 10px 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  background: #13131a;
+  gap: 6px;
+  z-index: 2;
+  /* 배경 없음 — 포스터 그라디언트가 배경 역할 */
 }
 
-/* 작품명 */
+/* 작품명 — 20px */
 .rc-title {
-  font-size: 13px;
+  font-size: 20px;
   font-weight: 700;
-  color: var(--text);
-  line-height: 1.3;
+  color: #fff;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 4px rgba(0,0,0,.8);
 }
 
 /* 별점 행 */
 .rc-stars-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 .rc-stars {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--gold);
   letter-spacing: 1px;
   line-height: 1;
 }
 .rc-score-num {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 14px;
   color: var(--gold);
   font-weight: 700;
 }
@@ -147,23 +156,24 @@
 /* 구분선 */
 .rc-divider {
   height: .5px;
-  background: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.15);
 }
 
-/* 한줄 감상 */
+/* 한줄 감상 — 16px */
 .rc-body {
-  font-size: 11px;
-  color: rgba(255,255,255,.75);
+  font-size: 16px;
+  color: rgba(255,255,255,.9);
   font-style: italic;
-  line-height: 1.5;
+  line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0,0,0,.7);
 }
 .rc-body-empty {
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 13px;
+  color: rgba(255,255,255,.45);
   font-style: normal;
 }
 
@@ -171,23 +181,23 @@
 .rc-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
 }
 .rc-tag {
-  font-size: 9px;
-  padding: 2px 6px;
+  font-size: 12px;
+  padding: 3px 8px;
   border-radius: 10px;
   white-space: nowrap;
 }
 .rc-tag.eval {
-  background: rgba(240,180,41,.14);
+  background: rgba(240,180,41,.18);
   color: var(--gold);
-  border: .5px solid rgba(240,180,41,.3);
+  border: .5px solid rgba(240,180,41,.4);
 }
 .rc-tag.emo {
-  background: rgba(55,138,221,.12);
+  background: rgba(55,138,221,.15);
   color: #6eb3f5;
-  border: .5px solid rgba(55,138,221,.28);
+  border: .5px solid rgba(55,138,221,.35);
 }
 
 /* 푸터 — 닉네임 + 시간 */
@@ -195,22 +205,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 5px;
-  border-top: .5px solid rgba(255,255,255,.07);
+  padding-top: 6px;
+  border-top: .5px solid rgba(255,255,255,.12);
   margin-top: auto;
 }
 .rc-nick {
-  font-size: 10px;
+  font-size: 16px;
   color: var(--gold);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 65%;
+  text-shadow: 0 1px 3px rgba(0,0,0,.7);
 }
 .rc-time {
-  font-size: 9px;
-  color: var(--muted);
+  font-size: 12px;
+  color: rgba(255,255,255,.55);
   font-family: var(--mono);
   white-space: nowrap;
 }
@@ -243,8 +254,17 @@
   .rc-grid::-webkit-scrollbar { display: none; }
 
   .rc-card {
-    flex: 0 0 140px;
-    min-width: 140px;
+    flex: 0 0 160px;
+    min-width: 160px;
     scroll-snap-align: start;
   }
+
+  /* 모바일 폰트 약간 축소 */
+  .rc-title      { font-size: 14px; }
+  .rc-body       { font-size: 12px; -webkit-line-clamp: 2; }
+  .rc-nick       { font-size: 12px; }
+  .rc-stars      { font-size: 11px; }
+  .rc-score-num  { font-size: 11px; }
+  .rc-tag        { font-size: 10px; }
+  .rc-time       { font-size: 10px; }
 }
