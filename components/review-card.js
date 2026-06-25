@@ -64,6 +64,15 @@ const ReviewCard = (() => {
        tmdb_id, media_type, title_ko, platform, poster_path,
        score, evaluation, emotions, body, nickname, created_at
      }
+     구조:
+       rc-card (aspect-ratio:2/3, position:relative)
+         └── rc-poster (position:absolute, inset:0)
+               ├── rc-poster-bg  (배경 이미지)
+               ├── rc-poster-ph  (이미지 없을 때)
+               ├── rc-poster-fade (50%부터 그라디언트)
+               ├── rc-platform-badge (좌상단 플랫폼)
+               ├── rc-poster-score   (우상단 별점)
+               └── rc-content (position:absolute, top:50%, 오버레이)
   ── */
   function render(rv) {
     const nick      = esc(rv.nickname || '익명');
@@ -103,48 +112,55 @@ const ReviewCard = (() => {
 
     return `
 <div class="rc-card" onclick="${clickFn}">
-
-  <!-- 포스터 영역 -->
   <div class="rc-poster">
+
+    <!-- 포스터 배경 이미지 or 플레이스홀더 -->
     ${posterUrl
       ? `<div class="rc-poster-bg" style="background-image:url('${posterUrl}')"></div>`
       : `<div class="rc-poster-ph">🎬</div>`
     }
+
+    <!-- 50% 지점부터 하단까지 그라디언트 -->
     <div class="rc-poster-fade"></div>
+
+    <!-- 좌상단 플랫폼 뱃지 -->
     ${pfLabel ? `<div class="rc-platform-badge" style="background:${pfColor}">${pfLabel}</div>` : ''}
+
+    <!-- 우상단 별점 -->
     ${scoreNum ? `<div class="rc-poster-score">★ ${scoreNum}</div>` : ''}
-  </div>
 
-  <!-- 콘텐츠 영역 -->
-  <div class="rc-content">
+    <!-- 콘텐츠 오버레이 (포스터 하단 50% 위치) -->
+    <div class="rc-content">
 
-    <!-- 작품명 -->
-    <div class="rc-title">${title}</div>
+      <!-- 작품명 -->
+      <div class="rc-title">${title}</div>
 
-    <!-- 별점 -->
-    <div class="rc-stars-row">
-      <span class="rc-stars">${stars}</span>
-      ${scoreNum ? `<span class="rc-score-num">${scoreNum}/10</span>` : ''}
-    </div>
+      <!-- 별점 -->
+      <div class="rc-stars-row">
+        <span class="rc-stars">${stars}</span>
+        ${scoreNum ? `<span class="rc-score-num">${scoreNum}/10</span>` : ''}
+      </div>
 
-    <div class="rc-divider"></div>
+      <div class="rc-divider"></div>
 
-    <!-- 한줄 감상 -->
-    ${bodyHtml}
+      <!-- 한줄 감상 -->
+      ${bodyHtml}
 
-    <!-- 태그 -->
-    ${(evalBadge || emoTags)
-      ? `<div class="rc-tags">${evalBadge}${emoTags}</div>`
-      : ''
-    }
+      <!-- 태그 -->
+      ${(evalBadge || emoTags)
+        ? `<div class="rc-tags">${evalBadge}${emoTags}</div>`
+        : ''
+      }
 
-    <!-- 푸터 -->
-    <div class="rc-footer">
-      <span class="rc-nick">${nick}</span>
-      <span class="rc-time">${time}</span>
-    </div>
+      <!-- 푸터: 닉네임 + 시간 -->
+      <div class="rc-footer">
+        <span class="rc-nick">${nick}</span>
+        <span class="rc-time">${time}</span>
+      </div>
 
-  </div>
+    </div><!-- /rc-content -->
+
+  </div><!-- /rc-poster -->
 </div>`;
   }
 
@@ -170,16 +186,17 @@ const ReviewCard = (() => {
 <div class="rc-card" style="pointer-events:none">
   <div class="rc-poster">
     <div class="rc-skel" style="position:absolute;inset:0;border-radius:0"></div>
-  </div>
-  <div class="rc-content">
-    <div class="rc-skel" style="height:12px;width:80%"></div>
-    <div class="rc-skel" style="height:10px;width:55%"></div>
-    <div class="rc-divider"></div>
-    <div class="rc-skel" style="height:10px;width:90%"></div>
-    <div class="rc-skel" style="height:10px;width:70%"></div>
-    <div class="rc-footer">
-      <div class="rc-skel" style="height:9px;width:45%"></div>
-      <div class="rc-skel" style="height:9px;width:25%"></div>
+    <div class="rc-poster-fade"></div>
+    <div class="rc-content">
+      <div class="rc-skel" style="height:18px;width:75%"></div>
+      <div class="rc-skel" style="height:13px;width:50%"></div>
+      <div class="rc-divider"></div>
+      <div class="rc-skel" style="height:14px;width:90%"></div>
+      <div class="rc-skel" style="height:14px;width:70%"></div>
+      <div class="rc-footer">
+        <div class="rc-skel" style="height:13px;width:40%"></div>
+        <div class="rc-skel" style="height:11px;width:22%"></div>
+      </div>
     </div>
   </div>
 </div>`).join('');
