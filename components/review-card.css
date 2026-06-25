@@ -61,18 +61,18 @@
   background: linear-gradient(135deg, var(--bg3), var(--bg2));
 }
 
-/* 포스터 그라디언트 — 45% 지점부터 하단까지 */
+/* 포스터 그라디언트 — 60% 지점부터 서서히 적용, 포스터가 더 비치게 */
 .rc-poster-fade {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
     transparent        0%,
-    transparent       45%,
-    rgba(13,13,20,.6) 55%,
-    rgba(13,13,20,.88) 65%,
-    rgba(13,13,20,.97) 78%,
-    #13131a           100%
+    transparent       55%,
+    rgba(13,13,20,.4) 65%,
+    rgba(13,13,20,.72) 75%,
+    rgba(13,13,20,.88) 88%,
+    rgba(13,13,20,.93) 100%
   );
   pointer-events: none;
 }
@@ -137,8 +137,8 @@
   background: linear-gradient(
     180deg,
     transparent        0%,
-    rgba(13,13,20,.97) 18%,
-    #13131a           30%
+    rgba(13,13,20,.82) 22%,
+    rgba(13,13,20,.90) 40%
   );
 }
 
