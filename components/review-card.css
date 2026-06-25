@@ -7,7 +7,8 @@
 .rc-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 22px;  /* 줄 사이 여백 — 기존 12px + 10px 추가 */
   margin-bottom: 20px;
 }
 
@@ -262,6 +263,7 @@
     padding: 0 16px 12px;
     margin-bottom: 0;
     grid-template-columns: unset;
+    /* 모바일은 가로 슬라이드라 row-gap 불필요 — community.html 2열 그리드에서 적용 */
   }
   .rc-grid::-webkit-scrollbar { display: none; }
 
