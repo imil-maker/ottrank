@@ -12,7 +12,8 @@
 }
 
 /* ── 카드 외곽 ──
-   포스터가 카드 전체 배경, rc-content가 하단 오버레이
+   높이 자동 — 포스터 + 콘텐츠 내용만큼 늘어남
+   aspect-ratio 제거 → rc-poster가 높이를 결정
 ── */
 .rc-card {
   position: relative;
@@ -22,18 +23,24 @@
   background: var(--bg2);
   border: .5px solid var(--border);
   transition: transform .2s, border-color .15s;
-  aspect-ratio: 2 / 3;
+  display: flex;
+  flex-direction: column;
 }
 .rc-card:hover {
   transform: translateY(-3px);
   border-color: var(--border2);
 }
 
-/* ── 포스터 영역 — 카드 전체를 덮는 배경 ── */
+/* ── 포스터 영역 ──
+   aspect-ratio: 2/3 여기로 이동 — 포스터 비율 유지
+   position: relative — rc-content 오버레이 기준점
+── */
 .rc-poster {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
   background: var(--bg3);
+  flex-shrink: 0;
 }
 
 /* 포스터 배경 이미지 */
@@ -56,18 +63,18 @@
   background: linear-gradient(135deg, var(--bg3), var(--bg2));
 }
 
-/* 포스터 그라디언트 — 45% 지점부터 하단까지 자연스럽게 */
+/* 포스터 그라디언트 — 45% 지점부터 하단까지 */
 .rc-poster-fade {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    transparent   0%,
-    transparent  45%,
-    rgba(13,13,20,.6)  55%,
+    transparent        0%,
+    transparent       45%,
+    rgba(13,13,20,.6) 55%,
     rgba(13,13,20,.88) 65%,
     rgba(13,13,20,.97) 78%,
-    #13131a       100%
+    #13131a           100%
   );
   pointer-events: none;
 }
@@ -103,17 +110,28 @@
   gap: 3px;
 }
 
-/* ── 콘텐츠 영역 — 포스터 하단 50% 오버레이 ── */
+/* ── 콘텐츠 영역 ──
+   포스터 하단 50% 지점에 오버레이로 시작
+   rc-poster 높이의 50%만큼 위로 올라가서 겹침
+   rc-card는 높이 자동이므로 콘텐츠가 길면 카드도 늘어남
+── */
 .rc-content {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  top: 50%;
-  /* PC: 넉넉한 상하 여백으로 답답함 해소 */
+  position: relative;
+  /* 포스터와 50% 겹치도록 위로 올림 */
+  margin-top: -50%;
   padding: 14px 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 7px;
+  background: transparent;
   z-index: 2;
+  /* 포스터 그라디언트와 자연스럽게 이어지도록 배경 그라디언트 */
+  background: linear-gradient(
+    180deg,
+    transparent        0%,
+    rgba(13,13,20,.97) 20%,
+    #13131a           35%
+  );
 }
 
 /* 작품명 — 20px */
@@ -177,8 +195,9 @@
   flex-wrap: wrap;
   gap: 5px;
 }
+/* 태그 — 10px */
 .rc-tag {
-  font-size: 12px;
+  font-size: 10px;
   padding: 3px 8px;
   border-radius: 10px;
   white-space: nowrap;
@@ -252,7 +271,7 @@
   }
   .rc-grid::-webkit-scrollbar { display: none; }
 
-  /* 카드 너비 — 200px으로 키워서 작품명/감상 보이게 */
+  /* 카드 너비 200px */
   .rc-card {
     flex: 0 0 200px;
     min-width: 200px;
@@ -265,7 +284,7 @@
     gap: 5px;
   }
 
-  /* 작품명: 줄여도 읽힐 정도 */
+  /* 작품명 */
   .rc-title { font-size: 15px; }
 
   /* 한줄감상: 1줄로 제한 */
@@ -281,9 +300,9 @@
   .rc-stars     { font-size: 11px; }
   .rc-score-num { font-size: 11px; }
 
-  /* 태그: 최대 2개만 표시 (3번째 이후 숨김) */
+  /* 태그: 최대 2개만 표시 */
   .rc-tag:nth-child(n+3) { display: none; }
+  .rc-tag { font-size: 10px; padding: 2px 6px; }
 
-  .rc-tag  { font-size: 10px; padding: 2px 6px; }
   .rc-time { font-size: 10px; }
 }
