@@ -729,6 +729,8 @@ export async function handleUser(path, request, env, ctx, headers) {
                r.emotions, r.created_at,
                COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
                wk.media_type AS media_type,
+               wk.poster_path AS poster_path,
+               wk.platform AS platform,
                u.nickname, u.profile_image, u.mbti
         FROM reviews r
         JOIN users u ON u.id = r.user_id
