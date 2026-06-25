@@ -607,7 +607,7 @@
 </div>
 <!-- ══ 모바일 검색 오버레이 ══ -->
 <!-- ── 헤더 검색 결과 드롭다운 ── -->
-<div class="ottrang-header-search-results" id="ottrangHeaderSearchResults"></div>
+<div class="ottrang-header-search-results" id="ottrangMobSearchResults"></div>
 
 <div class="ottrang-mob-search-overlay" id="ottrangMobSearchOverlay">
   <div class="ottrang-mob-search-bar">
@@ -618,7 +618,7 @@
       onkeydown="if(event.key==='Enter'){_mobSearchRun(this.value,true);}"
       autocomplete="off">
   </div>
-  <div class="ottrang-mob-search-results" id="ottrangMobSearchResults"></div>
+  <div class="ottrang-mob-search-results" id="ottrangMobSearchResultsOverlay"></div>
 </div>
 
 <!-- ══ 드로어 오버레이 ══ -->
@@ -1119,7 +1119,7 @@ function initHeader(){
   // ── 모바일 헤더 검색 모드 전환 ──────────────────────────────
   const _headerInner   = document.querySelector('.ottrang-header-inner');
   const _headerSrInput = document.getElementById('ottrangHeaderSearchInput');
-  const _headerSrRes   = document.getElementById('ottrangHeaderSearchResults');
+  const _headerSrRes   = document.getElementById('ottrangMobSearchResults');
 
   // 검색 모드 열기
   document.getElementById('ottrangMobSearchBtn')?.addEventListener('click', () => {
@@ -1143,56 +1143,16 @@ function initHeader(){
       return;
     }
     clearTimeout(window._hdrSrTimer);
-    window._hdrSrTimer = setTimeout(() => _hdrRunSearch(q), 350);
+    window._hdrSrTimer = setTimeout(() => _mobRunSearch(q), 350);
   });
   _headerSrInput?.addEventListener('keydown', function(e) {
     if(e.key === 'Enter') {
       clearTimeout(window._hdrSrTimer);
-      _hdrRunSearch(this.value.trim(), true);
+      _mobRunSearch(this.value.trim(), true);
     }
     if(e.key === 'Escape') _closeMobSearch();
   });
 
-  // 모바일 헤더 검색 실행 (_mobRunSearch와 동일 로직, 컨테이너만 다름)
-  async function _hdrRunSearch(q) {
-    if(!q || q.length < 2) return;
-    if(_headerSrRes) { _headerSrRes.innerHTML = '<div class="ottrang-sr-loading">검색 중...</div>'; _headerSrRes.classList.add('show'); }
-    const API        = 'https://ottrank-api.tdidream.workers.dev';
-    const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
-    const IMG        = 'https://image.tmdb.org/t/p/w92';
-    function _slug(tmdb_id){ return `/title/1-${new Date().getFullYear()}${tmdb_id}`; }
-    function _hesc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-    function _workItem(w, isDB){
-      const poster    = w.poster_path ? `<img class="ottrang-sr-poster" src="${IMG}${w.poster_path}" alt="" loading="lazy">` : `<div class="ottrang-sr-poster-ph">🎬</div>`;
-      const title     = w.title_ko||w.title||w.name||'';
-      const titleEn   = w.title_en||w.original_title||w.original_name||'';
-      const year      = (w.release_year||(w.first_air_date||w.release_date||'').slice(0,4))||'';
-      const mtype     = w.media_type||w._type||'';
-      const typeLabel = mtype==='movie'?'영화':'TV';
-      const typeColor = mtype==='movie'?'rgba(240,180,41,.8)':'rgba(55,138,221,.8)';
-      const dbBadge   = isDB?'<span class="ottrang-sr-db">DB</span>':'';
-      const slug      = w.tmdb_id?_slug(w.tmdb_id):'#';
-      const goWork    = w.tmdb_id
-        ? `(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${w.tmdb_id},type:'${mtype||'tv'}',platform:'',rank:1,title:'${title.replace(/'/g,'').replace(/"/g,'')}',season:1,year:${new Date().getFullYear()}}));location.href='${slug}';})()`
-        : `location.href='#'`;
-      return `<div class="ottrang-sr-item" onclick="${goWork}">${poster}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(title)}</div><div class="ottrang-sr-meta">${_hesc(titleEn)}${year?` · ${year}`:''}</div></div><span class="ottrang-sr-type" style="background:${typeColor};color:#fff">${typeLabel}</span>${dbBadge}</div>`;
-    }
-    try {
-      const [dbRes, tmdbRes] = await Promise.all([
-        fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`).then(r=>r.json()).catch(()=>({results:[]})),
-        fetch(`${TMDB_PROXY}/search/multi?query=${encodeURIComponent(q)}&language=ko-KR&page=1`).then(r=>r.json()).catch(()=>({results:[]})),
-      ]);
-      const dbItems   = (dbRes.results||[]).slice(0,3).map(w=>_workItem(w,true));
-      const tmdbItems = (tmdbRes.results||[]).filter(w=>w.media_type==='movie'||w.media_type==='tv').slice(0,5).map(w=>_workItem(w,false));
-      const html = [...dbItems, ...tmdbItems].join('');
-      if(_headerSrRes) {
-        _headerSrRes.innerHTML = html || '<div class="ottrang-sr-empty">검색 결과가 없어요</div>';
-        _headerSrRes.classList.add('show');
-      }
-    } catch(e) {
-      if(_headerSrRes) _headerSrRes.innerHTML = '<div class="ottrang-sr-empty">검색 중 오류가 발생했어요</div>';
-    }
-  }
 
   // 기존 오버레이 닫기 함수 (호환성 유지)
   document.getElementById('ottrangMobSearchBack')?.addEventListener('click', _closeMobSearch);
