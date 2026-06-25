@@ -1081,6 +1081,18 @@ async function init() {
     if (targetUid) {
       /* ── 타인 프로필 보기 ── */
       IS_OWN = false;
+
+      /* ── 타인 뷰 레이아웃 재배치 ──
+         본인 뷰:  [프로필] [오뜨카드]  /  [리뷰카드배너] [평점·후기]
+         타인 뷰:  행1 숨김, pc-row-mid를 [프로필] [평점·후기] 2열로 재배치 */
+      const pcRowTop    = document.querySelector('.pc-row-top');
+      const pcRowMid    = document.querySelector('.pc-row-mid');
+      const profileCard = document.querySelector('.profile-card');
+      if (pcRowTop && pcRowMid && profileCard) {
+        pcRowTop.style.display = 'none';                          // 행1 숨김
+        pcRowMid.insertBefore(profileCard, pcRowMid.firstChild);  // 프로필을 행2 맨 앞으로
+      }
+
       const json = await (await fetch(`${API}/user/${targetUid}`)).json();
       if (!json.ok) {
         show('loadingWrap', 'none'); show('notFoundPrompt', 'flex'); return;
