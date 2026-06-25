@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- SEO -->
+<title>커뮤니티 — 오뜨랑 유저 평점 후기</title>
+<meta name="description" content="오뜨랑 유저들이 남긴 OTT 작품 평점 후기를 확인하세요. 넷플릭스, 티빙, 디즈니+ 등 다양한 작품의 생생한 리뷰.">
+<link rel="canonical" href="https://ottrank.kr/community">
+
+<!-- 오픈그래프 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="오뜨랑">
+<meta property="og:title" content="커뮤니티 — 오뜨랑 유저 평점 후기">
+<meta property="og:description" content="오뜨랑 유저들의 생생한 OTT 작품 리뷰를 확인하세요.">
+<meta property="og:url" content="https://ottrank.kr/community">
+<meta property="og:image" content="https://ottrank.kr/img/og-image.png">
+<meta property="og:locale" content="ko_KR">
+
+<!-- 폰트 (index.html과 동일) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style"
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap"
+  rel="stylesheet" media="print" onload="this.media='all'">
+<noscript>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+</noscript>
+
+<!-- 리뷰 카드 공통 컴포넌트 CSS -->
+<link rel="stylesheet" href="/components/review-card.css">
+
+<style>
+/* ── CSS 변수 (index.html과 동일하게 유지) ── */
+:root {
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429; --green:#34d399; --red:#f87171;
+  --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
+  --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
+  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── 메인 레이아웃 ── */
+.main-outer {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* ── 섹션 헤더 (index.html과 동일) ── */
+.sec-hd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.sec-icon { font-size: 18px; }
+.sec-title { font-family: var(--disp); font-size: 26px; letter-spacing: 1px; }
+.sec-sub   { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+.sec-count { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* ── 페이지네이션 ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 32px 0 16px;
+}
+.pg-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pg-btn:hover:not(.active):not(:disabled) {
+  border-color: var(--border2);
+  color: var(--text);
+  background: var(--bg3);
+}
+.pg-btn.active {
+  background: rgba(240,180,41,.15);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+  cursor: default;
+}
+.pg-btn:disabled { opacity: .3; cursor: not-allowed; }
+.pg-ellipsis { color: var(--muted); padding: 0 2px; font-family: var(--mono); font-size: 13px; }
+
+/* ── 빈 상태 / 에러 ── */
+.state-box {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--muted);
+}
+.state-box .s-icon  { font-size: 48px; margin-bottom: 16px; }
+.state-box .s-title { font-size: 18px; font-weight: 500; color: var(--muted2); margin-bottom: 8px; }
+.state-box .s-desc  { font-size: 14px; }
+
+/* ── 모바일 반응형 ── */
+@media (max-width: 768px) {
+  .main-outer {
+    padding: 0 0 60px;
+  }
+  .sec-hd {
+    padding: 18px 16px 10px;
+    margin-bottom: 10px;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .sec-icon  { font-size: 15px; flex-shrink: 0; }
+  .sec-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sec-sub   { display: none; }
+  .sec-count { font-size: 11px; flex-shrink: 0; }
+
+  /* 모바일: rc-grid 가로슬라이드 → 2열 그리드로 전환 */
+  #reviewGrid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow-x: unset !important;
+    scroll-snap-type: unset !important;
+    padding: 0 12px 12px !important;
+  }
+  #reviewGrid .rc-card {
+    flex: unset !important;
+    min-width: unset !important;
+    scroll-snap-align: unset !important;
+  }
+
+  .pagination { padding: 24px 16px 12px; gap: 4px; flex-wrap: wrap; }
+  .pg-btn { min-width: 32px; height: 32px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── 헤더 동적 삽입 (표준 패턴 — .finally()에서 loadPage 호출) ── -->
+<script>
+(function() {
+  fetch('/header.html')
+    .then(r => r.ok ? r.text() : Promise.reject())
+    .then(h => {
+      document.getElementById('ottrang-header').innerHTML = h;
+      document.getElementById('ottrang-header').querySelectorAll('script').forEach(s => {
+        const ns = document.createElement('script');
+        ns.textContent = s.textContent;
+        document.body.appendChild(ns);
+      });
+      if (typeof initHeader === 'function') initHeader();
+    })
+    .catch(() => {})
+    .finally(() => {
+      loadPage(1); // 헤더 완료 후 콘텐츠 로드
+    });
+})();
+</script>
+
+<!-- 공용 헤더 -->
+<div id="ottrang-header"></div>
+
+<!-- 메인 콘텐츠 -->
+<div class="main-outer">
+
+  <!-- 섹션 헤더 -->
+  <div class="sec-hd" id="reviewSecHd">
+    <span class="sec-icon">⭐</span>
+    <span class="sec-title">평점 후기</span>
+    <span class="sec-sub">COMMUNITY REVIEWS</span>
+    <span class="sec-count" id="reviewCount"></span>
+  </div>
+
+  <!-- 리뷰 카드 그리드 (ReviewCard 컴포넌트 재사용) -->
+  <div class="rc-grid" id="reviewGrid"></div>
+
+  <!-- 숫자 페이지네이션 -->
+  <div class="pagination" id="pagination"></div>
+
+</div><!-- /main-outer -->
+
+<!-- 리뷰 카드 공통 컴포넌트 JS -->
+<script src="/components/review-card.js"></script>
+
+<script>
+/* ══════════════════════════════════════════════
+   community.html — 평점 후기 피드
+   API: GET /reviews/recent?limit=20&page=N
+   Workers: user.js (poster_path, page, offset, total 추가됨)
+   ══════════════════════════════════════════════ */
+
+const API      = 'https://ottrank-api.tdidream.workers.dev';
+const PER_PAGE = 20; // 1페이지당 카드 수 (5열 × 4행)
+
+/* ── evaluation 판별 세트 ──
+   DB의 emotions 배열 첫 번째 값이 평가어이면 분리
+── */
+const EVAL_SET = new Set(['강추해요', '추천해요', '평범해요', '별로예요']);
+
+/* ── API 응답 리뷰 1개를 ReviewCard 컴포넌트 형식으로 변환 ── */
+function normalizeReview(rv) {
+  // emotions: DB에 JSON 문자열로 저장됨 → 배열로 파싱
+  let emotions = [];
+  if (typeof rv.emotions === 'string') {
+    try { emotions = JSON.parse(rv.emotions); } catch (e) { emotions = []; }
+  } else if (Array.isArray(rv.emotions)) {
+    emotions = rv.emotions;
+  }
+
+  // 첫 번째 값이 평가어(강추해요 등)이면 evaluation으로 분리
+  let evaluation = '';
+  if (emotions.length > 0 && EVAL_SET.has(emotions[0])) {
+    evaluation = emotions[0];
+    emotions   = emotions.slice(1);
+  }
+
+  // poster_path: 경로만 있으면 풀 TMDB URL로 변환
+  let poster_path = rv.poster_path || '';
+  if (poster_path && !poster_path.startsWith('http')) {
+    poster_path = 'https://image.tmdb.org/t/p/w300' + poster_path;
+  }
+
+  return {
+    ...rv,
+    emotions,
+    evaluation,
+    poster_path,
+  };
+}
+
+/* ── 페이지 로드 ── */
+async function loadPage(page) {
+  // 스켈레톤 표시 (로딩 중)
+  ReviewCard.skeleton('reviewGrid', PER_PAGE);
+  document.getElementById('pagination').innerHTML = '';
+  document.getElementById('reviewCount').textContent = '';
+
+  try {
+    const res  = await fetch(`${API}/reviews/recent?limit=${PER_PAGE}&page=${page}`);
+    const data = await res.json();
+
+    if (!data.ok || !data.reviews?.length) {
+      // 리뷰 없음
+      document.getElementById('reviewGrid').innerHTML = `
+        <div class="state-box">
+          <div class="s-icon">📝</div>
+          <div class="s-title">아직 후기가 없어요</div>
+          <div class="s-desc">첫 번째 리뷰를 남겨보세요!</div>
+        </div>`;
+      return;
+    }
+
+    // ReviewCard 형식으로 변환 후 렌더링
+    const reviews = data.reviews.map(normalizeReview);
+    ReviewCard.renderGrid(reviews, 'reviewGrid');
+
+    // 전체 개수 표시
+    const total = data.total || 0;
+    document.getElementById('reviewCount').textContent =
+      `총 ${total.toLocaleString()}개`;
+
+    // 페이지네이션 렌더링
+    const totalPages = Math.ceil(total / PER_PAGE);
+    renderPagination(page, totalPages);
+
+    // 2페이지 이상이면 섹션 헤더로 스크롤
+    if (page > 1) {
+      document.getElementById('reviewSecHd')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+  } catch (e) {
+    document.getElementById('reviewGrid').innerHTML = `
+      <div class="state-box">
+        <div class="s-icon">⚠️</div>
+        <div class="s-title">불러오기 실패</div>
+        <div class="s-desc">잠시 후 다시 시도해주세요</div>
+      </div>`;
+  }
+}
+
+/* ── 숫자 페이지네이션 렌더링 ──
+   현재 페이지 중심으로 최대 5개 번호 표시
+   [ ‹ ] [ 1 ] … [ 3 ] [4] [ 5 ] … [ 12 ] [ › ]
+── */
+function renderPagination(current, total) {
+  const el = document.getElementById('pagination');
+  if (total <= 1) { el.innerHTML = ''; return; }
+
+  // 표시 범위 계산 (현재 페이지 중심 ±2)
+  let start = Math.max(1, current - 2);
+  let end   = Math.min(total, start + 4);
+  if (end - start < 4) start = Math.max(1, end - 4);
+
+  const parts = [];
+
+  // 이전 버튼
+  parts.push(`<button class="pg-btn" onclick="loadPage(${current - 1})"
+    ${current === 1 ? 'disabled' : ''} aria-label="이전 페이지">‹</button>`);
+
+  // 첫 페이지 + 말줄임
+  if (start > 1) {
+    parts.push(`<button class="pg-btn" onclick="loadPage(1)">1</button>`);
+    if (start > 2) parts.push(`<span class="pg-ellipsis">…</span>`);
+  }
+
+  // 페이지 번호
+  for (let i = start; i <= end; i++) {
+    parts.push(`<button class="pg-btn ${i === current ? 'active' : ''}"
+      onclick="loadPage(${i})">${i}</button>`);
+  }
+
+  // 마지막 페이지 + 말줄임
+  if (end < total) {
+    if (end < total - 1) parts.push(`<span class="pg-ellipsis">…</span>`);
+    parts.push(`<button class="pg-btn" onclick="loadPage(${total})">${total}</button>`);
+  }
+
+  // 다음 버튼
+  parts.push(`<button class="pg-btn" onclick="loadPage(${current + 1})"
+    ${current === total ? 'disabled' : ''} aria-label="다음 페이지">›</button>`);
+
+  el.innerHTML = parts.join('');
+}
+
+/* ── goDetailReview — ReviewCard.goDetail 폴백 대신 사용 ──
+   index.html과 동일한 로직
+── */
+function goDetailReview(tmdbId, type, title, season, year) {
+  if (!tmdbId) return;
+  const s = season || 1;
+  const y = year   || new Date().getFullYear();
+  const slugUrl = `/title/${s}-${y}${tmdbId}`;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type, platform: '', rank: 0, title, season: s, year: y
+  }));
+  sessionStorage.setItem('ottrang_slug', slugUrl);
+  location.href = slugUrl;
+}
+</script>
+
+</body>
+</html>
