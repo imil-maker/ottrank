@@ -353,6 +353,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ── SNS 공유 액션 영역 — 카드와 최대한 붙이기 */
 .share-action-area{padding:8px 20px 40px;background:var(--bg2)}
 
+/* 카카오톡 바로 공유 버튼 — 전체 너비, 노란색 */
+.share-kakao-btn{
+  width:100%;padding:13px;border-radius:var(--r);
+  border:none;background:#FEE500;
+  color:#3C1E1E;font-size:14px;font-weight:700;cursor:pointer;
+  font-family:var(--font-sans);display:flex;align-items:center;
+  justify-content:center;gap:7px;
+  transition:all .15s;margin-bottom:10px;
+}
+.share-kakao-btn:hover{background:#f5db00}
+
 /* 이미지 저장 버튼 */
 .share-save-btn{
   width:100%;padding:13px;border-radius:var(--r);
@@ -579,7 +590,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <!-- 액션 영역 -->
     <div class="share-action-area">
 
-      <!-- 이미지 저장 버튼 -->
+      <!-- 카카오톡 바로 공유 버튼 (전체 너비, 노란색) -->
+      <button class="share-kakao-btn" id="shareBtnKakaoTop" onclick="shareToKakao()">
+        <i class="ti ti-message-circle" style="font-size:16px" aria-hidden="true"></i> 리뷰 카드 카카오톡 공유
+      </button>
+
+      <!-- 리뷰카드 이미지 저장 버튼 -->
       <a class="share-save-btn" id="sharePreviewDownload" download="" href="">
         <i class="ti ti-download" style="font-size:16px" aria-hidden="true"></i> 리뷰 카드 이미지 저장
       </a>
@@ -595,8 +611,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <button class="share-sns-btn" id="shareBtnInsta" onclick="shareToInstagram()">
           <i class="ti ti-brand-instagram" style="font-size:15px" aria-hidden="true"></i> 인스타그램
         </button>
-        <button class="share-sns-btn kakao" id="shareBtnKakao" onclick="shareToKakao()">
-          <i class="ti ti-message-circle" style="font-size:15px" aria-hidden="true"></i> 카카오톡
+        <button class="share-sns-btn" id="shareBtnThread" onclick="shareToThreads()">
+          <i class="ti ti-brand-threads" style="font-size:15px" aria-hidden="true"></i> 쓰레드
         </button>
         <button class="share-sns-btn" id="shareBtnEtc" onclick="shareToEtc()">
           <i class="ti ti-share-2" style="font-size:15px" aria-hidden="true"></i> 기타 공유
@@ -1103,6 +1119,28 @@ async function shareToKakao(){
   }
   claimShareOtt();
   showToast('리뷰카드가 저장됐어요! 카카오톡 채팅방에서 리뷰카드를 첨부해서 보내세요 📎');
+}
+
+/* ── 쓰레드 공유
+   모바일: threads:// 앱 실행 → 1.5초 후 웹 폴백
+   PC    : threads.net 새 탭 ── */
+function shareToThreads(){
+  const title = RDATA?.title || '오뜨랑 리뷰';
+  const score = LAST_REVIEW ? fmtScore(LAST_REVIEW.score*2) : '';
+  const scoreText = score ? ` ★${score}/10` : '';
+  const text = encodeURIComponent(`${title}${scoreText}\n#오뜨랑 #OTT후기\nhttps://ottrank.kr`);
+  const webUrl = `https://www.threads.net/intent/post?text=${text}`;
+
+  if(isMobile()){
+    window.location.href = `threads://intent/post?text=${text}`;
+    setTimeout(()=>{
+      window.open(webUrl, '_blank', 'noopener,noreferrer');
+    }, 1500);
+  } else {
+    window.open(webUrl, '_blank', 'noopener,noreferrer');
+  }
+  claimShareOtt();
+  showToast('리뷰카드도 함께 올리면 더 좋아요! 💡');
 }
 
 /* ── 기타 공유
