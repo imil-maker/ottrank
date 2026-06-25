@@ -12,8 +12,7 @@
 }
 
 /* ── 카드 외곽 ──
-   포스터가 카드 전체 배경이 되는 구조
-   rc-poster가 카드를 꽉 채우고, rc-content가 그 위에 오버레이
+   포스터가 카드 전체 배경, rc-content가 하단 오버레이
 ── */
 .rc-card {
   position: relative;
@@ -23,7 +22,6 @@
   background: var(--bg2);
   border: .5px solid var(--border);
   transition: transform .2s, border-color .15s;
-  /* aspect-ratio로 카드 전체 높이 제어 — 포스터 비율 */
   aspect-ratio: 2 / 3;
 }
 .rc-card:hover {
@@ -58,8 +56,7 @@
   background: linear-gradient(135deg, var(--bg3), var(--bg2));
 }
 
-/* 포스터 하단 그라디언트 — 50% 지점부터 완전 불투명으로
-   rc-content가 시작하는 지점과 일치 */
+/* 포스터 그라디언트 — 45% 지점부터 하단까지 자연스럽게 */
 .rc-poster-fade {
   position: absolute;
   inset: 0;
@@ -75,7 +72,7 @@
   pointer-events: none;
 }
 
-/* 포스터 위 플랫폼 뱃지 (좌상단) */
+/* 좌상단 플랫폼 뱃지 */
 .rc-platform-badge {
   position: absolute;
   top: 8px; left: 8px;
@@ -89,7 +86,7 @@
   z-index: 3;
 }
 
-/* 포스터 위 별점 (우상단) */
+/* 우상단 별점 */
 .rc-poster-score {
   position: absolute;
   top: 8px; right: 8px;
@@ -106,20 +103,17 @@
   gap: 3px;
 }
 
-/* ── 콘텐츠 영역 — 포스터 위 하단 50% 오버레이 ──
-   포스터 그라디언트와 자연스럽게 겹쳐짐
-── */
+/* ── 콘텐츠 영역 — 포스터 하단 50% 오버레이 ── */
 .rc-content {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  /* 카드 높이의 50%부터 시작 */
   top: 50%;
-  padding: 10px 12px 12px;
+  /* PC: 넉넉한 상하 여백으로 답답함 해소 */
+  padding: 14px 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   z-index: 2;
-  /* 배경 없음 — 포스터 그라디언트가 배경 역할 */
 }
 
 /* 작품명 — 20px */
@@ -159,9 +153,9 @@
   background: rgba(255,255,255,.15);
 }
 
-/* 한줄 감상 — 16px */
+/* 한줄 감상 — 14px */
 .rc-body {
-  font-size: 16px;
+  font-size: 14px;
   color: rgba(255,255,255,.9);
   font-style: italic;
   line-height: 1.4;
@@ -177,7 +171,7 @@
   font-style: normal;
 }
 
-/* 태그 + 평가 */
+/* 태그 영역 */
 .rc-tags {
   display: flex;
   flex-wrap: wrap;
@@ -209,8 +203,9 @@
   border-top: .5px solid rgba(255,255,255,.12);
   margin-top: auto;
 }
+/* 닉네임 — 14px */
 .rc-nick {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--gold);
   font-weight: 600;
   white-space: nowrap;
@@ -238,8 +233,12 @@
   100% { background-position: -200% 0 }
 }
 
-/* ── 모바일 — 가로 슬라이드 ── */
+/* ══════════════════════════════════════════════
+   모바일 (768px 이하)
+   ══════════════════════════════════════════════ */
 @media (max-width: 768px) {
+
+  /* 가로 슬라이드 */
   .rc-grid {
     display: flex;
     gap: 10px;
@@ -253,18 +252,38 @@
   }
   .rc-grid::-webkit-scrollbar { display: none; }
 
+  /* 카드 너비 — 200px으로 키워서 작품명/감상 보이게 */
   .rc-card {
-    flex: 0 0 160px;
-    min-width: 160px;
+    flex: 0 0 200px;
+    min-width: 200px;
     scroll-snap-align: start;
   }
 
-  /* 모바일 폰트 약간 축소 */
-  .rc-title      { font-size: 14px; }
-  .rc-body       { font-size: 12px; -webkit-line-clamp: 2; }
-  .rc-nick       { font-size: 12px; }
-  .rc-stars      { font-size: 11px; }
-  .rc-score-num  { font-size: 11px; }
-  .rc-tag        { font-size: 10px; }
-  .rc-time       { font-size: 10px; }
+  /* 콘텐츠 패딩 축소 */
+  .rc-content {
+    padding: 10px 10px 12px;
+    gap: 5px;
+  }
+
+  /* 작품명: 줄여도 읽힐 정도 */
+  .rc-title { font-size: 15px; }
+
+  /* 한줄감상: 1줄로 제한 */
+  .rc-body {
+    font-size: 12px;
+    -webkit-line-clamp: 1;
+  }
+
+  /* 닉네임 */
+  .rc-nick { font-size: 12px; }
+
+  /* 별점 */
+  .rc-stars     { font-size: 11px; }
+  .rc-score-num { font-size: 11px; }
+
+  /* 태그: 최대 2개만 표시 (3번째 이후 숨김) */
+  .rc-tag:nth-child(n+3) { display: none; }
+
+  .rc-tag  { font-size: 10px; padding: 2px 6px; }
+  .rc-time { font-size: 10px; }
 }
