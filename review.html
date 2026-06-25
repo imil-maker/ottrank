@@ -299,7 +299,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 #shareCardTags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
 #shareCardTags span{font-size:18px;padding:5px 16px;border-radius:24px;font-family:'Noto Sans KR',sans-serif}
 #shareCardFooter{display:flex;align-items:center;justify-content:space-between;border-top:1.5px solid rgba(255,255,255,.12);padding-top:18px}
-#shareCardNick{font-size:19px;color:#a0a0bc}
+#shareCardNick{font-size:19px;color:#f0b429;font-weight:600}
 #shareCardBrand{font-size:19px;letter-spacing:2px;color:rgba(255,255,255,.32);font-family:'DM Mono',monospace}
 
 /* ── 공유 버튼 (제출 후 노출) ── */
@@ -315,24 +315,42 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .share-btn:hover{background:rgba(55,138,221,.2)}
 .share-btn:disabled{opacity:.5;cursor:default}
 
+/* 후기 등록 완료 — 화면 중앙 1초 토스트 */
+.review-success-toast{
+  display:none;position:fixed;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:700;
+  background:rgba(13,13,20,.92);
+  border:.5px solid var(--gold);
+  border-radius:var(--r-lg);
+  padding:20px 32px;
+  text-align:center;
+  pointer-events:none;
+}
+.review-success-toast.show{display:block;animation:fadeInOut 1.6s ease forwards}
+@keyframes fadeInOut{
+  0%{opacity:0;transform:translate(-50%,-55%)}
+  20%{opacity:1;transform:translate(-50%,-50%)}
+  70%{opacity:1;transform:translate(-50%,-50%)}
+  100%{opacity:0;transform:translate(-50%,-45%)}
+}
+.review-success-icon{font-size:28px;margin-bottom:8px}
+.review-success-text{font-size:16px;font-weight:700;color:var(--gold);letter-spacing:.3px}
+
 /* ── 공유 완료 모달 — 전체 스크롤 방식 ── */
 .share-preview-modal{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);overflow-y:auto}
 .share-preview-modal.show{display:block}
 .share-preview-box{max-width:420px;width:100%;margin:0 auto;display:flex;flex-direction:column}
 
-/* 카드 이미지 — 전체 너비 꽉 차게 */
-.share-preview-imgwrap{width:100%;line-height:0}
+/* 카드 이미지 — 전체 너비 꽉 차게, 하단 여백 없애기 */
+.share-preview-imgwrap{width:100%;line-height:0;margin-bottom:0}
 .share-preview-img{width:100%;display:block}
 
-/* 등록 완료 알림 — 카드 이미지 바로 위 */
-.share-registered-badge{
-  padding:14px 20px 10px;text-align:center;
-  font-size:15px;font-weight:700;color:var(--gold);
-  letter-spacing:.3px;
-}
+/* 등록 완료 알림 — 사용 안 함 (중앙 토스트로 대체) */
+.share-registered-badge{display:none}
 
-/* ── SNS 공유 액션 영역 ── */
-.share-action-area{padding:16px 20px 40px;background:var(--bg2)}
+/* ── SNS 공유 액션 영역 — 카드와 최대한 붙이기 */
+.share-action-area{padding:8px 20px 40px;background:var(--bg2)}
 
 /* 이미지 저장 버튼 */
 .share-save-btn{
@@ -540,6 +558,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <!-- 등록 완료 모달 제거됨 (수정2: 후기 등록 즉시 카드 생성으로 변경) -->
 
+<!-- 후기 등록 완료 중앙 토스트 -->
+<div class="review-success-toast" id="reviewSuccessToast">
+  <div class="review-success-icon">🎉</div>
+  <div class="review-success-text">리뷰가 등록됐어요!</div>
+</div>
+
 <!-- 공유 이미지 미리보기 모달 — 전체 스크롤 방식 (수정3) -->
 <div class="share-preview-modal" id="sharePreviewModal">
   <div class="share-preview-box">
@@ -556,7 +580,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
       <!-- 이미지 저장 버튼 -->
       <a class="share-save-btn" id="sharePreviewDownload" download="" href="">
-        <i class="ti ti-download" style="font-size:16px" aria-hidden="true"></i> 이미지 저장
+        <i class="ti ti-download" style="font-size:16px" aria-hidden="true"></i> 리뷰 카드 이미지 저장
       </a>
 
       <!-- SNS 구분선 — 노란색·크게 (수정4) -->
@@ -809,8 +833,19 @@ async function submitReview(){
     document.getElementById('shareRow').classList.add('show');
     document.getElementById('deleteBtn').style.display='block';
 
-    // 수정2: 등록 완료 모달 없이 즉시 카드 생성
-    shareReviewCard();
+    // 토스트 표시 + 카드 생성 동시 시작
+    const successToast = document.getElementById('reviewSuccessToast');
+    successToast.classList.add('show');
+
+    // 토스트(1.6초)와 카드 생성을 동시에 → 둘 다 끝나면 모달 오픈
+    await Promise.all([
+      new Promise(r => setTimeout(r, 1600)),  // 토스트 최소 1.6초
+      shareReviewCard(true),                   // true = 모달 자동오픈 안 함
+    ]);
+    successToast.classList.remove('show');
+    // 카드 생성 완료 후 공유 모달 오픈
+    document.getElementById('sharePreviewModal').classList.add('show');
+    document.getElementById('sharePreviewModal').scrollTop = 0;
   }catch(e){showToast('네트워크 오류');btn.disabled=false;btn.textContent='후기 등록';}
 }
 
@@ -831,7 +866,7 @@ const EVAL_TAGS=['강추해요','추천해요','평범해요','별로예요'];
 // 점수 포맷 — 정수면 정수로, 소수면 소수 1자리로 (예: 7 → "7", 7.5 → "7.5")
 function fmtScore(n){return Number.isInteger(n)?String(n):n.toFixed(1);}
 
-async function shareReviewCard(){
+async function shareReviewCard(skipModal=false){
   if(!LAST_REVIEW){showToast('먼저 후기를 등록해주세요');return;}
   const shareBtn=document.getElementById('shareBtn');
   shareBtn.disabled=true;
@@ -944,9 +979,11 @@ async function shareReviewCard(){
     dl.href=url;
     dl.download=fileName;
 
-    // ── 모달 열기 + 스크롤 맨 위로 ──
-    document.getElementById('sharePreviewModal').classList.add('show');
-    document.getElementById('sharePreviewModal').scrollTop=0;
+    // ── 모달 열기 (skipModal=true면 외부에서 제어) ──
+    if(!skipModal){
+      document.getElementById('sharePreviewModal').classList.add('show');
+      document.getElementById('sharePreviewModal').scrollTop=0;
+    }
 
   }catch(e){
     if(e.name!=='AbortError')showToast('이미지 생성에 실패했어요');
