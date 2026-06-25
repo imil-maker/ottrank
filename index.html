@@ -585,17 +585,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     scroll-snap-align:start;
   }
 
-  /* ── 4. 최근 평점 후기 (rc-grid 컴포넌트 — review-card.css의 모바일 슬라이드 활용) ── */
-  /* review-card.css 자체에 .rc-grid 모바일 슬라이드 정의가 있음
-     메인페이지에서는 가로 슬라이드 그대로 유지 (community.html처럼 2열로 오버라이드 불필요) */
+  /* ── 4. 최근 평점 후기 — community.html과 동일한 2열 그리드 오버라이드 ── */
+  /* review-card.css 기본 모바일은 가로 슬라이드지만,
+     메인/커뮤니티 모두 2열 그리드로 전환 (!important 필수) */
   #reviewGrid {
-    padding: 0 16px 16px;  /* 좌우 여백 통일 */
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow-x: unset !important;
+    scroll-snap-type: unset !important;
+    padding: 0 12px 12px !important;
+    row-gap: 27px !important;
   }
-  /* rc-card 너비 — 1.5열 (다음 카드 살짝 보임) */
   #reviewGrid .rc-card {
-    flex: 0 0 calc((100vw - 40px) / 2);
-    min-width: 0;
-    max-width: 240px;
+    flex: unset !important;
+    min-width: unset !important;
+    scroll-snap-align: unset !important;
   }
 
   /* ── 5. 유튜브 급상승 ── */
