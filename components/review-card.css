@@ -15,7 +15,7 @@
 .rc-card {
   position: relative;
   border-radius: var(--r);
-  overflow: hidden;
+  /* overflow:hidden 제거 — 콘텐츠 길이에 따라 카드 높이 자동 확장 */
   cursor: pointer;
   background: var(--bg2);
   border: .5px solid var(--border);
@@ -39,7 +39,7 @@
   overflow: visible;
 }
 
-/* 포스터 배경 이미지 */
+/* 포스터 배경 이미지 — rc-card overflow:hidden 없으므로 직접 border-radius 적용 */
 .rc-poster-bg {
   position: absolute;
   inset: 0;
@@ -47,7 +47,6 @@
   background-position: center 20%;
   background-repeat: no-repeat;
   border-radius: var(--r) var(--r) 0 0;
-  overflow: hidden;
 }
 
 /* 포스터 없을 때 플레이스홀더 */
@@ -282,10 +281,10 @@
   /* 작품명 */
   .rc-title { font-size: 15px; }
 
-  /* 한줄감상: 1줄로 제한 */
+  /* 한줄감상: 2줄 표시 */
   .rc-body {
-    font-size: 12px;
-    -webkit-line-clamp: 1;
+    font-size: 11px;
+    -webkit-line-clamp: 2;
   }
 
   /* 닉네임 */
