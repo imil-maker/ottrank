@@ -33,7 +33,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .ottrang-banner{display:none!important}
 
 /* ── 레이아웃 ── */
-.review-wrap{max-width:var(--content-w);margin:0 auto;padding:32px 20px 80px}
+.review-wrap{max-width:var(--content-w);margin:0 auto;padding:8px 20px 80px}
 
 /* ── 뒤로가기 (mypage page-back 동일 패턴) ── */
 .back-btn{
@@ -398,19 +398,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <div class="review-wrap">
 
-  <!-- 뒤로가기 -->
-  <button class="back-btn" onclick="goBack()">
-    <i class="ti ti-arrow-left" style="font-size:14px"></i> 돌아가기
-  </button>
-
-  <!-- 작품 헤더 -->
+  <!-- 작품 헤더 + 돌아가기 버튼 통합 -->
   <div class="work-header">
     <div class="work-poster" id="workPoster">
       <div class="work-poster-ph">🎬</div>
     </div>
-    <div class="work-info">
-      <div class="work-title" id="workTitle">작품명</div>
-      <div class="work-sub" id="workSub"></div>
+    <div class="work-info" style="display:flex;flex-direction:column;justify-content:space-between">
+      <div>
+        <div class="work-title" id="workTitle">작품명</div>
+        <div class="work-sub" id="workSub"></div>
+      </div>
+      <!-- 돌아가기 버튼 — 포스터 오른쪽 하단 -->
+      <button class="back-btn" onclick="goBack()" style="margin-bottom:0;align-self:flex-start">
+        <i class="ti ti-arrow-left" style="font-size:14px"></i> 돌아가기
+      </button>
     </div>
   </div>
 
@@ -429,14 +430,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- 평가 4버튼 — 가로 슬라이드 -->
+  <!-- 평가 4버튼 — 제목 옆 1개 + 아래 3개 -->
   <div class="review-section">
-    <div class="review-section-title"><i class="ti ti-mood-smile" style="font-size:15px;color:var(--green)"></i>이 작품을 한마디로?</div>
-    <div class="eval-slide">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="review-section-title" style="margin-bottom:0"><i class="ti ti-mood-smile" style="font-size:15px;color:var(--green)"></i>이 작품을 한마디로?</div>
       <button class="eval-btn" data-val="강추해요" onclick="toggleEval(this)">🔥 강추해요</button>
-      <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)">👍 추천해요</button>
-      <button class="eval-btn" data-val="평범해요" onclick="toggleEval(this)">😐 평범해요</button>
-      <button class="eval-btn" data-val="별로예요" onclick="toggleEval(this)">👎 별로예요</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:nowrap">
+      <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)" style="flex:1;justify-content:center">👍 추천해요</button>
+      <button class="eval-btn" data-val="평범해요" onclick="toggleEval(this)" style="flex:1;justify-content:center">😐 평범해요</button>
+      <button class="eval-btn" data-val="별로예요" onclick="toggleEval(this)" style="flex:1;justify-content:center">👎 별로예요</button>
     </div>
   </div>
 
