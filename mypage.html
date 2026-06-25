@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<!-- 리뷰 카드 공통 컴포넌트 CSS -->
 <link rel="stylesheet" href="/components/review-card.css">
 <style>
 /* ══════════════════════════════════════
@@ -33,7 +34,7 @@
   /* 타이포 */
   --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
   /* 레이아웃 */
-  --r:10px;--r-lg:16px;--content-w:1000px;
+  --r:10px;--r-lg:16px;--content-w:860px;
 }
 
 /* ══ 리셋 & 베이스 ══ */
@@ -633,29 +634,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   /* 오뜨 점수 PC */
   .ott-score{font-size:36px}
-
-  /* ── PC 폰트 전반 확대 ── */
-  .profile-nickname      { font-size:22px; }
-  .profile-grade-badge   { font-size:12px; }
-  .mbti-badge            { font-size:12px; }
-  .profile-meta          { font-size:14px; }
-  .sec-title             { font-size:16px; }
-  .sec-count             { font-size:13px; }
-  .review-work-title     { font-size:15px; }
-  .review-text           { font-size:14px; }
-  .review-badge          { font-size:12px; }
-  .review-time           { font-size:12px; }
-  .review-likes          { font-size:12px; }
-  .score-num             { font-size:13px; }
-  .star                  { font-size:14px; }
-  .del-btn               { font-size:12px; }
-
-  /* ── 타인 뷰: review-banner 숨겨지면 reviewSecWrap 풀폭 차지 ── */
-  /* review-banner가 display:none일 때 reviewSecWrap이 grid 전체 span */
-  #reviewBanner[style*="display:none"] ~ #reviewSecWrap,
-  #reviewBanner:not([style*="block"]) ~ #reviewSecWrap {
-    grid-column: 1 / -1;
-  }
 }
 </style>
 </head>
@@ -1406,22 +1384,19 @@ async function delWish(tmdb_id, btn) {
 }
 
 /* ══════════════════════════════════════
-   평점·후기 — rc-card 2열 그리드 (최신 4개 미리보기)
-   ReviewCard 컴포넌트 재사용, 삭제 버튼은 본인만 표시
+   평점·후기 (기존 코드 유지, 최신 2개)
 ═══════════════════════════════════════ */
 function renderReviews() {
-  const PREVIEW = 4;  // 마이페이지 미리보기: rc-card 4개 (2열×2행)
+  const PREVIEW = 2;  // 마이페이지에서는 2개만 미리보기
   document.getElementById('reviewCount').textContent = `${ALL_REVIEWS.length}개`;
-  const el      = document.getElementById('reviewArea');
+  const el = document.getElementById('reviewArea');
   const moreBtn = document.getElementById('reviewMoreBtn');
-
   if (!ALL_REVIEWS.length) {
     el.innerHTML = `<div class="sec-empty"><i class="ti ti-star"></i>아직 쓴 후기가 없어요</div>`;
     if (moreBtn) moreBtn.style.display = 'none';
     return;
   }
-
-  // 더보기 버튼 처리
+  const slice = ALL_REVIEWS.slice(0, PREVIEW);
   if (moreBtn) {
     if (ALL_REVIEWS.length > PREVIEW) {
       moreBtn.style.display = 'inline-flex';
@@ -1432,75 +1407,83 @@ function renderReviews() {
     }
   }
 
-  // API score는 5점 기준 → ×2로 10점 만점 변환 후 normalizeReview 형식으로 맞춤
-  const EVAL_SET = new Set(['강추해요','추천해요','평범해요','별로예요']);
-  const slice = ALL_REVIEWS.slice(0, PREVIEW).map(r => {
-    // emotions 파싱
-    let emotions = [];
-    if (typeof r.emotions === 'string') {
-      try { emotions = JSON.parse(r.emotions); } catch(e) { emotions = []; }
-    } else if (Array.isArray(r.emotions)) {
-      emotions = r.emotions;
-    }
-    // evaluation 분리
+  // rc-card 형태로 렌더링 — goTitle() 로직 완전 유지
+  // data-* 속성 + onclick="goTitle(this)" 방식 그대로 사용
+  el.innerHTML = `<div class="rc-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:0">${slice.map(r => {
+    const score    = parseFloat(r.score) || 0;  // 5점 기준 그대로 (rc-card는 5점 기준 사용)
+    const scoreNum = score ? (score * 2).toFixed(1).replace(/\.0$/, '') : '';
+    const emotions = _json(r.emotions, []);
+    const EVAL_SET = ['강추해요','추천해요','평범해요','별로예요'];
+
+    // evaluation / emotions 분리
     let evaluation = '';
-    if (emotions.length > 0 && EVAL_SET.has(emotions[0])) {
-      evaluation = emotions[0];
-      emotions   = emotions.slice(1);
-    }
-    // poster_path 풀 URL 변환
-    let poster_path = r.poster_path || '';
-    if (poster_path && !poster_path.startsWith('http')) {
-      poster_path = 'https://image.tmdb.org/t/p/w300' + poster_path;
-    }
-    return {
-      ...r,
-      // mypage API는 score가 5점 기준 → 10점 만점으로 변환
-      score:      (parseFloat(r.score) || 0),
-      body:       r.text || '',
-      emotions,
-      evaluation,
-      poster_path,
-    };
-  });
-
-  // rc-grid 2열 그리드로 렌더링
-  // 문자열 조작 대신 DOM 방식으로 삭제 버튼 추가 (중첩 템플릿 리터럴 문법 오류 방지)
-  const grid = document.createElement('div');
-  grid.className = 'rc-grid';
-  grid.style.cssText = 'grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:0';
-
-  slice.forEach(r => {
-    // 임시 div에 ReviewCard.render() 결과 삽입
-    const tmp = document.createElement('div');
-    tmp.innerHTML = ReviewCard.render(r);
-    const cardEl = tmp.firstElementChild;
-
-    if (IS_OWN) {
-      // 본인 페이지: 닉네임 뱃지 숨김
-      const nickBadge = cardEl.querySelector('.rc-nick-badge');
-      if (nickBadge) nickBadge.style.display = 'none';
-
-      // rc-content 안에 삭제 버튼 추가
-      const rcContent = cardEl.querySelector('.rc-content');
-      if (rcContent) {
-        const delBtn = document.createElement('button');
-        delBtn.className = 'del-btn';
-        delBtn.style.cssText = 'margin-top:4px;font-size:11px;align-self:flex-start';
-        delBtn.textContent = '삭제';
-        delBtn.onclick = function(e) {
-          e.stopPropagation();
-          delReview(r.tmdb_id, r.id);
-        };
-        rcContent.appendChild(delBtn);
-      }
+    let emoList = [...emotions];
+    if (emoList.length > 0 && EVAL_SET.includes(emoList[0])) {
+      evaluation = emoList.shift();
     }
 
-    grid.appendChild(cardEl);
-  });
+    // 별점 렌더링 (★½☆)
+    const full  = Math.floor(score);
+    const half  = (score - full) >= 0.5 ? 1 : 0;
+    const empty = 5 - full - half;
+    const stars = '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
 
-  el.innerHTML = '';
-  el.appendChild(grid);
+    // 포스터 URL — poster_path가 경로만 있으면 풀 URL로
+    let posterUrl = r.poster_path || '';
+    if (posterUrl && !posterUrl.startsWith('http')) {
+      posterUrl = 'https://image.tmdb.org/t/p/w300' + posterUrl;
+    }
+
+    // 평가 태그
+    const evalBadge = evaluation
+      ? '<span class="rc-tag eval">' + evaluation + '</span>'
+      : '';
+
+    // 감정 태그 (최대 2개)
+    const emoTags = emoList.slice(0, 2)
+      .map(function(e) { return '<span class="rc-tag emo">' + e + '</span>'; })
+      .join('');
+
+    // 한줄 감상
+    const bodyHtml = r.text
+      ? '<div class="rc-body">"' + r.text + '"</div>'
+      : '<div class="rc-body rc-body-empty">평점만 남긴 후기</div>';
+
+    // 작품 페이지 이동 — 기존 goTitle() 방식 완전 유지
+    const goAttr = 'data-tmdb-id="' + r.tmdb_id + '"'
+      + ' data-title-ko="' + (r.title_ko || '').replace(/"/g, '&quot;') + '"'
+      + ' data-category="' + (r.category || 'tv') + '"'
+      + ' data-release-year="' + (r.release_year || '') + '"'
+      + ' onclick="goTitle(this)"'
+      + ' style="cursor:pointer"';
+
+    // 삭제 버튼 (본인만)
+    const delBtnHtml = IS_OWN
+      ? '<button class="del-btn" style="margin-top:6px;align-self:flex-start"'
+        + ' onclick="event.stopPropagation();delReview(' + r.tmdb_id + ',' + r.id + ')">삭제</button>'
+      : '';
+
+    return '<div class="rc-card" ' + goAttr + '>'
+      + '<div class="rc-poster">'
+      + (posterUrl
+          ? '<div class="rc-poster-bg" style="background-image:url(\'' + posterUrl + '\')"></div>'
+          : '<div class="rc-poster-ph">🎬</div>')
+      + '<div class="rc-poster-fade"></div>'
+      + (scoreNum ? '<div class="rc-poster-score">★ ' + scoreNum + '</div>' : '')
+      + '<div class="rc-content">'
+      + '<div class="rc-title">' + (r.title_ko || '작품 #' + r.tmdb_id) + '</div>'
+      + '<div class="rc-stars-row">'
+      + '<span class="rc-stars">' + stars + '</span>'
+      + (scoreNum ? '<span class="rc-score-num">' + scoreNum + '/10</span>' : '')
+      + '</div>'
+      + '<div class="rc-divider"></div>'
+      + bodyHtml
+      + ((evalBadge || emoTags) ? '<div class="rc-tags">' + evalBadge + emoTags + '</div>' : '')
+      + delBtnHtml
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('')}</div>`;
 }
 
 /* ══════════════════════════════════════
@@ -1984,10 +1967,6 @@ function showToast(msg) {
 }
 
 /* 시작 */
-</script>
-<!-- 리뷰 카드 공통 컴포넌트 JS — init() 전에 로드해야 ReviewCard 사용 가능 -->
-<script src="/components/review-card.js"></script>
-<script>
 init();
 </script>
 </body>
