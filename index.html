@@ -52,6 +52,11 @@
 <noscript>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
 </noscript>
+
+<!-- 리뷰 카드 공통 컴포넌트 CSS — FOUC 방지를 위해 head에 직접 로드 -->
+<link rel="stylesheet" href="/components/review-card.css">
+
+
 <style>
 :root {
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
@@ -580,27 +585,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     scroll-snap-align:start;
   }
 
-  /* ── 4. 최근 평점 후기 ── */
-  .review-grid{
-    display:flex;
-    gap:12px;
-    overflow-x:auto;
-    scroll-snap-type:x mandatory;
-    scrollbar-width:none;
-    -ms-overflow-style:none;
-    padding:0 16px 16px;
-    margin-bottom:0;
-    grid-template-columns:unset;
-    -webkit-overflow-scrolling:touch;
+  /* ── 4. 최근 평점 후기 (rc-grid 컴포넌트 — review-card.css의 모바일 슬라이드 활용) ── */
+  /* review-card.css 자체에 .rc-grid 모바일 슬라이드 정의가 있음
+     메인페이지에서는 가로 슬라이드 그대로 유지 (community.html처럼 2열로 오버라이드 불필요) */
+  #reviewGrid {
+    padding: 0 16px 16px;  /* 좌우 여백 통일 */
   }
-  .review-grid::-webkit-scrollbar{ display:none; }
-
-  /* 리뷰 카드 너비 — 1.5열 */
-  .review-grid .rv-card{
-    flex:0 0 calc((100vw - 40px) / 2);
-    min-width:0;
-    max-width:300px;
-    scroll-snap-align:start;
+  /* rc-card 너비 — 1.5열 (다음 카드 살짝 보임) */
+  #reviewGrid .rc-card {
+    flex: 0 0 calc((100vw - 40px) / 2);
+    min-width: 0;
+    max-width: 240px;
   }
 
   /* ── 5. 유튜브 급상승 ── */
@@ -792,7 +787,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <span class="sec-icon">⭐</span>
     <span class="sec-title">최근 평점 후기</span>
     <span class="sec-sub">LATEST REVIEWS</span>
-    <a href="/my_review.html" class="sec-more">전체보기 →</a>
+    <a href="/community" class="sec-more">전체보기 →</a>
   </div>
   <!-- 리뷰 카드 그리드 (rc-grid 컴포넌트) -->
   <div class="rc-grid" id="reviewGrid"></div>
@@ -1432,25 +1427,55 @@ const RV_PF_COLOR = {
   coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429'
 };
 
+/* ── 평가어 판별 세트 (community.html과 동일) ── */
+const EVAL_SET = new Set(['강추해요', '추천해요', '평범해요', '별로예요']);
+
+/* ── API 응답 리뷰 1개를 ReviewCard 컴포넌트 형식으로 변환 ── */
+function normalizeReview(rv) {
+  // emotions: DB에 JSON 문자열로 저장됨 → 배열로 파싱
+  let emotions = [];
+  if (typeof rv.emotions === 'string') {
+    try { emotions = JSON.parse(rv.emotions); } catch (e) { emotions = []; }
+  } else if (Array.isArray(rv.emotions)) {
+    emotions = rv.emotions;
+  }
+
+  // 첫 번째 값이 평가어(강추해요 등)이면 evaluation으로 분리
+  let evaluation = '';
+  if (emotions.length > 0 && EVAL_SET.has(emotions[0])) {
+    evaluation = emotions[0];
+    emotions   = emotions.slice(1);
+  }
+
+  // poster_path: 경로만 있으면 풀 TMDB URL로 변환
+  let poster_path = rv.poster_path || '';
+  if (poster_path && !poster_path.startsWith('http')) {
+    poster_path = 'https://image.tmdb.org/t/p/w300' + poster_path;
+  }
+
+  return { ...rv, emotions, evaluation, poster_path };
+}
+
 async function loadRecentReviews() {
-  // 로딩 중 스켈레톤 표시
+  // 로딩 중 스켈레톤 5개 표시
   ReviewCard.skeleton('reviewGrid', 5);
   try {
-    const sid  = localStorage.getItem('ottrang_sid');
-    const opts = sid
-      ? { credentials: 'include', headers: { Authorization: `Bearer ${sid}` } }
-      : { credentials: 'include' };
-    const res  = await fetch(`${API}/reviews/recent?limit=5`, opts);
+    const res  = await fetch(`${API}/reviews/recent?limit=5`);
     const data = await res.json();
 
     if (!data.ok || !data.reviews?.length) {
+      // 리뷰 없으면 섹션 전체 숨김
       document.getElementById('recentReviews')?.style.setProperty('display', 'none');
       document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
       return;
     }
-    // ReviewCard 컴포넌트로 렌더링
-    ReviewCard.renderGrid(data.reviews, 'reviewGrid');
+
+    // emotions 파싱 + poster_path 변환 후 ReviewCard 컴포넌트로 렌더링
+    const reviews = data.reviews.map(normalizeReview);
+    ReviewCard.renderGrid(reviews, 'reviewGrid');
+
   } catch(e) {
+    // API 오류 시 섹션 숨김
     document.getElementById('recentReviews')?.style.setProperty('display', 'none');
     document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
   }
