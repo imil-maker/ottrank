@@ -486,6 +486,8 @@
     flex:1;align-items:center;gap:8px;
   }
   .ottrang-header-inner.search-mode .ottrang-header-search-mode { display:flex; }
+  /* 검색 결과 드롭다운도 모바일 전용 */
+  .ottrang-header-search-results { display:none; }
   .ottrang-mob-search-back-btn {
     width:36px;height:36px;flex-shrink:0;
     border-radius:50%;background:rgba(255,255,255,0.06);
@@ -568,7 +570,7 @@
     </div>
 
     <!-- ── 모바일 검색 모드 (헤더 내부 전환) ── -->
-    <div class="ottrang-header-search-mode" id="ottrangHeaderSearchMode">
+    <div class="ottrang-header-search-mode" id="ottrangHeaderSearchMode" style="display:none">
       <button class="ottrang-mob-search-back-btn" id="ottrangHeaderSearchBack">&#8592;</button>
       <input class="ottrang-header-search-input" id="ottrangHeaderSearchInput"
         type="text" placeholder="작품, 배우, 감독 검색"
@@ -1121,15 +1123,20 @@ function initHeader(){
   const _headerSrInput = document.getElementById('ottrangHeaderSearchInput');
   const _headerSrRes   = document.getElementById('ottrangMobSearchResults');
 
-  // 검색 모드 열기
+  // 검색 모드 열기 (모바일 전용 — PC는 기존 검색창 사용)
   document.getElementById('ottrangMobSearchBtn')?.addEventListener('click', () => {
+    if(window.innerWidth > 768) return; // PC에서는 동작 안 함
     _headerInner?.classList.add('search-mode');
+    const searchModeDiv = document.getElementById('ottrangHeaderSearchMode');
+    if(searchModeDiv) searchModeDiv.style.display = 'flex';
     setTimeout(() => _headerSrInput?.focus(), 80);
   });
 
   // 검색 모드 닫기
   function _closeMobSearch() {
     _headerInner?.classList.remove('search-mode');
+    const searchModeDiv = document.getElementById('ottrangHeaderSearchMode');
+    if(searchModeDiv) searchModeDiv.style.display = 'none';
     if(_headerSrInput)  _headerSrInput.value = '';
     if(_headerSrRes)  { _headerSrRes.innerHTML = ''; _headerSrRes.style.display = 'none'; }
   }
