@@ -162,9 +162,9 @@ export async function handleAuth(path, request, env, headers) {
       const userJson   = await userRes.json();
       const userData   = userJson.response;
       const providerId = String(userData.id);
-      const nickname   = userData.nickname || userData.name || "네이버유저";
       const email      = userData.email || "";
       const avatar_url = userData.profile_image || "";
+      // 소셜 닉네임은 저장하지 않음 — signup.html에서 직접 설정
 
       const existingNaver = await env.DB.prepare(
         "SELECT id, nickname FROM users WHERE provider = 'naver' AND provider_id = ?"
@@ -172,12 +172,12 @@ export async function handleAuth(path, request, env, headers) {
 
       await env.DB.prepare(`
         INSERT INTO users (provider, provider_id, nickname, email, avatar_url, last_login)
-        VALUES ('naver', ?, ?, ?, ?, datetime('now'))
+        VALUES ('naver', ?, '', ?, ?, datetime('now'))
         ON CONFLICT(provider, provider_id) DO UPDATE SET
           email      = excluded.email,
           avatar_url = excluded.avatar_url,
           last_login = datetime('now')
-      `).bind(providerId, nickname, email, avatar_url).run();
+      `).bind(providerId, email, avatar_url).run();
 
       const userRow = await env.DB.prepare(
         "SELECT id, nickname FROM users WHERE provider = 'naver' AND provider_id = ?"
@@ -259,9 +259,9 @@ export async function handleAuth(path, request, env, headers) {
       });
       const userData   = await userRes.json();
       const providerId = String(userData.id);
-      const nickname   = userData.kakao_account?.profile?.nickname || "카카오유저";
       const avatar_url = userData.kakao_account?.profile?.profile_image_url || "";
       const email      = userData.kakao_account?.email || "";
+      // 소셜 닉네임은 저장하지 않음 — signup.html에서 직접 설정
 
       const existingKakao = await env.DB.prepare(
         "SELECT id, nickname FROM users WHERE provider = 'kakao' AND provider_id = ?"
@@ -269,12 +269,12 @@ export async function handleAuth(path, request, env, headers) {
 
       await env.DB.prepare(`
         INSERT INTO users (provider, provider_id, nickname, email, avatar_url, last_login)
-        VALUES ('kakao', ?, ?, ?, ?, datetime('now'))
+        VALUES ('kakao', ?, '', ?, ?, datetime('now'))
         ON CONFLICT(provider, provider_id) DO UPDATE SET
           email      = excluded.email,
           avatar_url = excluded.avatar_url,
           last_login = datetime('now')
-      `).bind(providerId, nickname, email, avatar_url).run();
+      `).bind(providerId, email, avatar_url).run();
 
       const userRow = await env.DB.prepare(
         "SELECT id, nickname FROM users WHERE provider = 'kakao' AND provider_id = ?"
