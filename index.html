@@ -606,17 +606,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     max-width: 260px !important;
     scroll-snap-align: start !important;
   }
-  /* rc-poster overflow:hidden → visible
-     rc-content(position:absolute, top:50%)이 포스터 밖으로 늘어날 때
-     닉네임(rc-footer)이 잘리지 않게 */
-  #reviewGrid .rc-poster {
-    overflow: visible !important;
-  }
-  /* 포스터 이미지/배경은 border-radius로 직접 클립 */
-  #reviewGrid .rc-poster-bg {
-    border-radius: var(--r) var(--r) 0 0;
-    overflow: hidden;
-  }
+  /* 닉네임이 좌상단 뱃지로 이동 — overflow 오버라이드 불필요 */
 
   /* ── 5. 유튜브 급상승 ── */
   .yt-grid{
