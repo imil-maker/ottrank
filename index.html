@@ -1460,7 +1460,9 @@ async function loadRecentReviews() {
   // 로딩 중 스켈레톤 5개 표시
   ReviewCard.skeleton('reviewGrid', 5);
   try {
-    const res  = await fetch(`${API}/reviews/recent?limit=5`);
+    // 넉넉히 20개 가져와서 JS에서 닉네임 중복 제거
+    // (한 명이 연속 도배해도 5개의 서로 다른 닉네임을 확보하기 위함)
+    const res  = await fetch(`${API}/reviews/recent?limit=20`);
     const data = await res.json();
 
     if (!data.ok || !data.reviews?.length) {
@@ -1470,8 +1472,27 @@ async function loadRecentReviews() {
       return;
     }
 
+    // 닉네임 중복 제거 — 최신순으로 순회하며 닉네임이 처음 나온 것만 채택
+    // 같은 닉네임이 나오면 다음 리뷰로 패스, 5개 채워지면 종료
+    const seen   = new Set();
+    const unique = [];
+    for (const rv of data.reviews) {
+      const nick = rv.nickname || '익명';
+      if (!seen.has(nick)) {
+        seen.add(nick);
+        unique.push(rv);
+      }
+      if (unique.length >= 5) break;
+    }
+
+    if (!unique.length) {
+      document.getElementById('recentReviews')?.style.setProperty('display', 'none');
+      document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
+      return;
+    }
+
     // emotions 파싱 + poster_path 변환 후 ReviewCard 컴포넌트로 렌더링
-    const reviews = data.reviews.map(normalizeReview);
+    const reviews = unique.map(normalizeReview);
     ReviewCard.renderGrid(reviews, 'reviewGrid');
 
   } catch(e) {
