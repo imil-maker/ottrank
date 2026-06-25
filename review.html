@@ -86,11 +86,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   font-family:var(--font-mono);margin-left:2px;
 }
 
-/* ── 별점 ── */
-.star-row{display:flex;gap:6px;margin-bottom:8px}
-.star-wrap{position:relative;width:46px;height:46px;cursor:pointer;flex-shrink:0}
+/* ── 별점 — 한 줄 인라인 (작은 별) ── */
+.star-row{display:flex;gap:3px;align-items:center}
+.star-wrap{position:relative;width:32px;height:32px;cursor:pointer;flex-shrink:0}
 .star-wrap .s-full,.star-wrap .s-half{
-  position:absolute;top:0;left:0;font-size:42px;line-height:1;
+  position:absolute;top:0;left:0;font-size:28px;line-height:1;
   color:var(--border2);transition:color .1s;user-select:none;
 }
 .star-wrap .s-full{z-index:1}
@@ -100,46 +100,64 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .star-wrap.full .s-full{color:var(--gold)}
 .star-wrap.full .s-half{color:var(--gold)}
 .star-label{
-  font-size:13px;font-family:var(--font-mono);
-  color:var(--muted);margin-left:8px;line-height:46px;
+  font-size:15px;font-family:var(--font-mono);font-weight:700;
+  color:var(--muted);margin-left:10px;line-height:32px;
 }
-.star-label.active{color:var(--gold);font-weight:500}
+.star-label.active{color:var(--gold)}
 
-/* ── 평가 4버튼 ── */
-.eval-btns{display:flex;gap:8px;flex-wrap:wrap}
+/* ── 평가 4버튼 — 가로 슬라이드 ── */
+.eval-slide{
+  display:flex;gap:8px;overflow-x:auto;
+  padding-bottom:4px;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.eval-slide::-webkit-scrollbar{display:none}
 .eval-btn{
-  display:flex;align-items:center;gap:6px;
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
   padding:9px 18px;border-radius:24px;
   border:.5px solid var(--border);
   background:var(--bg3);color:var(--muted2);
   font-size:13px;font-weight:500;cursor:pointer;
-  font-family:var(--font-sans);transition:all .2s;
+  font-family:var(--font-sans);transition:all .2s;white-space:nowrap;
 }
-.eval-btn:hover{border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
-.eval-btn.on{transform:translateY(-1px);box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.eval-btn:hover{border-color:var(--border2);color:var(--text)}
+.eval-btn.on{box-shadow:0 2px 12px rgba(0,0,0,.2)}
 .eval-btn[data-val="강추해요"].on{background:var(--warn-bg);color:var(--gold);border-color:rgba(240,180,41,.4)}
 .eval-btn[data-val="추천해요"].on{background:rgba(52,211,153,.1);color:var(--green);border-color:rgba(52,211,153,.4)}
 .eval-btn[data-val="평범해요"].on{background:rgba(160,160,188,.08);color:var(--muted2);border-color:rgba(160,160,188,.4)}
 .eval-btn[data-val="별로예요"].on{background:var(--danger-bg);color:var(--accent);border-color:rgba(230,57,70,.4)}
 
-/* ── 감정 태그 ── */
-.etag-count{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:10px}
-.etag-grid{display:flex;flex-wrap:wrap;gap:8px}
+/* ── 감정 태그 — 헤더 한 줄 + 가로 슬라이드 ── */
+.etag-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.etag-counter{
+  font-size:11px;color:var(--muted);font-family:var(--font-mono);
+  background:var(--bg3);border:.5px solid var(--border);
+  padding:2px 8px;border-radius:10px;white-space:nowrap;
+}
+.etag-slide{
+  display:flex;gap:8px;overflow-x:auto;
+  padding-bottom:4px;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.etag-slide::-webkit-scrollbar{display:none}
 .etag{
-  display:flex;align-items:center;gap:5px;
+  display:flex;align-items:center;gap:5px;flex-shrink:0;
   padding:7px 14px;border-radius:24px;
   border:.5px solid var(--border);font-size:12px;
   color:var(--muted2);cursor:pointer;background:var(--bg3);
   transition:all .2s;font-family:var(--font-sans);user-select:none;
+  white-space:nowrap;
 }
-.etag:hover{border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
+.etag:hover{border-color:var(--border2);color:var(--text)}
 .etag.on{
   background:var(--info-bg);color:var(--info);
   border-color:var(--info-border);
   box-shadow:0 2px 10px rgba(55,138,221,.12);
-  transform:translateY(-1px);
 }
-.etag.disabled{opacity:.3;cursor:default;transform:none}
+.etag.disabled{opacity:.3;cursor:default}
 .etag-emoji{font-size:14px;line-height:1}
 
 /* ── 텍스트 입력 ── */
@@ -198,9 +216,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .review-wrap{padding:24px 16px 60px}
   .eval-btns{gap:6px}
   .eval-btn{padding:8px 12px;font-size:12px}
-  .star-wrap{width:40px;height:40px}
-  .star-wrap .s-full,.star-wrap .s-half{font-size:36px}
-  .star-label{line-height:40px}
+  .star-wrap{width:28px;height:28px}
+  .star-wrap .s-full,.star-wrap .s-half{font-size:24px}
+  .star-label{line-height:28px;font-size:14px}
 }
 
 /* ══ 공유 카드 (이미지 생성용 — 화면에는 숨김) ══ */
@@ -274,57 +292,75 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .share-btn:hover{background:rgba(55,138,221,.2)}
 .share-btn:disabled{opacity:.5;cursor:default}
 
-/* ── 공유 완료 모달 ── */
-.share-preview-modal{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
-.share-preview-modal.show{display:flex}
-.share-preview-box{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r-lg);max-width:360px;width:100%;max-height:90vh;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.7);display:flex;flex-direction:column}
-.share-preview-title{font-size:15px;font-weight:700;padding:16px 16px 8px;color:var(--text)}
-.share-preview-imgwrap{flex:1;overflow-y:auto;padding:0 16px 8px}
-.share-preview-img{width:100%;display:block;border-radius:var(--r)}
+/* ── 공유 완료 모달 — 전체 스크롤 방식 ── */
+.share-preview-modal{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);overflow-y:auto}
+.share-preview-modal.show{display:block}
+.share-preview-box{max-width:420px;width:100%;margin:0 auto;display:flex;flex-direction:column}
+
+/* 카드 이미지 — 전체 너비 꽉 차게 */
+.share-preview-imgwrap{width:100%;line-height:0}
+.share-preview-img{width:100%;display:block}
+
+/* 등록 완료 알림 — 카드 이미지 바로 위 */
+.share-registered-badge{
+  padding:14px 20px 10px;text-align:center;
+  font-size:15px;font-weight:700;color:var(--gold);
+  letter-spacing:.3px;
+}
+
+/* 스크롤 유도 힌트 */
+.share-scroll-hint{
+  text-align:center;font-size:11px;color:var(--muted);
+  padding:6px 0 10px;
+  animation:bounceDown .9s ease-in-out infinite alternate;
+}
+@keyframes bounceDown{from{transform:translateY(0)}to{transform:translateY(4px)}}
 
 /* ── SNS 공유 액션 영역 ── */
-.share-action-area{padding:0 16px 16px;flex-shrink:0}
+.share-action-area{padding:16px 20px 40px;background:var(--bg2)}
 
 /* 이미지 저장 버튼 */
 .share-save-btn{
-  width:100%;padding:11px;border-radius:var(--r);
+  width:100%;padding:13px;border-radius:var(--r);
   border:.5px solid var(--border2);background:var(--bg3);
   color:var(--text);font-size:14px;font-weight:600;cursor:pointer;
   font-family:var(--font-sans);display:flex;align-items:center;
   justify-content:center;gap:7px;text-decoration:none;
-  transition:all .15s;margin-bottom:12px;
+  transition:all .15s;margin-bottom:14px;
 }
 .share-save-btn:hover{background:rgba(255,255,255,.08)}
 
-/* 구분선 */
+/* 구분선 — 노란색·크게 (수정4) */
 .share-divider{
-  display:flex;align-items:center;gap:8px;
-  margin-bottom:10px;
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:12px;
 }
-.share-divider span{font-size:11px;color:var(--muted);white-space:nowrap}
+.share-divider span{
+  font-size:13px;font-weight:700;color:var(--gold);
+  white-space:nowrap;letter-spacing:.3px;
+}
 .share-divider::before,.share-divider::after{
   content:'';flex:1;height:.5px;background:var(--border2);
 }
 
 /* SNS 버튼 2열 그리드 */
-.share-sns-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.share-sns-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
 .share-sns-btn{
-  padding:10px 8px;border-radius:var(--r);
+  padding:12px 8px;border-radius:var(--r);
   border:.5px solid var(--border2);background:var(--bg3);
-  color:var(--text);font-size:12px;font-weight:600;cursor:pointer;
+  color:var(--text);font-size:13px;font-weight:600;cursor:pointer;
   font-family:var(--font-sans);display:flex;align-items:center;
   justify-content:center;gap:6px;transition:all .15s;
 }
 .share-sns-btn:hover{background:rgba(255,255,255,.08)}
-/* 카카오 버튼 전용 색상 */
 .share-sns-btn.kakao{background:#FEE500;color:#3C1E1E;border-color:#e6cf00}
 .share-sns-btn.kakao:hover{background:#f5db00}
 
 /* 닫기 버튼 */
 .share-close-btn{
-  width:100%;padding:9px;border-radius:var(--r);
+  width:100%;padding:10px;border-radius:var(--r);
   border:none;background:transparent;
-  color:var(--muted);font-size:12px;cursor:pointer;
+  color:var(--muted);font-size:13px;cursor:pointer;
   font-family:var(--font-sans);transition:all .15s;
 }
 .share-close-btn:hover{color:var(--text)}
@@ -393,10 +429,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- 평가 4버튼 -->
+  <!-- 평가 4버튼 — 가로 슬라이드 -->
   <div class="review-section">
     <div class="review-section-title"><i class="ti ti-mood-smile" style="font-size:15px;color:var(--green)"></i>이 작품을 한마디로?</div>
-    <div class="eval-btns">
+    <div class="eval-slide">
       <button class="eval-btn" data-val="강추해요" onclick="toggleEval(this)">🔥 강추해요</button>
       <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)">👍 추천해요</button>
       <button class="eval-btn" data-val="평범해요" onclick="toggleEval(this)">😐 평범해요</button>
@@ -404,11 +440,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- 감정 태그 -->
+  <!-- 감정 태그 — 헤더 한 줄 + 가로 슬라이드 -->
   <div class="review-section">
-    <div class="review-section-title"><i class="ti ti-tags" style="font-size:15px;color:var(--info)"></i>감정 태그 <span class="title-sub">(최대 3개)</span></div>
-    <div class="etag-count" id="etagCount">0 / 3 태그 선택</div>
-    <div class="etag-grid">
+    <div class="review-section-title" style="margin-bottom:10px">
+      <i class="ti ti-tags" style="font-size:15px;color:var(--info)"></i>감정 태그
+      <span class="etag-counter" id="etagCount">0 / 3 선택</span>
+    </div>
+    <div class="etag-slide">
       <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😰</span>긴장감 넘침</button>
       <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🔥</span>몰입감 최고</button>
       <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">🥹</span>감동적</button>
@@ -480,28 +518,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
-<!-- 등록 완료 안내 모달 -->
-<div class="share-preview-modal" id="completeModal">
-  <div class="complete-modal-box">
-    <div class="complete-modal-icon">🎉</div>
-    <div class="complete-modal-title">후기가 등록됐어요!</div>
-    <div class="complete-modal-desc">내 평점·후기를 영화 포스터처럼<br>만들어 드립니다. 만드시겠습니까?</div>
-    <div class="complete-modal-actions">
-      <button class="complete-modal-later" onclick="closeCompleteModal();goBack()">나중에</button>
-      <button class="complete-modal-make" onclick="closeCompleteModal();shareReviewCard()">
-        <i class="ti ti-sparkles" style="font-size:16px"></i> 카드 만들기
-      </button>
-    </div>
-  </div>
-</div>
+<!-- 등록 완료 모달 제거됨 (수정2: 후기 등록 즉시 카드 생성으로 변경) -->
 
-<!-- 공유 이미지 미리보기 모달 -->
+<!-- 공유 이미지 미리보기 모달 — 전체 스크롤 방식 (수정3) -->
 <div class="share-preview-modal" id="sharePreviewModal">
   <div class="share-preview-box">
-    <div class="share-preview-title">완성된 카드예요!</div>
+
+    <!-- 카드 이미지 전체 너비 -->
     <div class="share-preview-imgwrap">
       <img class="share-preview-img" id="sharePreviewImg" src="" alt="공유 이미지">
     </div>
+
+    <!-- 스크롤 유도 -->
+    <div class="share-scroll-hint">↓ 스크롤해서 공유하기</div>
+
+    <!-- 액션 영역 -->
     <div class="share-action-area">
 
       <!-- 이미지 저장 버튼 -->
@@ -509,32 +540,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <i class="ti ti-download" style="font-size:16px" aria-hidden="true"></i> 이미지 저장
       </a>
 
-      <!-- SNS 공유 구분선 -->
+      <!-- SNS 구분선 — 노란색·크게 (수정4) -->
       <div class="share-divider"><span>저장 후 SNS에 공유하기</span></div>
 
       <!-- SNS 버튼 2×2 그리드 -->
       <div class="share-sns-grid">
-
-        <!-- X(트위터): 텍스트+링크 새 탭 -->
         <button class="share-sns-btn" id="shareBtnX" onclick="shareToX()">
           <i class="ti ti-brand-x" style="font-size:15px" aria-hidden="true"></i> X (트위터)
         </button>
-
-        <!-- 인스타그램: 저장 안내 + instagram.com 새 탭 -->
         <button class="share-sns-btn" id="shareBtnInsta" onclick="shareToInstagram()">
           <i class="ti ti-brand-instagram" style="font-size:15px" aria-hidden="true"></i> 인스타그램
         </button>
-
-        <!-- 카카오톡: Kakao SDK or 링크 폴백 -->
         <button class="share-sns-btn kakao" id="shareBtnKakao" onclick="shareToKakao()">
           <i class="ti ti-message-circle" style="font-size:15px" aria-hidden="true"></i> 카카오톡
         </button>
-
-        <!-- 기타: 모바일 navigator.share / PC 링크복사 -->
         <button class="share-sns-btn" id="shareBtnEtc" onclick="shareToEtc()">
           <i class="ti ti-share-2" style="font-size:15px" aria-hidden="true"></i> 기타 공유
         </button>
-
       </div>
 
       <!-- 닫기 -->
@@ -768,8 +790,8 @@ async function submitReview(){
     document.getElementById('shareRow').classList.add('show');
     document.getElementById('deleteBtn').style.display='block';
 
-    // 등록 완료 안내 모달 표시
-    document.getElementById('completeModal').classList.add('show');
+    // 수정2: 등록 완료 모달 없이 즉시 카드 생성
+    shareReviewCard();
   }catch(e){showToast('네트워크 오류');btn.disabled=false;btn.textContent='후기 등록';}
 }
 
@@ -891,8 +913,9 @@ async function shareReviewCard(){
     dl.href=url;
     dl.download=fileName;
 
-    // ── 모달 열기 ──
+    // ── 모달 열기 + 스크롤 맨 위로 ──
     document.getElementById('sharePreviewModal').classList.add('show');
+    document.getElementById('sharePreviewModal').scrollTop=0;
 
   }catch(e){
     if(e.name!=='AbortError')showToast('이미지 생성에 실패했어요');
@@ -919,68 +942,84 @@ async function claimShareOtt(){
   }catch(e){/* 적립 실패해도 공유 동작에는 영향 없음 */}
 }
 
+/* ── 모바일 기기 판별 헬퍼 ── */
+function isMobile(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
 /* ── X(트위터) 공유
-   웹 API 한계상 텍스트+링크만 전달 가능. 이미지는 저장 후 직접 첨부 안내. ── */
+   모바일: twitter:// 앱 실행 → 1.5초 후 웹 폴백
+   PC    : x.com 새 탭 바로 열기 ── */
 function shareToX(){
   const title = RDATA?.title || '오뜨랑 리뷰';
   const score = LAST_REVIEW ? fmtScore(LAST_REVIEW.score*2) : '';
   const scoreText = score ? ` ★${score}/10` : '';
-  const text = encodeURIComponent(`${title}${scoreText}\n#오뜨랑 #OTT후기\nhttps://ottrank.kr`);
-  window.open(`https://x.com/intent/tweet?text=${text}`, '_blank', 'noopener,noreferrer');
+  const tweetText = encodeURIComponent(`${title}${scoreText}\n#오뜨랑 #OTT후기\nhttps://ottrank.kr`);
+  const webUrl = `https://x.com/intent/tweet?text=${tweetText}`;
+
+  if(isMobile()){
+    // 앱 실행 시도
+    window.location.href = `twitter://post?message=${tweetText}`;
+    // 앱 없으면 1.5초 후 웹으로 폴백
+    setTimeout(()=>{
+      window.open(webUrl, '_blank', 'noopener,noreferrer');
+    }, 1500);
+  } else {
+    // PC는 바로 웹
+    window.open(webUrl, '_blank', 'noopener,noreferrer');
+  }
   claimShareOtt();
   showToast('이미지도 함께 올리면 더 좋아요! 💡');
 }
 
 /* ── 인스타그램 공유
-   웹에서 이미지 직접 첨부 불가 → 저장 후 앱에서 업로드 유도 ── */
+   이미지 자동 저장 후
+   모바일: instagram:// 앱 실행 → 1.5초 후 웹 폴백
+   PC    : instagram.com 새 탭 바로 열기 ── */
 function shareToInstagram(){
   // 이미지 자동 다운로드 트리거
   const dl=document.getElementById('sharePreviewDownload');
   if(dl && dl.href) dl.click();
-  // 인스타그램 앱/웹 열기
+
   setTimeout(()=>{
-    window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
-  }, 400);
+    if(isMobile()){
+      // 앱 실행 시도
+      window.location.href = 'instagram://';
+      // 앱 없으면 1.5초 후 웹으로 폴백
+      setTimeout(()=>{
+        window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
+      }, 1500);
+    } else {
+      // PC는 바로 웹
+      window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
+    }
+  }, 400); // 이미지 저장 트리거 후 잠깐 대기
+
   claimShareOtt();
   showToast('이미지 저장 후 인스타에 올려보세요!');
 }
 
 /* ── 카카오톡 공유
-   Kakao SDK가 있으면 링크 메시지 전송, 없으면 카카오 앱 링크로 폴백 ── */
+   이미지 자동 저장 후
+   모바일: kakaolink://home 앱 실행
+   PC    : kakaotalk:// PC 앱 실행 ── */
 function shareToKakao(){
-  const title  = RDATA?.title  || '오뜨랑 리뷰';
-  const score  = LAST_REVIEW ? fmtScore(LAST_REVIEW.score*2) : '';
-  const desc   = LAST_REVIEW?.text
-    ? LAST_REVIEW.text.slice(0,60) + (LAST_REVIEW.text.length>60 ? '…' : '')
-    : `${score}/10점`;
-  const pageUrl = `https://ottrank.kr`;
+  // 1. 이미지 자동 다운로드 트리거
+  const dl=document.getElementById('sharePreviewDownload');
+  if(dl && dl.href) dl.click();
 
-  // Kakao SDK 사용 가능한 경우 (로그인 페이지에서 이미 init된 경우)
-  if(window.Kakao && window.Kakao.isInitialized && window.Kakao.Share){
-    window.Kakao.Share.sendDefault({
-      objectType: 'feed',
-      content: {
-        title: `${title} 후기 | 오뜨랑`,
-        description: desc,
-        imageUrl: RDATA?.poster_path || 'https://ottrank.kr/img/og-default.png',
-        link: { mobileWebUrl: pageUrl, webUrl: pageUrl },
-      },
-      buttons:[{
-        title: '오뜨랑에서 보기',
-        link: { mobileWebUrl: pageUrl, webUrl: pageUrl },
-      }],
-    });
-    claimShareOtt();
-  } else {
-    // SDK 없을 때 — 카카오 앱 링크 폴백 (이미지 없이 텍스트 공유)
-    const kakaoText = encodeURIComponent(`${title} 후기를 오뜨랑에서 남겼어요!\nhttps://ottrank.kr`);
-    window.open(`https://sharer.kakao.com/talk/friends/picker/easylink?app_key=&link_ver=4.0&template_id=&template_args=`, '_blank');
-    // 실패 시 그냥 링크 복사로 대체
-    navigator.clipboard?.writeText(`https://ottrank.kr`).then(()=>{
-      showToast('링크를 복사했어요. 카카오에 붙여넣기 하세요!');
-    }).catch(()=>showToast('카카오 앱에서 공유해주세요.'));
-    claimShareOtt();
-  }
+  // 2. 모바일/PC 분기해서 카카오톡 앱 실행
+  setTimeout(()=>{
+    if(isMobile()){
+      window.location.href='kakaolink://home'; // 모바일 앱
+    } else {
+      window.location.href='kakaotalk://';     // PC 앱
+    }
+  }, 500);
+
+  // 3. 오뜨 적립
+  claimShareOtt();
+  showToast('이미지 저장됐어요! 카카오톡에서 파일 첨부로 보내세요 📎');
 }
 
 /* ── 기타 공유
@@ -1016,10 +1055,6 @@ async function shareToEtc(){
 
 function closeSharePreview(){
   document.getElementById('sharePreviewModal').classList.remove('show');
-}
-
-function closeCompleteModal(){
-  document.getElementById('completeModal').classList.remove('show');
 }
 
 /* ══ 유틸 ══ */
