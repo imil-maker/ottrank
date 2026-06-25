@@ -242,14 +242,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   background-size:cover;
   background-position:center 25%;
   background-repeat:no-repeat;
-  /* 그라디언트를 포스터에 직접 합성 — html2canvas 완벽 지원 */
+  /* 그라디언트: 포스터 하단 50%부터 시작 → 완전 불투명으로 끝 */
   background-image:
     linear-gradient(
       180deg,
       transparent 0%,
-      transparent 50%,
-      rgba(13,13,20,.4) 65%,
-      rgba(13,13,20,.8) 80%,
+      transparent 45%,
+      rgba(13,13,20,.3) 60%,
+      rgba(13,13,20,.75) 75%,
+      rgba(13,13,20,.95) 90%,
       #13131a 100%
     );
   display:block;
@@ -280,13 +281,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 #shareCardLogoBox i{font-size:24px;color:#1a1410}
 #shareCardBadgeText{font-size:26px;font-weight:500;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.5)}
 
-/* 정보 영역 — 포스터 바로 아래 (normal flow) */
+/* 정보 영역 — 포스터와 오버랩, 배경 투명하게 */
 #shareCardInner{
   position:relative;z-index:2;
   margin-top:-180px;
   padding:0 28px 40px;
   display:flex;flex-direction:column;color:#ededf0;
-  background:#13131a;
+  /* background 제거 — 포스터 그라디언트가 자연스럽게 보이도록 */
 }
 #shareCardTitle{font-size:32px;font-weight:700;margin-bottom:6px;line-height:1.25;word-break:break-all;text-shadow:0 2px 16px rgba(0,0,0,.6)}
 #shareCardMeta{font-size:17px;color:rgba(255,255,255,.6);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:16px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
@@ -866,9 +867,10 @@ async function shareReviewCard(){
         linear-gradient(
           180deg,
           transparent 0%,
-          transparent 50%,
-          rgba(13,13,20,.4) 65%,
-          rgba(13,13,20,.8) 80%,
+          transparent 45%,
+          rgba(13,13,20,.3) 60%,
+          rgba(13,13,20,.75) 75%,
+          rgba(13,13,20,.95) 90%,
           #13131a 100%
         ),
         url(${posterDataUrl})
