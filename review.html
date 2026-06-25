@@ -226,13 +226,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .star-label{line-height:28px;font-size:14px}
 }
 
-/* ══ 공유 카드 (이미지 생성용 — 화면에는 숨김) ══ */
-/* 540x960 기준 작성 → html2canvas scale:2 → 1080x1920 출력 */
-/* ── 공유 카드 — 내용 길이에 따라 자동 높이 ── */
+/* ══ 공유 카드 — 내용 길이에 따라 자동 높이, 화면 밖 숨김 ══ */
 #shareCard{
-  position:fixed;left:-9999px;top:0;
+  position:absolute;left:-9999px;top:0;
   width:540px;
-  /* height 고정 제거 → 내용에 따라 자동 */
   overflow:visible;
   background:#13131a;
   font-family:'Noto Sans KR',sans-serif;
@@ -286,8 +283,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* 정보 영역 — 포스터 바로 아래 (normal flow) */
 #shareCardInner{
   position:relative;z-index:2;
-  /* 포스터와 자연스럽게 겹치도록 위로 올림 */
-  margin-top:-80px;
+  margin-top:-180px;
   padding:0 28px 40px;
   display:flex;flex-direction:column;color:#ededf0;
   background:#13131a;
