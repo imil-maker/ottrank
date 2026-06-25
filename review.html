@@ -1073,22 +1073,36 @@ function shareToInstagram(){
    이미지 자동 저장 후
    모바일: kakaolink://home 앱 실행
    PC    : kakaotalk:// PC 앱 실행 ── */
-function shareToKakao(){
-  // 1. 이미지 최초 1회만 다운로드 (중복 방지)
+/* ── 카카오톡 공유
+   navigator.share로 리뷰카드 이미지 직접 공유
+   → OS 공유 시트에서 카카오톡 선택 → 친구에게 이미지 전송 가능
+   미지원 환경(PC 등)은 리뷰카드 저장 + 안내 토스트로 폴백 ── */
+async function shareToKakao(){
+  const file = window.__shareFile__;
+
+  // Web Share API + 파일 공유 지원 환경 (Android/iOS 모바일)
+  if(navigator.canShare && file && navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({
+        files:[file],
+        title:`${RDATA?.title||'오뜨랑'} 리뷰카드 | 오뜨랑`,
+        text:`오뜨랑에서 ${RDATA?.title||''} 리뷰카드를 공유해요!\nhttps://ottrank.kr`,
+      });
+      claimShareOtt();
+    }catch(e){
+      if(e.name!=='AbortError') showToast('공유를 취소했어요');
+    }
+    return;
+  }
+
+  // 미지원 환경(PC) — 리뷰카드 저장 + 안내 토스트
   if(!window.__cardDownloaded__){
     const dl=document.getElementById('sharePreviewDownload');
     if(dl && dl.href) dl.click();
     window.__cardDownloaded__=true;
   }
-
-  // 2. 카카오톡 앱 실행 (채팅 목록으로 바로 열기)
-  setTimeout(()=>{
-    window.location.href='kakaotalk://';
-  }, 500);
-
-  // 3. 오뜨 적립 + 안내 토스트
   claimShareOtt();
-  showToast('이미지 저장됐어요! 채팅방에서 사진 첨부로 보내세요 📎');
+  showToast('리뷰카드가 저장됐어요! 카카오톡 채팅방에서 리뷰카드를 첨부해서 보내세요 📎');
 }
 
 /* ── 기타 공유
