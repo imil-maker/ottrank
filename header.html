@@ -198,21 +198,7 @@
 .ottrang-btn-user:hover { background:var(--bg3); }
 .ottrang-btn-user .u-nick { font-weight:600; color:#f0b429; font-size:14px; }
 
-/* 슬로건 배너 */
-.ottrang-banner {
-  background:var(--bg2);border-bottom:1px solid var(--border);
-  font-family:var(--sans);
-}
-.ottrang-banner-inner {
-  max-width:var(--max-w);margin:0 auto;
-  padding:10px 28px;display:flex;align-items:center;justify-content:center;
-}
-.ottrang-slogan { font-size:13px;color:var(--muted2);letter-spacing:.3px;text-align:center; }
-.ottrang-slogan b {
-  background:linear-gradient(90deg,#FF5177,#FF9A3C);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  background-clip:text;font-weight:700;
-}
+
 
 /* ══ 모바일 전용 요소 — 데스크톱에서는 숨김 ══ */
 .ottrang-mob-search-btn { display:none; }
@@ -520,9 +506,6 @@
   }
   .ottrang-header-search-results.show { display:block; }
   .ottrang-mob-ham-btn    { display:flex; }
-
-  /* 슬로건 배너 숨김 */
-  .ottrang-banner { display:none !important; }
 }
 </style>
 
@@ -600,11 +583,6 @@
         <span style="display:block;width:18px;height:1.5px;background:#e63946;border-radius:2px;"></span>
       </button>
     </div>
-  </div>
-</div>
-<div class="ottrang-banner" id="ottrangBanner" style="display:none">
-  <div class="ottrang-banner-inner">
-    <p class="ottrang-slogan">오늘 OTT 뭐 볼까?&nbsp;&nbsp;<b>오뜨랑(OTTRANK)에서 확인</b>&nbsp;&nbsp;—&nbsp;&nbsp; 현재 베타버전 테스트 중, 26년 7월 1일 정식 오픈 </p>
   </div>
 </div>
 <!-- ══ 모바일 검색 오버레이 ══ -->
