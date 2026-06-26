@@ -149,12 +149,14 @@ export async function onRequest(context) {
     .replace(/<title[^>]*>.*?<\/title>/is, '')
     .replace(/<meta[^>]+id="seoTitle"[^>]*>/i, '')
     .replace(/<meta[^>]+id="seoDesc"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoKw"[^>]*>/i, '')
     .replace(/<meta[^>]+id="seoOgTitle"[^>]*>/i, '')
     .replace(/<meta[^>]+id="seoOgDesc"[^>]*>/i, '')
     .replace(/<meta[^>]+id="seoOgUrl"[^>]*>/i, '')
     .replace(/<meta[^>]+id="seoOgImg"[^>]*>/i, '')
     .replace(/<meta[^>]+id="seoTwTitle"[^>]*>/i, '')
     .replace(/<meta[^>]+id="seoTwDesc"[^>]*>/i, '')
+    .replace(/<link[^>]+id="seoCanonical"[^>]*>/i, '')
     .replace('<head>', `<head>\n${metaInject}`);
 
   return new Response(html, {
