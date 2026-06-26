@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title id="seoTitle">배우·감독 정보 | 출연작·필모그래피 | 오뜨랑</title>
 <meta id="seoDesc" name="description" content="배우·감독 상세 정보와 출연작·필모그래피를 오뜨랑에서 확인하세요. K-드라마·영화 배우 정보와 OTT 출연작을 한눈에 모아봅니다.">
-<meta name="keywords" content="배우 정보, 감독 정보, 출연작, 필모그래피, K드라마 배우, 한국 배우, 드라마 출연작, 영화 출연작, OTT 배우">
+<meta id="seoKw" name="keywords" content="배우 정보, 감독 정보, 출연작, 필모그래피, K드라마 배우, 한국 배우, 드라마 출연작, 영화 출연작, OTT 배우">
 <meta name="robots" content="index, follow">
 <link id="seoCanonical" rel="canonical" href="https://ottrank.kr/person">
 <meta property="og:type" content="profile">
@@ -352,12 +352,33 @@ function genderLabel(g){
 }
 
 /* ── SEO 업데이트 ── */
-function updateSEO(name, desc, imgUrl){
-  const t = `${name} | 오뜨랑`;
+function updateSEO(name, desc, imgUrl, jobLabel, instaId){
+  // title: "임윤아 출연작·필모그래피 | 배우 프로필 | 오뜨랑"
+  const job = jobLabel || '배우';
+  const t = `${name} 출연작·필모그래피 | ${job} 프로필 | 오뜨랑`;
+
+  // keywords: 이름 변형 + 인스타 키워드 포함
+  const kw = [
+    name,
+    `${name} 출연작`,
+    `${name} 드라마`,
+    `${name} 영화`,
+    `${name} 필모그래피`,
+    `${name} 프로필`,
+    `${name} 나이`,
+    `${name} 인스타그램`,
+    `${name} SNS`,
+    instaId ? `${name} 인스타 @${instaId}` : '',
+    `${job} 프로필`,
+    'OTT 배우',
+    '드라마 배우 출연작',
+  ].filter(Boolean).join(', ');
+
   document.title = t;
   const _seoTitleEl = document.getElementById('seoTitle');
   if (_seoTitleEl) _seoTitleEl.textContent = t;
   document.getElementById('seoDesc')?.setAttribute('content', desc);
+  document.getElementById('seoKw')?.setAttribute('content', kw);
   document.getElementById('seoOgTitle')?.setAttribute('content', t);
   document.getElementById('seoOgDesc')?.setAttribute('content', desc);
   document.getElementById('seoTwTitle')?.setAttribute('content', t);
@@ -473,10 +494,11 @@ async function initPage(){
     /* ⑦ SEO */
     const profileImgUrl = data.profile_path
       ? `https://image.tmdb.org/t/p/w342${data.profile_path}` : '';
+    const jobLabel = data.known_for_department === 'Directing' ? '감독' : '배우';
     const seoDesc = bio
       ? bio.slice(0, 120).replace(/\n/g,' ') + '...'
       : `${displayName} 필모그래피와 프로필을 오뜨랑에서 확인하세요.`;
-    updateSEO(displayName, seoDesc, profileImgUrl);
+    updateSEO(displayName, seoDesc, profileImgUrl, jobLabel, instaId);
 
     /* ⑧ 필모그래피 */
     const credits = data.combined_credits || {};
