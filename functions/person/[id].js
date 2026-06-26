@@ -26,7 +26,7 @@ export async function onRequest(context) {
   let seoDesc      = '배우·감독 프로필, 출연작, 필모그래피를 오뜨랑에서 확인하세요.';
   let seoKeywords  = '배우 프로필, 감독 필모그래피, 출연작, 드라마 배우, OTT 배우';
   let seoOgImage   = 'https://ottrank.kr/og-image.png';
-  let seoCanonical = `https://ottrank.kr/person.html?id=${personId}`;
+  let seoCanonical = `https://ottrank.kr/person/${personId}`;
   let jsonLd       = '{}';
 
   /* ── 3. TMDB Person API 호출 ── */
