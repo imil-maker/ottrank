@@ -355,7 +355,8 @@ function genderLabel(g){
 function updateSEO(name, desc, imgUrl){
   const t = `${name} | 오뜨랑`;
   document.title = t;
-  document.getElementById('seoTitle').textContent = t;
+  const _seoTitleEl = document.getElementById('seoTitle');
+  if (_seoTitleEl) _seoTitleEl.textContent = t;
   document.getElementById('seoDesc')?.setAttribute('content', desc);
   document.getElementById('seoOgTitle')?.setAttribute('content', t);
   document.getElementById('seoOgDesc')?.setAttribute('content', desc);
