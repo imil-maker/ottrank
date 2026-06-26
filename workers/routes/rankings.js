@@ -522,16 +522,31 @@ export async function handleRankings(path, request, env, url, headers) {
       const baseUrl = "https://ottrank.kr";
       const year    = new Date().getFullYear();
 
-      // 정적 페이지 목록
-      const staticPaths = [
-        "/",
-        "/netflix",
-        "/tving",
-        "/disneyplus",
-        "/wavve",
-        "/coupangplay",
-        "/boxoffice",
-        "/mypage",
+      // 정적 페이지 목록 — { path, changefreq, priority }
+      // changefreq: 랭킹/리뷰 페이지는 daily, 소개/약관은 monthly
+      // priority: 메인 1.0, OTT 0.9, 커뮤니티 0.8, 기타 0.6
+      const staticPages = [
+        // 메인
+        { path: "/",              changefreq: "daily",   priority: "1.0" },
+        // OTT 플랫폼 랭킹 (매일 업데이트)
+        { path: "/netflix",       changefreq: "daily",   priority: "0.9" },
+        { path: "/tving",         changefreq: "daily",   priority: "0.9" },
+        { path: "/disneyplus",    changefreq: "daily",   priority: "0.9" },
+        { path: "/wavve",         changefreq: "daily",   priority: "0.9" },
+        { path: "/coupangplay",   changefreq: "daily",   priority: "0.9" },
+        { path: "/boxoffice",     changefreq: "daily",   priority: "0.9" },
+        // 커뮤니티/콘텐츠 (자주 업데이트)
+        { path: "/community",     changefreq: "daily",   priority: "0.8" },
+        { path: "/review",        changefreq: "daily",   priority: "0.8" },
+        { path: "/reactions",     changefreq: "daily",   priority: "0.8" },
+        { path: "/contents",      changefreq: "daily",   priority: "0.8" },
+        // 공개 사용자 페이지
+        { path: "/mypage",        changefreq: "weekly",  priority: "0.6" },
+        { path: "/my_review",     changefreq: "weekly",  priority: "0.6" },
+        // 서비스 안내
+        { path: "/ott_intro.html",changefreq: "monthly", priority: "0.6" },
+        { path: "/privacy",       changefreq: "monthly", priority: "0.4" },
+        { path: "/terms",         changefreq: "monthly", priority: "0.4" },
       ];
 
       // works 전체 작품 목록 (tmdb_id 기준)
@@ -541,21 +556,25 @@ export async function handleRankings(path, request, env, url, headers) {
 
       const urls = [];
 
-      for (const p of staticPaths) {
+      // 정적 페이지 URL 생성
+      for (const page of staticPages) {
         urls.push(
           `  <url>\n` +
-          `    <loc>${baseUrl}${p}</loc>\n` +
-          `    <changefreq>daily</changefreq>\n` +
+          `    <loc>${baseUrl}${page.path}</loc>\n` +
+          `    <changefreq>${page.changefreq}</changefreq>\n` +
+          `    <priority>${page.priority}</priority>\n` +
           `  </url>`
         );
       }
 
+      // 작품 상세 페이지 URL 생성
       for (const w of works) {
         const loc = `${baseUrl}/title/1-${year}${w.tmdb_id}`;
         urls.push(
           `  <url>\n` +
           `    <loc>${loc}</loc>\n` +
           `    <changefreq>weekly</changefreq>\n` +
+          `    <priority>0.7</priority>\n` +
           `  </url>`
         );
       }
