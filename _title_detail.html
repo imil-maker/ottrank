@@ -1599,8 +1599,8 @@ async function loadTmdb(){
       if(directors.length||cast.length){
         document.getElementById('castSection').style.display='block';
 
-        // 인물 페이지 내부 URL
-        const personUrl=(id)=>`/person.html?id=${id}`;
+        // 인물 페이지 내부 URL — /person/{id} 경로 방식 (SSR SEO 지원)
+        const personUrl=(id)=>`/person/${id}`;
 
         // 감독 칩 렌더
         document.getElementById('directorRow').innerHTML=directors.map(p=>`
