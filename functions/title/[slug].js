@@ -77,6 +77,37 @@ async function fetchWorksFromD1(db, tmdb_id) {
   }
 }
 
+/* ── D1에서 플랫폼 정보 조회 ──
+ * rankings 테이블에서 최신 날짜 기준 해당 작품의 플랫폼 목록 반환
+ * 중복 제거 후 최대 2개 (예: ['netflix', 'tving'])
+ * 실패 시 빈 배열 반환
+ */
+async function fetchPlatformsFromD1(db, tmdb_id) {
+  if (!db || !tmdb_id) return [];
+  try {
+    const { results } = await db.prepare(`
+      SELECT DISTINCT platform
+      FROM rankings
+      WHERE tmdb_id = ?
+        AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+      LIMIT 2
+    `).bind(tmdb_id).all();
+    return (results || []).map(r => r.platform).filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+
+/* ── 플랫폼 ID → 한국어 이름 변환 ── */
+const PLATFORM_KO = {
+  netflix:    '넷플릭스',
+  tving:      '티빙',
+  disney:     '디즈니+',
+  coupang:    '쿠팡플레이',
+  wavve:      '웨이브',
+  boxoffice:  '박스오피스',
+};
+
 /* ── TMDB API 조회 ──
  * TV 먼저 시도 → id 있으면 TV 확정
  * TV 없으면 Movie 시도 (폴백)
@@ -134,8 +165,11 @@ export async function onRequest(context) {
 
   if (parsed && parsed.tmdb_id) {
     try {
-      /* ── 4. D1 works 조회 (최우선) ── */
-      const worksData = await fetchWorksFromD1(env.DB, parsed.tmdb_id);
+      /* ── 4. D1 works + 플랫폼 병렬 조회 (최우선) ── */
+      const [worksData, platforms] = await Promise.all([
+        fetchWorksFromD1(env.DB, parsed.tmdb_id),
+        fetchPlatformsFromD1(env.DB, parsed.tmdb_id),
+      ]);
 
       /* ── 5. TMDB API 조회 (TV 우선 → Movie 폴백) ── */
       const { det, mediaType } = await fetchTmdbData(parsed.tmdb_id);
@@ -180,19 +214,39 @@ export async function onRequest(context) {
         seoOgHeight = '750';
       }
 
-      /* ── 8. title 태그 ── */
-      seoTitle = `${title} 평점·후기·줄거리 | ${typeLabel} OTT 순위 | 오뜨랑`;
+      /* ── 8. 플랫폼 한국어 이름 변환 ── */
+      // 예: ['netflix', 'tving'] → '넷플릭스·티빙'
+      const platformKoList = platforms
+        .map(p => PLATFORM_KO[p] || p)
+        .filter(Boolean);
+      const platformStr = platformKoList.join('·') || 'OTT';
 
-      /* ── 9. description 태그 ──
-       * 줄거리 앞 80자 + 행동 키워드
+      /* ── 9. title 태그 ──
+       * 플랫폼 정보 있으면: "참교육 평점·후기 | 넷플릭스 드라마 | 오뜨랑"
+       * 플랫폼 정보 없으면: "참교육 평점·후기·줄거리 | 드라마 OTT 순위 | 오뜨랑"
        */
+      seoTitle = platforms.length
+        ? `${title} 평점·후기·줄거리 | ${platformStr} ${typeLabel} | 오뜨랑`
+        : `${title} 평점·후기·줄거리 | ${typeLabel} OTT 순위 | 오뜨랑`;
+
+      /* ── 10. description 태그 ── */
       const overviewSnippet = overview
         ? `${overview.slice(0, 80)}... `
         : '';
-      seoDesc = `${overviewSnippet}${title} 평점, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. 넷플릭스·티빙·디즈니+ 추천 ${typeLabel}.`;
+      seoDesc = platforms.length
+        ? `${overviewSnippet}${title} ${platformStr} 평점, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. ${platformStr} 추천 ${typeLabel}.`
+        : `${overviewSnippet}${title} 평점, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. 넷플릭스·티빙·디즈니+ 추천 ${typeLabel}.`;
 
-      /* ── 10. keywords 태그 ── */
+      /* ── 11. keywords 태그 ── */
       const origTitle = det?.original_name || det?.original_title || '';
+      // 플랫폼별 키워드 생성: "참교육 넷플릭스", "참교육 넷플릭스 후기" 등
+      const platformKeywords = platformKoList.flatMap(pName => [
+        `${title} ${pName}`,
+        `${title} ${pName} 후기`,
+        `${title} ${pName} 평점`,
+        `${pName} 추천 ${typeLabel}`,
+        `${pName} 순위`,
+      ]);
       seoKeywords = [
         title,
         `${title} 평점`,
@@ -200,14 +254,13 @@ export async function onRequest(context) {
         `${title} 줄거리`,
         `${title} ${typeLabel}`,
         origTitle,
-        `넷플릭스 추천 ${typeLabel}`,
-        '넷플릭스 순위',
+        ...platformKeywords,
         'OTT 추천',
         'OTT 순위',
         genres,
       ].filter(Boolean).join(', ');
 
-      /* ── 11. JSON-LD 구조화 데이터 ──
+      /* ── 12. JSON-LD 구조화 데이터 ──
        * TVSeries 또는 Movie 스키마
        * credits 포함으로 actor 정상 출력
        */
@@ -232,6 +285,13 @@ export async function onRequest(context) {
       if (det?.number_of_seasons)     ld.numberOfSeasons = det.number_of_seasons;
       if (origTitle)                  ld.alternateName   = origTitle;
       if (releaseYear)                ld.datePublished   = releaseYear;
+      // 플랫폼 정보가 있으면 JSON-LD에도 반영
+      if (platformKoList.length) {
+        ld.publication = platformKoList.map(pName => ({
+          '@type':     'BroadcastEvent',
+          publishedOn: { '@type': 'BroadcastService', name: pName },
+        }));
+      }
 
       jsonLd = JSON.stringify(ld);
 
