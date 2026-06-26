@@ -1,151 +1,168 @@
-/* ══════════════════════════════════════════════════════════════
-   functions/reaction/[id].js
-   Cloudflare Pages Function — /reaction/:id SSR
-   구글/네이버 봇이 JS 실행 없이 완성된 메타태그를 읽을 수 있도록
-   서버에서 reactions 데이터를 조회해 HTML에 직접 주입
-══════════════════════════════════════════════════════════════ */
+/* functions/person/[id].js - 오뜨랑 인물 상세 페이지 라우팅 + SSR SEO */
+
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const IMG_PROFILE = 'https://image.tmdb.org/t/p/w342';
+
+/* ── 특수문자 이스케이프 ── */
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
 export async function onRequest(context) {
   const { params, env } = context;
-  const id = params.id;
+  const personId = params.id;
 
-  /* ── 숫자 ID 검증 ── */
-  if (!id || !/^\d+$/.test(id)) {
-    return fallback(context);
-  }
+  /* ── 1. person.html 원본 로드 ── */
+  const response = await env.ASSETS.fetch('https://ottrank.kr/person.html');
+  let html = await response.text();
 
-  try {
-    /* ── D1에서 reaction 데이터 직접 조회 ── */
-    const row = await env.DB.prepare(
-      `SELECT id, tmdb_id, title_ko, poster_path, video_id, video_title,
-              custom_title, channel_name, thumbnail, published_at
-       FROM reactions
-       WHERE id = ?
-       LIMIT 1`
-    ).bind(parseInt(id)).first();
+  /* ── 2. 기본 SEO값 ── */
+  let seoTitle     = '인물 정보 | 오뜨랑 — 배우·감독 프로필·필모그래피';
+  let seoDesc      = '배우·감독 프로필, 출연작, 필모그래피를 오뜨랑에서 확인하세요.';
+  let seoKeywords  = '배우 프로필, 감독 필모그래피, 출연작, 드라마 배우, OTT 배우';
+  let seoOgImage   = 'https://ottrank.kr/og-image.png';
+  let seoCanonical = `https://ottrank.kr/person/${personId}`;
+  let jsonLd       = '{}';
 
-    if (!row) return fallback(context);
-
-    /* ── 메타태그 값 조립 ── */
-    const workName = row.title_ko  || '';
-    const vidTitle = row.custom_title || row.video_title || '해외반응';
-    const channel  = row.channel_name || '';
-
-    const seoTitle = workName
-      ? `${workName} 해외반응 번역 | ${channel || 'YouTube'} | 오뜨랑`
-      : `${vidTitle} | 오뜨랑`;
-
-    const seoDesc = workName
-      ? `${workName} 해외반응. 외국인들의 실제 반응과 번역 댓글을 오뜨랑에서 확인하세요. ${channel}`
-      : `K-드라마·K-영화 해외반응 번역 댓글을 오뜨랑에서 확인하세요.`;
-
-    const seoKw = workName
-      ? `${workName} 해외반응, ${workName} 외국인 반응, ${workName} 번역, K드라마 해외반응, 오뜨랑`
-      : 'K드라마 해외반응, 해외반응 번역, 오뜨랑';
-
-    const seoImg = row.thumbnail || '';
-    const seoUrl = `https://ottrank.kr/reaction/${row.id}`;
-
-    /* JSON-LD */
-    const jsonLd = JSON.stringify({
-      "@context"   : "https://schema.org",
-      "@type"      : "VideoObject",
-      "name"       : seoTitle,
-      "description": seoDesc,
-      "thumbnailUrl": seoImg,
-      "url"        : seoUrl,
-      "embedUrl"   : `https://www.youtube.com/embed/${row.video_id}`,
-      "uploadDate" : row.published_at || '',
-      "publisher"  : { "@type": "Organization", "name": "오뜨랑", "url": "https://ottrank.kr" },
-      ...(workName ? { "about": { "@type": "TVSeries", "name": workName } } : {}),
-    });
-
-    /* ── 원본 HTML 가져오기 ── */
-    const originalUrl = new URL(context.request.url);
-    originalUrl.pathname = '/_reaction_detail.html';
-    const originalRes  = await fetch(originalUrl.toString());
-    let   html         = await originalRes.text();
-
-    /* ── 메타태그 주입 ── */
-    const esc = s => s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-    html = html
-      /* title */
-      .replace(
-        /<title id="seoTitle">.*?<\/title>/,
-        `<title id="seoTitle">${esc(seoTitle)}</title>`
-      )
-      /* description */
-      .replace(
-        /<meta id="seoDesc" name="description" content=".*?">/,
-        `<meta id="seoDesc" name="description" content="${esc(seoDesc)}">`
-      )
-      /* keywords */
-      .replace(
-        /<meta id="seoKeywords" name="keywords" content=".*?">/,
-        `<meta id="seoKeywords" name="keywords" content="${esc(seoKw)}">`
-      )
-      /* og:title */
-      .replace(
-        /<meta id="seoOgTitle" property="og:title" content=".*?">/,
-        `<meta id="seoOgTitle" property="og:title" content="${esc(seoTitle)}">`
-      )
-      /* og:description */
-      .replace(
-        /<meta id="seoOgDesc" property="og:description" content=".*?">/,
-        `<meta id="seoOgDesc" property="og:description" content="${esc(seoDesc)}">`
-      )
-      /* og:image */
-      .replace(
-        /<meta id="seoOgImg" property="og:image" content=".*?">/,
-        `<meta id="seoOgImg" property="og:image" content="${esc(seoImg)}">`
-      )
-      /* og:url */
-      .replace(
-        /<meta id="seoOgUrl" property="og:url" content=".*?">/,
-        `<meta id="seoOgUrl" property="og:url" content="${esc(seoUrl)}">`
-      )
-      /* twitter:title */
-      .replace(
-        /<meta id="seoTwTitle" name="twitter:title" content=".*?">/,
-        `<meta id="seoTwTitle" name="twitter:title" content="${esc(seoTitle)}">`
-      )
-      /* twitter:description */
-      .replace(
-        /<meta id="seoTwDesc" name="twitter:description" content=".*?">/,
-        `<meta id="seoTwDesc" name="twitter:description" content="${esc(seoDesc)}">`
-      )
-      /* twitter:image */
-      .replace(
-        /<meta id="seoTwImg" name="twitter:image" content=".*?">/,
-        `<meta id="seoTwImg" name="twitter:image" content="${esc(seoImg)}">`
-      )
-      /* JSON-LD */
-      .replace(
-        /<script id="jsonLd" type="application\/ld\+json">.*?<\/script>/s,
-        `<script id="jsonLd" type="application/ld+json">${jsonLd}</script>`
+  /* ── 3. TMDB Person API 호출 ── */
+  if (personId) {
+    try {
+      const res  = await fetch(
+        `${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=combined_credits`
       );
+      const data = await res.json();
 
-    return new Response(html, {
-      headers: {
-        'Content-Type' : 'text/html;charset=UTF-8',
-        'Cache-Control': 'public, max-age=300', // 5분 캐시
-      },
-    });
+      if (data && data.id) {
+        /* 한국어 이름 추출 */
+        const alsoKnown = data.also_known_as || [];
+        const koName    = alsoKnown.find(n => /[가-힣]/.test(n)) || '';
+        const name      = koName || data.name || '';
+        const enName    = koName ? data.name : '';
 
-  } catch(e) {
-    console.error('[reaction/[id]]', e);
-    return fallback(context);
+        /* 대표 직업 (배우/감독) */
+        const dept      = data.known_for_department || '';
+        const jobLabel  = dept === 'Directing' ? '감독' : '배우';
+
+        /* 약력 앞 100자 */
+        const bio       = (data.biography || '').slice(0, 100).replace(/\n/g, ' ');
+
+        /* 출연작 상위 3개 (최신순) */
+        const credits   = data.combined_credits || {};
+        const topWorks  = [...(credits.cast || []), ...(credits.crew || [])]
+          .filter(w => w.poster_path)
+          .sort((a, b) => {
+            const da = a.release_date || a.first_air_date || '0000';
+            const db = b.release_date || b.first_air_date || '0000';
+            return db.localeCompare(da);
+          })
+          .slice(0, 3)
+          .map(w => w.title || w.name || '')
+          .filter(Boolean);
+
+        /* 프로필 이미지 */
+        if (data.profile_path) {
+          seoOgImage = `${IMG_PROFILE}${data.profile_path}`;
+        }
+
+        /* title */
+        seoTitle = `${name} 프로필·출연작·필모그래피 | ${jobLabel} 정보 | 오뜨랑`;
+
+        /* description */
+        const worksSnippet = topWorks.length
+          ? `대표작: ${topWorks.join(', ')}. `
+          : '';
+        seoDesc = `${name} ${jobLabel} 나이, 출연 드라마·영화, 인스타그램 정보를 오뜨랑에서 확인하세요. ${worksSnippet}${bio ? bio + '...' : ''}`.trim();
+
+        /* keywords */
+        seoKeywords = [
+          name,
+          `${name} 드라마`,
+          `${name} 영화`,
+          `${name} 나이`,
+          `${name} 프로필`,
+          `${name} 인스타`,
+          `${name} 출연작`,
+          enName,
+          `${jobLabel} 필모그래피`,
+          'OTT 배우',
+          '드라마 배우 프로필',
+        ].filter(Boolean).join(', ');
+
+        /* JSON-LD — Person 스키마 */
+        const ld = {
+          '@context': 'https://schema.org',
+          '@type':    'Person',
+          name,
+          url:        seoCanonical,
+          image:      seoOgImage,
+          jobTitle:   jobLabel,
+        };
+        if (data.biography)    ld.description    = data.biography.slice(0, 200);
+        if (data.birthday)     ld.birthDate      = data.birthday;
+        if (data.place_of_birth) ld.birthPlace   = data.place_of_birth;
+        if (enName)            ld.alternateName  = enName;
+
+        /* sameAs — 인스타 링크 */
+        const instaId = data.external_ids?.instagram_id;
+        if (instaId) ld.sameAs = [`https://www.instagram.com/${instaId}/`];
+
+        /* knowsAbout — 대표작 */
+        if (topWorks.length) ld.knowsAbout = topWorks;
+
+        jsonLd = JSON.stringify(ld);
+      }
+    } catch (e) {
+      /* TMDB 실패 시 기본값 유지 */
+    }
   }
-}
 
-/* ── fallback: 원본 HTML 그대로 반환 ── */
-async function fallback(context) {
-  const url      = new URL(context.request.url);
-  url.pathname   = '/_reaction_detail.html';
-  const res      = await fetch(url.toString());
-  const html     = await res.text();
+  /* ── 4. HTML에 메타태그 SSR 주입 ── */
+  const metaInject = `
+<title>${esc(seoTitle)}</title>
+<meta name="description" content="${esc(seoDesc)}">
+<meta name="keywords" content="${esc(seoKeywords)}">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="${esc(seoCanonical)}">
+<meta property="og:type" content="profile">
+<meta property="og:site_name" content="오뜨랑">
+<meta property="og:title" content="${esc(seoTitle)}">
+<meta property="og:description" content="${esc(seoDesc)}">
+<meta property="og:url" content="${esc(seoCanonical)}">
+<meta property="og:image" content="${esc(seoOgImage)}">
+<meta property="og:image:width" content="342">
+<meta property="og:image:height" content="513">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(seoTitle)}">
+<meta name="twitter:description" content="${esc(seoDesc)}">
+<meta name="twitter:image" content="${esc(seoOgImage)}">
+<script type="application/ld+json">${jsonLd}</script>
+<script>window.__PERSON_ID__="${personId}";</script>`;
+
+  /* 기존 id 기반 메타태그 제거 후 교체 */
+  html = html
+    .replace(/<title[^>]*>.*?<\/title>/is, '')
+    .replace(/<meta[^>]+id="seoTitle"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoDesc"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoOgTitle"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoOgDesc"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoOgUrl"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoOgImg"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoTwTitle"[^>]*>/i, '')
+    .replace(/<meta[^>]+id="seoTwDesc"[^>]*>/i, '')
+    .replace('<head>', `<head>\n${metaInject}`);
+
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html;charset=utf-8',
+      /* 인물 정보는 자주 안 바뀌므로 10분 캐시 */
+      'Cache-Control': 'public, max-age=600, stale-while-revalidate=120',
+    },
   });
 }
