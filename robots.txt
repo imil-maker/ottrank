@@ -1,0 +1,42 @@
+User-agent: *
+
+# 크롤 허용 — 메인 + OTT 플랫폼 페이지
+Allow: /
+Allow: /netflix
+Allow: /tving
+Allow: /disneyplus
+Allow: /wavve
+Allow: /coupangplay
+Allow: /boxoffice
+
+# 크롤 허용 — 커뮤니티/콘텐츠
+Allow: /community
+Allow: /review
+Allow: /reactions
+Allow: /contents
+
+# 크롤 허용 — 작품/인물 상세
+Allow: /title/
+Allow: /reaction/
+Allow: /person
+
+# 크롤 허용 — 공개 사용자 페이지
+Allow: /mypage
+Allow: /my_review
+
+# 크롤 허용 — 서비스 안내
+Allow: /ott_intro.html
+Allow: /privacy
+Allow: /terms
+
+# 크롤 차단 — 개인 전용 페이지
+Disallow: /my_ott
+Disallow: /signup
+Disallow: /login
+
+# 크롤 차단 — 관리자/디버그
+Disallow: /admin
+Disallow: /debug.html
+
+# 사이트맵
+Sitemap: https://ottrank.kr/sitemap.xml
