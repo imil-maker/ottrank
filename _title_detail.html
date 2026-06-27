@@ -3135,20 +3135,48 @@ const OTT_HOME_URL = {
   'YouTube'     : 'https://www.youtube.com',
 };
 
-/* 쿠팡플레이 TMDB Network ID */
-const COUPANG_NETWORK_ID = 5169;
+/* ══════════════════════════════════════
+   Network ID → OTT 자동 매핑 테이블
+   제작사가 확실하게 특정 OTT와 연결되는 경우만 등록
+   (KBS/MBC/SBS → 웨이브, tvN/OCN → 티빙, JTBC → 티빙 등)
+══════════════════════════════════════ */
+const NETWORK_TO_OTT = {
+  /* KBS → 웨이브 */
+  829  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  1049 : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' }, // KBS2
+  /* MBC → 웨이브 */
+  343  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  /* SBS → 웨이브 */
+  75   : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  /* ENA → 웨이브 */
+  3694 : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  /* tvN → 티빙 */
+  1530 : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
+  /* OCN → 티빙 */
+  2639 : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
+  /* JTBC → 티빙 */
+  4002 : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
+  /* 넷플릭스 → 넷플릭스 */
+  213  : { name:'넷플릭스', provider_name:'Netflix', logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
+  /* 디즈니+ → 디즈니+ */
+  2739 : { name:'디즈니+', provider_name:'Disney+', logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg' },
+  /* 쿠팡플레이 → 쿠팡플레이 */
+  5169 : { name:'쿠팡플레이', provider_name:'Coupang Play', logo_path: null },
+  /* 왓챠 → 왓챠 */
+  3901 : { name:'왓챠',   provider_name:'Watcha',  logo_path:'/3dh6JLtbcIuFVaYxnkEdXAUMtBO.jpg' },
+};
 
 /**
  * OTT 바 목록 렌더링
  * @param {Array} providers - TMDB Watch Providers 배열
- * @param {Array} networks  - TMDB Networks 배열 (쿠팡 보완용)
+ * @param {Array} networks  - TMDB Networks 배열 (자동 매핑 보완용)
  */
 function renderOttTab(providers, networks){
   const listEl = document.getElementById('ottBarList');
   const secEl  = document.getElementById('ottSection');
   if(!listEl) return;
 
-  /* 1) 브랜드 중복 제거 */
+  /* 1) Watch Providers 브랜드 중복 제거 */
   const seen = new Set();
   const deduped = (providers || []).filter(p => {
     const nameKo = _providerNameKo(p.provider_name);
@@ -3157,21 +3185,29 @@ function renderOttTab(providers, networks){
     return true;
   });
 
-  /* 2) 쿠팡플레이 보완 */
-  const hasCoupang = seen.has('쿠팡플레이');
-  const coupangInNetwork = (networks || []).some(n => n.id === COUPANG_NETWORK_ID);
-  if(!hasCoupang && coupangInNetwork){
-    deduped.push({ provider_name:'Coupang Play', logo_path: null });
-  }
+  /* 2) Network → OTT 자동 매핑 보완
+        Watch Providers에 없는 OTT만 추가 (중복 방지) */
+  (networks || []).forEach(n => {
+    const mapped = NETWORK_TO_OTT[n.id];
+    if(!mapped) return;                    // 매핑 없으면 스킵
+    const nameKo = mapped.name;
+    if(seen.has(nameKo)) return;           // 이미 Watch Providers에 있으면 스킵
+    seen.add(nameKo);
+    deduped.push({
+      provider_name : mapped.provider_name,
+      logo_path     : mapped.logo_path,
+    });
+  });
 
-  if(secEl) secEl.style.display = 'block';
-
+  /* 3) 정보가 전혀 없으면 섹션 자체 숨김 */
   if(!deduped.length){
-    listEl.innerHTML = '<div class="ott-bar-empty">현재 스트리밍 서비스 정보가 없습니다</div>';
+    if(secEl) secEl.style.display = 'none';
     return;
   }
 
-  /* 3) 바 형태 렌더링 */
+  /* 4) 섹션 표시 + 바 형태 렌더링 */
+  if(secEl) secEl.style.display = 'block';
+
   listEl.innerHTML = deduped.map(p => {
     const nameKo  = _providerNameKo(p.provider_name);
     const logoUrl = p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : '';
@@ -3201,10 +3237,6 @@ function renderOttTab(providers, networks){
 async function loadWatchProviders(){
   if(!WORK.tmdb_id) return;
 
-  /* 로딩 중: 섹션 표시 + 빈 상태 */
-  const secEl = document.getElementById('ottSection');
-  if(secEl) secEl.style.display = 'block';
-
   try{
     const mediaType = WORK.type === 'movie' ? 'movie' : 'tv';
     const res = await fetch(`${TMDB_PROXY}/${mediaType}/${WORK.tmdb_id}/watch/providers`);
@@ -3213,13 +3245,13 @@ async function loadWatchProviders(){
 
     const kr = json?.results?.KR;
 
-    /* KR 없어도 쿠팡 Networks 보완으로 표시 가능 */
+    /* KR 없어도 Network 매핑으로 표시 가능 → renderOttTab이 최종 판단 */
     if(!kr){
       renderOttTab([], WORK.networks || []);
       return;
     }
 
-    /* flatrate 우선 → rent → buy (모두 합산하여 보여줌) */
+    /* flatrate + rent + buy 모두 합산 (중복은 renderOttTab에서 제거) */
     const all = [
       ...(kr.flatrate || []),
       ...(kr.rent     || []),
@@ -3229,6 +3261,7 @@ async function loadWatchProviders(){
     renderOttTab(all, WORK.networks || []);
 
   }catch(e){
+    /* 오류 시 Network 매핑만으로 표시 시도 */
     renderOttTab([], WORK.networks || []);
   }
 }
