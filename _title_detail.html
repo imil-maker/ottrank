@@ -766,6 +766,114 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .go-review-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 24px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans);transition:background .15s}
 .go-review-btn:hover{background:#ff4d58}
 
+/* ══ 스트리밍 플랫폼 섹션 ══ */
+/* 섹션 전체 래퍼 — 평점 4블록 위 */
+.streaming-section{
+  margin-bottom:20px;
+  border-radius:var(--r-lg);
+  background:var(--bg2);
+  border:.5px solid var(--warn-border);
+  padding:16px 18px;
+  position:relative;
+  overflow:hidden;
+}
+/* 골드 글로우 배경 — 좌측 상단 */
+.streaming-section::before{
+  content:'';
+  position:absolute;
+  top:-30px;left:-30px;
+  width:140px;height:140px;
+  background:radial-gradient(circle, rgba(240,180,41,.10) 0%, transparent 70%);
+  pointer-events:none;
+}
+/* 헤더 행: 타이틀 + 안내 텍스트 */
+.streaming-header{
+  display:flex;align-items:center;gap:8px;
+  margin-bottom:14px;
+}
+.streaming-title{
+  font-size:15px;font-weight:600;
+  display:flex;align-items:center;gap:7px;
+  color:var(--text);
+}
+.streaming-title-icon{
+  font-size:16px;color:var(--gold);
+}
+/* 구독 / 대여·구매 구분 레이블 */
+.streaming-type-label{
+  font-size:11px;font-weight:700;
+  font-family:var(--font-mono);letter-spacing:.8px;text-transform:uppercase;
+  color:var(--gold);
+  padding:2px 8px;border-radius:4px;
+  background:var(--warn-bg);
+  border:.5px solid var(--warn-border);
+  margin-left:auto;
+}
+/* 플랫폼 로고 나열 래퍼 */
+.streaming-logos{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+}
+/* 개별 플랫폼 칩 */
+.streaming-chip{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;
+  border-radius:var(--r);
+  background:var(--bg3);
+  border:.5px solid var(--border2);
+  transition:border-color .15s, background .15s;
+  cursor:default;/* 딥링크 없으므로 포인터 제거 */
+}
+/* 로고 이미지 */
+.streaming-logo-img{
+  width:28px;height:28px;
+  border-radius:6px;
+  object-fit:cover;
+  background:var(--bg3);
+  flex-shrink:0;
+}
+/* 플랫폼 이름 */
+.streaming-chip-name{
+  font-size:14px;font-weight:600;
+  color:var(--text);
+  font-family:var(--font-mono);
+  white-space:nowrap;
+}
+/* 구독 구분 뱃지 (flatrate 전용) */
+.streaming-chip.flatrate{
+  border-color:rgba(240,180,41,.35);
+  background:rgba(240,180,41,.06);
+}
+.streaming-chip.flatrate .streaming-chip-name{
+  color:var(--gold);
+}
+/* 스켈레톤 로딩 */
+.streaming-skel{
+  display:flex;gap:10px;align-items:center;
+}
+.streaming-skel-item{
+  width:100px;height:46px;border-radius:var(--r);
+  background:var(--bg3);
+  animation:skelPulse 1.4s ease-in-out infinite;
+}
+@keyframes skelPulse{
+  0%,100%{opacity:.5}
+  50%{opacity:1}
+}
+/* 데이터 없음 */
+.streaming-empty{
+  font-size:14px;color:var(--muted);
+  font-family:var(--font-mono);
+  padding:4px 0;
+}
+/* 모바일 조정 */
+@media(max-width:640px){
+  .streaming-section{padding:14px 16px;}
+  .streaming-logos{gap:8px;}
+  .streaming-chip{padding:7px 12px;gap:7px;}
+  .streaming-logo-img{width:24px;height:24px;}
+  .streaming-chip-name{font-size:13px;}
+}
+
 </style>
 <!-- Tabler Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -894,6 +1002,31 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <button class="cast-arrow cast-arrow-left" id="castArrowLeft" onclick="scrollCast(-1)" aria-label="이전">‹</button>
     <div class="cast-scroll" id="castScroll"></div>
     <button class="cast-arrow cast-arrow-right" id="castArrowRight" onclick="scrollCast(1)" aria-label="다음">›</button>
+  </div>
+</div>
+
+<!-- ══ 이 작품 어디서 볼 수 있어요 (Watch Providers) ══ -->
+<!-- JS loadWatchProviders()가 데이터 없을 시 display:none 처리 -->
+<div class="streaming-section" id="streamingSection" style="display:none">
+  <div class="streaming-header">
+    <div class="streaming-title">
+      <i class="ti ti-device-tv streaming-title-icon"></i>
+      이 작품 어디서 볼 수 있어요
+    </div>
+    <!-- 구독 or 대여/구매 여부 표시 레이블 (JS로 동적 주입) -->
+    <span class="streaming-type-label" id="streamingTypeLabel" style="display:none"></span>
+  </div>
+  <!-- 스켈레톤 (로딩 중) -->
+  <div class="streaming-skel" id="streamingSkel">
+    <div class="streaming-skel-item"></div>
+    <div class="streaming-skel-item"></div>
+    <div class="streaming-skel-item" style="width:80px"></div>
+  </div>
+  <!-- 실제 플랫폼 로고 나열 (JS 렌더링) -->
+  <div class="streaming-logos" id="streamingLogos" style="display:none"></div>
+  <!-- 데이터 없을 때 메시지 -->
+  <div class="streaming-empty" id="streamingEmpty" style="display:none">
+    현재 국내 OTT 서비스 정보를 찾을 수 없어요
   </div>
 </div>
 
@@ -2557,6 +2690,143 @@ async function loadPlatforms(){
 
 function updateCommentWatchLayout(){}
 
+/* ══ Watch Providers — TMDB KR 스트리밍 플랫폼 정보 조회 ══ */
+/**
+ * TMDB Watch Providers API를 통해 한국(KR) 기준 시청 가능 플랫폼 정보를 가져옵니다.
+ * 기존 TMDB_PROXY를 그대로 활용하므로 추가 API 키 설정 불필요.
+ *
+ * 응답 우선순위:
+ *   1) flatrate  — 구독 시청 (Netflix, 웨이브 등) ← 가장 중요
+ *   2) rent      — 단편 대여
+ *   3) buy       — 단편 구매
+ * flatrate가 있으면 rent/buy는 표시하지 않음 (구독 작품이면 구독으로 보면 되니까)
+ */
+async function loadWatchProviders(){
+  // tmdb_id, WORK.type 모두 필요 (loadTmdb 완료 후 호출되므로 안전)
+  if(!WORK.tmdb_id)return;
+
+  // 섹션 표시 + 스켈레톤 상태로 시작
+  const section   = document.getElementById('streamingSection');
+  const skelEl    = document.getElementById('streamingSkel');
+  const logosEl   = document.getElementById('streamingLogos');
+  const emptyEl   = document.getElementById('streamingEmpty');
+  const labelEl   = document.getElementById('streamingTypeLabel');
+  if(!section)return;
+
+  section.style.display = 'block'; // 섹션 먼저 보이기 (스켈레톤 상태)
+
+  try{
+    // TMDB Watch Providers 엔드포인트 — TV/Movie 구분
+    // WORK.type은 loadTmdb()에서 이미 확정됨
+    const mediaType = WORK.type === 'movie' ? 'movie' : 'tv';
+    const res = await fetch(
+      `${TMDB_PROXY}/${mediaType}/${WORK.tmdb_id}/watch/providers`
+    );
+    if(!res.ok) throw new Error('watch/providers 응답 오류');
+    const json = await res.json();
+
+    // KR 데이터 추출
+    const kr = json?.results?.KR;
+
+    if(!kr){
+      // KR 데이터 자체가 없으면 섹션 숨김 (한국 미서비스 작품)
+      section.style.display = 'none';
+      return;
+    }
+
+    // flatrate 우선, 없으면 rent, 없으면 buy 순서로 사용
+    let providers = [];
+    let typeKey   = '';
+
+    if(kr.flatrate && kr.flatrate.length){
+      providers = kr.flatrate;
+      typeKey   = 'flatrate'; // 구독
+    } else if(kr.rent && kr.rent.length){
+      providers = kr.rent;
+      typeKey   = 'rent';     // 대여
+    } else if(kr.buy && kr.buy.length){
+      providers = kr.buy;
+      typeKey   = 'buy';      // 구매
+    }
+
+    // 스켈레톤 숨김
+    if(skelEl) skelEl.style.display = 'none';
+
+    if(!providers.length){
+      // 모든 타입 다 비어있으면 "정보 없음" 표시 후 섹션 유지
+      if(emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+
+    // 타입 레이블 표시
+    if(labelEl){
+      const labelMap = { flatrate:'구독 시청', rent:'대여 가능', buy:'구매 가능' };
+      labelEl.textContent  = labelMap[typeKey] || '';
+      labelEl.style.display = 'inline-block';
+    }
+
+    // 플랫폼 칩 렌더링
+    if(logosEl){
+      logosEl.innerHTML = providers.map(p => {
+        // 로고 이미지 URL: w92 사이즈 (28px 표시에 충분, 2x 레티나 대비)
+        const logoUrl = p.logo_path
+          ? `https://image.tmdb.org/t/p/w92${p.logo_path}`
+          : '';
+
+        // 한국 OTT명 한글화 매핑
+        const nameKo = _providerNameKo(p.provider_name);
+
+        return `<div class="streaming-chip ${typeKey}" title="${p.provider_name}">
+          ${logoUrl
+            ? `<img class="streaming-logo-img"
+                    src="${logoUrl}"
+                    alt="${nameKo}"
+                    loading="lazy"
+                    onerror="this.style.display='none'">`
+            : ''}
+          <span class="streaming-chip-name">${nameKo}</span>
+        </div>`;
+      }).join('');
+
+      logosEl.style.display = 'flex';
+    }
+
+  }catch(e){
+    // 네트워크 오류 등 — 섹션 자체를 조용히 숨김 (UI 깨짐 방지)
+    if(section) section.style.display = 'none';
+  }
+}
+
+/**
+ * TMDB provider_name → 한국 사용자에게 익숙한 표기로 변환
+ * 매핑에 없으면 원본 이름 그대로 반환
+ */
+function _providerNameKo(name){
+  const MAP = {
+    'Netflix'            : '넷플릭스',
+    'Disney Plus'        : '디즈니+',
+    'Disney+'            : '디즈니+',
+    'wavve'              : '웨이브',
+    'Wavve'              : '웨이브',
+    'Watcha'             : '왓챠',
+    'WATCHA'             : '왓챠',
+    'Tving'              : '티빙',
+    'TVING'              : '티빙',
+    'Coupang Play'       : '쿠팡플레이',
+    'Seezn'              : '시즌',
+    'Naver Series On'    : '네이버 시리즈온',
+    'Apple TV'           : 'Apple TV',
+    'Apple TV+'          : 'Apple TV+',
+    'Amazon Prime Video' : 'Prime Video',
+    'Amazon Video'       : 'Amazon Video',
+    'Google Play Movies' : 'Google Play',
+    'YouTube'            : 'YouTube',
+    'KT Olleh TV'        : 'KT 올레TV',
+    'LG Channels'        : 'LG 채널',
+  };
+  return MAP[name] || name;
+}
+
 /* == 댓글+보러가기 레이아웃 업데이트 == */
 
 async function init(){
@@ -2566,6 +2836,7 @@ async function init(){
   // 나머지 전부 병렬 실행
   // loadWatchGuide는 "지금 보러가기"(박스오피스 극장 링크)만 표시
   // WORK_CATEGORY_SLOT은 loadTop10Days에서 설정되므로 완료 후 실행
+  // loadWatchProviders는 WORK.type이 loadTmdb에서 확정된 후이므로 여기서 호출 안전
   if(WORK.tmdb_id){
     await Promise.all([
       loadTop10Days().then(loadWatchGuide),
@@ -2574,6 +2845,7 @@ async function init(){
       loadReviews(WORK.tmdb_id),
       loadTitleVideos(),
       loadFeelingData(),
+      loadWatchProviders(),       // ← TMDB KR 스트리밍 정보 조회
     ]);
   }else{
     renderComments();
