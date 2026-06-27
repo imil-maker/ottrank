@@ -2396,7 +2396,7 @@ function renderMbtiSection(mbtiTags){
 
   // 작품명 제목 설정
   const workTitle=document.getElementById('mainTitle')?.textContent||WORK.title||'이 작품';
-  if(titleEl) titleEl.textContent=`${workTitle}을(를) 가장 좋아하는 MBTI`;
+  if(titleEl) titleEl.textContent=`${workTitle}, 좋아하는 MBTI 순서`;
 
   // Phase 2: MBTI 있는 댓글 5개 이상이면 실제 데이터 우선
   const mbtiComments=ALL_COMMENTS.filter(c=>c.mbti);
@@ -2444,7 +2444,7 @@ function renderMbtiSection(mbtiTags){
         <span class="mbti-chip-label">${mbti}</span>
         <span class="mbti-chip-sub">${pct}%</span>
       </div>`).join('');
-    src.textContent='장르 기반 추천 · 시청자 데이터가 쌓이면 실제 데이터로 업데이트됩니다';
+    src.textContent='MBTI별 선호하는 장르 기반 추천';
     sec.style.display='block';
     updateMbtiWgRow();
     return;
