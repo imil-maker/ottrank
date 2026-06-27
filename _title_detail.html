@@ -1360,6 +1360,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <!-- ── 패널2: 관련영상 ── -->
   <div class="tab-panel" id="commPanel-video" role="tabpanel">
     <div class="yt-section" style="margin-bottom:0">
+      <!-- ytSubtitle: JS renderYtPage()가 영상 개수 표시용으로 참조 (숨겨진 span) -->
+      <span id="ytSubtitle" style="display:none"></span>
       <div id="ytModal" class="modal-wrap">
         <div class="modal-head">
           <span class="modal-ttl" id="ytModalTitle"></span>
@@ -1376,6 +1378,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   <!-- ── 패널3: 관련이미지 ── -->
   <div class="tab-panel" id="commPanel-image" role="tabpanel">
+    <!-- gallerySection: 탭 패널이 show/hide 담당하므로 display:none 제거 -->
     <div class="gallery-section" id="gallerySection" style="margin-bottom:0">
       <div class="gallery-grid" id="galleryGrid"></div>
     </div>
@@ -1707,7 +1710,7 @@ async function loadGallery(){
     const data=await res.json();
     const backdrops=(data.backdrops||[]).slice(0,4);
     if(!backdrops.length)return;
-    document.getElementById('gallerySection').style.display='block';
+    // 탭 패널이 show/hide 담당 — gallerySection display 조작 불필요
     document.getElementById('galleryGrid').innerHTML=backdrops.map(img=>`
       <div class="gallery-item" onclick="window.open('${IMG_STILL}${img.file_path}','_blank')">
         <img src="${IMG_STILL}${img.file_path}" alt="작품 이미지" loading="lazy">
@@ -2092,8 +2095,13 @@ const YT_PER_PAGE_REST=4;
 function renderYtPage(page){
   ytPage=page;
   const total=allYtVideos.length;
-  if(!total){document.getElementById('ytArea').innerHTML='';document.getElementById('ytSubtitle').textContent='';return;}
-  document.getElementById('ytSubtitle').textContent=`${total}개 영상`;
+  const subtitleEl=document.getElementById('ytSubtitle');
+  if(!total){
+    document.getElementById('ytArea').innerHTML='';
+    if(subtitleEl) subtitleEl.textContent='';
+    return;
+  }
+  if(subtitleEl) subtitleEl.textContent=`${total}개 영상`;
 
   // 페이지별 시작/끝 인덱스 계산
   // 0페이지: 0 ~ YT_PER_PAGE(3)
