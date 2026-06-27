@@ -1778,6 +1778,7 @@ function renderRankRow(platforms){
 
 /* == Top10 Days == */
 let WORK_CATEGORY_SLOT = null; // boxoffice category01 여부 판단용
+let WORK_PLATFORMS = [];       // 오뜨랑 DB 랭킹 플랫폼 목록 [{platform, rank}]
 
 async function loadTop10Days(){
   if(!WORK.tmdb_id)return;
@@ -1847,17 +1848,8 @@ function updateMbtiWgRow(){
 
 /* == 지금 보러가기 (박스오피스 현재 상영작만) == */
 async function loadWatchGuide(){
-  // 극장 연결 - boxoffice category01 (주간 박스오피스 현재 상영중)일 때만 표시
-  const isCategory01 = WORK.platform==='boxoffice' && WORK_CATEGORY_SLOT==='category01';
-  if(!isCategory01)return;
-  const t=WORK.title;
-  document.getElementById('watchNowBtns').innerHTML=[
-    `<a class="watch-now-btn" href="https://cgv.co.kr/cnm/movieBook" target="_blank" rel="noopener">🎬 CGV</a>`,
-    `<a class="watch-now-btn" href="https://www.lottecinema.co.kr/NLCHS/Movie/List?flag=1" target="_blank" rel="noopener">🎬 롯데시네마</a>`,
-    `<a class="watch-now-btn" href="https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(t)}" target="_blank" rel="noopener">🎬 메가박스</a>`,
-  ].join('');
-  document.getElementById('watchNowBox').style.display='block';
-  updateMbtiWgRow();
+  /* loadWatchProviders()가 boxoffice 포함 모든 보러가기를 통합 처리
+     이 함수는 하위 호환성 유지용으로만 남겨둠 */
 }
 
 /* == TMDB Load (parallel) == */
@@ -3010,6 +3002,7 @@ async function loadPlatforms(){
       return;
     }
     const platforms=data.data; // [{platform, rank}, ...]
+    WORK_PLATFORMS = platforms; // 보러가기 Priority 1에서 사용
 
     // 1순위 플랫폼으로 WORK 업데이트
     WORK.platform=platforms[0].platform;
@@ -3135,94 +3128,42 @@ const OTT_HOME_URL = {
   'YouTube'     : 'https://www.youtube.com',
 };
 
-/* ══════════════════════════════════════
-   Network ID → OTT 자동 매핑 테이블
-   제작사가 확실하게 특정 OTT와 연결되는 경우만 등록
-   (KBS/MBC/SBS → 웨이브, tvN/OCN/JTBC → 티빙 등)
-   ※ ID는 TMDB 공식 URL /network/{ID} 기준으로 검증된 값
-══════════════════════════════════════ */
-const NETWORK_TO_OTT = {
-  /* KBS1 (829) → 웨이브 */
-  829  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* KBS2 (342) → 웨이브 */
-  342  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* MBC (97) → 웨이브 */
-  97   : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* SBS (156) → 웨이브 */
-  156  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* ENA (5841) → 웨이브 */
-  5841 : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* tvN (866) → 티빙 */
-  866  : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
-  /* OCN (627) → 티빙 */
-  627  : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
-  /* JTBC (885) → 티빙 */
-  885  : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
-  /* 넷플릭스 Network (213) → 넷플릭스 */
-  213  : { name:'넷플릭스', provider_name:'Netflix', logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
-  /* 디즈니+ Network (2739) → 디즈니+ */
-  2739 : { name:'디즈니+', provider_name:'Disney+', logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg' },
-  /* 쿠팡플레이 (5169) → 쿠팡플레이 */
-  5169 : { name:'쿠팡플레이', provider_name:'Coupang Play', logo_path: null },
-  /* 왓챠 (3901) → 왓챠 */
-  3901 : { name:'왓챠',   provider_name:'Watcha',  logo_path:'/3dh6JLtbcIuFVaYxnkEdXAUMtBO.jpg' },
-};
 
 /**
- * OTT 바 목록 렌더링
- * @param {Array} providers - TMDB Watch Providers 배열
- * @param {Array} networks  - TMDB Networks 배열 (자동 매핑 보완용)
+ * 보러가기 바 목록 렌더링
+ * @param {null} _p       - 미사용 (하위호환)
+ * @param {null} _n       - 미사용 (하위호환)
+ * @param {Array|null} list - [{name, url, logo_path}] 또는 극장 [{name, url, logo}]
  */
-function renderOttTab(providers, networks){
+function renderOttTab(_p, _n, list){
   const listEl = document.getElementById('ottBarList');
   const secEl  = document.getElementById('ottSection');
   if(!listEl) return;
 
-  /* 1) Watch Providers 브랜드 중복 제거 */
-  const seen = new Set();
-  const deduped = (providers || []).filter(p => {
-    const nameKo = _providerNameKo(p.provider_name);
-    if(seen.has(nameKo)) return false;
-    seen.add(nameKo);
-    return true;
-  });
-
-  /* 2) Network → OTT 자동 매핑 보완
-        Watch Providers에 없는 OTT만 추가 (중복 방지) */
-  (networks || []).forEach(n => {
-    const mapped = NETWORK_TO_OTT[n.id];
-    if(!mapped) return;                    // 매핑 없으면 스킵
-    const nameKo = mapped.name;
-    if(seen.has(nameKo)) return;           // 이미 Watch Providers에 있으면 스킵
-    seen.add(nameKo);
-    deduped.push({
-      provider_name : mapped.provider_name,
-      logo_path     : mapped.logo_path,
-    });
-  });
-
-  /* 3) 정보가 전혀 없으면 섹션 자체 숨김 */
-  if(!deduped.length){
+  /* 데이터 없으면 섹션 숨김 */
+  if(!list || !list.length){
     if(secEl) secEl.style.display = 'none';
     return;
   }
 
-  /* 4) 섹션 표시 + 바 형태 렌더링 */
   if(secEl) secEl.style.display = 'block';
 
-  listEl.innerHTML = deduped.map(p => {
-    const nameKo  = _providerNameKo(p.provider_name);
-    const logoUrl = p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : '';
-    const homeUrl = OTT_HOME_URL[nameKo] || '#';
+  listEl.innerHTML = list.map(item => {
+    const logoUrl = item.logo_path
+      ? `https://image.tmdb.org/t/p/w92${item.logo_path}`
+      : '';
 
     const logoHtml = logoUrl
-      ? `<img class="ott-bar-logo" src="${logoUrl}" alt="${nameKo}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      ? `<img class="ott-bar-logo" src="${logoUrl}" alt="${item.name}" loading="lazy"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
       : '';
-    const phHtml = `<div class="ott-bar-logo-ph" ${logoUrl ? 'style="display:none"' : ''}><i class="ti ti-device-tv"></i></div>`;
+    const phHtml = `<div class="ott-bar-logo-ph" ${logoUrl ? 'style="display:none"' : ''}>
+      <i class="ti ti-device-tv"></i>
+    </div>`;
 
-    return `<a class="ott-bar" href="${homeUrl}" target="_blank" rel="noopener noreferrer">
+    return `<a class="ott-bar" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">
       ${logoHtml}${phHtml}
-      <span class="ott-bar-name">${nameKo}</span>
+      <span class="ott-bar-name">${item.name}</span>
       <span class="ott-bar-action">보러가기 <span class="ott-bar-arrow">›</span></span>
     </a>`;
   }).join('');
@@ -3239,33 +3180,94 @@ function renderOttTab(providers, networks){
 async function loadWatchProviders(){
   if(!WORK.tmdb_id) return;
 
+  /* ── 극장 OTT 바 데이터 생성용 상수 ── */
+  const THEATER_BARS = [
+    { name:'CGV',       url:'https://www.cgv.co.kr/movies/',                          logo: null },
+    { name:'롯데시네마', url:'https://www.lottecinema.co.kr/NLCHS/Movie/List?flag=1',  logo: null },
+    { name:'메가박스',  url:`https://www.megabox.co.kr/movie?searchText=${encodeURIComponent(WORK.title||'')}`, logo: null },
+  ];
+
+  /* ── DB 랭킹 platform → 표시명/URL 매핑 ── */
+  const PLATFORM_META = {
+    netflix : { name:'넷플릭스',   url: OTT_HOME_URL['넷플릭스'],   logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
+    tving   : { name:'티빙',       url: OTT_HOME_URL['티빙'],       logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg'  },
+    wavve   : { name:'웨이브',     url: OTT_HOME_URL['웨이브'],     logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg'  },
+    disney  : { name:'디즈니+',    url: OTT_HOME_URL['디즈니+'],    logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg'   },
+    coupang : { name:'쿠팡플레이', url: OTT_HOME_URL['쿠팡플레이'], logo_path: null                               },
+  };
+
+  /* ────────────────────────────────────────
+     Priority 1: 오뜨랑 DB 랭킹
+     ──────────────────────────────────────── */
+  const seen = new Set(); // 중복 방지용
+  const finalList = []; // 최종 렌더링 목록
+
+  // boxoffice category01 → 극장 링크 3개
+  const isCategory01 = WORK.platform === 'boxoffice' && WORK_CATEGORY_SLOT === 'category01';
+  if(isCategory01){
+    // 극장 작품: 극장 바 3개 추가 후 바로 렌더링 (OTT 정보 불필요)
+    renderOttTab(null, null, THEATER_BARS);
+    return;
+  }
+
+  // OTT 랭킹 작품: WORK_PLATFORMS에서 OTT만 추출
+  for(const p of (WORK_PLATFORMS || [])){
+    if(p.platform === 'boxoffice') continue; // boxoffice 제외
+    const meta = PLATFORM_META[p.platform];
+    if(!meta || seen.has(meta.name)) continue;
+    seen.add(meta.name);
+    finalList.push({
+      name      : meta.name,
+      url       : meta.url,
+      logo_path : meta.logo_path,
+    });
+  }
+
+  /* ────────────────────────────────────────
+     Priority 2 & 3: TMDB 데이터 병렬 조회
+     ──────────────────────────────────────── */
   try{
     const mediaType = WORK.type === 'movie' ? 'movie' : 'tv';
     const res = await fetch(`${TMDB_PROXY}/${mediaType}/${WORK.tmdb_id}/watch/providers`);
-    if(!res.ok) throw new Error('watch/providers 오류');
-    const json = await res.json();
+    const json = res.ok ? await res.json() : null;
+    const kr   = json?.results?.KR;
 
-    const kr = json?.results?.KR;
-
-    /* KR 없어도 Network 매핑으로 표시 가능 → renderOttTab이 최종 판단 */
-    if(!kr){
-      renderOttTab([], WORK.networks || []);
-      return;
+    /* Priority 2: 쿠팡플레이 Network 보완 (Watch Providers에 쿠팡 없는 경우가 많음) */
+    const hasCoupang = seen.has('쿠팡플레이');
+    const coupangInNetwork = (WORK.networks || []).some(n => n.id === 5169);
+    if(!hasCoupang && coupangInNetwork){
+      seen.add('쿠팡플레이');
+      finalList.push({
+        name      : '쿠팡플레이',
+        url       : OTT_HOME_URL['쿠팡플레이'],
+        logo_path : null,
+      });
     }
 
-    /* flatrate + rent + buy 모두 합산 (중복은 renderOttTab에서 제거) */
-    const all = [
-      ...(kr.flatrate || []),
-      ...(kr.rent     || []),
-      ...(kr.buy      || []),
-    ];
-
-    renderOttTab(all, WORK.networks || []);
-
+    /* Priority 3: Watch Providers — 1번, 2번에 없는 OTT만 추가 */
+    if(kr){
+      const allProviders = [
+        ...(kr.flatrate || []),
+        ...(kr.rent     || []),
+        ...(kr.buy      || []),
+      ];
+      for(const p of allProviders){
+        const nameKo = _providerNameKo(p.provider_name);
+        if(seen.has(nameKo)) continue; // 이미 있으면 스킵
+        seen.add(nameKo);
+        finalList.push({
+          name      : nameKo,
+          url       : OTT_HOME_URL[nameKo] || '#',
+          logo_path : p.logo_path || null,
+        });
+      }
+    }
   }catch(e){
-    /* 오류 시 Network 매핑만으로 표시 시도 */
-    renderOttTab([], WORK.networks || []);
+    /* Watch Providers 오류는 무시 — Priority 1, 2 결과만 표시 */
   }
+
+  /* 최종 렌더링 */
+  renderOttTab(null, null, finalList.length ? finalList : null);
 }
 
 /* ══════════════════════════════════════
@@ -3297,19 +3299,21 @@ async function init(){
   // Load TMDB (includes hero render + MBTI 즉시 렌더링)
   await loadTmdb();
 
-  // 나머지 전부 병렬 실행
-  // loadWatchGuide는 "지금 보러가기"(박스오피스 극장 링크)만 표시
-  // WORK_CATEGORY_SLOT은 loadTop10Days에서 설정되므로 완료 후 실행
-  // loadWatchProviders는 WORK.type이 loadTmdb에서 확정된 후이므로 여기서 호출 안전
   if(WORK.tmdb_id){
+    // 1단계: loadTop10Days(WORK_CATEGORY_SLOT 세팅) + loadPlatforms(WORK_PLATFORMS 세팅) 병렬 완료
+    // loadWatchProviders는 두 값이 모두 필요하므로 반드시 이후에 실행
     await Promise.all([
-      loadTop10Days().then(loadWatchGuide),
-      loadPlatforms(),
+      loadTop10Days(),    // → WORK_CATEGORY_SLOT 세팅
+      loadPlatforms(),    // → WORK_PLATFORMS 세팅
+    ]);
+
+    // 2단계: 나머지 병렬 실행 (loadWatchProviders는 위 두 값이 준비된 후 실행)
+    await Promise.all([
+      loadWatchProviders(),   // Priority 1(랭킹) + 2(쿠팡) + 3(Watch Providers)
       loadManualBadges(),
       loadReviews(WORK.tmdb_id),
       loadTitleVideos(),
       loadFeelingData(),
-      loadWatchProviders(),       // ← TMDB KR 스트리밍 정보 조회
     ]);
   }else{
     renderComments();
