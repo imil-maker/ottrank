@@ -2451,12 +2451,26 @@ function openModal(r) {
   document.getElementById('editTmdbResults').style.display = 'none';
   document.getElementById('editTmdbSelected').style.display = 'none';
   updatePosterPreview(r.poster_path);
-  // media_type 라디오 버튼 초기값 세팅
-  const mt = r.media_type || '';
+
+  // media_type: rankings에는 없으므로 일단 자동(빈값)으로 세팅 후
+  // works 테이블에서 실제 media_type 비동기 조회해서 교체
+  const mtInit = r.media_type || '';
   document.querySelectorAll('input[name="editMediaType"]').forEach(radio => {
-    radio.checked = (radio.value === mt);
+    radio.checked = (radio.value === mtInit);
   });
-  updateMediaTypeStyle(mt);
+  updateMediaTypeStyle(mtInit);
+
+  // tmdb_id 있으면 works DB에서 정확한 media_type 조회
+  if (r.tmdb_id) {
+    _fetchWorksData(r.tmdb_id).then(w => {
+      if (!w) return;
+      const mt = w.media_type || '';
+      document.querySelectorAll('input[name="editMediaType"]').forEach(radio => {
+        radio.checked = (radio.value === mt);
+      });
+      updateMediaTypeStyle(mt);
+    });
+  }
 
   // 시즌 입력창 표시 (랭킹 수정 모드) + 기존 시즌값 세팅
   document.getElementById('editSeasonRow').style.display = '';
