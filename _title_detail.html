@@ -3138,31 +3138,33 @@ const OTT_HOME_URL = {
 /* ══════════════════════════════════════
    Network ID → OTT 자동 매핑 테이블
    제작사가 확실하게 특정 OTT와 연결되는 경우만 등록
-   (KBS/MBC/SBS → 웨이브, tvN/OCN → 티빙, JTBC → 티빙 등)
+   (KBS/MBC/SBS → 웨이브, tvN/OCN/JTBC → 티빙 등)
+   ※ ID는 TMDB 공식 URL /network/{ID} 기준으로 검증된 값
 ══════════════════════════════════════ */
 const NETWORK_TO_OTT = {
-  /* KBS → 웨이브 */
+  /* KBS1 (829) → 웨이브 */
   829  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  1049 : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' }, // KBS2
-  /* MBC → 웨이브 */
-  343  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* SBS → 웨이브 */
-  75   : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* ENA → 웨이브 */
-  3694 : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
-  /* tvN → 티빙 */
-  1530 : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
-  /* OCN → 티빙 */
-  2639 : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
-  /* JTBC → 티빙 */
-  4002 : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
-  /* 넷플릭스 → 넷플릭스 */
+  /* KBS2 (342) → 웨이브 */
+  342  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  /* MBC (97) → 웨이브 */
+  97   : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  /* SBS (156) → 웨이브 */
+  156  : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  /* ENA (5841) → 웨이브 */
+  5841 : { name:'웨이브', provider_name:'Wavve', logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg' },
+  /* tvN (866) → 티빙 */
+  866  : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
+  /* OCN (627) → 티빙 */
+  627  : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
+  /* JTBC (885) → 티빙 */
+  885  : { name:'티빙',   provider_name:'Tving',  logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg' },
+  /* 넷플릭스 Network (213) → 넷플릭스 */
   213  : { name:'넷플릭스', provider_name:'Netflix', logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
-  /* 디즈니+ → 디즈니+ */
+  /* 디즈니+ Network (2739) → 디즈니+ */
   2739 : { name:'디즈니+', provider_name:'Disney+', logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg' },
-  /* 쿠팡플레이 → 쿠팡플레이 */
+  /* 쿠팡플레이 (5169) → 쿠팡플레이 */
   5169 : { name:'쿠팡플레이', provider_name:'Coupang Play', logo_path: null },
-  /* 왓챠 → 왓챠 */
+  /* 왓챠 (3901) → 왓챠 */
   3901 : { name:'왓챠',   provider_name:'Watcha',  logo_path:'/3dh6JLtbcIuFVaYxnkEdXAUMtBO.jpg' },
 };
 
