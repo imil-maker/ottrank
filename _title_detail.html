@@ -944,7 +944,42 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ── 상단 탭 패널 고정 높이 ── */
 /* 평점이 가장 높음 → 평점 높이 + 20px 여유 */
 .info-tab-wrap .tab-panel{
-  min-height: 220px; /* 평점 카드 높이 기준 + 여유 20px */
+  min-height: 220px;
+}
+
+/* MBTI·보러가기·제작사 — 가운데 정렬 */
+#infoPanel-mbti,
+#infoPanel-ott,
+#infoPanel-network{
+  display: none; /* 기본 숨김 유지 */
+  padding: 20px 0 0;
+  text-align: center;
+}
+#infoPanel-mbti.active,
+#infoPanel-ott.active,
+#infoPanel-network.active{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* 내부 리스트는 가운데 기준으로 flex wrap */
+#infoPanel-mbti .mbti-tab-inner,
+#infoPanel-ott .ott-list,
+#infoPanel-network .network-list{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 0;
+}
+/* mbti-rec-section 내부도 가운데 */
+#infoPanel-mbti .mbti-rec-chips{
+  justify-content: center;
+}
+#infoPanel-mbti .mbti-rec-source,
+#infoPanel-mbti .mbti-no-data{
+  text-align: center;
 }
 
 /* 하단 탭 패널: 자연스럽게 늘어남 */
@@ -1205,9 +1240,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <!-- 탭 바 -->
   <div class="tab-bar" role="tablist">
     <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchInfoTab('rating',this)">평점</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('network',this)">제작사</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('ott',this)">보러가기</button>
     <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('mbti',this)">MBTI</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('ott',this)">보러가기</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('network',this)">제작사</button>
   </div>
 
   <!-- ── 패널1: 평점 ── -->
@@ -1325,15 +1360,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
      하단 탭: 리뷰 / 관련영상 / 관련이미지
 ══════════════════════════════════════ -->
 <div class="community-tab-wrap">
-  <!-- 탭 바 -->
+  <!-- 탭 바 — 기본값: 관련영상 (리뷰가 있을 때 JS가 리뷰 탭으로 전환) -->
   <div class="tab-bar community" role="tablist">
-    <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchCommTab('review',this)">리뷰</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('video',this)">관련영상</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('image',this)">관련이미지</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('review',this)" id="commTabReview">리뷰</button>
+    <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchCommTab('video',this)"  id="commTabVideo">관련영상</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('image',this)"  id="commTabImage">관련이미지</button>
   </div>
 
-  <!-- ── 패널1: 리뷰 ── -->
-  <div class="tab-panel active" id="commPanel-review" role="tabpanel">
+  <!-- ── 패널1: 리뷰 (기본 비활성) ── -->
+  <div class="tab-panel" id="commPanel-review" role="tabpanel">
     <!-- 후기 0개 CTA — JS renderComments()에서 후기 있으면 숨기고 댓글 표시 -->
     <div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:flex">
       <div class="review-cta-left">
@@ -1361,8 +1396,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- ── 패널2: 관련영상 ── -->
-  <div class="tab-panel" id="commPanel-video" role="tabpanel">
+  <!-- ── 패널2: 관련영상 (기본 active) ── -->
+  <div class="tab-panel active" id="commPanel-video" role="tabpanel">
     <div class="yt-section" style="margin-bottom:0">
       <!-- ytSubtitle: JS renderYtPage()가 영상 개수 표시용으로 참조 (숨겨진 span) -->
       <span id="ytSubtitle" style="display:none"></span>
@@ -2392,6 +2427,12 @@ function renderComments(){
   // 후기 있음 — CTA 숨기고 댓글 섹션 표시
   if(cta) cta.style.display='none';
   if(commentSection) commentSection.style.display='block';
+  // 리뷰가 있으면 리뷰 탭으로 자동 전환 (최초 1회)
+  if(!renderComments._tabSwitched){
+    renderComments._tabSwitched = true;
+    const reviewTabBtn = document.getElementById('commTabReview');
+    if(reviewTabBtn) switchCommTab('review', reviewTabBtn);
+  }
   updateCommentWatchLayout();
   const start=(curPage-1)*PER_PAGE,slice=sorted.slice(start,start+PER_PAGE);
   el.innerHTML=`<div class="comments-section">${slice.map(c=>`
@@ -2992,6 +3033,38 @@ function renderNetworkTab(networks){
    보러가기(OTT) 탭 렌더링 — Watch Providers
    + TMDB Networks에서 쿠팡플레이 보완
 ══════════════════════════════════════ */
+
+/**
+ * TMDB provider_name → 한국 사용자 표기로 변환
+ * 매핑에 없으면 원본 이름 그대로 반환
+ */
+function _providerNameKo(name){
+  const MAP = {
+    'Netflix'            : '넷플릭스',
+    'Netflix basic with Ads':'넷플릭스',
+    'Netflix Standard with Ads':'넷플릭스',
+    'Disney Plus'        : '디즈니+',
+    'Disney+'            : '디즈니+',
+    'wavve'              : '웨이브',
+    'Wavve'              : '웨이브',
+    'Watcha'             : '왓챠',
+    'WATCHA'             : '왓챠',
+    'Tving'              : '티빙',
+    'TVING'              : '티빙',
+    'Coupang Play'       : '쿠팡플레이',
+    'Seezn'              : '시즌',
+    'Naver Series On'    : '네이버 시리즈온',
+    'Apple TV'           : 'Apple TV',
+    'Apple TV+'          : 'Apple TV+',
+    'Amazon Prime Video' : 'Prime Video',
+    'Amazon Video'       : 'Amazon Video',
+    'Google Play Movies' : 'Google Play',
+    'YouTube'            : 'YouTube',
+    'KT Olleh TV'        : 'KT 올레TV',
+    'LG Channels'        : 'LG 채널',
+  };
+  return MAP[name] || name;
+}
 
 /* OTT 홈페이지 URL 매핑 */
 const OTT_HOME_URL = {
