@@ -790,6 +790,25 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
+  // ── GET /admin/works/:tmdb_id (단건 조회) ─────────────────────
+  if (path.match(/^\/admin\/works\/\d+$/) && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(path.split("/")[3]);
+      const row = await env.DB.prepare(
+        "SELECT * FROM works WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+      if (!row) {
+        return new Response(JSON.stringify({ ok: false, message: "Not found" }), { status: 404, headers });
+      }
+      return new Response(JSON.stringify({ ok: true, data: row }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /admin/works ─────────────────────────────────────────
   if (path === "/admin/works" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
