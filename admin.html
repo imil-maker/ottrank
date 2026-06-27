@@ -859,9 +859,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
     <!-- ══ DB / TMDB 작품 검색 블록 ══ -->
     <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:18px">
-      <div style="font-size:12px;font-family:var(--mono);color:var(--info);margin-bottom:10px;letter-spacing:.3px">
-        🔍 DB / TMDB 작품 검색 <span style="color:var(--muted);font-weight:400">— 오뜨랑 DB 우선 검색 후 TMDB 보조 결과 표시</span>
-      </div>
       <!-- 검색 입력 -->
       <div style="display:flex;gap:8px;margin-bottom:8px">
         <input id="editTmdbSearchQuery" class="inp"
@@ -907,33 +904,38 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <label>TMDB ID <span style="color:var(--muted);font-size:10px">(검색 선택 또는 직접 입력)</span></label>
       <input class="inp" type="number" id="editTmdbId" placeholder="예: 1411577" oninput="previewPoster()">
       <div class="form-hint">themoviedb.org/movie/[ID] 또는 /tv/[ID] 에서 직접 확인 후 입력도 가능</div>
-      <div class="poster-preview" id="posterPreview">
-        <div class="no-poster">🎬</div>
-        <span style="font-size:12px;color:var(--muted)">TMDB ID 입력 시 포스터 미리보기</span>
-      </div>
-    </div>
-    <!-- ── 시즌 선택 (랭킹 수정 모드 전용, works 모드에서는 숨김) ── -->
-    <div class="form-row" id="editSeasonRow" style="display:none">
-      <label>시즌 번호 <span style="color:var(--muted);font-size:10px">(TV 시리즈 시즌별 등록 시)</span></label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input class="inp" type="number" id="editSeasonInp" min="1" max="99"
-          placeholder="예: 1, 2, 3"
-          oninput="onEditSeasonInput(this.value)"
-          style="width:80px;margin-bottom:0;font-size:13px">
-        <div id="editSeasonPosterWrap" style="display:none;align-items:center;gap:8px">
-          <img id="editSeasonPoster" src="" style="width:28px;height:42px;object-fit:cover;border-radius:4px">
-          <span style="font-size:11px;color:var(--green);font-family:var(--mono)">시즌 포스터 적용됨</span>
-          <button onclick="resetEditBasePoster()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--mono)">기본으로</button>
+      <!-- ② 포스터 + 시즌 번호 같은 줄 배치 -->
+      <div style="display:flex;align-items:flex-start;gap:16px;margin-top:8px">
+        <!-- 포스터 미리보기 -->
+        <div class="poster-preview" id="posterPreview" style="margin-top:0;flex-shrink:0">
+          <div class="no-poster">🎬</div>
+          <span style="font-size:12px;color:var(--muted)">TMDB ID 입력 시 포스터 미리보기</span>
         </div>
-        <div id="editSeasonLoading" style="display:none;font-size:11px;color:var(--muted);font-family:var(--mono)">조회 중...</div>
+        <!-- 시즌 번호 (랭킹 수정 모드 전용) -->
+        <div id="editSeasonRow" style="display:none;flex:1">
+          <label style="font-size:12px;color:var(--muted2);display:block;margin-bottom:6px;font-family:var(--mono)">
+            시즌 번호 <span style="color:var(--muted);font-size:10px">(TV 시리즈 시즌별 등록 시)</span>
+          </label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="inp" type="number" id="editSeasonInp" min="1" max="99"
+              placeholder="예: 1, 2, 3"
+              oninput="onEditSeasonInput(this.value)"
+              style="width:80px;margin-bottom:0;font-size:13px">
+            <div id="editSeasonPosterWrap" style="display:none;align-items:center;gap:8px">
+              <img id="editSeasonPoster" src="" style="width:28px;height:42px;object-fit:cover;border-radius:4px">
+              <span style="font-size:11px;color:var(--green);font-family:var(--mono)">시즌 포스터 적용됨</span>
+              <button onclick="resetEditBasePoster()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--mono)">기본으로</button>
+            </div>
+            <div id="editSeasonLoading" style="display:none;font-size:11px;color:var(--muted);font-family:var(--mono)">조회 중...</div>
+          </div>
+          <div class="form-hint" style="margin-top:4px">시즌 입력 시 TMDB 시즌 포스터 자동 조회 · 없으면 기본 포스터 유지</div>
+        </div>
       </div>
-      <div class="form-hint">시즌 입력 시 TMDB 시즌 포스터 자동 조회 · 없으면 기본 포스터 유지</div>
     </div>
     <div class="form-row" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="checkbox" id="editDeleteDuplicates" style="cursor:pointer;width:16px;height:16px">
         <span style="font-size:13px">같은 영어 제목의 기존 잘못된 works 데이터 삭제</span>
-        <span style="font-size:11px;color:var(--red)">(오매칭 제거 시 사용)</span>
       </label>
     </div>
 
@@ -948,15 +950,18 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <div style="display:flex;gap:8px">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px" id="mtLabel_null">
-          <input type="radio" name="editMediaType" value="" id="editMt_null" checked style="cursor:pointer">
+          <input type="radio" name="editMediaType" value="" id="editMt_null" checked style="cursor:pointer"
+            onchange="onMediaTypeChange('')">
           <span>🔄 자동 (기본값)</span>
         </label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px" id="mtLabel_tv">
-          <input type="radio" name="editMediaType" value="tv" id="editMt_tv" style="cursor:pointer">
+          <input type="radio" name="editMediaType" value="tv" id="editMt_tv" style="cursor:pointer"
+            onchange="onMediaTypeChange('tv')">
           <span>📺 TV</span>
         </label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px" id="mtLabel_movie">
-          <input type="radio" name="editMediaType" value="movie" id="editMt_movie" style="cursor:pointer">
+          <input type="radio" name="editMediaType" value="movie" id="editMt_movie" style="cursor:pointer"
+            onchange="onMediaTypeChange('movie')">
           <span>🎬 Movie</span>
         </label>
       </div>
@@ -2973,6 +2978,46 @@ function resetEditBasePoster() {
   window._editCurrentSeason = null;
   document.getElementById('editSeasonInp').value = '';
   document.getElementById('editSeasonPosterWrap').style.display = 'none';
+}
+
+/**
+ * ⑤ media_type 라디오 변경 시 TMDB에서 해당 타입 포스터 갱신
+ * TV 선택 → tv/{tmdbId} 조회, Movie 선택 → movie/{tmdbId} 조회
+ * 자동 선택 → 기존 previewPoster() 로직 (tv → movie 순) 유지
+ */
+async function onMediaTypeChange(mt) {
+  updateMediaTypeStyle(mt);
+  const tmdbId = document.getElementById('editTmdbId').value.trim();
+  if (!tmdbId) return;
+
+  const el = document.getElementById('posterPreview');
+  el.innerHTML = '<span style="font-size:12px;color:var(--muted)">조회 중...</span>';
+
+  if (mt === '') {
+    // 자동: 기존 previewPoster 로직 실행
+    previewPoster();
+    return;
+  }
+
+  // 지정된 타입으로만 조회
+  try {
+    const resp = await fetch(`${TMDB_PROXY}/${mt}/${tmdbId}?language=ko-KR`);
+    const data = await resp.json();
+    if (data.poster_path) {
+      el.innerHTML = `
+        <img src="${IMG}${data.poster_path}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
+        <span style="font-size:12px;color:var(--muted2)">${mt === 'tv' ? '📺 TV' : '🎬 Movie'} 포스터</span>`;
+      // 제목도 갱신 (비어있을 때만)
+      const titleEl = document.getElementById('editTitleKo');
+      if (!titleEl.value.trim()) {
+        titleEl.value = data.name || data.title || '';
+      }
+    } else {
+      el.innerHTML = '<span style="font-size:12px;color:var(--red)">포스터 없음</span>';
+    }
+  } catch(e) {
+    el.innerHTML = '<span style="font-size:12px;color:var(--red)">조회 실패</span>';
+  }
 }
 
 function previewPoster() {
