@@ -29,11 +29,94 @@
    POST   /admin/grade-settings/assign
    GET    /admin/users
    POST   /admin/ott-points/adjust
+   GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
+   POST   /work-ott                   ← OTT 오버라이드 추가/수정 (관리자 전용)
+   DELETE /work-ott/:id               ← OTT 오버라이드 삭제/복원 (관리자 전용)
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
 
 export async function handleAdmin(path, request, env, url, headers) {
+
+  /* ══════════════════════════════════════════════════════════════
+     OTT 보러가기 수동 오버라이드 API
+     ── GET  /work-ott/:tmdb_id  → 조회 (인증 불필요, 작품 페이지용)
+     ── POST /work-ott           → 추가/수정 (관리자 전용)
+     ── DELETE /work-ott/:id     → 삭제/복원 (관리자 전용)
+  ══════════════════════════════════════════════════════════════ */
+
+  // ── GET /work-ott/:tmdb_id ─────────────────────────────────
+  // 작품 페이지에서 인증 없이 호출 → _checkAuth 불필요
+  const workOttGetMatch = path.match(/^\/work-ott\/(\d+)$/);
+  if (workOttGetMatch && request.method === "GET") {
+    const tmdbId = parseInt(workOttGetMatch[1]);
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT id, tmdb_id, ott_key, action, created_at
+         FROM work_ott_overrides
+         WHERE tmdb_id = ?
+         ORDER BY created_at DESC`
+      ).bind(tmdbId).all();
+      return new Response(JSON.stringify({ ok: true, data: results || [] }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /work-ott ─────────────────────────────────────────
+  // 관리자 전용 — 오버라이드 추가 또는 action 변경 (UPSERT)
+  if (path === "/work-ott" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json();
+      const { tmdb_id, ott_key, action } = body;
+
+      // 유효성 검사
+      if (!tmdb_id || !ott_key || !action) {
+        return new Response(JSON.stringify({
+          ok: false, error: "tmdb_id, ott_key, action 필수"
+        }), { status: 400, headers });
+      }
+      if (!["add", "remove"].includes(action)) {
+        return new Response(JSON.stringify({
+          ok: false, error: "action은 'add' 또는 'remove'만 허용"
+        }), { status: 400, headers });
+      }
+
+      // UPSERT: 동일 tmdb_id+ott_key면 action 업데이트
+      await env.DB.prepare(
+        `INSERT INTO work_ott_overrides (tmdb_id, ott_key, action)
+         VALUES (?, ?, ?)
+         ON CONFLICT(tmdb_id, ott_key)
+         DO UPDATE SET action = excluded.action,
+                       created_at = datetime('now')`
+      ).bind(tmdb_id, ott_key, action).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /work-ott/:id ───────────────────────────────────
+  // 관리자 전용 — 오버라이드 삭제 (자동 로직으로 복원)
+  const workOttDelMatch = path.match(/^\/work-ott\/(\d+)$/);
+  if (workOttDelMatch && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), { status: 401, headers });
+    }
+    const id = parseInt(workOttDelMatch[1]);
+    try {
+      await env.DB.prepare(
+        `DELETE FROM work_ott_overrides WHERE id = ?`
+      ).bind(id).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers });
+    }
+  }
 
   // ── GET /admin/title-map ──────────────────────────────────
   if (path === "/admin/title-map" && request.method === "GET") {
