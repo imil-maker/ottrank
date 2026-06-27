@@ -119,7 +119,12 @@ export default {
       res = await handlePosts(path, request, env, ctx, url, headers);
     }
 
-    // 8. 관리자 (reactions, videos, contents 제외한 나머지)
+    // 8. OTT 보러가기 수동 오버라이드 (GET은 인증 불필요, POST/DELETE는 admin.js에서 인증)
+    if (!res && path.startsWith("/work-ott")) {
+      res = await handleAdmin(path, request, env, url, headers);
+    }
+
+    // 9. 관리자 (reactions, videos, contents 제외한 나머지)
     if (!res && path.startsWith("/admin/")) {
       res = await handleAdmin(path, request, env, url, headers);
     }
