@@ -1104,6 +1104,112 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .info-tab-wrap .tab-panel{ min-height: 200px; }
 }
 
+/* ══ 보러가기 섹션 — 바 형태 ══ */
+.ott-section{
+  margin: 24px 0 8px;
+}
+.ott-section-header{
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ott-section-title{
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ott-section-network{
+  font-size: 13px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+/* OTT 바 목록 */
+.ott-bar-list{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 개별 OTT 바 */
+.ott-bar{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  background: var(--bg2);
+  border: .5px solid rgba(255,255,255,0.06);
+  text-decoration: none;
+  transition: background .15s, border-color .15s;
+  cursor: pointer;
+}
+.ott-bar:hover{
+  background: var(--bg3);
+  border-color: rgba(240,180,41,0.3);
+}
+/* OTT 로고 */
+.ott-bar-logo{
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--bg3);
+  flex-shrink: 0;
+}
+/* 로고 없을 때 대체 아이콘 */
+.ott-bar-logo-ph{
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--bg3);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+/* OTT 이름 */
+.ott-bar-name{
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+/* 보러가기 텍스트 + 화살표 */
+.ott-bar-action{
+  font-size: 13px;
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.ott-bar-arrow{
+  font-size: 16px;
+  color: var(--muted);
+}
+/* OTT 없을 때 */
+.ott-bar-empty{
+  font-size: 14px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ══ 관련영상/관련이미지 섹션 타이틀 ══ */
+.plain-section-title{
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 28px 0 14px;
+  padding-top: 4px;
+  border-top: .5px solid rgba(255,255,255,0.05);
+}
+/* gallerySection display 복원 (탭 제거로 display:none 불필요) */
+.gallery-section{
+  margin-bottom: 28px;
+}
+
 </style>
 <!-- Tabler Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -1234,20 +1340,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 </div>
 
 <!-- ══════════════════════════════════════
-     상단 탭: 평점 / 제작사 / 보러가기 / MBTI
+     탭: 평점 / 리뷰 / MBTI (3개)
 ══════════════════════════════════════ -->
 <div class="info-tab-wrap">
-  <!-- 탭 바 -->
   <div class="tab-bar" role="tablist">
-    <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchInfoTab('rating',this)">평점</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('mbti',this)">MBTI</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('ott',this)">보러가기</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('network',this)">제작사</button>
+    <button class="tab-btn active" role="tab" onclick="switchInfoTab('rating',this)">평점</button>
+    <button class="tab-btn"        role="tab" onclick="switchInfoTab('review',this)" id="infoTabReview">리뷰</button>
+    <button class="tab-btn"        role="tab" onclick="switchInfoTab('mbti',this)">MBTI</button>
   </div>
 
   <!-- ── 패널1: 평점 ── -->
   <div class="tab-panel active" id="infoPanel-rating" role="tabpanel">
-    <!-- 평점 4블록 -->
     <div class="ratings-row">
       <div class="r-card">
         <div class="r-logo" style="color:#F5C518">IMDb</div>
@@ -1272,7 +1375,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       </div>
       <div class="r-card">
         <div class="r-logo" style="color:var(--muted2)">내 평점</div>
-        <!-- 내 후기 없을 때: 반개 별점 + 후기작성 버튼 -->
         <div id="myRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:4px;width:100%">
           <div class="my-half-star-row" id="myHalfStarRow">
             <span class="my-half-star-wrap" id="mhsw1">
@@ -1300,7 +1402,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
             <i class="ti ti-pencil" style="font-size:14px"></i> 후기 작성하기
           </button>
         </div>
-        <!-- 내 후기 있을 때 -->
         <div id="myRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
           <div class="r-score-wrap"><div class="r-score" id="myRatingScore" style="color:var(--gold)">—</div><span class="r-out-of">/10</span></div>
           <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="myRatingStarDisplay"></div>
@@ -1310,66 +1411,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- ── 패널2: 제작사 ── -->
-  <div class="tab-panel" id="infoPanel-network" role="tabpanel">
-    <!-- JS renderNetworkTab()이 채워줌 -->
-    <div class="network-list" id="networkList">
-      <span class="network-empty">제작사 정보를 불러오는 중...</span>
-    </div>
-  </div>
-
-  <!-- ── 패널3: 보러가기 (OTT) ── -->
-  <div class="tab-panel" id="infoPanel-ott" role="tabpanel">
-    <!-- JS renderOttTab()이 채워줌 -->
-    <div class="ott-list" id="ottList">
-      <span class="ott-empty">스트리밍 정보를 불러오는 중...</span>
-    </div>
-  </div>
-
-  <!-- ── 패널4: MBTI ── -->
-  <div class="tab-panel" id="infoPanel-mbti" role="tabpanel">
-    <div class="mbti-tab-inner">
-      <!-- 기존 mbtiRecSection 내용을 여기에 표시 -->
-      <div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
-        <div class="mbti-rec-title">
-          <span>✦</span>
-          <b id="mbtiRecTitle">이런 MBTI가 좋아해요</b>
-        </div>
-        <div class="mbti-rec-chips" id="mbtiRecChips"></div>
-        <div class="mbti-rec-source" id="mbtiRecSource"></div>
-      </div>
-      <div id="mbtiNoData" class="mbti-no-data" style="display:none">
-        이 작품의 MBTI 데이터가<br>아직 쌓이지 않았습니다
-      </div>
-    </div>
-    <!-- 지금 보러가기 (박스오피스 현재 상영작만 표시) -->
-    <div class="watch-now-box" id="watchNowBox" style="display:none">
-      <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
-      <div class="watch-now-btns" id="watchNowBtns"></div>
-    </div>
-  </div>
-</div><!-- /.info-tab-wrap -->
-
-<!-- mbtiWgRow: JS 호환성 유지용 빈 래퍼 (display:none) -->
-<div id="mbtiWgRow" style="display:none"></div>
-
-<!-- ══ 탭 구분선 ══ -->
-<div class="tab-section-divider"></div>
-
-<!-- ══════════════════════════════════════
-     하단 탭: 리뷰 / 관련영상 / 관련이미지
-══════════════════════════════════════ -->
-<div class="community-tab-wrap">
-  <!-- 탭 바 — 기본값: 관련영상 (리뷰가 있을 때 JS가 리뷰 탭으로 전환) -->
-  <div class="tab-bar community" role="tablist">
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('review',this)" id="commTabReview">리뷰</button>
-    <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchCommTab('video',this)"  id="commTabVideo">관련영상</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('image',this)"  id="commTabImage">관련이미지</button>
-  </div>
-
-  <!-- ── 패널1: 리뷰 (기본 비활성) ── -->
-  <div class="tab-panel" id="commPanel-review" role="tabpanel">
-    <!-- 후기 0개 CTA — JS renderComments()에서 후기 있으면 숨기고 댓글 표시 -->
+  <!-- ── 패널2: 리뷰 ── -->
+  <div class="tab-panel" id="infoPanel-review" role="tabpanel">
+    <!-- 후기 0개 CTA -->
     <div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:flex">
       <div class="review-cta-left">
         <div class="review-cta-eyebrow">첫 번째 평점</div>
@@ -1385,7 +1429,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         ✍ 평점 남기기
       </button>
     </div>
-    <!-- 사용자 댓글 — JS renderComments()가 채움 -->
+    <!-- 댓글 목록 -->
     <div id="commentSection">
       <div class="comment-sort-row" style="margin-top:4px">
         <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
@@ -1396,33 +1440,69 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- ── 패널2: 관련영상 (기본 active) ── -->
-  <div class="tab-panel active" id="commPanel-video" role="tabpanel">
-    <div class="yt-section" style="margin-bottom:0">
-      <!-- ytSubtitle: JS renderYtPage()가 영상 개수 표시용으로 참조 (숨겨진 span) -->
-      <span id="ytSubtitle" style="display:none"></span>
-      <div id="ytModal" class="modal-wrap">
-        <div class="modal-head">
-          <span class="modal-ttl" id="ytModalTitle"></span>
-          <button class="modal-close" onclick="closePlayer()">✕</button>
+  <!-- ── 패널3: MBTI ── -->
+  <div class="tab-panel" id="infoPanel-mbti" role="tabpanel">
+    <div class="mbti-tab-inner">
+      <div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
+        <div class="mbti-rec-title">
+          <span>✦</span>
+          <b id="mbtiRecTitle">이런 MBTI가 좋아해요</b>
         </div>
-        <div class="yt-player-wrap">
-          <iframe id="ytFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="유튜브 영상"></iframe>
-        </div>
+        <div class="mbti-rec-chips" id="mbtiRecChips"></div>
+        <div class="mbti-rec-source" id="mbtiRecSource"></div>
       </div>
-      <div id="ytArea"></div>
-      <div class="yt-pagination" id="ytPagination" style="display:none"></div>
+      <div id="mbtiNoData" class="mbti-no-data" style="display:none">
+        이 작품의 MBTI 데이터가<br>아직 쌓이지 않았습니다
+      </div>
+    </div>
+    <div class="watch-now-box" id="watchNowBox" style="display:none">
+      <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
+      <div class="watch-now-btns" id="watchNowBtns"></div>
     </div>
   </div>
+</div><!-- /.info-tab-wrap -->
 
-  <!-- ── 패널3: 관련이미지 ── -->
-  <div class="tab-panel" id="commPanel-image" role="tabpanel">
-    <!-- gallerySection: 탭 패널이 show/hide 담당하므로 display:none 제거 -->
-    <div class="gallery-section" id="gallerySection" style="margin-bottom:0">
-      <div class="gallery-grid" id="galleryGrid"></div>
+<!-- 호환성 유지용 더미 -->
+<div id="mbtiWgRow" style="display:none"></div>
+
+<!-- ══════════════════════════════════════
+     보러가기 섹션 — 바 형태, 항상 표시
+══════════════════════════════════════ -->
+<div class="ott-section" id="ottSection" style="display:none">
+  <div class="ott-section-header">
+    <span class="ott-section-title">보러가기</span>
+    <!-- 제작: A · B 형태로 JS가 채워줌 -->
+    <span class="ott-section-network" id="ottNetworkLabel"></span>
+  </div>
+  <div class="ott-bar-list" id="ottBarList"></div>
+</div>
+
+<!-- ══════════════════════════════════════
+     관련영상 — 탭 없이 바로 나열
+══════════════════════════════════════ -->
+<div class="yt-section" id="ytSectionWrap">
+  <div class="plain-section-title">관련영상</div>
+  <span id="ytSubtitle" style="display:none"></span>
+  <div id="ytModal" class="modal-wrap">
+    <div class="modal-head">
+      <span class="modal-ttl" id="ytModalTitle"></span>
+      <button class="modal-close" onclick="closePlayer()">✕</button>
+    </div>
+    <div class="yt-player-wrap">
+      <iframe id="ytFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="유튜브 영상"></iframe>
     </div>
   </div>
-</div><!-- /.community-tab-wrap -->
+  <div id="ytArea"></div>
+  <div class="yt-pagination" id="ytPagination" style="display:none"></div>
+</div>
+
+<!-- ══════════════════════════════════════
+     관련이미지 — 탭 없이 바로 나열
+══════════════════════════════════════ -->
+<div class="gallery-section" id="gallerySection">
+  <div class="plain-section-title">관련이미지</div>
+  <div class="gallery-grid" id="galleryGrid"></div>
+</div>
 
 </div><!-- /.page-wrap -->
 </div><!-- /#detailPage -->
@@ -2427,11 +2507,11 @@ function renderComments(){
   // 후기 있음 — CTA 숨기고 댓글 섹션 표시
   if(cta) cta.style.display='none';
   if(commentSection) commentSection.style.display='block';
-  // 리뷰가 있으면 리뷰 탭으로 자동 전환 (최초 1회)
+  // 리뷰가 있으면 상단 리뷰 탭으로 자동 전환 (최초 1회)
   if(!renderComments._tabSwitched){
     renderComments._tabSwitched = true;
-    const reviewTabBtn = document.getElementById('commTabReview');
-    if(reviewTabBtn) switchCommTab('review', reviewTabBtn);
+    const reviewTabBtn = document.getElementById('infoTabReview');
+    if(reviewTabBtn) switchInfoTab('review', reviewTabBtn);
   }
   updateCommentWatchLayout();
   const start=(curPage-1)*PER_PAGE,slice=sorted.slice(start,start+PER_PAGE);
@@ -2976,92 +3056,68 @@ function updateCommentWatchLayout(){}
  * @param {string} key  - 'rating' | 'network' | 'ott' | 'mbti'
  * @param {Element} btn - 클릭된 버튼 요소
  */
+/* 탭 전환 — 평점/리뷰/MBTI */
 function switchInfoTab(key, btn){
-  // 모든 탭 버튼 비활성화
   btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  // 모든 패널 숨김
   document.querySelectorAll('.info-tab-wrap .tab-panel').forEach(p => p.classList.remove('active'));
-  // 선택 패널 표시
   const panel = document.getElementById('infoPanel-' + key);
   if(panel) panel.classList.add('active');
 }
 
-/**
- * 하단 탭 (리뷰/관련영상/관련이미지) 전환
- * @param {string} key  - 'review' | 'video' | 'image'
- * @param {Element} btn - 클릭된 버튼 요소
- */
-function switchCommTab(key, btn){
-  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.community-tab-wrap .tab-panel').forEach(p => p.classList.remove('active'));
-  const panel = document.getElementById('commPanel-' + key);
-  if(panel) panel.classList.add('active');
-}
+/* switchCommTab — 하단 탭 제거됨, 호환성 유지용 noop */
+function switchCommTab(key, btn){}
 
 /* ══════════════════════════════════════
-   제작사 탭 렌더링 — TMDB networks 사용
+   제작사 라벨 렌더링 — 보러가기 헤더 오른쪽
+   "제작: A스튜디오 · B스튜디오" 형태
 ══════════════════════════════════════ */
-
-/**
- * loadTmdb()에서 받아온 det.networks 배열로 제작사 탭을 채움
- * det가 없거나 networks가 빈 배열이면 "정보 없음" 표시
- * @param {Array} networks - TMDB networks 배열 [{id, name, logo_path, ...}]
- */
 function renderNetworkTab(networks){
-  const el = document.getElementById('networkList');
-  if(!el) return;
-
+  /* 구 탭용 networkList는 없어졌으므로 라벨만 업데이트 */
+  const labelEl = document.getElementById('ottNetworkLabel');
+  if(!labelEl) return;
   if(!networks || !networks.length){
-    el.innerHTML = '<span class="network-empty">제작사 정보가 없습니다</span>';
+    labelEl.textContent = '';
     return;
   }
-
-  el.innerHTML = networks.map(n => {
-    const logoUrl = n.logo_path
-      ? `https://image.tmdb.org/t/p/w92${n.logo_path}`
-      : '';
-    return `<div class="network-chip">
-      ${logoUrl ? `<img class="network-logo" src="${logoUrl}" alt="${_hesc(n.name)}" loading="lazy" onerror="this.style.display='none'">` : ''}
-      <span class="network-name">${_hesc(n.name)}</span>
-    </div>`;
-  }).join('');
+  const names = networks.slice(0, 3).map(n => n.name).join(' · ');
+  labelEl.textContent = `제작: ${names}`;
+  /* 보러가기 섹션 표시 (데이터 있으면) */
+  const sec = document.getElementById('ottSection');
+  if(sec) sec.style.display = 'block';
 }
 
 /* ══════════════════════════════════════
-   보러가기(OTT) 탭 렌더링 — Watch Providers
-   + TMDB Networks에서 쿠팡플레이 보완
+   보러가기 바 형태 렌더링
 ══════════════════════════════════════ */
 
 /**
  * TMDB provider_name → 한국 사용자 표기로 변환
- * 매핑에 없으면 원본 이름 그대로 반환
  */
 function _providerNameKo(name){
   const MAP = {
-    'Netflix'            : '넷플릭스',
-    'Netflix basic with Ads':'넷플릭스',
-    'Netflix Standard with Ads':'넷플릭스',
-    'Disney Plus'        : '디즈니+',
-    'Disney+'            : '디즈니+',
-    'wavve'              : '웨이브',
-    'Wavve'              : '웨이브',
-    'Watcha'             : '왓챠',
-    'WATCHA'             : '왓챠',
-    'Tving'              : '티빙',
-    'TVING'              : '티빙',
-    'Coupang Play'       : '쿠팡플레이',
-    'Seezn'              : '시즌',
-    'Naver Series On'    : '네이버 시리즈온',
-    'Apple TV'           : 'Apple TV',
-    'Apple TV+'          : 'Apple TV+',
-    'Amazon Prime Video' : 'Prime Video',
-    'Amazon Video'       : 'Amazon Video',
-    'Google Play Movies' : 'Google Play',
-    'YouTube'            : 'YouTube',
-    'KT Olleh TV'        : 'KT 올레TV',
-    'LG Channels'        : 'LG 채널',
+    'Netflix'                  : '넷플릭스',
+    'Netflix basic with Ads'   : '넷플릭스',
+    'Netflix Standard with Ads': '넷플릭스',
+    'Disney Plus'              : '디즈니+',
+    'Disney+'                  : '디즈니+',
+    'wavve'                    : '웨이브',
+    'Wavve'                    : '웨이브',
+    'Watcha'                   : '왓챠',
+    'WATCHA'                   : '왓챠',
+    'Tving'                    : '티빙',
+    'TVING'                    : '티빙',
+    'Coupang Play'             : '쿠팡플레이',
+    'Seezn'                    : '시즌',
+    'Naver Series On'          : '네이버 시리즈온',
+    'Apple TV'                 : 'Apple TV',
+    'Apple TV+'                : 'Apple TV+',
+    'Amazon Prime Video'       : 'Prime Video',
+    'Amazon Video'             : 'Amazon Video',
+    'Google Play Movies'       : 'Google Play',
+    'YouTube'                  : 'YouTube',
+    'KT Olleh TV'              : 'KT 올레TV',
+    'LG Channels'              : 'LG 채널',
   };
   return MAP[name] || name;
 }
@@ -3083,18 +3139,16 @@ const OTT_HOME_URL = {
 const COUPANG_NETWORK_ID = 5169;
 
 /**
- * OTT 탭을 채우는 메인 함수
- * Watch Providers 결과 + 쿠팡플레이 보완(Networks) 처리
- * @param {Array}  providers - TMDB Watch Providers 배열
- * @param {Array}  networks  - TMDB Networks 배열 (쿠팡 보완용)
+ * OTT 바 목록 렌더링
+ * @param {Array} providers - TMDB Watch Providers 배열
+ * @param {Array} networks  - TMDB Networks 배열 (쿠팡 보완용)
  */
 function renderOttTab(providers, networks){
-  const el = document.getElementById('ottList');
-  if(!el) return;
+  const listEl = document.getElementById('ottBarList');
+  const secEl  = document.getElementById('ottSection');
+  if(!listEl) return;
 
-  /* 1) 브랜드 중복 제거
-       "Netflix"와 "Netflix Standard with Ads" → "넷플릭스" 1개만
-       provider_name 앞 단어(브랜드) 기준으로 dedup */
+  /* 1) 브랜드 중복 제거 */
   const seen = new Set();
   const deduped = (providers || []).filter(p => {
     const nameKo = _providerNameKo(p.provider_name);
@@ -3103,29 +3157,35 @@ function renderOttTab(providers, networks){
     return true;
   });
 
-  /* 2) 쿠팡플레이 보완 — Networks에 있고 Watch Providers에 없으면 추가 */
+  /* 2) 쿠팡플레이 보완 */
   const hasCoupang = seen.has('쿠팡플레이');
   const coupangInNetwork = (networks || []).some(n => n.id === COUPANG_NETWORK_ID);
   if(!hasCoupang && coupangInNetwork){
-    // 가상 provider 객체로 추가
-    deduped.push({ provider_name:'Coupang Play', logo_path: null, _fromNetwork: true });
-    seen.add('쿠팡플레이');
+    deduped.push({ provider_name:'Coupang Play', logo_path: null });
   }
 
+  if(secEl) secEl.style.display = 'block';
+
   if(!deduped.length){
-    el.innerHTML = '<span class="ott-empty">스트리밍 서비스 정보가 없습니다</span>';
+    listEl.innerHTML = '<div class="ott-bar-empty">현재 스트리밍 서비스 정보가 없습니다</div>';
     return;
   }
 
-  /* 3) 칩 렌더링 */
-  el.innerHTML = deduped.map(p => {
+  /* 3) 바 형태 렌더링 */
+  listEl.innerHTML = deduped.map(p => {
     const nameKo  = _providerNameKo(p.provider_name);
     const logoUrl = p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : '';
     const homeUrl = OTT_HOME_URL[nameKo] || '#';
 
-    return `<a class="ott-chip" href="${homeUrl}" target="_blank" rel="noopener noreferrer" title="${nameKo}에서 보기">
-      ${logoUrl ? `<img class="ott-logo-img" src="${logoUrl}" alt="${nameKo}" loading="lazy" onerror="this.style.display='none'">` : ''}
-      <span class="ott-chip-name">${nameKo}</span>
+    const logoHtml = logoUrl
+      ? `<img class="ott-bar-logo" src="${logoUrl}" alt="${nameKo}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      : '';
+    const phHtml = `<div class="ott-bar-logo-ph" ${logoUrl ? 'style="display:none"' : ''}><i class="ti ti-device-tv"></i></div>`;
+
+    return `<a class="ott-bar" href="${homeUrl}" target="_blank" rel="noopener noreferrer">
+      ${logoHtml}${phHtml}
+      <span class="ott-bar-name">${nameKo}</span>
+      <span class="ott-bar-action">보러가기 <span class="ott-bar-arrow">›</span></span>
     </a>`;
   }).join('');
 }
@@ -3141,9 +3201,9 @@ function renderOttTab(providers, networks){
 async function loadWatchProviders(){
   if(!WORK.tmdb_id) return;
 
-  /* 로딩 중 표시 */
-  const el = document.getElementById('ottList');
-  if(el) el.innerHTML = '<span class="ott-empty">불러오는 중...</span>';
+  /* 로딩 중: 섹션 표시 + 빈 상태 */
+  const secEl = document.getElementById('ottSection');
+  if(secEl) secEl.style.display = 'block';
 
   try{
     const mediaType = WORK.type === 'movie' ? 'movie' : 'tv';
@@ -3153,23 +3213,22 @@ async function loadWatchProviders(){
 
     const kr = json?.results?.KR;
 
-    /* KR 데이터 없음 → OTT 탭에 빈 메시지 */
+    /* KR 없어도 쿠팡 Networks 보완으로 표시 가능 */
     if(!kr){
       renderOttTab([], WORK.networks || []);
       return;
     }
 
-    /* flatrate 우선 → rent → buy 순 */
-    let providers = [];
-    if(kr.flatrate?.length)      providers = kr.flatrate;
-    else if(kr.rent?.length)     providers = kr.rent;
-    else if(kr.buy?.length)      providers = kr.buy;
+    /* flatrate 우선 → rent → buy (모두 합산하여 보여줌) */
+    const all = [
+      ...(kr.flatrate || []),
+      ...(kr.rent     || []),
+      ...(kr.buy      || []),
+    ];
 
-    /* OTT 탭 렌더링 (쿠팡 보완 포함) */
-    renderOttTab(providers, WORK.networks || []);
+    renderOttTab(all, WORK.networks || []);
 
   }catch(e){
-    /* 오류 시 쿠팡만이라도 표시 (Networks 보완) */
     renderOttTab([], WORK.networks || []);
   }
 }
