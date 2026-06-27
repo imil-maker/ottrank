@@ -3153,13 +3153,23 @@ function renderOttTab(_p, _n, list){
       ? `https://image.tmdb.org/t/p/w92${item.logo_path}`
       : '';
 
+    /* 로고 있는 경우: img + onerror 시 컬러 텍스트 폴백
+       로고 없는 경우: 바로 컬러 텍스트 표시 */
+    const brandColor = item.color || '#555';
+    const brandText  = item.text  || (item.name ? item.name[0] : '?');
+
+    /* 브랜드 컬러 텍스트 아이콘 (로고 없거나 실패 시 표시) */
+    const phId = `ott-ph-${Math.random().toString(36).slice(2,7)}`;
+    const phHtml = `<div class="ott-bar-logo-ph" id="${phId}"
+      style="${logoUrl ? 'display:none;' : ''}background:${brandColor};">
+      <span style="font-size:11px;font-weight:900;color:#fff;letter-spacing:-.5px;
+        font-family:var(--font-mono)">${brandText}</span>
+    </div>`;
+
     const logoHtml = logoUrl
       ? `<img class="ott-bar-logo" src="${logoUrl}" alt="${item.name}" loading="lazy"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+             onerror="this.style.display='none';document.getElementById('${phId}').style.display='flex'">`
       : '';
-    const phHtml = `<div class="ott-bar-logo-ph" ${logoUrl ? 'style="display:none"' : ''}>
-      <i class="ti ti-device-tv"></i>
-    </div>`;
 
     return `<a class="ott-bar" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">
       ${logoHtml}${phHtml}
@@ -3188,12 +3198,21 @@ async function loadWatchProviders(){
   ];
 
   /* ── DB 랭킹 platform → 표시명/URL 매핑 ── */
+  /* ── OTT 브랜드 메타 (Priority 1 랭킹 DB 출처) ──
+     logo_path: TMDB Watch Providers API에서 실제 반환되는 검증된 경로
+     logo_color: 로고 없을 때 브랜드 컬러 텍스트 아이콘용
+  ── */
   const PLATFORM_META = {
-    netflix : { name:'넷플릭스',   url: OTT_HOME_URL['넷플릭스'],   logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
-    tving   : { name:'티빙',       url: OTT_HOME_URL['티빙'],       logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg'  },
-    wavve   : { name:'웨이브',     url: OTT_HOME_URL['웨이브'],     logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg'  },
-    disney  : { name:'디즈니+',    url: OTT_HOME_URL['디즈니+'],    logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg'   },
-    coupang : { name:'쿠팡플레이', url: OTT_HOME_URL['쿠팡플레이'], logo_path: null                               },
+    netflix : { name:'넷플릭스',   url: OTT_HOME_URL['넷플릭스'],
+                logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg', color:'#e50914', text:'N'  },
+    tving   : { name:'티빙',       url: OTT_HOME_URL['티빙'],
+                logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg',  color:'#ff1a6e', text:'T'  },
+    wavve   : { name:'웨이브',     url: OTT_HOME_URL['웨이브'],
+                logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg',  color:'#0070f3', text:'W'  },
+    disney  : { name:'디즈니+',    url: OTT_HOME_URL['디즈니+'],
+                logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg',   color:'#006e99', text:'D+' },
+    coupang : { name:'쿠팡플레이', url: OTT_HOME_URL['쿠팡플레이'],
+                logo_path: null,                                 color:'#1ac44d', text:'CP' },
   };
 
   /* ────────────────────────────────────────
@@ -3212,7 +3231,7 @@ async function loadWatchProviders(){
 
   // OTT 랭킹 작품: WORK_PLATFORMS에서 OTT만 추출
   for(const p of (WORK_PLATFORMS || [])){
-    if(p.platform === 'boxoffice') continue; // boxoffice 제외
+    if(p.platform === 'boxoffice') continue;
     const meta = PLATFORM_META[p.platform];
     if(!meta || seen.has(meta.name)) continue;
     seen.add(meta.name);
@@ -3220,6 +3239,8 @@ async function loadWatchProviders(){
       name      : meta.name,
       url       : meta.url,
       logo_path : meta.logo_path,
+      color     : meta.color,   // 브랜드 컬러 (로고 실패 시 폴백)
+      text      : meta.text,    // 브랜드 텍스트 아이콘 (로고 실패 시 폴백)
     });
   }
 
