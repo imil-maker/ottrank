@@ -874,6 +874,197 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .streaming-chip-name{font-size:13px;}
 }
 
+/* ══════════════════════════════════════
+   2단 탭 UI — Planfit 스타일 참조
+   검은 바탕 + 골드 단일 포인트 컬러
+══════════════════════════════════════ */
+
+/* 탭 전체 래퍼 */
+.info-tab-wrap,
+.community-tab-wrap{
+  margin-bottom: 0;
+}
+
+/* ── 탭 바 (상단 메뉴 줄) ── */
+.tab-bar{
+  display: flex;
+  border-bottom: .5px solid rgba(255,255,255,0.08);
+  margin-bottom: 0;
+  /* 배경 없음 — 페이지 배경(--bg) 그대로 */
+}
+.tab-btn{
+  flex: 1;
+  padding: 13px 4px 11px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: var(--muted);           /* 비활성: 회색 */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  position: relative;
+  transition: color .15s;
+  white-space: nowrap;
+  letter-spacing: -.2px;
+}
+/* 활성 탭: 골드 글자 + 하단 골드 라인 */
+.tab-btn.active{
+  color: var(--gold);
+}
+.tab-btn.active::after{
+  content: '';
+  position: absolute;
+  bottom: 0; left: 16px; right: 16px;
+  height: 2px;
+  background: var(--gold);
+  border-radius: 2px 2px 0 0;
+}
+/* 하단 탭 바: accent(레드) 대신 골드 동일 사용 */
+.tab-bar.community .tab-btn.active{
+  color: var(--gold);
+}
+.tab-bar.community .tab-btn.active::after{
+  background: var(--gold);
+}
+
+/* ── 탭 패널 ── */
+.tab-panel{
+  display: none;
+  padding: 20px 0 0;
+}
+.tab-panel.active{
+  display: block;
+}
+
+/* ── 상단 탭 패널 고정 높이 ── */
+/* 평점이 가장 높음 → 평점 높이 + 20px 여유 */
+.info-tab-wrap .tab-panel{
+  min-height: 220px; /* 평점 카드 높이 기준 + 여유 20px */
+}
+
+/* 하단 탭 패널: 자연스럽게 늘어남 */
+.community-tab-wrap .tab-panel{
+  min-height: unset;
+}
+
+/* ── 탭 구분선 (상단↔하단 탭 사이) ── */
+.tab-section-divider{
+  height: .5px;
+  background: rgba(255,255,255,0.05);
+  margin: 28px 0 0;
+}
+
+/* ── 제작사 탭 내부 ── */
+.network-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 0;
+}
+.network-chip{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: var(--r);
+  background: var(--bg2);
+  border: .5px solid rgba(255,255,255,0.07);
+}
+.network-logo{
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg3);
+  flex-shrink: 0;
+}
+.network-name{
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted2);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.network-empty{
+  font-size: 14px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  padding: 16px 0;
+}
+
+/* ── 보러가기 탭 내부 — OTT 칩 ── */
+.ott-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 0;
+}
+.ott-chip{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: var(--r);
+  background: var(--bg2);
+  border: .5px solid rgba(240,180,41,0.20);
+  text-decoration: none;
+  transition: border-color .15s, background .15s;
+  cursor: pointer;
+}
+.ott-chip:hover{
+  border-color: rgba(240,180,41,0.55);
+  background: rgba(240,180,41,0.06);
+}
+.ott-logo-img{
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg3);
+  flex-shrink: 0;
+}
+.ott-chip-name{
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gold);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.ott-empty{
+  font-size: 14px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  padding: 16px 0;
+}
+
+/* ── MBTI 탭 내부 ── */
+.mbti-tab-inner{
+  padding: 4px 0;
+}
+.mbti-no-data{
+  font-size: 14px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  padding: 24px 0;
+  text-align: center;
+  line-height: 1.8;
+}
+
+/* ── 리뷰 탭 스켈레톤 ── */
+.tab-skel-item{
+  height: 80px;
+  border-radius: var(--r);
+  background: var(--bg2);
+  margin-bottom: 10px;
+  animation: skelPulse 1.4s ease-in-out infinite;
+}
+
+/* 모바일 탭 조정 */
+@media(max-width:480px){
+  .tab-btn{ font-size: 13px; padding: 12px 2px 10px; }
+  .tab-btn.active::after{ left: 8px; right: 8px; }
+  .info-tab-wrap .tab-panel{ min-height: 200px; }
+}
+
 </style>
 <!-- Tabler Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -990,14 +1181,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- ══ 본문 ══ -->
 <div class="page-wrap">
 
-<!-- 출연진 -->
+<!-- ══ 출연진 & 제작진 ══ -->
 <div class="cast-section" id="castSection" style="display:none">
-  <!-- 타이틀 + 감독 칩 한 줄 -->
   <div class="cast-title-row">
     <div class="sec-title" style="margin-bottom:0"><i class="ti ti-users" style="font-size:16px"></i>출연진 &amp; 제작진</div>
     <div class="director-row" id="directorRow"></div>
   </div>
-  <!-- 출연진 스크롤 래퍼 — 좌우 화살표 버튼 포함 -->
   <div class="cast-scroll-wrap">
     <button class="cast-arrow cast-arrow-left" id="castArrowLeft" onclick="scrollCast(-1)" aria-label="이전">‹</button>
     <div class="cast-scroll" id="castScroll"></div>
@@ -1005,164 +1194,193 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
-<!-- ══ 이 작품 어디서 볼 수 있어요 (Watch Providers) ══ -->
-<!-- JS loadWatchProviders()가 데이터 없을 시 display:none 처리 -->
-<div class="streaming-section" id="streamingSection" style="display:none">
-  <div class="streaming-header">
-    <div class="streaming-title">
-      <i class="ti ti-device-tv streaming-title-icon"></i>
-      이 작품 어디서 볼 수 있어요
-    </div>
-    <!-- 구독 or 대여/구매 여부 표시 레이블 (JS로 동적 주입) -->
-    <span class="streaming-type-label" id="streamingTypeLabel" style="display:none"></span>
+<!-- ══════════════════════════════════════
+     상단 탭: 평점 / 제작사 / 보러가기 / MBTI
+══════════════════════════════════════ -->
+<div class="info-tab-wrap">
+  <!-- 탭 바 -->
+  <div class="tab-bar" role="tablist">
+    <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchInfoTab('rating',this)">평점</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('network',this)">제작사</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('ott',this)">보러가기</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchInfoTab('mbti',this)">MBTI</button>
   </div>
-  <!-- 스켈레톤 (로딩 중) -->
-  <div class="streaming-skel" id="streamingSkel">
-    <div class="streaming-skel-item"></div>
-    <div class="streaming-skel-item"></div>
-    <div class="streaming-skel-item" style="width:80px"></div>
-  </div>
-  <!-- 실제 플랫폼 로고 나열 (JS 렌더링) -->
-  <div class="streaming-logos" id="streamingLogos" style="display:none"></div>
-  <!-- 데이터 없을 때 메시지 -->
-  <div class="streaming-empty" id="streamingEmpty" style="display:none">
-    현재 국내 OTT 서비스 정보를 찾을 수 없어요
-  </div>
-</div>
 
-<!-- 평점 4블록 -->
-<div class="ratings-row">
-  <div class="r-card">
-    <div class="r-logo" style="color:#F5C518">IMDb</div>
-    <div class="r-score-wrap"><div class="r-score" id="imdbScore" style="color:#F5C518">—</div><span class="r-out-of">/10</span></div>
-    <div class="r-sub" id="imdbVotes" style="font-size:15px;margin-top:4px">—</div>
-  </div>
-  <div class="r-card">
-    <div class="r-logo" style="color:#01b4e4">TMDB</div>
-    <div class="r-score-wrap"><div class="r-score" id="tmdbScore" style="color:#01b4e4">—</div><span class="r-out-of">/10</span></div>
-    <div class="r-sub" id="tmdbVotes" style="font-size:15px;margin-top:4px">—</div>
-  </div>
-  <div class="r-card" style="position:relative">
-    <div class="r-logo" style="background:linear-gradient(90deg,#FF5177,#FF9A3C);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">오뜨랑</div>
-    <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
-
-      <span style="font-size:16px;color:var(--muted2);font-family:var(--font-mono);text-align:center;line-height:1.4"> 🎬 이 작품의 첫번째<br>평점을 남겨보세요</span>
-    </div>
-    <div id="userRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
-      <div class="r-score-wrap"><div class="r-score" id="userScore" style="color:var(--accent)">—</div><span class="r-out-of">/10</span></div>
-      <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="userStarDisplay"></div>
-      <div class="r-sub" id="userVotes" style="font-size:15px;margin-top:6px">—</div>
-    </div>
-  </div>
-  <div class="r-card">
-    <div class="r-logo" style="color:var(--muted2)">내 평점</div>
-    <!-- 내 후기 없을 때: 반개 별점 + 후기작성 버튼 -->
-    <div id="myRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:4px;width:100%">
-      <!-- 반개 별점: 각 별은 왼쪽 절반(홀수점)과 오른쪽 절반(짝수점)으로 나뉨 -->
-      <div class="my-half-star-row" id="myHalfStarRow">
-        <span class="my-half-star-wrap" id="mhsw1">
-          <span class="mhs-left" onmouseover="hoverHalfStar(1)" onmouseout="resetHalfStar()" onclick="goReview(0,1)"></span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(2)" onmouseout="resetHalfStar()" onclick="goReview(0,2)"></span>
-        </span>
-        <span class="my-half-star-wrap" id="mhsw2">
-          <span class="mhs-left" onmouseover="hoverHalfStar(3)" onmouseout="resetHalfStar()" onclick="goReview(0,3)"></span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(4)" onmouseout="resetHalfStar()" onclick="goReview(0,4)"></span>
-        </span>
-        <span class="my-half-star-wrap" id="mhsw3">
-          <span class="mhs-left" onmouseover="hoverHalfStar(5)" onmouseout="resetHalfStar()" onclick="goReview(0,5)"></span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(6)" onmouseout="resetHalfStar()" onclick="goReview(0,6)"></span>
-        </span>
-        <span class="my-half-star-wrap" id="mhsw4">
-          <span class="mhs-left" onmouseover="hoverHalfStar(7)" onmouseout="resetHalfStar()" onclick="goReview(0,7)"></span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(8)" onmouseout="resetHalfStar()" onclick="goReview(0,8)"></span>
-        </span>
-        <span class="my-half-star-wrap" id="mhsw5">
-          <span class="mhs-left" onmouseover="hoverHalfStar(9)" onmouseout="resetHalfStar()" onclick="goReview(0,9)"></span>
-          <span class="mhs-right" onmouseover="hoverHalfStar(10)" onmouseout="resetHalfStar()" onclick="goReview(0,10)"></span>
-        </span>
+  <!-- ── 패널1: 평점 ── -->
+  <div class="tab-panel active" id="infoPanel-rating" role="tabpanel">
+    <!-- 평점 4블록 -->
+    <div class="ratings-row">
+      <div class="r-card">
+        <div class="r-logo" style="color:#F5C518">IMDb</div>
+        <div class="r-score-wrap"><div class="r-score" id="imdbScore" style="color:#F5C518">—</div><span class="r-out-of">/10</span></div>
+        <div class="r-sub" id="imdbVotes" style="font-size:15px;margin-top:4px">—</div>
       </div>
-      <button class="go-review-btn" style="font-size:13px;padding:7px 14px" onclick="goReview(0)">
-        <i class="ti ti-pencil" style="font-size:14px"></i> 후기 작성하기
+      <div class="r-card">
+        <div class="r-logo" style="color:#01b4e4">TMDB</div>
+        <div class="r-score-wrap"><div class="r-score" id="tmdbScore" style="color:#01b4e4">—</div><span class="r-out-of">/10</span></div>
+        <div class="r-sub" id="tmdbVotes" style="font-size:15px;margin-top:4px">—</div>
+      </div>
+      <div class="r-card" style="position:relative">
+        <div class="r-logo" style="color:var(--gold)">오뜨랑</div>
+        <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
+          <span style="font-size:13px;color:var(--muted);font-family:var(--font-mono);text-align:center;line-height:1.5">이 작품의 첫번째<br>평점을 남겨보세요</span>
+        </div>
+        <div id="userRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
+          <div class="r-score-wrap"><div class="r-score" id="userScore" style="color:var(--gold)">—</div><span class="r-out-of">/10</span></div>
+          <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="userStarDisplay"></div>
+          <div class="r-sub" id="userVotes" style="font-size:15px;margin-top:6px">—</div>
+        </div>
+      </div>
+      <div class="r-card">
+        <div class="r-logo" style="color:var(--muted2)">내 평점</div>
+        <!-- 내 후기 없을 때: 반개 별점 + 후기작성 버튼 -->
+        <div id="myRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:4px;width:100%">
+          <div class="my-half-star-row" id="myHalfStarRow">
+            <span class="my-half-star-wrap" id="mhsw1">
+              <span class="mhs-left" onmouseover="hoverHalfStar(1)" onmouseout="resetHalfStar()" onclick="goReview(0,1)"></span>
+              <span class="mhs-right" onmouseover="hoverHalfStar(2)" onmouseout="resetHalfStar()" onclick="goReview(0,2)"></span>
+            </span>
+            <span class="my-half-star-wrap" id="mhsw2">
+              <span class="mhs-left" onmouseover="hoverHalfStar(3)" onmouseout="resetHalfStar()" onclick="goReview(0,3)"></span>
+              <span class="mhs-right" onmouseover="hoverHalfStar(4)" onmouseout="resetHalfStar()" onclick="goReview(0,4)"></span>
+            </span>
+            <span class="my-half-star-wrap" id="mhsw3">
+              <span class="mhs-left" onmouseover="hoverHalfStar(5)" onmouseout="resetHalfStar()" onclick="goReview(0,5)"></span>
+              <span class="mhs-right" onmouseover="hoverHalfStar(6)" onmouseout="resetHalfStar()" onclick="goReview(0,6)"></span>
+            </span>
+            <span class="my-half-star-wrap" id="mhsw4">
+              <span class="mhs-left" onmouseover="hoverHalfStar(7)" onmouseout="resetHalfStar()" onclick="goReview(0,7)"></span>
+              <span class="mhs-right" onmouseover="hoverHalfStar(8)" onmouseout="resetHalfStar()" onclick="goReview(0,8)"></span>
+            </span>
+            <span class="my-half-star-wrap" id="mhsw5">
+              <span class="mhs-left" onmouseover="hoverHalfStar(9)" onmouseout="resetHalfStar()" onclick="goReview(0,9)"></span>
+              <span class="mhs-right" onmouseover="hoverHalfStar(10)" onmouseout="resetHalfStar()" onclick="goReview(0,10)"></span>
+            </span>
+          </div>
+          <button class="go-review-btn" style="font-size:13px;padding:7px 14px" onclick="goReview(0)">
+            <i class="ti ti-pencil" style="font-size:14px"></i> 후기 작성하기
+          </button>
+        </div>
+        <!-- 내 후기 있을 때 -->
+        <div id="myRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
+          <div class="r-score-wrap"><div class="r-score" id="myRatingScore" style="color:var(--gold)">—</div><span class="r-out-of">/10</span></div>
+          <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="myRatingStarDisplay"></div>
+          <div class="r-sub" style="margin-top:6px;cursor:pointer;color:var(--info)" onclick="goReview(0)">수정하기</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 패널2: 제작사 ── -->
+  <div class="tab-panel" id="infoPanel-network" role="tabpanel">
+    <!-- JS renderNetworkTab()이 채워줌 -->
+    <div class="network-list" id="networkList">
+      <span class="network-empty">제작사 정보를 불러오는 중...</span>
+    </div>
+  </div>
+
+  <!-- ── 패널3: 보러가기 (OTT) ── -->
+  <div class="tab-panel" id="infoPanel-ott" role="tabpanel">
+    <!-- JS renderOttTab()이 채워줌 -->
+    <div class="ott-list" id="ottList">
+      <span class="ott-empty">스트리밍 정보를 불러오는 중...</span>
+    </div>
+  </div>
+
+  <!-- ── 패널4: MBTI ── -->
+  <div class="tab-panel" id="infoPanel-mbti" role="tabpanel">
+    <div class="mbti-tab-inner">
+      <!-- 기존 mbtiRecSection 내용을 여기에 표시 -->
+      <div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
+        <div class="mbti-rec-title">
+          <span>✦</span>
+          <b id="mbtiRecTitle">이런 MBTI가 좋아해요</b>
+        </div>
+        <div class="mbti-rec-chips" id="mbtiRecChips"></div>
+        <div class="mbti-rec-source" id="mbtiRecSource"></div>
+      </div>
+      <div id="mbtiNoData" class="mbti-no-data" style="display:none">
+        이 작품의 MBTI 데이터가<br>아직 쌓이지 않았습니다
+      </div>
+    </div>
+    <!-- 지금 보러가기 (박스오피스 현재 상영작만 표시) -->
+    <div class="watch-now-box" id="watchNowBox" style="display:none">
+      <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
+      <div class="watch-now-btns" id="watchNowBtns"></div>
+    </div>
+  </div>
+</div><!-- /.info-tab-wrap -->
+
+<!-- mbtiWgRow: JS 호환성 유지용 빈 래퍼 (display:none) -->
+<div id="mbtiWgRow" style="display:none"></div>
+
+<!-- ══ 탭 구분선 ══ -->
+<div class="tab-section-divider"></div>
+
+<!-- ══════════════════════════════════════
+     하단 탭: 리뷰 / 관련영상 / 관련이미지
+══════════════════════════════════════ -->
+<div class="community-tab-wrap">
+  <!-- 탭 바 -->
+  <div class="tab-bar community" role="tablist">
+    <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchCommTab('review',this)">리뷰</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('video',this)">관련영상</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchCommTab('image',this)">관련이미지</button>
+  </div>
+
+  <!-- ── 패널1: 리뷰 ── -->
+  <div class="tab-panel active" id="commPanel-review" role="tabpanel">
+    <!-- 후기 0개 CTA — JS renderComments()에서 후기 있으면 숨기고 댓글 표시 -->
+    <div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:flex">
+      <div class="review-cta-left">
+        <div class="review-cta-eyebrow">첫 번째 평점</div>
+        <div class="review-cta-stars">
+          <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+        </div>
+        <div class="review-cta-title">
+          지금 <em>내 평점</em>을 남기면<br>이곳에 모두에게 보여집니다
+        </div>
+        <div class="review-cta-sub">이 작품의 첫 번째 평점을 남겨보세요</div>
+      </div>
+      <button class="review-cta-btn" onclick="event.stopPropagation();goReview(0)">
+        ✍ 평점 남기기
       </button>
     </div>
-    <!-- 내 후기 있을 때: 오뜨랑과 동일한 방식으로 표시 -->
-    <div id="myRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
-      <div class="r-score-wrap"><div class="r-score" id="myRatingScore" style="color:var(--gold)">—</div><span class="r-out-of">/10</span></div>
-      <div style="font-size:15px;color:var(--gold);margin-top:6px;letter-spacing:2px;line-height:1" id="myRatingStarDisplay"></div>
-      <div class="r-sub" style="margin-top:6px;cursor:pointer;color:var(--info)" onclick="goReview(0)">수정하기</div>
+    <!-- 사용자 댓글 — JS renderComments()가 채움 -->
+    <div id="commentSection">
+      <div class="comment-sort-row" style="margin-top:4px">
+        <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
+        <button class="sort-btn" id="sortLikes" onclick="setSort('likes')">좋아요순</button>
+      </div>
+      <div id="commentsArea"></div>
+      <div id="pagination" class="pagination"></div>
     </div>
   </div>
-</div>
 
-
-
-<!-- 후기 0개 CTA — JS에서 후기 있으면 숨김 -->
-<div class="review-cta" id="reviewCta" onclick="goReview(0)" style="display:flex">
-  <div class="review-cta-left">
-    <div class="review-cta-eyebrow">첫 번째 평점</div>
-    <div class="review-cta-stars">
-      <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
-    </div>
-    <div class="review-cta-title">
-      지금 <em>내 평점</em>을 남기면<br>이곳에 모두에게 보여집니다
-    </div>
-    <div class="review-cta-sub">이 작품의 첫 번째 평점을 남겨보세요</div>
-  </div>
-  <button class="review-cta-btn" onclick="event.stopPropagation();goReview(0)">
-    ✍ 평점 남기기
-  </button>
-</div>
-
-<!-- MBTI 추천 섹션 + 지금 보러가기 (같은 행 배치) -->
-<div class="mbti-wg-row" id="mbtiWgRow" style="display:none">
-  <div id="mbtiRecSection" style="display:none" class="mbti-rec-section">
-    <div class="mbti-rec-title">
-      <span>✦</span>
-      <b id="mbtiRecTitle">이런 MBTI가 좋아해요</b>
-    </div>
-    <div class="mbti-rec-chips" id="mbtiRecChips"></div>
-    <div class="mbti-rec-source" id="mbtiRecSource"></div>
-  </div>
-  <!-- 지금 보러가기 (박스오피스 현재 상영작만 표시) -->
-  <div class="watch-now-box" id="watchNowBox" style="display:none">
-    <div class="sec-title" style="margin-bottom:12px"><i class="ti ti-player-play" style="font-size:16px"></i>지금 보러가기</div>
-    <div class="watch-now-btns" id="watchNowBtns"></div>
-  </div>
-</div>
-
-<!-- 사용자 댓글 -->
-<div id="commentSection" style="display:none">
-  <div class="sec-title"><i class="ti ti-message-circle" style="font-size:16px"></i>사용자 댓글 <small id="commentCount">0개</small></div>
-  <div class="comment-sort-row">
-    <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
-    <button class="sort-btn" id="sortLikes" onclick="setSort('likes')">좋아요순</button>
-  </div>
-  <div id="commentsArea"></div>
-  <div id="pagination" class="pagination"></div>
-</div>
-
-
-<!-- 유튜브 -->
-<div class="yt-section">
-  <div class="sec-title"><i class="ti ti-brand-youtube" style="font-size:16px"></i>관련 영상 <small id="ytSubtitle"></small></div>
-  <div id="ytModal" class="modal-wrap">
-    <div class="modal-head">
-      <span class="modal-ttl" id="ytModalTitle"></span>
-      <button class="modal-close" onclick="closePlayer()">✕</button>
-    </div>
-    <div class="yt-player-wrap">
-      <iframe id="ytFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="유튜브 영상"></iframe>
+  <!-- ── 패널2: 관련영상 ── -->
+  <div class="tab-panel" id="commPanel-video" role="tabpanel">
+    <div class="yt-section" style="margin-bottom:0">
+      <div id="ytModal" class="modal-wrap">
+        <div class="modal-head">
+          <span class="modal-ttl" id="ytModalTitle"></span>
+          <button class="modal-close" onclick="closePlayer()">✕</button>
+        </div>
+        <div class="yt-player-wrap">
+          <iframe id="ytFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="유튜브 영상"></iframe>
+        </div>
+      </div>
+      <div id="ytArea"></div>
+      <div class="yt-pagination" id="ytPagination" style="display:none"></div>
     </div>
   </div>
-  <div id="ytArea"></div>
-  <div class="yt-pagination" id="ytPagination" style="display:none"></div>
-</div>
 
-<!-- TMDB 이미지 갤러리 -->
-<div class="gallery-section" id="gallerySection" style="display:none">
-  <div class="sec-title"><i class="ti ti-photo" style="font-size:16px"></i>이미지</div>
-  <div class="gallery-grid" id="galleryGrid"></div>
-</div>
+  <!-- ── 패널3: 관련이미지 ── -->
+  <div class="tab-panel" id="commPanel-image" role="tabpanel">
+    <div class="gallery-section" id="gallerySection" style="margin-bottom:0">
+      <div class="gallery-grid" id="galleryGrid"></div>
+    </div>
+  </div>
+</div><!-- /.community-tab-wrap -->
 
 </div><!-- /.page-wrap -->
 </div><!-- /#detailPage -->
@@ -1500,11 +1718,9 @@ async function loadGallery(){
 /* == MBTI / 지금 보러가기 행(row) 표시 갱신 ==
    둘 중 하나라도 보이면 row 표시, 둘 다 숨겨지면 row 숨김 */
 function updateMbtiWgRow(){
-  const row=document.getElementById('mbtiWgRow');
-  if(!row)return;
-  const mbtiVisible=document.getElementById('mbtiRecSection')?.style.display==='block';
-  const wnVisible=document.getElementById('watchNowBox')?.style.display==='block';
-  row.style.display=(mbtiVisible||wnVisible)?'flex':'none';
+  /* 탭 구조로 변경됨 — mbtiWgRow는 더미 div
+     mbtiRecSection show/hide에 맞춰 MBTI 탭 noData 동기화 */
+  _syncMbtiTab();
 }
 
 /* == 지금 보러가기 (박스오피스 현재 상영작만) == */
@@ -1830,6 +2046,14 @@ async function loadTmdb(){
     // Gallery (lazy)
     loadGallery();
 
+    // 제작사 탭 렌더링 — det.networks 사용 (TV: 방영사, Movie: 배급사)
+    const networks = det.networks || det.production_companies || [];
+    WORK.networks = networks; // OTT 탭의 쿠팡 보완 로직에서도 사용
+    renderNetworkTab(networks);
+
+    // MBTI 탭 초기 상태 동기화
+    _syncMbtiTab();
+
   }catch(e){
     console.error('[loadTmdb]',e);
     document.getElementById('heroLoading').style.display='none';
@@ -2143,17 +2367,17 @@ function renderMbtiSection(mbtiTags){
 function renderComments(){
   const el=document.getElementById('commentsArea');
   const sorted=getSorted();
-  document.getElementById('commentCount').textContent=`${sorted.length}개`;
-  // 후기 0개: CTA 유지(이미 표시 중) / 있으면: CTA 숨기고 댓글 섹션 표시
+  document.getElementById('commentCount')&&(document.getElementById('commentCount').textContent=`${sorted.length}개`);
   const cta=document.getElementById('reviewCta');
   const commentSection=document.getElementById('commentSection');
   if(sorted.length===0){
-    if(cta) cta.style.display='flex';   // 혹시 숨겨진 경우 복구
+    // 후기 없음 — CTA 표시, 댓글 섹션 숨김
+    if(cta) cta.style.display='flex';
     if(commentSection) commentSection.style.display='none';
     document.getElementById('pagination').innerHTML='';
     return;
   }
-  // 후기 있음 → CTA 숨기고 댓글 섹션 표시
+  // 후기 있음 — CTA 숨기고 댓글 섹션 표시
   if(cta) cta.style.display='none';
   if(commentSection) commentSection.style.display='block';
   updateCommentWatchLayout();
@@ -2690,144 +2914,205 @@ async function loadPlatforms(){
 
 function updateCommentWatchLayout(){}
 
-/* ══ Watch Providers — TMDB KR 스트리밍 플랫폼 정보 조회 ══ */
+/* ══════════════════════════════════════
+   탭 전환 — 상단(info) / 하단(community)
+══════════════════════════════════════ */
+
 /**
- * TMDB Watch Providers API를 통해 한국(KR) 기준 시청 가능 플랫폼 정보를 가져옵니다.
- * 기존 TMDB_PROXY를 그대로 활용하므로 추가 API 키 설정 불필요.
- *
- * 응답 우선순위:
- *   1) flatrate  — 구독 시청 (Netflix, 웨이브 등) ← 가장 중요
- *   2) rent      — 단편 대여
- *   3) buy       — 단편 구매
- * flatrate가 있으면 rent/buy는 표시하지 않음 (구독 작품이면 구독으로 보면 되니까)
+ * 상단 탭 (평점/제작사/보러가기/MBTI) 전환
+ * @param {string} key  - 'rating' | 'network' | 'ott' | 'mbti'
+ * @param {Element} btn - 클릭된 버튼 요소
+ */
+function switchInfoTab(key, btn){
+  // 모든 탭 버튼 비활성화
+  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // 모든 패널 숨김
+  document.querySelectorAll('.info-tab-wrap .tab-panel').forEach(p => p.classList.remove('active'));
+  // 선택 패널 표시
+  const panel = document.getElementById('infoPanel-' + key);
+  if(panel) panel.classList.add('active');
+}
+
+/**
+ * 하단 탭 (리뷰/관련영상/관련이미지) 전환
+ * @param {string} key  - 'review' | 'video' | 'image'
+ * @param {Element} btn - 클릭된 버튼 요소
+ */
+function switchCommTab(key, btn){
+  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.community-tab-wrap .tab-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('commPanel-' + key);
+  if(panel) panel.classList.add('active');
+}
+
+/* ══════════════════════════════════════
+   제작사 탭 렌더링 — TMDB networks 사용
+══════════════════════════════════════ */
+
+/**
+ * loadTmdb()에서 받아온 det.networks 배열로 제작사 탭을 채움
+ * det가 없거나 networks가 빈 배열이면 "정보 없음" 표시
+ * @param {Array} networks - TMDB networks 배열 [{id, name, logo_path, ...}]
+ */
+function renderNetworkTab(networks){
+  const el = document.getElementById('networkList');
+  if(!el) return;
+
+  if(!networks || !networks.length){
+    el.innerHTML = '<span class="network-empty">제작사 정보가 없습니다</span>';
+    return;
+  }
+
+  el.innerHTML = networks.map(n => {
+    const logoUrl = n.logo_path
+      ? `https://image.tmdb.org/t/p/w92${n.logo_path}`
+      : '';
+    return `<div class="network-chip">
+      ${logoUrl ? `<img class="network-logo" src="${logoUrl}" alt="${_hesc(n.name)}" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <span class="network-name">${_hesc(n.name)}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
+   보러가기(OTT) 탭 렌더링 — Watch Providers
+   + TMDB Networks에서 쿠팡플레이 보완
+══════════════════════════════════════ */
+
+/* OTT 홈페이지 URL 매핑 */
+const OTT_HOME_URL = {
+  '넷플릭스'    : 'https://www.netflix.com',
+  '디즈니+'     : 'https://www.disneyplus.com',
+  '웨이브'      : 'https://www.wavve.com',
+  '티빙'        : 'https://www.tving.com',
+  '왓챠'        : 'https://watcha.com',
+  '쿠팡플레이'  : 'https://www.coupangplay.com',
+  'Apple TV+'   : 'https://tv.apple.com',
+  'Prime Video' : 'https://www.primevideo.com',
+  'YouTube'     : 'https://www.youtube.com',
+};
+
+/* 쿠팡플레이 TMDB Network ID */
+const COUPANG_NETWORK_ID = 5169;
+
+/**
+ * OTT 탭을 채우는 메인 함수
+ * Watch Providers 결과 + 쿠팡플레이 보완(Networks) 처리
+ * @param {Array}  providers - TMDB Watch Providers 배열
+ * @param {Array}  networks  - TMDB Networks 배열 (쿠팡 보완용)
+ */
+function renderOttTab(providers, networks){
+  const el = document.getElementById('ottList');
+  if(!el) return;
+
+  /* 1) 브랜드 중복 제거
+       "Netflix"와 "Netflix Standard with Ads" → "넷플릭스" 1개만
+       provider_name 앞 단어(브랜드) 기준으로 dedup */
+  const seen = new Set();
+  const deduped = (providers || []).filter(p => {
+    const nameKo = _providerNameKo(p.provider_name);
+    if(seen.has(nameKo)) return false;
+    seen.add(nameKo);
+    return true;
+  });
+
+  /* 2) 쿠팡플레이 보완 — Networks에 있고 Watch Providers에 없으면 추가 */
+  const hasCoupang = seen.has('쿠팡플레이');
+  const coupangInNetwork = (networks || []).some(n => n.id === COUPANG_NETWORK_ID);
+  if(!hasCoupang && coupangInNetwork){
+    // 가상 provider 객체로 추가
+    deduped.push({ provider_name:'Coupang Play', logo_path: null, _fromNetwork: true });
+    seen.add('쿠팡플레이');
+  }
+
+  if(!deduped.length){
+    el.innerHTML = '<span class="ott-empty">스트리밍 서비스 정보가 없습니다</span>';
+    return;
+  }
+
+  /* 3) 칩 렌더링 */
+  el.innerHTML = deduped.map(p => {
+    const nameKo  = _providerNameKo(p.provider_name);
+    const logoUrl = p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : '';
+    const homeUrl = OTT_HOME_URL[nameKo] || '#';
+
+    return `<a class="ott-chip" href="${homeUrl}" target="_blank" rel="noopener noreferrer" title="${nameKo}에서 보기">
+      ${logoUrl ? `<img class="ott-logo-img" src="${logoUrl}" alt="${nameKo}" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <span class="ott-chip-name">${nameKo}</span>
+    </a>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
+   Watch Providers API 호출 (탭 버전)
+══════════════════════════════════════ */
+
+/**
+ * TMDB Watch Providers KR 데이터를 가져와 OTT 탭에 렌더링
+ * WORK.networks는 loadTmdb()에서 이미 세팅됨
  */
 async function loadWatchProviders(){
-  // tmdb_id, WORK.type 모두 필요 (loadTmdb 완료 후 호출되므로 안전)
-  if(!WORK.tmdb_id)return;
+  if(!WORK.tmdb_id) return;
 
-  // 섹션 표시 + 스켈레톤 상태로 시작
-  const section   = document.getElementById('streamingSection');
-  const skelEl    = document.getElementById('streamingSkel');
-  const logosEl   = document.getElementById('streamingLogos');
-  const emptyEl   = document.getElementById('streamingEmpty');
-  const labelEl   = document.getElementById('streamingTypeLabel');
-  if(!section)return;
-
-  section.style.display = 'block'; // 섹션 먼저 보이기 (스켈레톤 상태)
+  /* 로딩 중 표시 */
+  const el = document.getElementById('ottList');
+  if(el) el.innerHTML = '<span class="ott-empty">불러오는 중...</span>';
 
   try{
-    // TMDB Watch Providers 엔드포인트 — TV/Movie 구분
-    // WORK.type은 loadTmdb()에서 이미 확정됨
     const mediaType = WORK.type === 'movie' ? 'movie' : 'tv';
-    const res = await fetch(
-      `${TMDB_PROXY}/${mediaType}/${WORK.tmdb_id}/watch/providers`
-    );
-    if(!res.ok) throw new Error('watch/providers 응답 오류');
+    const res = await fetch(`${TMDB_PROXY}/${mediaType}/${WORK.tmdb_id}/watch/providers`);
+    if(!res.ok) throw new Error('watch/providers 오류');
     const json = await res.json();
 
-    // KR 데이터 추출
     const kr = json?.results?.KR;
 
+    /* KR 데이터 없음 → OTT 탭에 빈 메시지 */
     if(!kr){
-      // KR 데이터 자체가 없으면 섹션 숨김 (한국 미서비스 작품)
-      section.style.display = 'none';
+      renderOttTab([], WORK.networks || []);
       return;
     }
 
-    // flatrate 우선, 없으면 rent, 없으면 buy 순서로 사용
+    /* flatrate 우선 → rent → buy 순 */
     let providers = [];
-    let typeKey   = '';
+    if(kr.flatrate?.length)      providers = kr.flatrate;
+    else if(kr.rent?.length)     providers = kr.rent;
+    else if(kr.buy?.length)      providers = kr.buy;
 
-    if(kr.flatrate && kr.flatrate.length){
-      providers = kr.flatrate;
-      typeKey   = 'flatrate'; // 구독
-    } else if(kr.rent && kr.rent.length){
-      providers = kr.rent;
-      typeKey   = 'rent';     // 대여
-    } else if(kr.buy && kr.buy.length){
-      providers = kr.buy;
-      typeKey   = 'buy';      // 구매
-    }
-
-    // 스켈레톤 숨김
-    if(skelEl) skelEl.style.display = 'none';
-
-    if(!providers.length){
-      // 모든 타입 다 비어있으면 "정보 없음" 표시 후 섹션 유지
-      if(emptyEl) emptyEl.style.display = 'block';
-      return;
-    }
-
-    // 타입 레이블 표시
-    if(labelEl){
-      const labelMap = { flatrate:'구독 시청', rent:'대여 가능', buy:'구매 가능' };
-      labelEl.textContent  = labelMap[typeKey] || '';
-      labelEl.style.display = 'inline-block';
-    }
-
-    // 플랫폼 칩 렌더링
-    if(logosEl){
-      logosEl.innerHTML = providers.map(p => {
-        // 로고 이미지 URL: w92 사이즈 (28px 표시에 충분, 2x 레티나 대비)
-        const logoUrl = p.logo_path
-          ? `https://image.tmdb.org/t/p/w92${p.logo_path}`
-          : '';
-
-        // 한국 OTT명 한글화 매핑
-        const nameKo = _providerNameKo(p.provider_name);
-
-        return `<div class="streaming-chip ${typeKey}" title="${p.provider_name}">
-          ${logoUrl
-            ? `<img class="streaming-logo-img"
-                    src="${logoUrl}"
-                    alt="${nameKo}"
-                    loading="lazy"
-                    onerror="this.style.display='none'">`
-            : ''}
-          <span class="streaming-chip-name">${nameKo}</span>
-        </div>`;
-      }).join('');
-
-      logosEl.style.display = 'flex';
-    }
+    /* OTT 탭 렌더링 (쿠팡 보완 포함) */
+    renderOttTab(providers, WORK.networks || []);
 
   }catch(e){
-    // 네트워크 오류 등 — 섹션 자체를 조용히 숨김 (UI 깨짐 방지)
-    if(section) section.style.display = 'none';
+    /* 오류 시 쿠팡만이라도 표시 (Networks 보완) */
+    renderOttTab([], WORK.networks || []);
   }
 }
 
+/* ══════════════════════════════════════
+   MBTI 탭 호환 패치
+   기존 loadFeelingData()가 mbtiWgRow를 show/hide하는데,
+   이제 mbtiRecSection은 infoPanel-mbti 안에 있으므로
+   mbtiWgRow show/hide는 무시하고 mbtiRecSection만 직접 제어
+══════════════════════════════════════ */
+
 /**
- * TMDB provider_name → 한국 사용자에게 익숙한 표기로 변환
- * 매핑에 없으면 원본 이름 그대로 반환
+ * MBTI 탭 내부 표시 업데이트
+ * mbtiRecSection이 show 상태면 mbtiNoData 숨김, 반대도 동일
  */
-function _providerNameKo(name){
-  const MAP = {
-    'Netflix'            : '넷플릭스',
-    'Disney Plus'        : '디즈니+',
-    'Disney+'            : '디즈니+',
-    'wavve'              : '웨이브',
-    'Wavve'              : '웨이브',
-    'Watcha'             : '왓챠',
-    'WATCHA'             : '왓챠',
-    'Tving'              : '티빙',
-    'TVING'              : '티빙',
-    'Coupang Play'       : '쿠팡플레이',
-    'Seezn'              : '시즌',
-    'Naver Series On'    : '네이버 시리즈온',
-    'Apple TV'           : 'Apple TV',
-    'Apple TV+'          : 'Apple TV+',
-    'Amazon Prime Video' : 'Prime Video',
-    'Amazon Video'       : 'Amazon Video',
-    'Google Play Movies' : 'Google Play',
-    'YouTube'            : 'YouTube',
-    'KT Olleh TV'        : 'KT 올레TV',
-    'LG Channels'        : 'LG 채널',
-  };
-  return MAP[name] || name;
+function _syncMbtiTab(){
+  const recSec  = document.getElementById('mbtiRecSection');
+  const noData  = document.getElementById('mbtiNoData');
+  if(!recSec || !noData) return;
+  const hasData = recSec.style.display !== 'none';
+  noData.style.display = hasData ? 'none' : 'block';
 }
 
-/* == 댓글+보러가기 레이아웃 업데이트 == */
+/* ── commentSection 호환: 기존 코드가 commentSection display 조작 ── */
+/* 이제 commentSection은 항상 표시 (탭 패널 안에 있어서 탭이 숨김 처리) */
+/* 기존 renderComments()가 commentSection.style.display='block' 하는데 그대로 동작 */
+
+
 
 async function init(){
   // Load TMDB (includes hero render + MBTI 즉시 렌더링)
