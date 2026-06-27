@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title id="seoTitle">작품 상세 | 오뜨랑 — OTT 랭킹·평점·후기</title>
-<meta id="seoDesc" name="description" content="OTT 작품 평점, 사용자 후기, 순위를 오뜨랑에서 확인하세요.">
+<meta id="seoDesc" name="description" content="OTT 작품 평점, 사용자 후기, 해외반응, 순위 히스토리를 오뜨랑에서 확인하세요.">
 <meta id="seoKw" name="keywords" content="OTT 평점, 드라마 후기, 영화 후기, 넷플릭스 평점, 티빙 평점, 해외반응">
 <meta name="robots" content="index, follow">
 <link id="seoCanonical" rel="canonical" href="https://ottrank.kr/title.html">
@@ -3115,6 +3115,21 @@ function _providerNameKo(name){
   return MAP[name] || name;
 }
 
+/**
+ * 한글 OTT명 → ott_key 변환 (forceRemove 체크용)
+ */
+function _nameKoToOttKey(nameKo){
+  const MAP = {
+    '넷플릭스'   : 'netflix',
+    '티빙'       : 'tving',
+    '웨이브'     : 'wavve',
+    '디즈니+'    : 'disney',
+    '쿠팡플레이' : 'coupang',
+    '왓챠'       : 'watcha',
+  };
+  return MAP[nameKo] || null;
+}
+
 /* OTT 홈페이지 URL 매핑 */
 const OTT_HOME_URL = {
   '넷플릭스'    : 'https://www.netflix.com',
@@ -3198,10 +3213,6 @@ async function loadWatchProviders(){
   ];
 
   /* ── DB 랭킹 platform → 표시명/URL 매핑 ── */
-  /* ── OTT 브랜드 메타 (Priority 1 랭킹 DB 출처) ──
-     logo_path: TMDB Watch Providers API에서 실제 반환되는 검증된 경로
-     logo_color: 로고 없을 때 브랜드 컬러 텍스트 아이콘용
-  ── */
   const PLATFORM_META = {
     netflix : { name:'넷플릭스',   url: OTT_HOME_URL['넷플릭스'],
                 logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg', color:'#e50914', text:'N'  },
@@ -3213,25 +3224,51 @@ async function loadWatchProviders(){
                 logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg',   color:'#006e99', text:'D+' },
     coupang : { name:'쿠팡플레이', url: OTT_HOME_URL['쿠팡플레이'],
                 logo_path: null,                                 color:'#1ac44d', text:'CP' },
+    watcha  : { name:'왓챠',       url: OTT_HOME_URL['왓챠']||'https://watcha.com',
+                logo_path:'/3dh6JLtbcIuFVaYxnkEdXAUMtBO.jpg',  color:'#ff0558', text:'W'  },
   };
+
+  /* ────────────────────────────────────────
+     Priority 0: 관리자 수동 override 조회
+     forceAdd    → 무조건 표시 (TMDB 없어도)
+     forceRemove → 무조건 숨김 (TMDB 있어도)
+     ──────────────────────────────────────── */
+  const forceAdd    = new Map(); // ott_key → PLATFORM_META 항목
+  const forceRemove = new Set(); // 숨길 ott_key Set
+
+  try{
+    const ovRes = await fetch(`${OTTRANK_API}/work-ott/${WORK.tmdb_id}`);
+    if(ovRes.ok){
+      const ovData = await ovRes.json();
+      (ovData.data || []).forEach(item => {
+        if(item.action === 'add'){
+          const meta = PLATFORM_META[item.ott_key];
+          if(meta) forceAdd.set(item.ott_key, meta);
+        } else if(item.action === 'remove'){
+          forceRemove.add(item.ott_key);
+        }
+      });
+    }
+  }catch(e){ /* override 조회 실패해도 나머지 로직 계속 */ }
 
   /* ────────────────────────────────────────
      Priority 1: 오뜨랑 DB 랭킹
      ──────────────────────────────────────── */
-  const seen = new Set(); // 중복 방지용
-  const finalList = []; // 최종 렌더링 목록
+  const seen = new Set();
+  const finalList = [];
 
   // boxoffice category01 → 극장 링크 3개
   const isCategory01 = WORK.platform === 'boxoffice' && WORK_CATEGORY_SLOT === 'category01';
   if(isCategory01){
-    // 극장 작품: 극장 바 3개 추가 후 바로 렌더링 (OTT 정보 불필요)
     renderOttTab(null, null, THEATER_BARS);
     return;
   }
 
   // OTT 랭킹 작품: WORK_PLATFORMS에서 OTT만 추출
+  // forceRemove에 있으면 제외, 이미 seen에 있으면 스킵
   for(const p of (WORK_PLATFORMS || [])){
     if(p.platform === 'boxoffice') continue;
+    if(forceRemove.has(p.platform)) continue;  // Priority 0 제거 설정 적용
     const meta = PLATFORM_META[p.platform];
     if(!meta || seen.has(meta.name)) continue;
     seen.add(meta.name);
@@ -3239,13 +3276,13 @@ async function loadWatchProviders(){
       name      : meta.name,
       url       : meta.url,
       logo_path : meta.logo_path,
-      color     : meta.color,   // 브랜드 컬러 (로고 실패 시 폴백)
-      text      : meta.text,    // 브랜드 텍스트 아이콘 (로고 실패 시 폴백)
+      color     : meta.color,
+      text      : meta.text,
     });
   }
 
   /* ────────────────────────────────────────
-     Priority 2 & 3: TMDB 데이터 병렬 조회
+     Priority 2 & 3: TMDB 데이터 조회
      ──────────────────────────────────────── */
   try{
     const mediaType = WORK.type === 'movie' ? 'movie' : 'tv';
@@ -3253,19 +3290,20 @@ async function loadWatchProviders(){
     const json = res.ok ? await res.json() : null;
     const kr   = json?.results?.KR;
 
-    /* Priority 2: 쿠팡플레이 Network 보완 (Watch Providers에 쿠팡 없는 경우가 많음) */
-    const hasCoupang = seen.has('쿠팡플레이');
+    /* Priority 2: 쿠팡플레이 Network 보완 */
     const coupangInNetwork = (WORK.networks || []).some(n => n.id === 5169);
-    if(!hasCoupang && coupangInNetwork){
+    if(!seen.has('쿠팡플레이') && !forceRemove.has('coupang') && coupangInNetwork){
       seen.add('쿠팡플레이');
       finalList.push({
         name      : '쿠팡플레이',
         url       : OTT_HOME_URL['쿠팡플레이'],
         logo_path : null,
+        color     : '#1ac44d',
+        text      : 'CP',
       });
     }
 
-    /* Priority 3: Watch Providers — 1번, 2번에 없는 OTT만 추가 */
+    /* Priority 3: Watch Providers — 1,2에 없고 forceRemove 아닌 것만 추가 */
     if(kr){
       const allProviders = [
         ...(kr.flatrate || []),
@@ -3274,7 +3312,10 @@ async function loadWatchProviders(){
       ];
       for(const p of allProviders){
         const nameKo = _providerNameKo(p.provider_name);
-        if(seen.has(nameKo)) continue; // 이미 있으면 스킵
+        if(seen.has(nameKo)) continue;
+        // forceRemove: provider_name을 ott_key로 변환해서 체크
+        const ottKey = _nameKoToOttKey(nameKo);
+        if(ottKey && forceRemove.has(ottKey)) continue;
         seen.add(nameKo);
         finalList.push({
           name      : nameKo,
@@ -3284,11 +3325,27 @@ async function loadWatchProviders(){
       }
     }
   }catch(e){
-    /* Watch Providers 오류는 무시 — Priority 1, 2 결과만 표시 */
+    /* Watch Providers 오류는 무시 */
   }
 
+  /* Priority 0 강제 추가 — 아직 seen에 없는 것만 맨 앞에 추가 */
+  const forceAddItems = [];
+  for(const [key, meta] of forceAdd){
+    if(!seen.has(meta.name)){
+      seen.add(meta.name);
+      forceAddItems.push({
+        name      : meta.name,
+        url       : meta.url,
+        logo_path : meta.logo_path,
+        color     : meta.color,
+        text      : meta.text,
+      });
+    }
+  }
+  const mergedList = [...forceAddItems, ...finalList];
+
   /* 최종 렌더링 */
-  renderOttTab(null, null, finalList.length ? finalList : null);
+  renderOttTab(null, null, mergedList.length ? mergedList : null);
 }
 
 /* ══════════════════════════════════════
