@@ -71,6 +71,7 @@ async function fetchRankingFromD1(platform, env) {
          COALESCE(w.title_ko, r.title_ko) AS title_ko,
          COALESCE(w.title_en, r.title_en) AS title_en,
          r.tmdb_id,
+         w.poster_path,
          w.genre,
          w.tmdb_rating,
          w.release_year
