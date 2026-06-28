@@ -746,8 +746,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <div style="font-size:12px;color:var(--muted2);margin-bottom:20px;background:var(--bg3);
     border-radius:8px;padding:12px 16px;line-height:1.7">
-    💡 오뜨랑 DB의 실시간 랭킹 데이터를 기반으로 <b style="color:var(--text)">오뜨랑 — OTT 랭킹 리포트</b> 블로그용 포스팅을 AI가 자동 생성합니다.<br>
-    생성 후 내용을 수정하고 복사 버튼을 눌러 네이버 블로그에 붙여넣으세요.
+    💡 오뜨랑 DB의 실시간 랭킹 데이터를 기반으로 <b style="color:var(--text)">오뜨랑 — OTT 랭킹 리포트</b> 블로그용 포스팅과 대표 썸네일을 자동 생성합니다.
   </div>
 
   <!-- 설정 영역 -->
@@ -776,6 +775,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <option value="review">신작 미니 리뷰</option>
         </select>
       </div>
+    </div>
+
+    <!-- 썸네일 제목 입력 (처음부터 보임) -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+        썸네일 제목 <span style="color:var(--muted);font-size:10px">(대표 이미지에 표시될 텍스트)</span>
+      </div>
+      <input class="inp" type="text" id="bgThumbTitle" style="margin-bottom:0"
+        placeholder="예: 넷플릭스 드라마 순위 TOP 10">
     </div>
 
     <!-- 톤 선택 -->
@@ -838,7 +846,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <!-- 생성 버튼 -->
   <button class="btn-save" id="bgGenBtn" onclick="generateBlogPost()"
     style="width:100%;padding:12px;font-size:15px;margin-bottom:16px">
-    ✨ AI 블로그 포스팅 생성
+    ✨ 블로그 글 + 썸네일 동시 생성
   </button>
 
   <!-- 상태 표시 -->
@@ -852,8 +860,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="display:flex;flex-wrap:wrap;gap:6px" id="bgRankChips"></div>
   </div>
 
-  <!-- 결과 영역 -->
+  <!-- 결과 영역 (생성 후 표시) -->
   <div id="bgResultArea" style="display:none">
+
+    <!-- 블로그 포스팅 -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <span style="font-size:14px;font-weight:600">생성된 블로그 포스팅</span>
       <div style="display:flex;gap:8px">
@@ -868,58 +878,37 @@ tr:hover td{background:rgba(255,255,255,.02)}
         font-size:14px;line-height:1.8;resize:vertical;outline:none"
       oninput="bgUpdateCharCount()"></textarea>
     <div style="text-align:right;font-size:12px;color:var(--muted);margin-top:6px;
-      font-family:var(--mono)" id="bgCharCount">0자</div>
-  </div>
+      font-family:var(--mono);margin-bottom:24px" id="bgCharCount">0자</div>
 
-  <!-- ── 썸네일 카드 생성 섹션 ── -->
-  <div id="bgThumbSection" style="display:none;margin-top:24px">
+    <!-- 썸네일 카드 -->
     <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:16px;
       display:flex;align-items:center;gap:8px">
-      <span style="font-size:14px;font-weight:600">🖼️ 대표 썸네일 카드 생성</span>
+      <span style="font-size:14px;font-weight:600">🖼️ 대표 썸네일 카드</span>
       <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">1:1 비율 · PNG 다운로드</span>
     </div>
-
-    <!-- 제목 입력 -->
-    <div style="margin-bottom:12px">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
-        썸네일 제목 <span style="color:var(--muted);font-size:10px">(블로그 대표 이미지에 표시될 텍스트)</span>
-      </div>
-      <div style="display:flex;gap:8px">
-        <input class="inp" type="text" id="bgThumbTitle" style="margin-bottom:0;flex:1"
-          placeholder="예: 넷플릭스 드라마 순위 TOP 10"
-          oninput="bgUpdateCardPreview()">
-        <button class="btn-sm" onclick="bgUpdateCardPreview()"
-          style="background:var(--info-bg);color:var(--info);border:1px solid var(--info-border);
-          white-space:nowrap;padding:0 14px">미리보기 갱신</button>
-      </div>
-    </div>
-
     <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
 
-      <!-- 카드 미리보기 DOM (html2canvas가 이 요소를 캡처) -->
+      <!-- 카드 미리보기 (html2canvas가 이 요소를 캡처) -->
       <div id="bgThumbCard"
         style="width:360px;height:360px;position:relative;border-radius:12px;
           overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2)">
 
-        <!-- 배경 포스터 (base64로 교체됨) -->
+        <!-- 배경 포스터 -->
         <div id="bgThumbBg"
           style="position:absolute;inset:0;background-size:cover;background-position:center;
             filter:brightness(0.5)"></div>
 
         <!-- 그라디언트 오버레이 -->
         <div style="position:absolute;inset:0;background:linear-gradient(
-          to bottom,
-          rgba(0,0,0,0.2) 0%,
-          rgba(0,0,0,0.05) 35%,
-          rgba(0,0,0,0.55) 65%,
-          rgba(0,0,0,0.9) 100%)"></div>
+          to bottom,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.05) 35%,
+          rgba(0,0,0,0.55) 65%,rgba(0,0,0,0.9) 100%)"></div>
 
         <!-- 상단: 로고 + URL + 플랫폼 배지 -->
         <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;
           display:flex;align-items:center;justify-content:space-between;
           background:linear-gradient(to bottom,rgba(0,0,0,0.5),transparent)">
           <div style="display:flex;align-items:center;gap:8px">
-            <img id="bgThumbLogo" src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
+            <img src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
               style="height:20px;object-fit:contain"
               onerror="this.style.display='none'">
             <span style="font-size:11px;color:rgba(255,255,255,0.55);
@@ -933,7 +922,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <!-- 하단: 순위 + 제목 + 주차 -->
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px">
           <div style="font-size:11px;color:#f0b429;font-weight:700;
-            letter-spacing:1.5px;margin-bottom:5px" id="bgThumbRankLabel">이번 주 1위</div>
+            letter-spacing:1.5px;margin-bottom:5px">이번 주 1위</div>
           <div id="bgThumbTitleEl"
             style="font-size:26px;font-weight:900;color:#fff;line-height:1.2;
               margin-bottom:8px;text-shadow:2px 2px 8px rgba(0,0,0,0.8);word-break:keep-all">
@@ -945,12 +934,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
         </div>
       </div>
 
-      <!-- 오른쪽: 안내 + 다운로드 버튼 -->
+      <!-- 오른쪽: 안내 + 다운로드 -->
       <div style="flex:1;min-width:200px;padding-top:8px">
         <div style="font-size:12px;color:var(--muted2);line-height:1.8;margin-bottom:16px">
           • 1위 작품 포스터가 배경으로 자동 적용됩니다<br>
-          • 제목을 입력하고 미리보기를 확인하세요<br>
-          • PNG 파일로 저장 후 네이버 블로그에 업로드하세요
+          • 제목은 위 설정에서 입력한 썸네일 제목이 사용됩니다<br>
+          • PNG 저장 후 네이버 블로그 대표 이미지로 업로드하세요
         </div>
         <button class="btn-save" id="bgThumbDownBtn" onclick="bgDownloadThumbnail()"
           style="width:100%;padding:11px;font-size:14px">
@@ -5255,8 +5244,7 @@ async function bgInitThumbnail(rankingData, platform) {
   await bgUpdateCardPreview();
 
   document.getElementById('bgThumbStatus').textContent = '';
-  document.getElementById('bgThumbSection').style.display = 'block';
-  document.getElementById('bgThumbSection').scrollIntoView({ behavior: 'smooth' });
+  // bgResultArea 안에 썸네일이 포함되어 있으므로 별도 show 불필요
 }
 
 /* PNG 다운로드 (review.html과 동일한 html2canvas 방식) */
