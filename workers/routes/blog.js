@@ -5,11 +5,11 @@
      GET  /blog-gen/preview : 랭킹 데이터 미리보기 (관리자 전용, 테스트용)
 
    필요 환경 변수:
-     env.DB               : Cloudflare D1 바인딩
+     env.DB                : Cloudflare D1 바인딩
      env.ANTHROPIC_API_KEY : Anthropic API 키 (Secret)
 ══════════════════════════════════════════════════════════════ */
 
-import { _checkAuth } from "./admin.js";
+import { _checkAuth } from "../utils/authUtils.js";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const SITE_URL = "https://ottrank.kr";
@@ -54,11 +54,8 @@ async function fetchRankingFromD1(platform, env) {
        AND is_active = 1
        AND platform_section IS NOT NULL
      ORDER BY platform_order ASC`
-  )
-    .bind(platform)
-    .all();
+  ).bind(platform).all();
 
-  // 카테고리가 없으면 빈 배열 반환
   if (!cats.results || cats.results.length === 0) return [];
 
   const result = [];
@@ -67,16 +64,16 @@ async function fetchRankingFromD1(platform, env) {
     const limit = cat.platform_limit || 10;
 
     // 수동고정(manual) + 최신 크롤링 데이터 병합 조회
-    // 수동고정을 앞에 배치하고 빈 자리를 크롤링 데이터로 채우는 방식
+    // works 테이블과 JOIN해서 평점/장르 등 보완
     const items = await env.DB.prepare(
-      `SELECT r.rank,
-              COALESCE(w.title_ko, r.title_ko) AS title_ko,
-              COALESCE(w.title_en, r.title_en) AS title_en,
-              r.tmdb_id,
-              w.poster_path,
-              w.genre,
-              w.tmdb_rating,
-              w.release_year
+      `SELECT
+         r.rank,
+         COALESCE(w.title_ko, r.title_ko) AS title_ko,
+         COALESCE(w.title_en, r.title_en) AS title_en,
+         r.tmdb_id,
+         w.genre,
+         w.tmdb_rating,
+         w.release_year
        FROM rankings r
        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
        WHERE r.platform = ?
@@ -95,11 +92,8 @@ async function fetchRankingFromD1(platform, env) {
          CASE WHEN r.date = 'manual' THEN 0 ELSE 1 END,
          r.rank ASC
        LIMIT ?`
-    )
-      .bind(platform, cat.category_slot, platform, cat.category_slot, limit)
-      .all();
+    ).bind(platform, cat.category_slot, platform, cat.category_slot, limit).all();
 
-    // 작품이 1개 이상 있는 카테고리만 결과에 포함
     if (items.results && items.results.length > 0) {
       result.push({
         display_name: cat.display_name,
@@ -137,14 +131,13 @@ function formatRankingForPrompt(data, platform) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 현재 날짜 기준 주차 정보 계산 (예: "2026년 6월 4주차")
+// 현재 날짜 기준 주차 정보 계산
 // ─────────────────────────────────────────────────────────────
 function getWeekInfo() {
-  const now        = new Date();
-  const year       = now.getFullYear();
-  const month      = now.getMonth() + 1;
-  const day        = now.getDate();
-  const weekOfMonth = Math.ceil(day / 7);
+  const now         = new Date();
+  const year        = now.getFullYear();
+  const month       = now.getMonth() + 1;
+  const weekOfMonth = Math.ceil(now.getDate() / 7);
   return `${year}년 ${month}월 ${weekOfMonth}주차`;
 }
 
@@ -161,8 +154,8 @@ async function callAnthropicAPI(prompt, apiKey) {
     },
     body: JSON.stringify({
       model:      "claude-sonnet-4-6",
-      max_tokens: 4096, // 블로그 포스팅 전체 생성에 충분한 토큰
-      messages: [{ role: "user", content: prompt }],
+      max_tokens: 4096,
+      messages:   [{ role: "user", content: prompt }],
     }),
   });
 
@@ -182,18 +175,17 @@ export async function handleBlog(path, request, env, url, headers) {
 
   // ── GET /blog-gen/preview — 랭킹 데이터 미리보기 (테스트용) ──
   if (request.method === "GET" && path === "/blog-gen/preview") {
-    // 관리자 인증 확인
-    const authResult = await _checkAuth(request, env);
-    if (!authResult.ok) {
+
+    // admin.js와 동일한 boolean 인증 패턴
+    if (!_checkAuth(request, env)) {
       return new Response(
-        JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+        JSON.stringify({ ok: false, error: "Unauthorized" }),
         { status: 401, headers }
       );
     }
 
     const platform = url.searchParams.get("platform") || "netflix";
 
-    // 유효하지 않은 플랫폼 체크
     if (!PLATFORM_NAMES[platform]) {
       return new Response(
         JSON.stringify({ ok: false, error: "지원하지 않는 플랫폼입니다." }),
@@ -217,16 +209,16 @@ export async function handleBlog(path, request, env, url, headers) {
 
   // ── POST /blog-gen — 블로그 포스팅 생성 ──────────────────────
   if (request.method === "POST" && path === "/blog-gen") {
-    // 관리자 인증 확인
-    const authResult = await _checkAuth(request, env);
-    if (!authResult.ok) {
+
+    // admin.js와 동일한 boolean 인증 패턴
+    if (!_checkAuth(request, env)) {
       return new Response(
-        JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+        JSON.stringify({ ok: false, error: "Unauthorized" }),
         { status: 401, headers }
       );
     }
 
-    // Anthropic API 키 환경 변수 확인
+    // Anthropic API 키 확인
     const apiKey = env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return new Response(
@@ -274,7 +266,6 @@ export async function handleBlog(path, request, env, url, headers) {
       // ① D1에서 랭킹 데이터 조회
       const rankingData = await fetchRankingFromD1(platform, env);
 
-      // 랭킹 데이터가 없으면 에러 반환
       if (rankingData.length === 0) {
         return new Response(
           JSON.stringify({
@@ -290,13 +281,12 @@ export async function handleBlog(path, request, env, url, headers) {
       const weekInfo     = getWeekInfo();
       const platformName = PLATFORM_NAMES[platform];
 
-      // 추가 지시사항 목록 구성
       const options = [];
-      if (!useEmoji)   options.push("이모지를 사용하지 마세요.");
-      if (useRating)   options.push(`오뜨랑(${SITE_URL}) 평점 정보를 자연스럽게 언급해주세요.`);
-      if (useLink)     options.push(`포스팅 중간이나 마지막에 "${SITE_URL}" 링크를 "오뜨랑에서 더 보기" 형태로 자연스럽게 삽입해주세요.`);
-      if (useSpoiler)  options.push("스포일러 주의 문구가 필요한 작품에는 ⚠️ 스포주의 라벨을 달아주세요.");
-      if (useHashtag)  options.push(`포스팅 마지막에 네이버 블로그용 해시태그를 15개 이상 추가해주세요. (예: #${platformName}드라마추천 #OTT추천 #넷플릭스순위 등)`);
+      if (!useEmoji)    options.push("이모지를 사용하지 마세요.");
+      if (useRating)    options.push(`오뜨랑(${SITE_URL}) 평점 정보를 자연스럽게 언급해주세요.`);
+      if (useLink)      options.push(`포스팅 중간이나 마지막에 "${SITE_URL}" 링크를 "오뜨랑에서 더 보기" 형태로 자연스럽게 삽입해주세요.`);
+      if (useSpoiler)   options.push("스포일러 주의 문구가 필요한 작품에는 ⚠️ 스포주의 라벨을 달아주세요.");
+      if (useHashtag)   options.push(`포스팅 마지막에 네이버 블로그용 해시태그를 15개 이상 추가해주세요. (예: #${platformName}드라마추천 #OTT추천 #넷플릭스순위 등)`);
       if (extraRequest) options.push(extraRequest);
 
       const prompt = `당신은 인기 OTT 드라마/영화 블로거입니다. 아래 실시간 랭킹 데이터를 바탕으로 네이버 블로그용 포스팅을 작성해주세요.
@@ -326,7 +316,7 @@ ${options.length > 0 ? "[추가 지시사항]\n" + options.map((o, i) => `${i + 
         JSON.stringify({
           ok: true,
           post: generatedText,
-          rankingData, // 어떤 데이터를 기반으로 생성했는지 함께 반환
+          rankingData,
           meta: {
             platform,
             platformName,
@@ -345,6 +335,6 @@ ${options.length > 0 ? "[추가 지시사항]\n" + options.map((o, i) => `${i + 
     }
   }
 
-  // 해당하는 라우트 없음 → index.js에서 다음 라우터로 넘어가도록 null 반환
+  // 해당 라우트 없음 → index.js에서 다음 라우터로 넘어가도록 null 반환
   return null;
 }
