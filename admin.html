@@ -990,9 +990,54 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <!-- TOP10 결과 -->
     <div id="bgTop10Result" style="display:none">
       <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
-        <canvas id="bgTop10Canvas" width="600" height="600"
-          style="width:320px;height:320px;border-radius:12px;
-            border:1px solid var(--border2);flex-shrink:0;background:#111"></canvas>
+
+        <!-- DOM 카드 (html2canvas가 캡처) -->
+        <div id="bgTop10Card"
+          style="width:360px;height:360px;border-radius:12px;flex-shrink:0;
+            border:1px solid var(--border2);overflow:hidden;position:relative;
+            background:#0c0c10;font-family:'Noto Sans KR',sans-serif">
+
+          <!-- 배경 (플랫폼 컬러 그라디언트) -->
+          <div id="bgTop10Bg"
+            style="position:absolute;inset:0;background:#1a0000"></div>
+
+          <!-- 1위 포스터 영역 -->
+          <div id="bgTop10P1"
+            style="position:absolute;left:12px;top:12px;width:155px;bottom:72px;
+              border-radius:6px;background:#2a1010;background-size:cover;
+              background-position:center;overflow:hidden">
+            <div style="position:absolute;top:6px;left:6px;font-size:28px;
+              font-weight:900;color:white;text-shadow:2px 2px 6px rgba(0,0,0,0.9);
+              font-family:Arial,sans-serif">01</div>
+          </div>
+
+          <!-- 2~10위 그리드 -->
+          <div id="bgTop10Grid"
+            style="position:absolute;left:175px;right:12px;top:12px;bottom:72px;
+              display:grid;grid-template-columns:repeat(3,1fr);
+              grid-template-rows:repeat(3,1fr);gap:5px"></div>
+
+          <!-- 하단 정보 -->
+          <div style="position:absolute;bottom:0;left:0;right:0;height:68px;
+            border-top:1px solid rgba(255,255,255,0.15);
+            padding:8px 12px;display:flex;flex-direction:column;justify-content:center">
+            <div id="bgTop10DisplayName"
+              style="font-size:13px;font-weight:700;color:white;margin-bottom:3px"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div id="bgTop10WeekEl"
+                style="font-size:10px;color:rgba(255,255,255,0.5);
+                  font-family:'DM Mono',monospace"></div>
+              <div style="display:flex;align-items:center;gap:5px">
+                <img src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
+                  style="height:14px;object-fit:contain"
+                  onerror="this.style.display='none'">
+                <span style="font-size:10px;color:rgba(255,255,255,0.5);
+                  font-family:'DM Mono',monospace">ottrank.kr</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div style="flex:1;min-width:160px;padding-top:8px">
           <button class="btn-save" id="bgTop10DownBtn" onclick="bgDownloadTop10()"
             style="width:100%;padding:10px;font-size:13px">⬇️ JPG 다운로드</button>
@@ -5456,85 +5501,71 @@ function bgDrawRoundedImage(ctx, img, x, y, w, h, r) {
 }
 
 /* TOP10 카드 Canvas 렌더링 */
-async function bgRenderTop10Canvas(items, displayName, platform) {
-  const canvas = document.getElementById('bgTop10Canvas');
-  const ctx    = canvas.getContext('2d');
-  const W=600, H=600;
-  canvas.width=W; canvas.height=H;
+/* TOP10 카드 DOM 렌더링 (html2canvas 호환, review.html 방식) */
+async function bgRenderTop10Dom(items, displayName, platform) {
 
   // 플랫폼 배경 그라디언트
-  const colors = {
-    netflix:['#8B0000','#1a0000'], tving:['#880022','#1a000a'],
-    wavve:['#003d8f','#000a1a'],   disney:['#062070','#010a30'],
-    coupang:['#0a6b30','#001a0a'], boxoffice:['#7a5a00','#1a1400'],
-  }[platform] || ['#1a1a2e','#0a0a14'];
+  const bgGrads = {
+    netflix:  'linear-gradient(135deg,#8B0000,#1a0000)',
+    tving:    'linear-gradient(135deg,#880022,#1a000a)',
+    wavve:    'linear-gradient(135deg,#003d8f,#000a1a)',
+    disney:   'linear-gradient(135deg,#062070,#010a30)',
+    coupang:  'linear-gradient(135deg,#0a6b30,#001a0a)',
+    boxoffice:'linear-gradient(135deg,#7a5a00,#1a1400)',
+  }[platform] || 'linear-gradient(135deg,#1a1a2e,#0a0a14)';
 
-  const grad = ctx.createLinearGradient(0,0,W,H);
-  grad.addColorStop(0,colors[0]); grad.addColorStop(1,colors[1]);
-  ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+  document.getElementById('bgTop10Bg').style.background = bgGrads;
 
-  // 포스터 병렬 로드
-  const posters = await Promise.all(
-    items.slice(0,10).map(item =>
-      item.poster_path
-        ? bgLoadImage(`https://image.tmdb.org/t/p/w342${item.poster_path}`)
-        : Promise.resolve(null)
-    )
+  // 포스터 base64 병렬 로드 (review.html 방식 — fetch → blob → base64)
+  const base64List = await Promise.all(
+    items.slice(0, 10).map(item => bgFetchPosterAsBase64(item.poster_path))
   );
 
-  const PAD=20, GAP=8, BOTTOM_H=68;
-  const CONTENT_H = H - PAD - BOTTOM_H;
-  const P1_W = Math.floor((W-PAD*2-GAP)*0.48);
-  const P1_H = CONTENT_H - PAD;
-  const GRID_X = PAD+P1_W+GAP;
-  const GRID_W = W-PAD-GRID_X;
-  const CELL_W = Math.floor((GRID_W-GAP*2)/3);
-  const CELL_H = Math.floor((P1_H-GAP*2)/3);
-
-  // 1위 포스터
-  bgDrawRoundedImage(ctx,posters[0],PAD,PAD,P1_W,P1_H,8);
-  ctx.font='bold 48px Arial'; ctx.fillStyle='white';
-  ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=8;
-  ctx.fillText('01',PAD+8,PAD+50); ctx.shadowBlur=0;
-
-  // 2~10위 그리드
-  for(let i=0;i<9;i++){
-    const col=i%3, row=Math.floor(i/3);
-    const x=GRID_X+col*(CELL_W+GAP), y=PAD+row*(CELL_H+GAP);
-    bgDrawRoundedImage(ctx,posters[i+1],x,y,CELL_W,CELL_H,5);
-    ctx.font=`bold ${Math.floor(CELL_H*0.27)}px Arial`;
-    ctx.fillStyle='white'; ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=5;
-    ctx.fillText(String(i+2).padStart(2,'0'),x+4,y+Math.floor(CELL_H*0.3));
-    ctx.shadowBlur=0;
+  // 1위 포스터 배경 적용
+  const p1El = document.getElementById('bgTop10P1');
+  if (base64List[0]) {
+    p1El.style.backgroundImage = `url(${base64List[0]})`;
+    p1El.style.backgroundSize  = 'cover';
+    p1El.style.backgroundPosition = 'center';
+  } else {
+    p1El.style.backgroundImage = 'none';
+    p1El.style.background      = '#2a1010';
   }
 
-  // 하단 구분선
-  const BY = H-BOTTOM_H+12;
-  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=0.5;
-  ctx.beginPath(); ctx.moveTo(PAD,H-BOTTOM_H); ctx.lineTo(W-PAD,H-BOTTOM_H); ctx.stroke();
-
-  // 카테고리명 + 주차
-  ctx.font='bold 15px "Noto Sans KR",Arial'; ctx.fillStyle='white';
-  ctx.fillText(displayName,PAD,BY+16);
-  ctx.font='11px "DM Mono",monospace'; ctx.fillStyle='rgba(255,255,255,0.5)';
-  ctx.fillText(bgGetWeekLabel(),PAD,BY+34);
-
-  // ottrank.kr
-  ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.6)';
-  ctx.fillText('ottrank.kr',W-PAD,BY+34); ctx.textAlign='left';
-
-  // 로고
-  const logoImg = await bgLoadImage('https://ottrank.kr/img/logo.png');
-  if(logoImg){
-    const LH=20, LW=Math.floor(logoImg.width*(LH/logoImg.height));
-    ctx.drawImage(logoImg,W-PAD-LW,BY+2,LW,LH);
+  // 2~10위 그리드 생성
+  const gridEl = document.getElementById('bgTop10Grid');
+  gridEl.innerHTML = '';
+  for (let i = 1; i < 10; i++) {
+    const cell = document.createElement('div');
+    cell.style.cssText = `
+      position:relative;border-radius:4px;overflow:hidden;
+      background:#2a2a3a;background-size:cover;background-position:center;
+    `;
+    if (base64List[i]) {
+      cell.style.backgroundImage = `url(${base64List[i]})`;
+    }
+    // 순위 번호
+    const rankEl = document.createElement('div');
+    rankEl.textContent = String(i + 1).padStart(2, '0');
+    rankEl.style.cssText = `
+      position:absolute;top:3px;left:4px;
+      font-size:13px;font-weight:900;color:white;
+      font-family:Arial,sans-serif;
+      text-shadow:1px 1px 4px rgba(0,0,0,0.9);
+    `;
+    cell.appendChild(rankEl);
+    gridEl.appendChild(cell);
   }
+
+  // 하단 텍스트
+  document.getElementById('bgTop10DisplayName').textContent = displayName;
+  document.getElementById('bgTop10WeekEl').textContent      = bgGetWeekLabel();
 }
 
 /* TOP10 카드 생성 버튼 */
 async function bgGenerateTop10() {
-  const platform    = document.getElementById('bgTop10Platform').value;
-  const categorySlot= document.getElementById('bgTop10Category').value;
+  const platform     = document.getElementById('bgTop10Platform').value;
+  const categorySlot = document.getElementById('bgTop10Category').value;
   if (!categorySlot) { showToast('카테고리를 선택하세요.', 'err'); return; }
 
   const btn      = document.getElementById('bgTop10GenBtn');
@@ -5544,7 +5575,6 @@ async function bgGenerateTop10() {
   statusEl.textContent = '';
 
   try {
-    // preview API로 해당 카테고리 랭킹 데이터 조회
     const res  = await fetch(
       `${API}/blog-gen/preview?platform=${platform}&category=${categorySlot}`,
       { headers: { Authorization:`Bearer ${token}` } }
@@ -5556,11 +5586,11 @@ async function bgGenerateTop10() {
                || data.data?.[0];
     if (!group || !group.items?.length) throw new Error('랭킹 데이터가 없습니다.');
 
-    // 제목: 입력값 우선, 없으면 카테고리명 사용
     const customTitle = document.getElementById('bgTop10Title').value.trim();
     const displayName = customTitle || group.display_name;
 
-    await bgRenderTop10Canvas(group.items, displayName, platform);
+    // DOM 방식으로 렌더링
+    await bgRenderTop10Dom(group.items, displayName, platform);
 
     document.getElementById('bgTop10Result').style.display = 'block';
     document.getElementById('bgTop10Result').scrollIntoView({ behavior:'smooth' });
@@ -5576,22 +5606,33 @@ async function bgGenerateTop10() {
   }
 }
 
-/* TOP10 카드 JPG 다운로드 */
+/* TOP10 카드 JPG 다운로드 — html2canvas 방식 */
 async function bgDownloadTop10() {
   const btn      = document.getElementById('bgTop10DownBtn');
   const statusEl = document.getElementById('bgTop10Status');
   btn.disabled    = true;
-  btn.textContent = '저장 중...';
+  btn.textContent = '이미지 생성 중...';
 
   try {
-    const canvas   = document.getElementById('bgTop10Canvas');
+    await new Promise(r => setTimeout(r, 80)); // DOM 렌더 대기
+
+    const card   = document.getElementById('bgTop10Card');
+    const canvas = await html2canvas(card, {
+      scale:           2,
+      useCORS:         true,
+      backgroundColor: '#0c0c10',
+      logging:         false,
+    });
+
+    // JPG로 저장 (품질 92%)
+    const blob     = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
     const platform = document.getElementById('bgTop10Platform').value;
-    const blob     = await new Promise(res => canvas.toBlob(res,'image/jpeg',0.92));
     const fileName = `ottrank_top10_${platform}_${bgGetWeekLabel().replace(/\s/g,'')}.jpg`;
     const url = URL.createObjectURL(blob);
     const a   = document.createElement('a');
-    a.href=url; a.download=fileName; a.click();
+    a.href = url; a.download = fileName; a.click();
     URL.revokeObjectURL(url);
+
     statusEl.style.color = 'var(--green)';
     statusEl.textContent = '✅ 다운로드 완료!';
   } catch(e) {
