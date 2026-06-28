@@ -891,17 +891,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <!-- 카드 미리보기 (html2canvas가 이 요소를 캡처) -->
       <div id="bgThumbCard"
         style="width:360px;height:360px;position:relative;border-radius:12px;
-          overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2)">
-
-        <!-- 배경 포스터 -->
-        <div id="bgThumbBg"
-          style="position:absolute;inset:0;background-size:cover;background-position:center;
-            filter:brightness(0.5)"></div>
-
-        <!-- 그라디언트 오버레이 -->
-        <div style="position:absolute;inset:0;background:linear-gradient(
-          to bottom,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.05) 35%,
-          rgba(0,0,0,0.55) 65%,rgba(0,0,0,0.9) 100%)"></div>
+          overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2);
+          background-size:cover;background-position:center;background-repeat:no-repeat">
 
         <!-- 상단: 로고 + URL + 플랫폼 배지 -->
         <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;
@@ -5216,13 +5207,23 @@ async function bgInitThumbnail(rankingData, platform) {
   // base64 변환 (review.html 방식)
   bgThumbPosterDataUrl = await bgFetchPosterAsBase64(posterPath);
 
-  // 배경 적용
-  const bgEl = document.getElementById('bgThumbBg');
+  // 배경 적용 — review.html과 동일하게 카드 자체에 그라디언트+포스터 한 번에 적용
+  const cardEl = document.getElementById('bgThumbCard');
   if (bgThumbPosterDataUrl) {
-    bgEl.style.backgroundImage = `url(${bgThumbPosterDataUrl})`;
+    // 그라디언트 + 포스터 background-image 직접 합성 (html2canvas 호환)
+    cardEl.style.backgroundImage = `
+      linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.2) 0%,
+        rgba(0,0,0,0.05) 35%,
+        rgba(0,0,0,0.55) 65%,
+        rgba(0,0,0,0.9) 100%
+      ),
+      url(${bgThumbPosterDataUrl})
+    `;
   } else {
-    bgEl.style.backgroundImage = 'none';
-    bgEl.style.background      = '#1a1a24';
+    cardEl.style.backgroundImage = 'none';
+    cardEl.style.background      = '#1a1a24';
   }
 
   // 플랫폼 배지
