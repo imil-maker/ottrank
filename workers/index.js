@@ -13,6 +13,7 @@
    posts.js     : /posts/*
    admin.js     : /admin/* (reactions, videos, contents 제외)
    contents.js  : /contents/*, /admin/contents*
+   blog.js      : /blog-gen/*
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -23,6 +24,7 @@ import { handleUser      } from "./routes/user.js";
 import { handlePosts     } from "./routes/posts.js";
 import { handleAdmin     } from "./routes/admin.js";
 import { handleContents  } from "./routes/contents.js";
+import { handleBlog      } from "./routes/blog.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -119,17 +121,22 @@ export default {
       res = await handlePosts(path, request, env, ctx, url, headers);
     }
 
-    // 8. OTT 보러가기 수동 오버라이드 (GET은 인증 불필요, POST/DELETE는 admin.js에서 인증)
+    // 8. 블로그 포스팅 자동 생성 (관리자 전용)
+    if (!res && path.startsWith("/blog-gen")) {
+      res = await handleBlog(path, request, env, url, headers);
+    }
+
+    // 9. OTT 보러가기 수동 오버라이드 (GET은 인증 불필요, POST/DELETE는 admin.js에서 인증)
     if (!res && path.startsWith("/work-ott")) {
       res = await handleAdmin(path, request, env, url, headers);
     }
 
-    // 9. 관리자 (reactions, videos, contents 제외한 나머지)
+    // 10. 관리자 (reactions, videos, contents 제외한 나머지)
     if (!res && path.startsWith("/admin/")) {
       res = await handleAdmin(path, request, env, url, headers);
     }
 
-    // 9. 404
+    // 11. 404
     if (!res) {
       res = new Response(
         JSON.stringify({ ok: false, message: "Not found" }),
