@@ -741,19 +741,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
 <!-- ══ 블로그 포스팅 자동 생성 ══ -->
 <div id="bloggenSection" class="main" style="display:none">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
-    <div style="font-size:15px;font-weight:600">📝 블로그 생성</div>
-  </div>
-  <div style="font-size:12px;color:var(--muted2);margin-bottom:20px;background:var(--bg3);
-    border-radius:8px;padding:12px 16px;line-height:1.7">
-    💡 오뜨랑 DB의 실시간 랭킹 데이터를 기반으로 <b style="color:var(--text)">오뜨랑 — OTT 랭킹 리포트</b> 블로그용 포스팅과 대표 썸네일을 자동 생성합니다.
-  </div>
+  <div style="font-size:15px;font-weight:600;margin-bottom:20px">📝 블로그 생성</div>
 
-  <!-- 설정 영역 -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+  <!-- ━━━ ① 블로그 글 생성 ━━━ -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:16px;
+      font-family:var(--mono);letter-spacing:.5px">① 블로그 글 생성</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-      <!-- OTT 플랫폼 -->
       <div>
         <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">OTT 플랫폼</div>
         <select class="inp" id="bgPlatform" style="cursor:pointer;margin-bottom:0">
@@ -765,7 +761,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <option value="boxoffice">박스오피스</option>
         </select>
       </div>
-      <!-- 콘텐츠 유형 -->
       <div>
         <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">콘텐츠 유형</div>
         <select class="inp" id="bgContentType" style="cursor:pointer;margin-bottom:0">
@@ -777,16 +772,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
     </div>
 
-    <!-- 썸네일 제목 입력 (처음부터 보임) -->
-    <div style="margin-bottom:16px">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
-        썸네일 제목 <span style="color:var(--muted);font-size:10px">(대표 이미지에 표시될 텍스트)</span>
-      </div>
-      <input class="inp" type="text" id="bgThumbTitle" style="margin-bottom:0"
-        placeholder="예: 넷플릭스 드라마 순위 TOP 10">
-    </div>
-
-    <!-- 톤 선택 -->
     <div style="margin-bottom:16px">
       <div style="font-size:12px;color:var(--muted2);margin-bottom:8px;font-family:var(--mono)">블로그 톤</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap" id="bgToneBtns">
@@ -811,59 +796,50 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
     </div>
 
-    <!-- 포함 옵션 -->
-    <div style="margin-bottom:16px">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:8px;font-family:var(--mono)">포함 옵션</div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted2)">
-        <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="bgEmoji" checked> 이모지 사용
-        </label>
-        <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="bgRating" checked> 오뜨랑 평점 언급
-        </label>
-        <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="bgLink" checked> 오뜨랑 링크 삽입
-        </label>
-        <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="bgSpoiler"> 스포일러 주의 표시
-        </label>
-        <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="bgHashtag" checked> 해시태그 추가
-        </label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px;font-family:var(--mono)">포함 옵션</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted2)">
+          <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="bgEmoji" checked> 이모지
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="bgRating" checked> 평점
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="bgLink" checked> 링크
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="bgSpoiler"> 스포주의
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="bgHashtag" checked> 해시태그
+          </label>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+          추가 요청사항 <span style="color:var(--muted);font-size:10px">(선택)</span>
+        </div>
+        <input class="inp" type="text" id="bgExtra" style="margin-bottom:0"
+          placeholder="예: 로맨스 작품 위주로 강조해줘">
       </div>
     </div>
 
-    <!-- 추가 요청사항 -->
-    <div>
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
-        추가 요청사항 <span style="color:var(--muted);font-size:10px">(선택)</span>
-      </div>
-      <input class="inp" type="text" id="bgExtra" style="margin-bottom:0"
-        placeholder="예: 20대 여성 타겟으로, 로맨스 작품 위주로 강조해줘">
+    <button class="btn-save" id="bgGenBtn" onclick="generateBlogPost()"
+      style="width:100%;padding:11px;font-size:14px">
+      ✨ 블로그 글 생성
+    </button>
+    <div id="bgStatusBar" style="display:none;padding:10px 14px;border-radius:8px;
+      font-size:13px;margin-top:10px"></div>
+    <div id="bgRankPreview" style="display:none;margin-top:10px">
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:6px" id="bgRankMeta"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="bgRankChips"></div>
     </div>
   </div>
 
-  <!-- 생성 버튼 -->
-  <button class="btn-save" id="bgGenBtn" onclick="generateBlogPost()"
-    style="width:100%;padding:12px;font-size:15px;margin-bottom:16px">
-    ✨ 블로그 글 + 썸네일 동시 생성
-  </button>
-
-  <!-- 상태 표시 -->
-  <div id="bgStatusBar" style="display:none;padding:10px 14px;border-radius:8px;
-    font-size:13px;margin-bottom:12px"></div>
-
-  <!-- 랭킹 데이터 미리보기 -->
-  <div id="bgRankPreview" style="display:none;margin-bottom:16px">
-    <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:6px"
-      id="bgRankMeta"></div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px" id="bgRankChips"></div>
-  </div>
-
-  <!-- 결과 영역 (생성 후 표시) -->
-  <div id="bgResultArea" style="display:none">
-
-    <!-- 블로그 포스팅 -->
+  <!-- 블로그 글 결과 -->
+  <div id="bgResultArea" style="display:none;margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <span style="font-size:14px;font-weight:600">생성된 블로그 포스팅</span>
       <div style="display:flex;gap:8px">
@@ -873,74 +849,160 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
     </div>
     <textarea id="bgResultText"
-      style="width:100%;min-height:500px;background:var(--bg3);border:1px solid var(--border2);
+      style="width:100%;min-height:400px;background:var(--bg3);border:1px solid var(--border2);
         border-radius:8px;padding:16px;color:var(--text);font-family:var(--sans);
         font-size:14px;line-height:1.8;resize:vertical;outline:none"
       oninput="bgUpdateCharCount()"></textarea>
     <div style="text-align:right;font-size:12px;color:var(--muted);margin-top:6px;
-      font-family:var(--mono);margin-bottom:24px" id="bgCharCount">0자</div>
+      font-family:var(--mono)" id="bgCharCount">0자</div>
+  </div>
 
-    <!-- 썸네일 카드 -->
-    <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:16px;
-      display:flex;align-items:center;gap:8px">
-      <span style="font-size:14px;font-weight:600">🖼️ 대표 썸네일 카드</span>
-      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">1:1 비율 · PNG 다운로드</span>
-    </div>
-    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+  <!-- ━━━ ② 썸네일 생성 ━━━ -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:16px;
+      font-family:var(--mono);letter-spacing:.5px">② 썸네일 생성 <span style="font-size:10px;font-weight:400">· 1:1 · PNG</span></div>
 
-      <!-- 카드 미리보기 (html2canvas가 이 요소를 캡처) -->
-      <div id="bgThumbCard"
-        style="width:360px;height:360px;position:relative;border-radius:12px;
-          overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2);
-          background-size:cover;background-position:center;background-repeat:no-repeat">
-
-        <!-- 상단: 로고 + URL + 플랫폼 배지 -->
-        <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;
-          display:flex;align-items:center;justify-content:space-between;
-          background:linear-gradient(to bottom,rgba(0,0,0,0.5),transparent)">
-          <div style="display:flex;align-items:center;gap:8px">
-            <img src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
-              style="height:20px;object-fit:contain"
-              onerror="this.style.display='none'">
-            <span style="font-size:11px;color:rgba(255,255,255,0.55);
-              font-family:'DM Mono',monospace">ottrank.kr</span>
-          </div>
-          <div id="bgThumbPlatformBadge"
-            style="background:#e50914;color:#fff;font-size:10px;font-weight:700;
-              padding:3px 9px;border-radius:4px;letter-spacing:0.5px">NETFLIX</div>
-        </div>
-
-        <!-- 하단: 순위 + 제목 + 주차 -->
-        <div style="position:absolute;bottom:0;left:0;right:0;padding:16px">
-          <div style="font-size:11px;color:#f0b429;font-weight:700;
-            letter-spacing:1.5px;margin-bottom:5px">이번 주 1위</div>
-          <div id="bgThumbTitleEl"
-            style="font-size:26px;font-weight:900;color:#fff;line-height:1.2;
-              margin-bottom:8px;text-shadow:2px 2px 8px rgba(0,0,0,0.8);word-break:keep-all">
-            넷플릭스 드라마 순위 TOP 10
-          </div>
-          <div id="bgThumbWeek"
-            style="font-size:11px;color:rgba(255,255,255,0.45);
-              font-family:'DM Mono',monospace"></div>
-        </div>
+    <!-- 작품 검색 -->
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">작품 검색</div>
+      <div style="position:relative">
+        <input class="inp" type="text" id="bgThumbSearchInp" style="margin-bottom:0"
+          placeholder="작품명 입력..."
+          oninput="bgSearchWork(this.value)"
+          autocomplete="off">
+        <div id="bgThumbSearchResults"
+          style="display:none;position:absolute;top:44px;left:0;right:0;z-index:50;
+            background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+            max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
       </div>
-
-      <!-- 오른쪽: 안내 + 다운로드 -->
-      <div style="flex:1;min-width:200px;padding-top:8px">
-        <div style="font-size:12px;color:var(--muted2);line-height:1.8;margin-bottom:16px">
-          • 1위 작품 포스터가 배경으로 자동 적용됩니다<br>
-          • 제목은 위 설정에서 입력한 썸네일 제목이 사용됩니다<br>
-          • PNG 저장 후 네이버 블로그 대표 이미지로 업로드하세요
+      <!-- 선택된 작품 표시 -->
+      <div id="bgThumbSelectedWork" style="display:none;margin-top:8px;
+        display:none;align-items:center;gap:10px;padding:8px 12px;
+        background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:8px">
+        <img id="bgThumbWorkPoster" src="" alt=""
+          style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div id="bgThumbWorkTitle" style="font-size:13px;font-weight:500;color:var(--green)"></div>
+          <div id="bgThumbWorkMeta" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
         </div>
-        <button class="btn-save" id="bgThumbDownBtn" onclick="bgDownloadThumbnail()"
-          style="width:100%;padding:11px;font-size:14px">
-          ⬇️ PNG 다운로드
-        </button>
-        <div id="bgThumbStatus" style="margin-top:8px;font-size:12px;
-          color:var(--muted);font-family:var(--mono);text-align:center"></div>
+        <button class="btn-sm" onclick="bgClearThumbWork()"
+          style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0">✕</button>
+      </div>
+    </div>
+
+    <!-- 썸네일 제목 입력 -->
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+        썸네일 제목 <span style="color:var(--muted);font-size:10px">(이미지에 표시될 텍스트)</span>
+      </div>
+      <input class="inp" type="text" id="bgThumbTitle" style="margin-bottom:0"
+        placeholder="예: 넷플릭스 드라마 순위 TOP 10">
+    </div>
+
+    <button class="btn-save" id="bgThumbGenBtn" onclick="bgGenerateThumbnail()"
+      style="width:100%;padding:11px;font-size:14px;margin-bottom:12px">
+      🖼️ 썸네일 생성
+    </button>
+
+    <!-- 썸네일 결과 -->
+    <div id="bgThumbResult" style="display:none">
+      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+        <div id="bgThumbCard"
+          style="width:320px;height:320px;position:relative;border-radius:12px;
+            overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2);
+            background-size:cover;background-position:center;background-repeat:no-repeat">
+          <div style="position:absolute;top:0;left:0;right:0;padding:12px 14px;
+            display:flex;align-items:center;justify-content:space-between;
+            background:linear-gradient(to bottom,rgba(0,0,0,0.5),transparent)">
+            <div style="display:flex;align-items:center;gap:6px">
+              <img src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
+                style="height:18px;object-fit:contain" onerror="this.style.display='none'">
+              <span style="font-size:10px;color:rgba(255,255,255,0.55);
+                font-family:'DM Mono',monospace">ottrank.kr</span>
+            </div>
+            <div id="bgThumbPlatformBadge"
+              style="background:#e50914;color:#fff;font-size:10px;font-weight:700;
+                padding:2px 8px;border-radius:4px;letter-spacing:0.5px">OTT</div>
+          </div>
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:14px">
+            <div style="font-size:10px;color:#f0b429;font-weight:700;
+              letter-spacing:1.5px;margin-bottom:4px">이번 주 1위</div>
+            <div id="bgThumbTitleEl"
+              style="font-size:22px;font-weight:900;color:#fff;line-height:1.2;
+                margin-bottom:6px;text-shadow:2px 2px 8px rgba(0,0,0,0.8);word-break:keep-all"></div>
+            <div id="bgThumbWeek"
+              style="font-size:10px;color:rgba(255,255,255,0.45);
+                font-family:'DM Mono',monospace"></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:160px;padding-top:8px">
+          <button class="btn-save" id="bgThumbDownBtn" onclick="bgDownloadThumbnail()"
+            style="width:100%;padding:10px;font-size:13px">⬇️ PNG 다운로드</button>
+          <div id="bgThumbStatus" style="margin-top:8px;font-size:12px;
+            color:var(--muted);font-family:var(--mono);text-align:center"></div>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- ━━━ ③ TOP10 카드 생성 ━━━ -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:16px;
+      font-family:var(--mono);letter-spacing:.5px">③ TOP10 카드 생성 <span style="font-size:10px;font-weight:400">· 1:1 · JPG</span></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">OTT 플랫폼</div>
+        <select class="inp" id="bgTop10Platform" style="cursor:pointer;margin-bottom:0"
+          onchange="bgLoadTop10Categories()">
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="wavve">웨이브</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="boxoffice">박스오피스</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">카테고리</div>
+        <select class="inp" id="bgTop10Category" style="cursor:pointer;margin-bottom:0">
+          <option value="">탭 진입 시 자동 로드...</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 제목 입력 -->
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+        카드 제목 <span style="color:var(--muted);font-size:10px">(카드 하단에 표시될 텍스트, 비우면 카테고리명 사용)</span>
+      </div>
+      <input class="inp" type="text" id="bgTop10Title" style="margin-bottom:0"
+        placeholder="예: 넷플릭스 오늘의 TV 시리즈 TOP10">
+    </div>
+
+    <button class="btn-save" id="bgTop10GenBtn" onclick="bgGenerateTop10()"
+      style="width:100%;padding:11px;font-size:14px;margin-bottom:12px">
+      📊 TOP10 카드 생성
+    </button>
+
+    <!-- TOP10 결과 -->
+    <div id="bgTop10Result" style="display:none">
+      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+        <canvas id="bgTop10Canvas" width="600" height="600"
+          style="width:320px;height:320px;border-radius:12px;
+            border:1px solid var(--border2);flex-shrink:0;background:#111"></canvas>
+        <div style="flex:1;min-width:160px;padding-top:8px">
+          <button class="btn-save" id="bgTop10DownBtn" onclick="bgDownloadTop10()"
+            style="width:100%;padding:10px;font-size:13px">⬇️ JPG 다운로드</button>
+          <div id="bgTop10Status" style="margin-top:8px;font-size:12px;
+            color:var(--muted);font-family:var(--mono);text-align:center"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- 드래그앤드롭 CSS -->
@@ -1410,6 +1472,7 @@ function switchPage(page, btn) {
   if (page === 'categories') loadCategories();
   if (page === 'works')      loadWorks();
   if (page === 'contents')   loadContentsAdmin();
+  if (page === 'bloggen')    bgLoadTop10Categories();
 }
 
 // ════════════════════════════════════════════════════
@@ -5025,12 +5088,13 @@ async function submitContentAdd(){
 }
 
 // ════════════════════════════════════════════════════
-// 블로그 포스팅 자동 생성
+// 블로그 생성 공통
 // ════════════════════════════════════════════════════
 
-let bgSelectedTone = 'friendly'; // 선택된 톤
+let bgSelectedTone = 'friendly';
+let bgThumbWorkData = null;  // 썸네일용 선택된 작품
+let bgSearchTimer   = null;
 
-/* 톤 버튼 선택 */
 function bgSelectTone(btn) {
   document.querySelectorAll('#bgToneBtns .btn-sm').forEach(b => {
     b.style.background  = 'transparent';
@@ -5043,7 +5107,6 @@ function bgSelectTone(btn) {
   bgSelectedTone = btn.dataset.tone;
 }
 
-/* 상태 메시지 표시 */
 function bgSetStatus(type, msg) {
   const el = document.getElementById('bgStatusBar');
   const styles = {
@@ -5051,40 +5114,47 @@ function bgSetStatus(type, msg) {
     success: 'background:rgba(52,211,153,.1);color:var(--green);border:1px solid rgba(52,211,153,.3)',
     error:   'background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.3)',
   };
-  const icons = { loading: '⏳', success: '✅', error: '❌' };
-  el.style.cssText = `display:block;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;${styles[type]}`;
+  const icons = { loading:'⏳', success:'✅', error:'❌' };
+  el.style.cssText = `display:block;padding:10px 14px;border-radius:8px;font-size:13px;${styles[type]}`;
   el.textContent   = `${icons[type]} ${msg}`;
 }
 
-/* 글자 수 업데이트 */
 function bgUpdateCharCount() {
   const len = document.getElementById('bgResultText').value.length;
   document.getElementById('bgCharCount').textContent = `${len.toLocaleString()}자`;
 }
 
-/* 블로그 포스팅 생성 */
+function bgGetWeekLabel() {
+  const now = new Date();
+  return `${now.getFullYear()}년 ${now.getMonth()+1}월 ${Math.ceil(now.getDate()/7)}주차`;
+}
+
+const BG_PLATFORM_COLORS = {
+  netflix:'#e50914', tving:'#ff153c', wavve:'#0070f3',
+  disney:'#06b6d4', coupang:'#1ac44d', boxoffice:'#f0b429',
+};
+const BG_PLATFORM_LABELS = {
+  netflix:'NETFLIX', tving:'TVING', wavve:'WAVVE',
+  disney:'DISNEY+', coupang:'COUPANG', boxoffice:'BOX OFFICE',
+};
+
+// ════════════════════════════════════════════════════
+// ① 블로그 글 생성
+// ════════════════════════════════════════════════════
+
 async function generateBlogPost() {
   const btn = document.getElementById('bgGenBtn');
   btn.disabled    = true;
   btn.textContent = '생성 중...';
-  document.getElementById('bgResultArea').style.display   = 'none';
-  document.getElementById('bgRankPreview').style.display  = 'none';
+  document.getElementById('bgResultArea').style.display = 'none';
 
-  const platformNames = {
-    netflix:'넷플릭스', tving:'티빙', wavve:'웨이브',
-    disney:'디즈니+', coupang:'쿠팡플레이', boxoffice:'박스오피스'
-  };
   const platform = document.getElementById('bgPlatform').value;
-
-  bgSetStatus('loading', `${platformNames[platform]} 랭킹 데이터 조회 중...`);
+  bgSetStatus('loading', `${BG_PLATFORM_LABELS[platform] || platform} 랭킹 데이터 조회 중...`);
 
   try {
     const res = await fetch(`${API}/blog-gen`, {
       method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
       body: JSON.stringify({
         platform,
         contentType:  document.getElementById('bgContentType').value,
@@ -5097,43 +5167,37 @@ async function generateBlogPost() {
         extraRequest: document.getElementById('bgExtra').value.trim(),
       }),
     });
-
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || '알 수 없는 오류');
 
-    // 랭킹 미리보기 표시
+    // 랭킹 미리보기
     if (data.rankingData?.length > 0) {
       const topItems = data.rankingData[0]?.items?.slice(0, 6) || [];
       document.getElementById('bgRankMeta').textContent =
-        `기반 데이터: ${data.meta.platformName} ${data.meta.weekInfo} (${data.rankingData[0]?.display_name})`;
+        `기반 데이터: ${data.meta.platformName} ${data.meta.weekInfo}`;
       document.getElementById('bgRankChips').innerHTML = topItems.map((item, i) =>
         `<span style="padding:3px 10px;background:var(--bg3);border-radius:999px;
           font-size:11px;color:var(--muted2);font-family:var(--mono);border:1px solid var(--border)">
-          <span style="color:var(--gold)">${i + 1}위</span> ${item.title_ko || item.title_en}
+          <span style="color:var(--gold)">${i+1}위</span> ${item.title_ko||item.title_en}
         </span>`
       ).join('');
       document.getElementById('bgRankPreview').style.display = 'block';
     }
 
-    // 결과 표시
     document.getElementById('bgResultText').value = data.post;
-    document.getElementById('bgResultArea').style.display = 'block';
+    document.getElementById('bgResultArea').style.display  = 'block';
     bgUpdateCharCount();
-    bgSetStatus('success', '생성 완료! 내용 수정 후 복사해서 네이버 블로그에 붙여넣으세요.');
-    document.getElementById('bgResultArea').scrollIntoView({ behavior: 'smooth' });
-
-    // 썸네일 카드 섹션 초기화 (포스터 로딩 + 카드 렌더링)
-    bgInitThumbnail(data.rankingData, platform);
+    bgSetStatus('success', '블로그 글 생성 완료! 수정 후 복사하세요.');
+    document.getElementById('bgResultArea').scrollIntoView({ behavior:'smooth' });
 
   } catch(e) {
     bgSetStatus('error', e.message);
   } finally {
     btn.disabled    = false;
-    btn.textContent = '✨ AI 블로그 포스팅 생성';
+    btn.textContent = '✨ 블로그 글 생성';
   }
 }
 
-/* 클립보드 복사 */
 async function copyBlogPost() {
   const text = document.getElementById('bgResultText').value;
   if (!text) { showToast('생성된 포스팅이 없습니다.', 'err'); return; }
@@ -5148,35 +5212,100 @@ async function copyBlogPost() {
 }
 
 // ════════════════════════════════════════════════════
-// 썸네일 카드 생성
+// ② 썸네일 생성
 // ════════════════════════════════════════════════════
 
-let bgThumbPosterDataUrl = ''; // 1위 작품 포스터 base64
+/* 작품 검색 — DB 우선 */
+function bgSearchWork(q) {
+  clearTimeout(bgSearchTimer);
+  const resultsEl = document.getElementById('bgThumbSearchResults');
+  if (!q || q.length < 1) { resultsEl.style.display = 'none'; return; }
+  resultsEl.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:var(--muted)">검색 중...</div>';
+  resultsEl.style.display = 'block';
 
-/* 주차 정보 계산 (예: 2026년 6월 4주차) */
-function bgGetWeekLabel() {
-  const now         = new Date();
-  const year        = now.getFullYear();
-  const month       = now.getMonth() + 1;
-  const weekOfMonth = Math.ceil(now.getDate() / 7);
-  return `${year}년 ${month}월 ${weekOfMonth}주차`;
+  bgSearchTimer = setTimeout(async () => {
+    try {
+      const [dbRes, tvRes, mvRes] = await Promise.allSettled([
+        fetch(`${API}/admin/works?q=${encodeURIComponent(q)}&page=1`, {
+          headers: { Authorization:`Bearer ${token}` }
+        }),
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+      ]);
+
+      let dbWorks = [];
+      if (dbRes.status === 'fulfilled' && dbRes.value.ok) {
+        const j = await dbRes.value.json();
+        dbWorks = (j.data || []).slice(0, 5);
+      }
+      const dbIds = new Set(dbWorks.map(w => w.tmdb_id));
+
+      let tmdbItems = [];
+      for (const r of [tvRes, mvRes]) {
+        if (r.status === 'fulfilled' && r.value.ok) {
+          const j = await r.value.json();
+          (j.results || []).filter(i => !dbIds.has(i.id)).slice(0, 3).forEach(i => {
+            tmdbItems.push({
+              tmdb_id: i.id, title_ko: i.name||i.title||'',
+              poster_path: i.poster_path||'', _fromTmdb: true
+            });
+          });
+        }
+      }
+
+      const all = [...dbWorks, ...tmdbItems.slice(0, 5)];
+      if (!all.length) {
+        resultsEl.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:var(--muted)">검색 결과 없음</div>';
+        return;
+      }
+
+      resultsEl.innerHTML = all.map(w => {
+        const poster = w.poster_path ? `${IMG2}${w.poster_path}` : '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;
+          border-bottom:1px solid var(--border);transition:background .12s"
+          onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
+          onclick="bgSelectThumbWork(${w.tmdb_id},'${(w.title_ko||'').replace(/'/g,"\\'")}','${w.poster_path||''}')">
+          ${poster
+            ? `<img src="${poster}" style="width:24px;height:36px;object-fit:cover;border-radius:2px;flex-shrink:0">`
+            : `<div style="width:24px;height:36px;background:var(--bg3);border-radius:2px;flex-shrink:0"></div>`
+          }
+          <span style="font-size:13px">${w.title_ko||''}</span>
+          ${w._fromTmdb ? '<span style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-left:auto">TMDB</span>' : ''}
+        </div>`;
+      }).join('');
+    } catch(e) {
+      resultsEl.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:var(--red)">검색 실패</div>`;
+    }
+  }, 300);
 }
 
-const BG_PLATFORM_COLORS = {
-  netflix:'#e50914', tving:'#ff153c', wavve:'#0070f3',
-  disney:'#06b6d4', coupang:'#1ac44d', boxoffice:'#f0b429',
-};
-const BG_PLATFORM_LABELS = {
-  netflix:'NETFLIX', tving:'TVING', wavve:'WAVVE',
-  disney:'DISNEY+', coupang:'COUPANG PLAY', boxoffice:'BOX OFFICE',
-};
+/* 작품 선택 */
+function bgSelectThumbWork(tmdbId, titleKo, posterPath) {
+  bgThumbWorkData = { tmdb_id: tmdbId, title_ko: titleKo, poster_path: posterPath };
+  document.getElementById('bgThumbSearchResults').style.display = 'none';
+  document.getElementById('bgThumbSearchInp').value = titleKo;
 
-/* 포스터 이미지 → base64 변환 (review.html과 동일한 방식) */
+  const sel = document.getElementById('bgThumbSelectedWork');
+  sel.style.display = 'flex';
+  document.getElementById('bgThumbWorkPoster').src =
+    posterPath ? `${IMG2}${posterPath}` : '';
+  document.getElementById('bgThumbWorkPoster').style.display = posterPath ? 'block' : 'none';
+  document.getElementById('bgThumbWorkTitle').textContent = titleKo;
+  document.getElementById('bgThumbWorkMeta').textContent  = `TMDB ID: ${tmdbId}`;
+}
+
+/* 작품 선택 해제 */
+function bgClearThumbWork() {
+  bgThumbWorkData = null;
+  document.getElementById('bgThumbSearchInp').value = '';
+  document.getElementById('bgThumbSelectedWork').style.display = 'none';
+}
+
+/* 포스터 base64 변환 (review.html 방식) */
 async function bgFetchPosterAsBase64(posterPath) {
   if (!posterPath) return '';
   try {
-    const imgUrl = `https://image.tmdb.org/t/p/w780${posterPath}`;
-    const imgRes  = await fetch(imgUrl);
+    const imgRes  = await fetch(`https://image.tmdb.org/t/p/w780${posterPath}`);
     const imgBlob = await imgRes.blob();
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -5184,101 +5313,75 @@ async function bgFetchPosterAsBase64(posterPath) {
       reader.onerror = reject;
       reader.readAsDataURL(imgBlob);
     });
+  } catch(e) { return ''; }
+}
+
+/* 썸네일 생성 */
+async function bgGenerateThumbnail() {
+  if (!bgThumbWorkData) { showToast('작품을 먼저 검색해서 선택하세요.', 'err'); return; }
+  const title = document.getElementById('bgThumbTitle').value.trim();
+  if (!title) { showToast('썸네일 제목을 입력하세요.', 'err'); return; }
+
+  const btn = document.getElementById('bgThumbGenBtn');
+  btn.disabled    = true;
+  btn.textContent = '생성 중...';
+
+  try {
+    // 포스터 base64 로딩
+    const posterDataUrl = await bgFetchPosterAsBase64(bgThumbWorkData.poster_path);
+
+    // 카드 배경 적용 (review.html 방식)
+    const cardEl = document.getElementById('bgThumbCard');
+    if (posterDataUrl) {
+      cardEl.style.backgroundImage = `
+        linear-gradient(to bottom,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.05) 35%,
+          rgba(0,0,0,0.55) 65%,rgba(0,0,0,0.9) 100%),
+        url(${posterDataUrl})`;
+    } else {
+      cardEl.style.backgroundImage = 'none';
+      cardEl.style.background      = '#1a1a24';
+    }
+
+    // 제목 + 주차 반영
+    document.getElementById('bgThumbTitleEl').textContent = title;
+    document.getElementById('bgThumbWeek').textContent    = bgGetWeekLabel();
+
+    // 플랫폼 배지 — 작품 플랫폼 정보 없으므로 기본 OTT
+    document.getElementById('bgThumbPlatformBadge').textContent      = 'OTT RANK';
+    document.getElementById('bgThumbPlatformBadge').style.background = '#e50914';
+
+    document.getElementById('bgThumbResult').style.display = 'block';
+    document.getElementById('bgThumbResult').scrollIntoView({ behavior:'smooth' });
+
   } catch(e) {
-    return '';
+    showToast(`오류: ${e.message}`, 'err');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🖼️ 썸네일 생성';
   }
 }
 
-/* 카드 미리보기 업데이트 */
-async function bgUpdateCardPreview() {
-  const title = document.getElementById('bgThumbTitle').value.trim()
-    || '넷플릭스 드라마 순위 TOP 10';
-  document.getElementById('bgThumbTitleEl').textContent = title;
-  document.getElementById('bgThumbWeek').textContent = bgGetWeekLabel();
-}
-
-/* 포스팅 생성 완료 후 썸네일 섹션 초기화 */
-async function bgInitThumbnail(rankingData, platform) {
-  const firstItem  = rankingData?.[0]?.items?.[0];
-  const posterPath = firstItem?.poster_path || '';
-
-  document.getElementById('bgThumbStatus').textContent = '포스터 불러오는 중...';
-
-  // base64 변환 (review.html 방식)
-  bgThumbPosterDataUrl = await bgFetchPosterAsBase64(posterPath);
-
-  // 배경 적용 — review.html과 동일하게 카드 자체에 그라디언트+포스터 한 번에 적용
-  const cardEl = document.getElementById('bgThumbCard');
-  if (bgThumbPosterDataUrl) {
-    // 그라디언트 + 포스터 background-image 직접 합성 (html2canvas 호환)
-    cardEl.style.backgroundImage = `
-      linear-gradient(
-        to bottom,
-        rgba(0,0,0,0.2) 0%,
-        rgba(0,0,0,0.05) 35%,
-        rgba(0,0,0,0.55) 65%,
-        rgba(0,0,0,0.9) 100%
-      ),
-      url(${bgThumbPosterDataUrl})
-    `;
-  } else {
-    cardEl.style.backgroundImage = 'none';
-    cardEl.style.background      = '#1a1a24';
-  }
-
-  // 플랫폼 배지
-  const badge = document.getElementById('bgThumbPlatformBadge');
-  badge.style.background = BG_PLATFORM_COLORS[platform] || '#e50914';
-  badge.textContent      = BG_PLATFORM_LABELS[platform] || 'OTT';
-
-  // 기본 제목 자동 입력 (비어있을 때만)
-  if (!document.getElementById('bgThumbTitle').value) {
-    const platformNames = {
-      netflix:'넷플릭스', tving:'티빙', wavve:'웨이브',
-      disney:'디즈니+', coupang:'쿠팡플레이', boxoffice:'박스오피스'
-    };
-    document.getElementById('bgThumbTitle').value =
-      `${platformNames[platform] || ''} 드라마 순위 TOP 10`;
-  }
-
-  // 주차 + 제목 반영
-  await bgUpdateCardPreview();
-
-  document.getElementById('bgThumbStatus').textContent = '';
-  // bgResultArea 안에 썸네일이 포함되어 있으므로 별도 show 불필요
-}
-
-/* PNG 다운로드 (review.html과 동일한 html2canvas 방식) */
+/* 썸네일 PNG 다운로드 */
 async function bgDownloadThumbnail() {
   const btn      = document.getElementById('bgThumbDownBtn');
   const statusEl = document.getElementById('bgThumbStatus');
   btn.disabled    = true;
-  btn.textContent = '이미지 생성 중...';
+  btn.textContent = '생성 중...';
   statusEl.textContent = '';
 
   try {
-    await bgUpdateCardPreview();
-    await new Promise(r => setTimeout(r, 80)); // DOM 렌더 대기
-
+    await new Promise(r => setTimeout(r, 80));
     const card   = document.getElementById('bgThumbCard');
     const canvas = await html2canvas(card, {
-      scale:           2,     // 고해상도 (2배)
-      useCORS:         true,
-      backgroundColor: '#0c0c10',
-      logging:         false,
+      scale:2, useCORS:true, backgroundColor:'#0c0c10', logging:false,
     });
-
     const blob     = await new Promise(res => canvas.toBlob(res, 'image/png'));
-    const platform = document.getElementById('bgPlatform').value;
-    const fileName = `ottrank_${platform}_${bgGetWeekLabel().replace(/\s/g,'')}.png`;
-
+    const title    = (bgThumbWorkData?.title_ko || 'thumb').replace(/[^\w가-힣]/g,'');
+    const fileName = `ottrank_thumb_${title}_${bgGetWeekLabel().replace(/\s/g,'')}.png`;
     const url = URL.createObjectURL(blob);
     const a   = document.createElement('a');
-    a.href     = url;
-    a.download = fileName;
-    a.click();
+    a.href = url; a.download = fileName; a.click();
     URL.revokeObjectURL(url);
-
     statusEl.style.color = 'var(--green)';
     statusEl.textContent = '✅ 다운로드 완료!';
   } catch(e) {
@@ -5287,6 +5390,204 @@ async function bgDownloadThumbnail() {
   } finally {
     btn.disabled    = false;
     btn.textContent = '⬇️ PNG 다운로드';
+  }
+}
+
+// ════════════════════════════════════════════════════
+// ③ TOP10 카드 생성
+// ════════════════════════════════════════════════════
+
+/* TOP10 플랫폼 변경 시 카테고리 로드 */
+async function bgLoadTop10Categories() {
+  const platform = document.getElementById('bgTop10Platform').value;
+  const sel      = document.getElementById('bgTop10Category');
+  sel.innerHTML  = '<option value="">불러오는 중...</option>';
+  try {
+    const res  = await fetch(`${API}/admin/categories?platform=${platform}`, {
+      headers: { Authorization:`Bearer ${token}` }
+    });
+    const data = await res.json();
+    const cats = (data.data || []).filter(c => c.is_active);
+    sel.innerHTML = cats.map(c =>
+      `<option value="${c.category_slot}">${c.display_name||c.source_name}</option>`
+    ).join('');
+    if (!cats.length) sel.innerHTML = '<option value="">카테고리 없음</option>';
+  } catch(e) {
+    sel.innerHTML = '<option value="">불러오기 실패</option>';
+  }
+}
+
+/* 이미지 URL → Image 객체 */
+function bgLoadImage(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/* 둥근 모서리 이미지/사각형 그리기 */
+function bgDrawRoundedImage(ctx, img, x, y, w, h, r) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath(); ctx.clip();
+  if (img) { ctx.drawImage(img,x,y,w,h); }
+  else { ctx.fillStyle='#2a2a3a'; ctx.fillRect(x,y,w,h); }
+  ctx.restore();
+}
+
+/* TOP10 카드 Canvas 렌더링 */
+async function bgRenderTop10Canvas(items, displayName, platform) {
+  const canvas = document.getElementById('bgTop10Canvas');
+  const ctx    = canvas.getContext('2d');
+  const W=600, H=600;
+  canvas.width=W; canvas.height=H;
+
+  // 플랫폼 배경 그라디언트
+  const colors = {
+    netflix:['#8B0000','#1a0000'], tving:['#880022','#1a000a'],
+    wavve:['#003d8f','#000a1a'],   disney:['#062070','#010a30'],
+    coupang:['#0a6b30','#001a0a'], boxoffice:['#7a5a00','#1a1400'],
+  }[platform] || ['#1a1a2e','#0a0a14'];
+
+  const grad = ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,colors[0]); grad.addColorStop(1,colors[1]);
+  ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+
+  // 포스터 병렬 로드
+  const posters = await Promise.all(
+    items.slice(0,10).map(item =>
+      item.poster_path
+        ? bgLoadImage(`https://image.tmdb.org/t/p/w342${item.poster_path}`)
+        : Promise.resolve(null)
+    )
+  );
+
+  const PAD=20, GAP=8, BOTTOM_H=68;
+  const CONTENT_H = H - PAD - BOTTOM_H;
+  const P1_W = Math.floor((W-PAD*2-GAP)*0.48);
+  const P1_H = CONTENT_H - PAD;
+  const GRID_X = PAD+P1_W+GAP;
+  const GRID_W = W-PAD-GRID_X;
+  const CELL_W = Math.floor((GRID_W-GAP*2)/3);
+  const CELL_H = Math.floor((P1_H-GAP*2)/3);
+
+  // 1위 포스터
+  bgDrawRoundedImage(ctx,posters[0],PAD,PAD,P1_W,P1_H,8);
+  ctx.font='bold 48px Arial'; ctx.fillStyle='white';
+  ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=8;
+  ctx.fillText('01',PAD+8,PAD+50); ctx.shadowBlur=0;
+
+  // 2~10위 그리드
+  for(let i=0;i<9;i++){
+    const col=i%3, row=Math.floor(i/3);
+    const x=GRID_X+col*(CELL_W+GAP), y=PAD+row*(CELL_H+GAP);
+    bgDrawRoundedImage(ctx,posters[i+1],x,y,CELL_W,CELL_H,5);
+    ctx.font=`bold ${Math.floor(CELL_H*0.27)}px Arial`;
+    ctx.fillStyle='white'; ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=5;
+    ctx.fillText(String(i+2).padStart(2,'0'),x+4,y+Math.floor(CELL_H*0.3));
+    ctx.shadowBlur=0;
+  }
+
+  // 하단 구분선
+  const BY = H-BOTTOM_H+12;
+  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=0.5;
+  ctx.beginPath(); ctx.moveTo(PAD,H-BOTTOM_H); ctx.lineTo(W-PAD,H-BOTTOM_H); ctx.stroke();
+
+  // 카테고리명 + 주차
+  ctx.font='bold 15px "Noto Sans KR",Arial'; ctx.fillStyle='white';
+  ctx.fillText(displayName,PAD,BY+16);
+  ctx.font='11px "DM Mono",monospace'; ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.fillText(bgGetWeekLabel(),PAD,BY+34);
+
+  // ottrank.kr
+  ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.fillText('ottrank.kr',W-PAD,BY+34); ctx.textAlign='left';
+
+  // 로고
+  const logoImg = await bgLoadImage('https://ottrank.kr/img/logo.png');
+  if(logoImg){
+    const LH=20, LW=Math.floor(logoImg.width*(LH/logoImg.height));
+    ctx.drawImage(logoImg,W-PAD-LW,BY+2,LW,LH);
+  }
+}
+
+/* TOP10 카드 생성 버튼 */
+async function bgGenerateTop10() {
+  const platform    = document.getElementById('bgTop10Platform').value;
+  const categorySlot= document.getElementById('bgTop10Category').value;
+  if (!categorySlot) { showToast('카테고리를 선택하세요.', 'err'); return; }
+
+  const btn      = document.getElementById('bgTop10GenBtn');
+  const statusEl = document.getElementById('bgTop10Status');
+  btn.disabled    = true;
+  btn.textContent = '포스터 불러오는 중...';
+  statusEl.textContent = '';
+
+  try {
+    // preview API로 해당 카테고리 랭킹 데이터 조회
+    const res  = await fetch(
+      `${API}/blog-gen/preview?platform=${platform}&category=${categorySlot}`,
+      { headers: { Authorization:`Bearer ${token}` } }
+    );
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '데이터 조회 실패');
+
+    const group = (data.data || []).find(g => g.category_slot === categorySlot)
+               || data.data?.[0];
+    if (!group || !group.items?.length) throw new Error('랭킹 데이터가 없습니다.');
+
+    // 제목: 입력값 우선, 없으면 카테고리명 사용
+    const customTitle = document.getElementById('bgTop10Title').value.trim();
+    const displayName = customTitle || group.display_name;
+
+    await bgRenderTop10Canvas(group.items, displayName, platform);
+
+    document.getElementById('bgTop10Result').style.display = 'block';
+    document.getElementById('bgTop10Result').scrollIntoView({ behavior:'smooth' });
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = '✅ 생성 완료!';
+
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = `❌ ${e.message}`;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '📊 TOP10 카드 생성';
+  }
+}
+
+/* TOP10 카드 JPG 다운로드 */
+async function bgDownloadTop10() {
+  const btn      = document.getElementById('bgTop10DownBtn');
+  const statusEl = document.getElementById('bgTop10Status');
+  btn.disabled    = true;
+  btn.textContent = '저장 중...';
+
+  try {
+    const canvas   = document.getElementById('bgTop10Canvas');
+    const platform = document.getElementById('bgTop10Platform').value;
+    const blob     = await new Promise(res => canvas.toBlob(res,'image/jpeg',0.92));
+    const fileName = `ottrank_top10_${platform}_${bgGetWeekLabel().replace(/\s/g,'')}.jpg`;
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href=url; a.download=fileName; a.click();
+    URL.revokeObjectURL(url);
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = '✅ 다운로드 완료!';
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = `❌ ${e.message}`;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '⬇️ JPG 다운로드';
   }
 }
 
