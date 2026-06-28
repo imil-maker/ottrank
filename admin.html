@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>오뜨랑 관리자</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root {
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
@@ -868,6 +869,97 @@ tr:hover td{background:rgba(255,255,255,.02)}
       oninput="bgUpdateCharCount()"></textarea>
     <div style="text-align:right;font-size:12px;color:var(--muted);margin-top:6px;
       font-family:var(--mono)" id="bgCharCount">0자</div>
+  </div>
+
+  <!-- ── 썸네일 카드 생성 섹션 ── -->
+  <div id="bgThumbSection" style="display:none;margin-top:24px">
+    <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:16px;
+      display:flex;align-items:center;gap:8px">
+      <span style="font-size:14px;font-weight:600">🖼️ 대표 썸네일 카드 생성</span>
+      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">1:1 비율 · PNG 다운로드</span>
+    </div>
+
+    <!-- 제목 입력 -->
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+        썸네일 제목 <span style="color:var(--muted);font-size:10px">(블로그 대표 이미지에 표시될 텍스트)</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <input class="inp" type="text" id="bgThumbTitle" style="margin-bottom:0;flex:1"
+          placeholder="예: 넷플릭스 드라마 순위 TOP 10"
+          oninput="bgUpdateCardPreview()">
+        <button class="btn-sm" onclick="bgUpdateCardPreview()"
+          style="background:var(--info-bg);color:var(--info);border:1px solid var(--info-border);
+          white-space:nowrap;padding:0 14px">미리보기 갱신</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+
+      <!-- 카드 미리보기 DOM (html2canvas가 이 요소를 캡처) -->
+      <div id="bgThumbCard"
+        style="width:360px;height:360px;position:relative;border-radius:12px;
+          overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2)">
+
+        <!-- 배경 포스터 (base64로 교체됨) -->
+        <div id="bgThumbBg"
+          style="position:absolute;inset:0;background-size:cover;background-position:center;
+            filter:brightness(0.5)"></div>
+
+        <!-- 그라디언트 오버레이 -->
+        <div style="position:absolute;inset:0;background:linear-gradient(
+          to bottom,
+          rgba(0,0,0,0.2) 0%,
+          rgba(0,0,0,0.05) 35%,
+          rgba(0,0,0,0.55) 65%,
+          rgba(0,0,0,0.9) 100%)"></div>
+
+        <!-- 상단: 로고 + URL + 플랫폼 배지 -->
+        <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;
+          display:flex;align-items:center;justify-content:space-between;
+          background:linear-gradient(to bottom,rgba(0,0,0,0.5),transparent)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <img id="bgThumbLogo" src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
+              style="height:20px;object-fit:contain"
+              onerror="this.style.display='none'">
+            <span style="font-size:11px;color:rgba(255,255,255,0.55);
+              font-family:'DM Mono',monospace">ottrank.kr</span>
+          </div>
+          <div id="bgThumbPlatformBadge"
+            style="background:#e50914;color:#fff;font-size:10px;font-weight:700;
+              padding:3px 9px;border-radius:4px;letter-spacing:0.5px">NETFLIX</div>
+        </div>
+
+        <!-- 하단: 순위 + 제목 + 주차 -->
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:16px">
+          <div style="font-size:11px;color:#f0b429;font-weight:700;
+            letter-spacing:1.5px;margin-bottom:5px" id="bgThumbRankLabel">이번 주 1위</div>
+          <div id="bgThumbTitleEl"
+            style="font-size:26px;font-weight:900;color:#fff;line-height:1.2;
+              margin-bottom:8px;text-shadow:2px 2px 8px rgba(0,0,0,0.8);word-break:keep-all">
+            넷플릭스 드라마 순위 TOP 10
+          </div>
+          <div id="bgThumbWeek"
+            style="font-size:11px;color:rgba(255,255,255,0.45);
+              font-family:'DM Mono',monospace"></div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 안내 + 다운로드 버튼 -->
+      <div style="flex:1;min-width:200px;padding-top:8px">
+        <div style="font-size:12px;color:var(--muted2);line-height:1.8;margin-bottom:16px">
+          • 1위 작품 포스터가 배경으로 자동 적용됩니다<br>
+          • 제목을 입력하고 미리보기를 확인하세요<br>
+          • PNG 파일로 저장 후 네이버 블로그에 업로드하세요
+        </div>
+        <button class="btn-save" id="bgThumbDownBtn" onclick="bgDownloadThumbnail()"
+          style="width:100%;padding:11px;font-size:14px">
+          ⬇️ PNG 다운로드
+        </button>
+        <div id="bgThumbStatus" style="margin-top:8px;font-size:12px;
+          color:var(--muted);font-family:var(--mono);text-align:center"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -5050,6 +5142,9 @@ async function generateBlogPost() {
     bgSetStatus('success', '생성 완료! 내용 수정 후 복사해서 네이버 블로그에 붙여넣으세요.');
     document.getElementById('bgResultArea').scrollIntoView({ behavior: 'smooth' });
 
+    // 썸네일 카드 섹션 초기화 (포스터 로딩 + 카드 렌더링)
+    bgInitThumbnail(data.rankingData, platform);
+
   } catch(e) {
     bgSetStatus('error', e.message);
   } finally {
@@ -5069,6 +5164,140 @@ async function copyBlogPost() {
     document.getElementById('bgResultText').select();
     document.execCommand('copy');
     showToast('✅ 복사 완료!', 'ok');
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 썸네일 카드 생성
+// ════════════════════════════════════════════════════
+
+let bgThumbPosterDataUrl = ''; // 1위 작품 포스터 base64
+
+/* 주차 정보 계산 (예: 2026년 6월 4주차) */
+function bgGetWeekLabel() {
+  const now         = new Date();
+  const year        = now.getFullYear();
+  const month       = now.getMonth() + 1;
+  const weekOfMonth = Math.ceil(now.getDate() / 7);
+  return `${year}년 ${month}월 ${weekOfMonth}주차`;
+}
+
+const BG_PLATFORM_COLORS = {
+  netflix:'#e50914', tving:'#ff153c', wavve:'#0070f3',
+  disney:'#06b6d4', coupang:'#1ac44d', boxoffice:'#f0b429',
+};
+const BG_PLATFORM_LABELS = {
+  netflix:'NETFLIX', tving:'TVING', wavve:'WAVVE',
+  disney:'DISNEY+', coupang:'COUPANG PLAY', boxoffice:'BOX OFFICE',
+};
+
+/* 포스터 이미지 → base64 변환 (review.html과 동일한 방식) */
+async function bgFetchPosterAsBase64(posterPath) {
+  if (!posterPath) return '';
+  try {
+    const imgUrl = `https://image.tmdb.org/t/p/w780${posterPath}`;
+    const imgRes  = await fetch(imgUrl);
+    const imgBlob = await imgRes.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(imgBlob);
+    });
+  } catch(e) {
+    return '';
+  }
+}
+
+/* 카드 미리보기 업데이트 */
+async function bgUpdateCardPreview() {
+  const title = document.getElementById('bgThumbTitle').value.trim()
+    || '넷플릭스 드라마 순위 TOP 10';
+  document.getElementById('bgThumbTitleEl').textContent = title;
+  document.getElementById('bgThumbWeek').textContent = bgGetWeekLabel();
+}
+
+/* 포스팅 생성 완료 후 썸네일 섹션 초기화 */
+async function bgInitThumbnail(rankingData, platform) {
+  const firstItem  = rankingData?.[0]?.items?.[0];
+  const posterPath = firstItem?.poster_path || '';
+
+  document.getElementById('bgThumbStatus').textContent = '포스터 불러오는 중...';
+
+  // base64 변환 (review.html 방식)
+  bgThumbPosterDataUrl = await bgFetchPosterAsBase64(posterPath);
+
+  // 배경 적용
+  const bgEl = document.getElementById('bgThumbBg');
+  if (bgThumbPosterDataUrl) {
+    bgEl.style.backgroundImage = `url(${bgThumbPosterDataUrl})`;
+  } else {
+    bgEl.style.backgroundImage = 'none';
+    bgEl.style.background      = '#1a1a24';
+  }
+
+  // 플랫폼 배지
+  const badge = document.getElementById('bgThumbPlatformBadge');
+  badge.style.background = BG_PLATFORM_COLORS[platform] || '#e50914';
+  badge.textContent      = BG_PLATFORM_LABELS[platform] || 'OTT';
+
+  // 기본 제목 자동 입력 (비어있을 때만)
+  if (!document.getElementById('bgThumbTitle').value) {
+    const platformNames = {
+      netflix:'넷플릭스', tving:'티빙', wavve:'웨이브',
+      disney:'디즈니+', coupang:'쿠팡플레이', boxoffice:'박스오피스'
+    };
+    document.getElementById('bgThumbTitle').value =
+      `${platformNames[platform] || ''} 드라마 순위 TOP 10`;
+  }
+
+  // 주차 + 제목 반영
+  await bgUpdateCardPreview();
+
+  document.getElementById('bgThumbStatus').textContent = '';
+  document.getElementById('bgThumbSection').style.display = 'block';
+  document.getElementById('bgThumbSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+/* PNG 다운로드 (review.html과 동일한 html2canvas 방식) */
+async function bgDownloadThumbnail() {
+  const btn      = document.getElementById('bgThumbDownBtn');
+  const statusEl = document.getElementById('bgThumbStatus');
+  btn.disabled    = true;
+  btn.textContent = '이미지 생성 중...';
+  statusEl.textContent = '';
+
+  try {
+    await bgUpdateCardPreview();
+    await new Promise(r => setTimeout(r, 80)); // DOM 렌더 대기
+
+    const card   = document.getElementById('bgThumbCard');
+    const canvas = await html2canvas(card, {
+      scale:           2,     // 고해상도 (2배)
+      useCORS:         true,
+      backgroundColor: '#0c0c10',
+      logging:         false,
+    });
+
+    const blob     = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    const platform = document.getElementById('bgPlatform').value;
+    const fileName = `ottrank_${platform}_${bgGetWeekLabel().replace(/\s/g,'')}.png`;
+
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = '✅ 다운로드 완료!';
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = `❌ 오류: ${e.message}`;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '⬇️ PNG 다운로드';
   }
 }
 
