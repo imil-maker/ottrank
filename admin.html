@@ -1118,10 +1118,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="margin-bottom:12px">
       <div style="font-size:12px;color:var(--muted2);margin-bottom:8px;font-family:var(--mono)">이미지 타입</div>
       <div style="display:flex;gap:8px" id="bgRankCardImgTypeBtns">
-        <button class="btn-sm" data-imgtype="poster" data-selected="true"
+        <button class="btn-sm" data-imgtype="poster"
           style="background:var(--info-bg);color:var(--info);border:1px solid var(--info-border)"
           onclick="bgSelectRankCardImgType(this)">🎬 포스터 (세로형)</button>
-        <button class="btn-sm" data-imgtype="backdrop" data-selected="false"
+        <button class="btn-sm" data-imgtype="backdrop"
           style="background:transparent;color:var(--muted2);border:1px solid var(--border)"
           onclick="bgSelectRankCardImgType(this)">🖼️ 배경이미지 (가로형)</button>
       </div>
@@ -5468,14 +5468,10 @@ function bgGetThumbBadge() {
     color: BG_PLATFORM_COLORS[sel] || '#e50914'
   };
 }
-async function bgFetchPosterAsBase64(posterPath, size = 'w780', useProxy = false) {
+async function bgFetchPosterAsBase64(posterPath, size = 'w780') {
   if (!posterPath) return '';
   try {
-    // backdrop은 CORS 차단 → tmdb-proxy를 통해 가져옴
-    const url = useProxy
-      ? `https://tmdb-proxy.tdidream.workers.dev/tmdb/image/${size}${posterPath}`
-      : `https://image.tmdb.org/t/p/${size}${posterPath}`;
-    const imgRes  = await fetch(url);
+    const imgRes  = await fetch(`https://image.tmdb.org/t/p/${size}${posterPath}`);
     const imgBlob = await imgRes.blob();
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -5800,12 +5796,10 @@ let bgRankCardCanvases = []; // 생성된 canvas 목록 (ZIP용)
 /* 이미지 타입 선택 */
 function bgSelectRankCardImgType(btn) {
   document.querySelectorAll('#bgRankCardImgTypeBtns .btn-sm').forEach(b => {
-    b.dataset.selected  = 'false';
     b.style.background  = 'transparent';
     b.style.color       = 'var(--muted2)';
     b.style.borderColor = 'var(--border)';
   });
-  btn.dataset.selected  = 'true';
   btn.style.background  = 'var(--info-bg)';
   btn.style.color       = 'var(--info)';
   btn.style.borderColor = 'var(--info-border)';
@@ -5833,12 +5827,9 @@ async function bgLoadRankCardCategories() {
 
 /* 단일 순위 카드 DOM 생성 (html2canvas용) */
 function bgCreateRankCardDom(item, rank, platformLabel, platformColor, imageBase64, isBackdrop) {
-  const cardW = 320;
-  const cardH = isBackdrop ? 240 : 320; // backdrop: 4:3, poster: 1:1
-
   const card = document.createElement('div');
   card.style.cssText = `
-    width:${cardW}px;height:${cardH}px;position:relative;overflow:hidden;
+    width:320px;height:320px;position:relative;overflow:hidden;
     background:#0d0d18;border-radius:10px;flex-shrink:0;
   `;
 
@@ -6013,29 +6004,29 @@ async function bgGenerateRankCards() {
 
     const platformLabel = BG_PLATFORM_LABELS[platform] || platform.toUpperCase();
     const platformColor = BG_PLATFORM_COLORS[platform] || '#e50914';
-    const imgType    = document.querySelector('#bgRankCardImgTypeBtns .btn-sm[data-selected="true"]')?.dataset?.imgtype || 'poster';
-    const isBackdrop = imgType === 'backdrop';
+    const imgType       = document.getElementById('bgRankCardImgTypeBtns')
+                            .querySelector('.btn-sm[style*="info-bg"]')?.dataset?.imgtype || 'poster';
+    const isBackdrop    = imgType === 'backdrop';
 
     // 이미지 로드 (포스터 or 배경이미지)
     statusEl.textContent = isBackdrop ? '배경이미지 불러오는 중...' : '포스터 불러오는 중...';
 
     let base64List;
     if (isBackdrop) {
-      // source_name으로 media_type 판단 ("Movies" 포함이면 movie, 아니면 tv)
-      const sourceName = group.source_name || '';
-      const mediaType  = sourceName.includes('Movies') ? 'movie' : 'tv';
-
+      // TMDB API로 backdrop_path 조회 후 base64 변환
       base64List = await Promise.all(
         bgRankCardItems.map(async item => {
-          if (!item.tmdb_id) return bgFetchPosterAsBase64(item.poster_path);
+          if (!item.tmdb_id) return '';
           try {
+            const mediaType = item.genre?.includes('영화') ? 'movie' : 'tv';
             const res = await fetch(`${TMDB_PROXY}/${mediaType}/${item.tmdb_id}?language=ko-KR`);
             if (!res.ok) throw new Error();
             const d = await res.json();
-            if (!d.backdrop_path) return bgFetchPosterAsBase64(item.poster_path);
-            return await bgFetchPosterAsBase64(d.backdrop_path, 'w780', true); // proxy 사용
+            const backdropPath = d.backdrop_path;
+            if (!backdropPath) return await bgFetchPosterAsBase64(item.poster_path); // 없으면 포스터 사용
+            return await bgFetchPosterAsBase64(backdropPath, 'w780');
           } catch {
-            return bgFetchPosterAsBase64(item.poster_path);
+            return await bgFetchPosterAsBase64(item.poster_path); // 실패 시 포스터 fallback
           }
         })
       );
