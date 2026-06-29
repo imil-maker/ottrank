@@ -6,6 +6,7 @@
 <title>오뜨랑 관리자</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root {
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
@@ -1085,6 +1086,56 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
+  <!-- ━━━ ④ 순위별 카드 생성 ━━━ -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:16px;
+      font-family:var(--mono);letter-spacing:.5px">④ 순위별 카드 생성
+      <span style="font-size:10px;font-weight:400">· 1:1 · PNG · 개별+ZIP</span></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">OTT 플랫폼</div>
+        <select class="inp" id="bgRankCardPlatform" style="cursor:pointer;margin-bottom:0"
+          onchange="bgLoadRankCardCategories()">
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="wavve">웨이브</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="boxoffice">박스오피스</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">카테고리</div>
+        <select class="inp" id="bgRankCardCategory" style="cursor:pointer;margin-bottom:0">
+          <option value="">탭 진입 시 자동 로드...</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn-save" id="bgRankCardGenBtn" onclick="bgGenerateRankCards()"
+      style="width:100%;padding:11px;font-size:14px;margin-bottom:12px">
+      🃏 순위별 카드 생성
+    </button>
+
+    <!-- 결과 영역 -->
+    <div id="bgRankCardResult" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn-save" id="bgRankCardZipBtn" onclick="bgDownloadRankCardsZip()"
+          style="flex:1;padding:10px;font-size:13px">
+          📦 전체 ZIP 다운로드
+        </button>
+      </div>
+      <div id="bgRankCardStatus" style="margin-bottom:12px;font-size:12px;
+        color:var(--muted);font-family:var(--mono);text-align:center"></div>
+      <!-- 카드 미리보기 그리드 (JS로 생성) -->
+      <div id="bgRankCardGrid"
+        style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- 드래그앤드롭 CSS -->
@@ -1554,7 +1605,7 @@ function switchPage(page, btn) {
   if (page === 'categories') loadCategories();
   if (page === 'works')      loadWorks();
   if (page === 'contents')   loadContentsAdmin();
-  if (page === 'bloggen')    bgLoadTop10Categories();
+  if (page === 'bloggen') { bgLoadTop10Categories(); bgLoadRankCardCategories(); }
 }
 
 // ════════════════════════════════════════════════════
@@ -5718,6 +5769,295 @@ async function bgDownloadTop10() {
   } finally {
     btn.disabled    = false;
     btn.textContent = '⬇️ PNG 다운로드';
+  }
+}
+
+// ════════════════════════════════════════════════════
+// ④ 순위별 카드 생성
+// ════════════════════════════════════════════════════
+
+let bgRankCardItems    = []; // 현재 랭킹 아이템
+let bgRankCardPlatform = 'netflix'; // 현재 플랫폼
+let bgRankCardCanvases = []; // 생성된 canvas 목록 (ZIP용)
+
+/* 카테고리 목록 로드 */
+async function bgLoadRankCardCategories() {
+  const platform = document.getElementById('bgRankCardPlatform').value;
+  const sel      = document.getElementById('bgRankCardCategory');
+  sel.innerHTML  = '<option value="">불러오는 중...</option>';
+  try {
+    const res  = await fetch(`${API}/admin/categories?platform=${platform}`, {
+      headers: { Authorization:`Bearer ${token}` }
+    });
+    const data = await res.json();
+    const cats = (data.data || []).filter(c => c.is_active);
+    sel.innerHTML = cats.map(c =>
+      `<option value="${c.category_slot}">${c.display_name || c.source_name}</option>`
+    ).join('');
+    if (!cats.length) sel.innerHTML = '<option value="">카테고리 없음</option>';
+  } catch(e) {
+    sel.innerHTML = '<option value="">불러오기 실패</option>';
+  }
+}
+
+/* 단일 순위 카드 DOM 생성 (html2canvas용) */
+function bgCreateRankCardDom(item, rank, platformLabel, platformColor, posterBase64) {
+  const card = document.createElement('div');
+  card.style.cssText = `
+    width:320px;height:320px;position:relative;overflow:hidden;
+    background:#13131a;border-radius:10px;flex-shrink:0;
+  `;
+
+  // 어두운 배경
+  const bg = document.createElement('div');
+  bg.style.cssText = 'position:absolute;inset:0;background:linear-gradient(135deg,#1a1a2e,#0d0d18)';
+  card.appendChild(bg);
+
+  // 포스터 이미지 (우측)
+  if (posterBase64) {
+    const posterWrap = document.createElement('div');
+    posterWrap.style.cssText = `
+      position:absolute;right:0;top:0;bottom:0;width:52%;overflow:hidden;
+    `;
+    const img = document.createElement('img');
+    img.src = posterBase64;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+    posterWrap.appendChild(img);
+
+    // 포스터 페이드 오버레이
+    const fade = document.createElement('div');
+    fade.style.cssText = `
+      position:absolute;inset:0;
+      background:linear-gradient(to right,#13131a 0%,rgba(19,19,26,0.3) 60%,transparent 100%)
+    `;
+    posterWrap.appendChild(fade);
+    card.appendChild(posterWrap);
+  }
+
+  // 큰 순위 번호 (배경)
+  const bigRank = document.createElement('div');
+  bigRank.textContent = String(rank).padStart(2, '0');
+  bigRank.style.cssText = `
+    position:absolute;top:10px;left:12px;
+    font-size:52px;font-weight:900;
+    color:rgba(255,255,255,0.08);
+    font-family:Arial,sans-serif;line-height:1;
+  `;
+  card.appendChild(bigRank);
+
+  // OTT 네임태그 (우측 상단)
+  const badge = document.createElement('div');
+  badge.textContent = platformLabel;
+  badge.style.cssText = `
+    position:absolute;top:10px;right:10px;
+    background:${platformColor};color:white;
+    font-size:10px;font-weight:700;
+    padding:3px 8px;border-radius:4px;
+    font-family:Arial,sans-serif;letter-spacing:0.5px;
+  `;
+  card.appendChild(badge);
+
+  // 콘텐츠 영역 (좌측 하단)
+  const content = document.createElement('div');
+  content.style.cssText = 'position:absolute;left:12px;bottom:12px;right:52%';
+
+  const rankLabel = document.createElement('div');
+  rankLabel.textContent = `${rank}위`;
+  rankLabel.style.cssText = `
+    font-size:10px;font-weight:700;color:#f0b429;
+    letter-spacing:1.5px;margin-bottom:5px;
+    font-family:Arial,sans-serif;
+  `;
+  content.appendChild(rankLabel);
+
+  const title = document.createElement('div');
+  title.textContent = item.title_ko || item.title_en || '제목 없음';
+  title.style.cssText = `
+    font-size:15px;font-weight:700;color:white;line-height:1.25;
+    margin-bottom:6px;word-break:keep-all;
+    font-family:'Noto Sans KR',Arial,sans-serif;
+  `;
+  content.appendChild(title);
+
+  const meta = document.createElement('div');
+  const genre = item.genre ? item.genre.split(',')[0].trim() : '';
+  const year  = item.release_year ? ` · ${item.release_year}` : '';
+  meta.textContent = `${genre}${year}`;
+  meta.style.cssText = `
+    font-size:10px;color:rgba(255,255,255,0.5);
+    margin-bottom:4px;font-family:Arial,sans-serif;
+  `;
+  content.appendChild(meta);
+
+  if (item.tmdb_rating) {
+    const rating = document.createElement('div');
+    rating.textContent = `★ ${item.tmdb_rating}`;
+    rating.style.cssText = `
+      font-size:11px;color:#f0b429;font-weight:700;
+      font-family:Arial,sans-serif;
+    `;
+    content.appendChild(rating);
+  }
+
+  card.appendChild(content);
+
+  // 오뜨랑 로고 (우하단)
+  const logoWrap = document.createElement('div');
+  logoWrap.style.cssText = 'position:absolute;bottom:10px;right:10px';
+  const logo = document.createElement('img');
+  logo.src = 'https://ottrank.kr/img/logo.png';
+  logo.style.cssText = 'height:16px;object-fit:contain';
+  logo.onerror = () => { logo.style.display = 'none'; };
+  logoWrap.appendChild(logo);
+  card.appendChild(logoWrap);
+
+  return card;
+}
+
+/* 순위별 카드 전체 생성 */
+async function bgGenerateRankCards() {
+  const platform     = document.getElementById('bgRankCardPlatform').value;
+  const categorySlot = document.getElementById('bgRankCardCategory').value;
+  if (!categorySlot) { showToast('카테고리를 선택하세요.', 'err'); return; }
+
+  const btn      = document.getElementById('bgRankCardGenBtn');
+  const statusEl = document.getElementById('bgRankCardStatus');
+  const gridEl   = document.getElementById('bgRankCardGrid');
+  btn.disabled    = true;
+  btn.textContent = '포스터 불러오는 중...';
+  statusEl.textContent = '';
+  gridEl.innerHTML     = '';
+  bgRankCardCanvases   = [];
+
+  try {
+    // 랭킹 데이터 조회
+    const res  = await fetch(
+      `${API}/blog-gen/preview?platform=${platform}&category=${categorySlot}`,
+      { headers: { Authorization:`Bearer ${token}` } }
+    );
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '데이터 조회 실패');
+
+    const group = (data.data || []).find(g => g.category_slot === categorySlot)
+               || data.data?.[0];
+    if (!group || !group.items?.length) throw new Error('랭킹 데이터가 없습니다.');
+
+    bgRankCardItems    = group.items.slice(0, 10);
+    bgRankCardPlatform = platform;
+
+    const platformLabel = BG_PLATFORM_LABELS[platform] || platform.toUpperCase();
+    const platformColor = BG_PLATFORM_COLORS[platform] || '#e50914';
+
+    // 포스터 base64 병렬 로드
+    statusEl.textContent = '포스터 로딩 중...';
+    const base64List = await Promise.all(
+      bgRankCardItems.map(item => bgFetchPosterAsBase64(item.poster_path))
+    );
+
+    // 숨겨진 컨테이너에 카드 DOM 생성 후 canvas 캡처
+    const hiddenWrap = document.createElement('div');
+    hiddenWrap.style.cssText = 'position:fixed;left:-9999px;top:0;display:flex;gap:0';
+    document.body.appendChild(hiddenWrap);
+
+    for (let i = 0; i < bgRankCardItems.length; i++) {
+      statusEl.textContent = `카드 생성 중... (${i + 1}/${bgRankCardItems.length})`;
+      const item = bgRankCardItems[i];
+      const rank = i + 1;
+
+      // 카드 DOM 생성
+      const cardDom = bgCreateRankCardDom(item, rank, platformLabel, platformColor, base64List[i]);
+      hiddenWrap.appendChild(cardDom);
+
+      // html2canvas 캡처
+      await new Promise(r => setTimeout(r, 50));
+      const canvas = await html2canvas(cardDom, {
+        scale: 3, useCORS: true, backgroundColor: '#13131a', logging: false,
+      });
+      bgRankCardCanvases.push({ canvas, rank, title: item.title_ko || item.title_en || `rank${rank}` });
+
+      // 미리보기 카드 + 개별 다운로드 버튼 추가
+      const previewWrap = document.createElement('div');
+      previewWrap.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+
+      const previewImg = document.createElement('img');
+      previewImg.src = canvas.toDataURL('image/png');
+      previewImg.style.cssText = 'width:100%;border-radius:8px;border:1px solid var(--border2)';
+      previewWrap.appendChild(previewImg);
+
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'btn-sm';
+      dlBtn.textContent = `⬇️ ${rank}위 저장`;
+      dlBtn.style.cssText = 'width:100%;font-size:11px';
+      dlBtn.onclick = () => bgDownloadSingleRankCard(canvas, rank, item.title_ko || `rank${rank}`, platform);
+      previewWrap.appendChild(dlBtn);
+
+      gridEl.appendChild(previewWrap);
+      hiddenWrap.removeChild(cardDom);
+    }
+
+    document.body.removeChild(hiddenWrap);
+    document.getElementById('bgRankCardResult').style.display = 'block';
+    document.getElementById('bgRankCardResult').scrollIntoView({ behavior: 'smooth' });
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = `✅ ${bgRankCardItems.length}장 생성 완료!`;
+
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = `❌ ${e.message}`;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🃏 순위별 카드 생성';
+  }
+}
+
+/* 개별 카드 PNG 다운로드 */
+function bgDownloadSingleRankCard(canvas, rank, titleKo, platform) {
+  const blob = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  const safeName = titleKo.replace(/[^\w가-힣]/g, '');
+  a.href     = blob;
+  a.download = `ottrank_${platform}_${String(rank).padStart(2,'0')}_${safeName}.png`;
+  a.click();
+}
+
+/* 전체 ZIP 다운로드 */
+async function bgDownloadRankCardsZip() {
+  if (!bgRankCardCanvases.length) { showToast('먼저 카드를 생성하세요.', 'err'); return; }
+
+  const btn      = document.getElementById('bgRankCardZipBtn');
+  const statusEl = document.getElementById('bgRankCardStatus');
+  btn.disabled    = true;
+  btn.textContent = 'ZIP 생성 중...';
+
+  try {
+    const zip      = new JSZip();
+    const platform = bgRankCardPlatform;
+    const week     = bgGetWeekLabel().replace(/\s/g, '');
+
+    for (const { canvas, rank, title } of bgRankCardCanvases) {
+      // canvas → blob → base64 → zip에 추가
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      const safeName = title.replace(/[^\w가-힣]/g, '');
+      const fileName = `${String(rank).padStart(2,'0')}_${safeName}.png`;
+      zip.file(fileName, blob);
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `ottrank_cards_${platform}_${week}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = `✅ ZIP 다운로드 완료!`;
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = `❌ ${e.message}`;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '📦 전체 ZIP 다운로드';
   }
 }
 
