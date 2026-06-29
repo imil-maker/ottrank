@@ -5829,9 +5829,12 @@ async function bgLoadRankCardCategories() {
 
 /* 단일 순위 카드 DOM 생성 (html2canvas용) */
 function bgCreateRankCardDom(item, rank, platformLabel, platformColor, imageBase64, isBackdrop) {
+  const cardW = 320;
+  const cardH = isBackdrop ? 240 : 320; // backdrop: 4:3, poster: 1:1
+
   const card = document.createElement('div');
   card.style.cssText = `
-    width:320px;height:320px;position:relative;overflow:hidden;
+    width:${cardW}px;height:${cardH}px;position:relative;overflow:hidden;
     background:#0d0d18;border-radius:10px;flex-shrink:0;
   `;
 
