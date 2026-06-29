@@ -5847,7 +5847,7 @@ function bgCreateRankCardDom(item, rank, platformLabel, platformColor, imageBase
       imgWrap.style.cssText = 'position:absolute;inset:0;overflow:hidden';
       const img = document.createElement('img');
       img.src = imageBase64;
-      img.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center';
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center';
       imgWrap.appendChild(img);
 
       const fade = document.createElement('div');
@@ -5865,7 +5865,7 @@ function bgCreateRankCardDom(item, rank, platformLabel, platformColor, imageBase
       imgWrap.style.cssText = 'position:absolute;right:0;top:0;bottom:0;width:65%;overflow:hidden';
       const img = document.createElement('img');
       img.src = imageBase64;
-      img.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:top center';
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center';
       imgWrap.appendChild(img);
 
       const fade = document.createElement('div');
@@ -6013,20 +6013,21 @@ async function bgGenerateRankCards() {
 
     let base64List;
     if (isBackdrop) {
-      // TMDB API로 backdrop_path 조회 후 base64 변환
+      // source_name으로 media_type 판단 ("Movies" 포함이면 movie, 아니면 tv)
+      const sourceName = group.source_name || '';
+      const mediaType  = sourceName.includes('Movies') ? 'movie' : 'tv';
+
       base64List = await Promise.all(
         bgRankCardItems.map(async item => {
-          if (!item.tmdb_id) return '';
+          if (!item.tmdb_id) return bgFetchPosterAsBase64(item.poster_path);
           try {
-            const mediaType = item.genre?.includes('영화') ? 'movie' : 'tv';
             const res = await fetch(`${TMDB_PROXY}/${mediaType}/${item.tmdb_id}?language=ko-KR`);
             if (!res.ok) throw new Error();
             const d = await res.json();
-            const backdropPath = d.backdrop_path;
-            if (!backdropPath) return await bgFetchPosterAsBase64(item.poster_path); // 없으면 포스터 사용
-            return await bgFetchPosterAsBase64(backdropPath, 'w780');
+            if (!d.backdrop_path) return bgFetchPosterAsBase64(item.poster_path);
+            return await bgFetchPosterAsBase64(d.backdrop_path, 'w780');
           } catch {
-            return await bgFetchPosterAsBase64(item.poster_path); // 실패 시 포스터 fallback
+            return bgFetchPosterAsBase64(item.poster_path);
           }
         })
       );
