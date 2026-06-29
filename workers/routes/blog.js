@@ -48,7 +48,7 @@ const CONTENT_TYPE_PROMPTS = {
 async function fetchRankingFromD1(platform, env) {
   // OTT 페이지에 노출 중인 활성 카테고리 목록 조회
   const cats = await env.DB.prepare(
-    `SELECT category_slot, display_name, platform_limit
+    `SELECT category_slot, display_name, platform_limit, source_name
      FROM ott_categories
      WHERE platform = ?
        AND is_active = 1
@@ -97,8 +97,10 @@ async function fetchRankingFromD1(platform, env) {
 
     if (items.results && items.results.length > 0) {
       result.push({
-        display_name: cat.display_name,
-        items: items.results,
+        category_slot: cat.category_slot,
+        display_name:  cat.display_name,
+        source_name:   cat.source_name || '',
+        items:         items.results,
       });
     }
   }
