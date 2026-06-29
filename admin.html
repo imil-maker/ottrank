@@ -5468,10 +5468,14 @@ function bgGetThumbBadge() {
     color: BG_PLATFORM_COLORS[sel] || '#e50914'
   };
 }
-async function bgFetchPosterAsBase64(posterPath, size = 'w780') {
+async function bgFetchPosterAsBase64(posterPath, size = 'w780', useProxy = false) {
   if (!posterPath) return '';
   try {
-    const imgRes  = await fetch(`https://image.tmdb.org/t/p/${size}${posterPath}`);
+    // backdrop은 CORS 차단 → /blog-gen/image 프록시를 통해 가져옴
+    const url = useProxy
+      ? `${API}/blog-gen/image?path=${encodeURIComponent(posterPath)}&size=${size}`
+      : `https://image.tmdb.org/t/p/${size}${posterPath}`;
+    const imgRes  = await fetch(url);
     const imgBlob = await imgRes.blob();
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -6029,7 +6033,7 @@ async function bgGenerateRankCards() {
             if (!res.ok) throw new Error();
             const d = await res.json();
             if (!d.backdrop_path) return bgFetchPosterAsBase64(item.poster_path);
-            return await bgFetchPosterAsBase64(d.backdrop_path, 'w780');
+            return await bgFetchPosterAsBase64(d.backdrop_path, 'w780', true);
           } catch {
             return bgFetchPosterAsBase64(item.poster_path);
           }
