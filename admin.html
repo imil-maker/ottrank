@@ -1042,9 +1042,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
             <div style="display:flex;flex-direction:column;align-items:flex-end;
               justify-content:center;gap:4px;flex-shrink:0;padding-left:8px">
               <span id="bgTop10PlatformEn"
-                style="font-size:16px;font-weight:900;color:rgba(255,255,255,0.3);
+                style="font-size:22px;font-weight:900;color:rgba(255,255,255,0.15);
                   font-family:Arial,sans-serif;letter-spacing:1px;line-height:1"></span>
-              <div style="display:flex;align-items:center;gap:4px">
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
                 <img src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
                   style="height:14px;object-fit:contain"
                   onerror="this.style.display='none'">
@@ -5615,7 +5615,7 @@ async function bgGenerateTop10() {
     if (!group || !group.items?.length) throw new Error('랭킹 데이터가 없습니다.');
 
     const customTitle = document.getElementById('bgTop10Title').value.trim();
-    const displayName = customTitle || group.display_name;
+    const displayName = (customTitle || group.display_name) + ' TOP 10';
 
     // DOM 방식으로 렌더링
     await bgRenderTop10Dom(group.items, displayName, platform);
@@ -5642,7 +5642,7 @@ async function bgDownloadTop10() {
   btn.textContent = '이미지 생성 중...';
 
   try {
-    await new Promise(r => setTimeout(r, 80)); // DOM 렌더 대기
+    await new Promise(r => setTimeout(r, 800)); // 포스터 10장 렌더 대기
 
     const card   = document.getElementById('bgTop10Card');
     const canvas = await html2canvas(card, {
