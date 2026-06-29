@@ -245,6 +245,192 @@ export async function handleBlog(path, request, env, url, headers) {
     }
   }
 
+  // ── POST /blog-gen/suggest — AI 블로그 주제 추천 ──────────────
+  if (request.method === "POST" && path === "/blog-gen/suggest") {
+
+    // 관리자 인증 (기존 /blog-gen 패턴과 동일)
+    if (!_checkAuth(request, env)) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Unauthorized" }),
+        { status: 401, headers }
+      );
+    }
+
+    // Anthropic API 키 확인
+    const apiKey = env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "ANTHROPIC_API_KEY 환경 변수가 설정되지 않았습니다." }),
+        { status: 500, headers }
+      );
+    }
+
+    // 요청 바디 파싱
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ ok: false, error: "잘못된 요청 형식입니다." }),
+        { status: 400, headers }
+      );
+    }
+
+    // platform: 'netflix' | 'tving' | 'wavve' | 'disney' | 'coupang' | 'boxoffice' | 'all'
+    // topicType: 'ranking' | 'recommendation' | 'review' | 'issue'
+    const { platform = "netflix", topicType = "ranking" } = body;
+
+    try {
+      // ① 랭킹 데이터 조회 — fetchRankingFromD1 재사용
+      // 'all' 선택 시 넷플릭스 + 티빙 두 플랫폼 데이터 합산
+      let rankingData = [];
+      const platformsToFetch = platform === "all" ? ["netflix", "tving"] : [platform];
+
+      for (const p of platformsToFetch) {
+        // 유효하지 않은 플랫폼은 스킵
+        if (p !== "all" && !PLATFORM_NAMES[p]) continue;
+        const data = await fetchRankingFromD1(p, env);
+        rankingData.push(...data);
+      }
+
+      // ② 랭킹 데이터를 프롬프트용 텍스트로 변환
+      // formatRankingForPrompt는 단일 플랫폼 기준이므로 'all'은 직접 포맷
+      let rankingText = "";
+      if (rankingData.length > 0) {
+        rankingText = rankingData.map(group =>
+          `[${group.display_name}]\n` +
+          (group.items || []).slice(0, 5).map((item, i) => {
+            const title  = item.title_ko || item.title_en || "제목 없음";
+            const genre  = item.genre  ? ` (${item.genre.split(",")[0]})` : "";
+            const rating = item.tmdb_rating
+              ? ` ★${parseFloat(item.tmdb_rating).toFixed(1)}`
+              : "";
+            return `  ${i + 1}위. ${title}${genre}${rating}`;
+          }).join("\n")
+        ).join("\n\n");
+      } else {
+        // 랭킹 데이터가 없으면 일반 추천으로 대체
+        rankingText = "현재 랭킹 데이터 없음. OTT 인기 콘텐츠 일반 트렌드 기반으로 추천해주세요.";
+      }
+
+      // ③ 주제 유형별 추천 방향 설명
+      const TOPIC_TYPE_DESC = {
+        ranking:       "현재 순위 기반 정보성 제목 (TOP10, 이번 주 1위 등 랭킹 키워드 포함)",
+        recommendation:"장르/취향 추천형 제목 (요즘 핫한, 꼭 봐야 할, 강추 등 큐레이션 키워드)",
+        review:        "신작·화제작 리뷰 유도 제목 (후기, 솔직 리뷰, 결말 해석 등 감상 키워드)",
+        issue:         "지금 화제·이슈 중심 제목 (논란, 결말 예측, 시즌2 기대 등 화제성 키워드)",
+      };
+
+      const platformKo = platform === "all"
+        ? "넷플릭스·티빙"
+        : (PLATFORM_NAMES[platform] || platform);
+      const weekInfo   = getWeekInfo();
+      const topicDesc  = TOPIC_TYPE_DESC[topicType] || TOPIC_TYPE_DESC.ranking;
+
+      // ④ Claude API 프롬프트 구성 — JSON 배열만 반환하도록 엄격 지시
+      const prompt = `당신은 네이버 블로그 SEO 전문가입니다.
+아래 OTT 플랫폼의 현재 인기 랭킹 데이터를 분석하여,
+검색 유입과 클릭률이 높은 블로그 포스팅 제목을 8개 추천해주세요.
+
+플랫폼: ${platformKo}
+기간: ${weekInfo}
+주제 유형: ${topicDesc}
+
+현재 랭킹 데이터:
+${rankingText}
+
+조건:
+- 제목은 15~35자 한국어
+- 작품명·플랫폼명·주차 등 검색량 높은 키워드 포함
+- 클릭하고 싶어지는 호기심 자극형 문구
+- 8개 모두 다른 각도(순위/추천/리뷰/이슈)에서 작성
+- contentType은 weekly_ranking / recommendation / genre / review 중 하나
+
+반드시 아래 JSON 배열 형식으로만 응답하세요.
+마크다운 코드블록(\`\`\`) 없이 순수 JSON만 반환합니다:
+[
+  {
+    "title": "블로그 제목",
+    "topic": "한 줄 주제 설명 (20자 이내)",
+    "contentType": "weekly_ranking"
+  }
+]`;
+
+      // ⑤ Anthropic API 호출 — 제목 추천은 Haiku로 빠르게
+      const res = await fetch(ANTHROPIC_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type":      "application/json",
+          "x-api-key":         apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model:      "claude-haiku-4-5-20251001", // 빠른 응답 우선 (Haiku)
+          max_tokens: 1200,
+          messages:   [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Anthropic API 오류: ${res.status}`);
+      }
+
+      const aiData  = await res.json();
+      const rawText = aiData.content?.[0]?.text?.trim() || "[]";
+
+      // ⑥ JSON 파싱 — 혹시 코드블록이 포함됐을 경우 제거
+      const cleanText = rawText
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/,      "")
+        .replace(/\s*```$/,      "")
+        .trim();
+
+      let suggestions;
+      try {
+        suggestions = JSON.parse(cleanText);
+      } catch {
+        throw new Error("AI 응답을 JSON으로 파싱할 수 없습니다. 다시 시도해주세요.");
+      }
+
+      if (!Array.isArray(suggestions)) {
+        throw new Error("AI 응답이 배열 형식이 아닙니다.");
+      }
+
+      // 필수 필드 보정 + 최대 8개 제한
+      suggestions = suggestions
+        .filter(s => s && typeof s.title === "string" && s.title.trim())
+        .map(s => ({
+          title:       s.title.trim(),
+          topic:       s.topic?.trim()       || "",
+          contentType: s.contentType?.trim() || "weekly_ranking",
+        }))
+        .slice(0, 8);
+
+      // ⑦ 응답 반환
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          suggestions,
+          rankingData,
+          meta: {
+            platform:     platformKo,
+            weekLabel:    weekInfo,
+            topicType,
+            generatedAt:  new Date().toISOString(),
+          },
+        }),
+        { headers }
+      );
+
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ ok: false, error: e.message }),
+        { status: 500, headers }
+      );
+    }
+  }
+
   // ── POST /blog-gen — 블로그 포스팅 생성 ──────────────────────
   if (request.method === "POST" && path === "/blog-gen") {
 
