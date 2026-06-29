@@ -1021,13 +1021,25 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div style="position:absolute;bottom:0;left:0;right:0;height:68px;
             border-top:1px solid rgba(255,255,255,0.15);
             padding:8px 12px;display:flex;flex-direction:column;justify-content:center">
-            <div id="bgTop10DisplayName"
-              style="font-size:13px;font-weight:700;color:white;margin-bottom:3px"></div>
+            <!-- OTT 한글명 태그 + 카테고리명 -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+              <span id="bgTop10PlatformTag"
+                style="font-size:10px;font-weight:700;color:white;
+                  background:rgba(255,255,255,0.2);padding:1px 7px;
+                  border-radius:3px;letter-spacing:0.3px;white-space:nowrap"></span>
+              <div id="bgTop10DisplayName"
+                style="font-size:12px;font-weight:700;color:white;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+            </div>
             <div style="display:flex;align-items:center;justify-content:space-between">
               <div id="bgTop10WeekEl"
                 style="font-size:10px;color:rgba(255,255,255,0.5);
                   font-family:'DM Mono',monospace"></div>
               <div style="display:flex;align-items:center;gap:5px">
+                <!-- OTT 영어명 (30% 투명) -->
+                <span id="bgTop10PlatformEn"
+                  style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.3);
+                    font-family:Arial,sans-serif;letter-spacing:0.5px"></span>
                 <img src="https://ottrank.kr/img/logo.png" alt="오뜨랑"
                   style="height:14px;object-fit:contain"
                   onerror="this.style.display='none'">
@@ -1040,7 +1052,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
         <div style="flex:1;min-width:160px;padding-top:8px">
           <button class="btn-save" id="bgTop10DownBtn" onclick="bgDownloadTop10()"
-            style="width:100%;padding:10px;font-size:13px">⬇️ JPG 다운로드</button>
+            style="width:100%;padding:10px;font-size:13px">⬇️ PNG 다운로드</button>
           <div id="bgTop10Status" style="margin-top:8px;font-size:12px;
             color:var(--muted);font-family:var(--mono);text-align:center"></div>
         </div>
@@ -5558,8 +5570,19 @@ async function bgRenderTop10Dom(items, displayName, platform) {
   }
 
   // 하단 텍스트
-  document.getElementById('bgTop10DisplayName').textContent = displayName;
-  document.getElementById('bgTop10WeekEl').textContent      = bgGetWeekLabel();
+  const platformKo = {
+    netflix:'넷플릭스', tving:'티빙', wavve:'웨이브',
+    disney:'디즈니+', coupang:'쿠팡플레이', boxoffice:'박스오피스'
+  }[platform] || platform;
+  const platformEn = {
+    netflix:'NETFLIX', tving:'TVING', wavve:'WAVVE',
+    disney:'DISNEY+', coupang:'COUPANG PLAY', boxoffice:'BOX OFFICE'
+  }[platform] || platform.toUpperCase();
+
+  document.getElementById('bgTop10PlatformTag').textContent  = platformKo;
+  document.getElementById('bgTop10DisplayName').textContent  = displayName;
+  document.getElementById('bgTop10WeekEl').textContent       = bgGetWeekLabel();
+  document.getElementById('bgTop10PlatformEn').textContent   = platformEn;
 }
 
 /* TOP10 카드 생성 버튼 */
@@ -5625,9 +5648,9 @@ async function bgDownloadTop10() {
     });
 
     // JPG로 저장 (품질 92%)
-    const blob     = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    const blob     = await new Promise(res => canvas.toBlob(res, 'image/png'));
     const platform = document.getElementById('bgTop10Platform').value;
-    const fileName = `ottrank_top10_${platform}_${bgGetWeekLabel().replace(/\s/g,'')}.jpg`;
+    const fileName = `ottrank_top10_${platform}_${bgGetWeekLabel().replace(/\s/g,'')}.png`;
     const url = URL.createObjectURL(blob);
     const a   = document.createElement('a');
     a.href = url; a.download = fileName; a.click();
@@ -5640,7 +5663,7 @@ async function bgDownloadTop10() {
     statusEl.textContent = `❌ ${e.message}`;
   } finally {
     btn.disabled    = false;
-    btn.textContent = '⬇️ JPG 다운로드';
+    btn.textContent = '⬇️ PNG 다운로드';
   }
 }
 
