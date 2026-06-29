@@ -5691,7 +5691,7 @@ async function bgDownloadTop10() {
   btn.textContent = '이미지 생성 중...';
 
   try {
-    await new Promise(r => setTimeout(r, 800)); // 포스터 10장 렌더 대기
+    await new Promise(r => setTimeout(r, 200)); // 포스터 10장 렌더 대기
 
     const card   = document.getElementById('bgTop10Card');
     const canvas = await html2canvas(card, {
