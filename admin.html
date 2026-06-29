@@ -744,6 +744,89 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div id="bloggenSection" class="main" style="display:none">
   <div style="font-size:15px;font-weight:600;margin-bottom:20px">📝 블로그 생성</div>
 
+  <!-- ━━━ ⓪ 블로그 주제 추천 ━━━ -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:20px;margin-bottom:16px" id="bgSuggestCard">
+
+    <!-- 섹션 헤더 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--muted2);
+        font-family:var(--mono);letter-spacing:.5px">
+        ⓪ 블로그 주제 추천
+        <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:8px">
+          · 현재 랭킹 기반 · AI 생성
+        </span>
+      </div>
+      <!-- 재추천 버튼 (결과 표시 후에만 노출) -->
+      <button id="bgSuggestRefreshBtn" onclick="loadBlogSuggestions()"
+        style="display:none;padding:5px 12px;border-radius:6px;
+          border:1px solid var(--border);background:transparent;
+          color:var(--muted2);font-family:var(--mono);font-size:11px;cursor:pointer"
+        onmouseover="this.style.background='var(--bg3)'"
+        onmouseout="this.style.background='transparent'">
+        🔄 재추천
+      </button>
+    </div>
+
+    <!-- 옵션: 플랫폼 + 주제 유형 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">OTT 플랫폼</div>
+        <select class="inp" id="bgSuggestPlatform" style="cursor:pointer;margin-bottom:0">
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="wavve">웨이브</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="boxoffice">박스오피스</option>
+          <option value="all">전체 OTT (넷플릭스+티빙)</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">주제 유형</div>
+        <select class="inp" id="bgSuggestTopicType" style="cursor:pointer;margin-bottom:0">
+          <option value="ranking">📊 순위·랭킹 정보</option>
+          <option value="recommendation">🎯 추천·큐레이션</option>
+          <option value="review">⭐ 리뷰·감상</option>
+          <option value="issue">🔥 화제·이슈</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 추천받기 버튼 -->
+    <button id="bgSuggestBtn" onclick="loadBlogSuggestions()"
+      style="width:100%;padding:11px;border-radius:8px;border:none;
+        background:linear-gradient(135deg,#378ADD,#2563c4);
+        color:#fff;font-family:var(--sans);font-size:14px;font-weight:700;
+        cursor:pointer;transition:opacity .15s"
+      onmouseover="this.style.opacity='.88'"
+      onmouseout="this.style.opacity='1'">
+      🤖 AI 주제 추천받기
+    </button>
+
+    <!-- 상태 바 -->
+    <div id="bgSuggestStatus" style="display:none;padding:10px 14px;border-radius:8px;
+      font-size:13px;margin-top:10px"></div>
+
+    <!-- 결과 영역 -->
+    <div id="bgSuggestResults" style="display:none;margin-top:14px">
+      <!-- 기반 데이터 메타 -->
+      <div id="bgSuggestMeta"
+        style="font-size:11px;color:var(--muted);font-family:var(--mono);
+          margin-bottom:10px;padding:6px 10px;background:var(--bg3);
+          border-radius:6px;border:1px solid var(--border)"></div>
+      <!-- 제목 카드 그리드 -->
+      <div id="bgSuggestGrid"
+        style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      <!-- 안내 문구 -->
+      <div style="margin-top:10px;font-size:11px;color:var(--muted);
+        text-align:center;font-family:var(--mono)">
+        💡 제목 클릭 → ① 블로그 글 생성 섹션에 자동 입력됩니다
+      </div>
+    </div>
+  </div>
+  <!-- ━━━ ⓪ 블로그 주제 추천 끝 ━━━ -->
+
   <!-- ━━━ ① 블로그 글 생성 ━━━ -->
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;
     padding:20px;margin-bottom:16px">
@@ -5283,6 +5366,150 @@ const BG_PLATFORM_LABELS = {
   netflix:'NETFLIX', tving:'TVING', wavve:'WAVVE',
   disney:'DISNEY+', coupang:'COUPANG', boxoffice:'BOX OFFICE',
 };
+
+// ════════════════════════════════════════════════════
+// ⓪ 블로그 주제 추천
+// ════════════════════════════════════════════════════
+
+/* 상태 바 표시/숨김 헬퍼 */
+function bgSetSuggestStatus(type, msg) {
+  const el = document.getElementById('bgSuggestStatus');
+  if (type === 'hide') { el.style.display = 'none'; return; }
+  const styles = {
+    loading: 'background:rgba(240,180,41,.12);color:var(--gold);border:1px solid rgba(240,180,41,.3)',
+    success: 'background:rgba(52,211,153,.1);color:var(--green);border:1px solid rgba(52,211,153,.3)',
+    error:   'background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.3)',
+  };
+  const icons = { loading:'⏳', success:'✅', error:'❌' };
+  el.style.cssText = `display:block;padding:10px 14px;border-radius:8px;font-size:13px;margin-top:10px;${styles[type]}`;
+  el.textContent   = `${icons[type]} ${msg}`;
+}
+
+/* POST /blog-gen/suggest 호출 → 결과 카드 렌더링 */
+async function loadBlogSuggestions() {
+  const btn       = document.getElementById('bgSuggestBtn');
+  const platform  = document.getElementById('bgSuggestPlatform').value;
+  const topicType = document.getElementById('bgSuggestTopicType').value;
+
+  // 버튼 비활성화 + 로딩
+  btn.disabled    = true;
+  btn.textContent = '추천 중...';
+  document.getElementById('bgSuggestResults').style.display     = 'none';
+  document.getElementById('bgSuggestRefreshBtn').style.display  = 'none';
+  bgSetSuggestStatus('loading', '현재 랭킹 데이터 분석 중... (5~10초 소요)');
+
+  try {
+    const res = await fetch(`${API}/blog-gen/suggest`, {
+      method:  'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
+      body:    JSON.stringify({ platform, topicType }),
+    });
+
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '알 수 없는 오류');
+
+    // 기반 데이터 메타 표시
+    const rankCount = (data.rankingData || []).reduce((s, g) => s + (g.items?.length || 0), 0);
+    document.getElementById('bgSuggestMeta').textContent =
+      `📊 기반 데이터: ${data.meta.platform} ${data.meta.weekLabel}` +
+      ` · 랭킹 작품 ${rankCount}개 분석 · 제목 ${data.suggestions.length}개 생성`;
+
+    // 카드 렌더링
+    bgRenderSuggestCards(data.suggestions);
+
+    // 결과 노출 + 재추천 버튼 표시
+    document.getElementById('bgSuggestResults').style.display    = 'block';
+    document.getElementById('bgSuggestRefreshBtn').style.display = 'block';
+    bgSetSuggestStatus('hide');
+
+    // 결과로 부드럽게 스크롤
+    document.getElementById('bgSuggestResults').scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+  } catch(e) {
+    bgSetSuggestStatus('error', `추천 실패: ${e.message}`);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🤖 AI 주제 추천받기';
+  }
+}
+
+/* 추천 제목 카드 그리드 렌더링 */
+function bgRenderSuggestCards(suggestions) {
+  const TYPE_ICON = {
+    weekly_ranking: '📊', recommendation: '🎯', genre: '🎬', review: '⭐',
+  };
+
+  document.getElementById('bgSuggestGrid').innerHTML = suggestions.map((s, idx) => {
+    const icon  = TYPE_ICON[s.contentType] || '📝';
+    // onclick용 문자열 이스케이프
+    const safeTitle       = s.title.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const safeContentType = (s.contentType || '').replace(/'/g,"\\'");
+
+    return `
+      <div onclick="bgApplySuggestion('${safeTitle}','${safeContentType}')"
+        title="클릭하면 ① 섹션에 자동 입력됩니다"
+        style="padding:12px 14px;background:var(--bg3);border:1px solid var(--border);
+          border-radius:10px;cursor:pointer;transition:border-color .15s,background .15s;
+          position:relative;"
+        onmouseover="this.style.borderColor='var(--info)';this.style.background='rgba(55,138,221,.08)';this.querySelector('.sg-arrow').style.opacity='1'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg3)';this.querySelector('.sg-arrow').style.opacity='0'">
+        <!-- 번호 + 아이콘 -->
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${String(idx+1).padStart(2,'0')}</span>
+          <span style="font-size:11px">${icon}</span>
+        </div>
+        <!-- 제목 -->
+        <div style="font-size:13px;font-weight:600;color:var(--text);
+          line-height:1.45;margin-bottom:4px;word-break:keep-all">${s.title}</div>
+        <!-- 주제 설명 -->
+        ${s.topic ? `<div style="font-size:11px;color:var(--muted);line-height:1.4">${s.topic}</div>` : ''}
+        <!-- 호버 화살표 -->
+        <div class="sg-arrow" style="position:absolute;right:12px;bottom:10px;
+          font-size:12px;opacity:0;transition:opacity .15s;color:var(--info);
+          font-family:var(--mono)">→ 적용</div>
+      </div>`;
+  }).join('');
+}
+
+/* 제목 클릭 시 ① 섹션 자동 세팅 */
+function bgApplySuggestion(title, contentType) {
+  // ① 추가 요청사항 란에 제목 입력
+  const extraEl = document.getElementById('bgExtra');
+  if (extraEl) {
+    extraEl.value = title;
+    // 0.5초 강조 효과
+    extraEl.style.borderColor = 'var(--info)';
+    extraEl.style.boxShadow   = '0 0 0 2px rgba(55,138,221,.25)';
+    setTimeout(() => { extraEl.style.borderColor = ''; extraEl.style.boxShadow = ''; }, 1200);
+  }
+
+  // ② 플랫폼 동기화 ('all' 제외 — 복수 플랫폼이라 단일 선택 불가)
+  const suggestPlatform = document.getElementById('bgSuggestPlatform').value;
+  if (suggestPlatform !== 'all') {
+    document.getElementById('bgPlatform').value = suggestPlatform;
+  }
+
+  // ③ 콘텐츠 유형 동기화
+  const ctMap = {
+    weekly_ranking:'weekly_ranking', recommendation:'recommendation',
+    genre:'genre', review:'review',
+  };
+  const mapped = ctMap[contentType];
+  if (mapped) document.getElementById('bgContentType').value = mapped;
+
+  // ④ ① 섹션 생성 버튼으로 스크롤 + 강조
+  setTimeout(() => {
+    const genBtn = document.getElementById('bgGenBtn');
+    if (genBtn) {
+      genBtn.scrollIntoView({ behavior:'smooth', block:'center' });
+      genBtn.style.transform = 'scale(1.02)';
+      genBtn.style.boxShadow = '0 0 0 3px rgba(55,138,221,.35)';
+      setTimeout(() => { genBtn.style.transform = ''; genBtn.style.boxShadow = ''; }, 1000);
+    }
+  }, 300);
+
+  showToast('✅ 제목 적용! ① 블로그 글 생성 버튼을 눌러주세요.', 'ok');
+}
 
 // ════════════════════════════════════════════════════
 // ① 블로그 글 생성
