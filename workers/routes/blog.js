@@ -176,6 +176,41 @@ async function callAnthropicAPI(prompt, apiKey) {
 // ─────────────────────────────────────────────────────────────
 export async function handleBlog(path, request, env, url, headers) {
 
+  // ── GET /blog-gen/image — TMDB 이미지 프록시 (CORS 우회용) ──
+  if (request.method === "GET" && path === "/blog-gen/image") {
+    const imagePath = url.searchParams.get("path") || "";
+    const size      = url.searchParams.get("size") || "w780";
+
+    if (!imagePath) {
+      return new Response(JSON.stringify({ ok: false, error: "path 파라미터 필요" }), {
+        status: 400, headers
+      });
+    }
+
+    try {
+      const imageUrl = `https://image.tmdb.org/t/p/${size}${imagePath}`;
+      const imgRes   = await fetch(imageUrl);
+      if (!imgRes.ok) throw new Error(`이미지 로드 실패: ${imgRes.status}`);
+
+      const imgBuffer = await imgRes.arrayBuffer();
+      const imgType   = imgRes.headers.get("content-type") || "image/jpeg";
+
+      // CORS 헤더 포함해서 이미지 바이너리 그대로 반환
+      return new Response(imgBuffer, {
+        status: 200,
+        headers: {
+          "Content-Type":                imgType,
+          "Access-Control-Allow-Origin": headers["Access-Control-Allow-Origin"],
+          "Cache-Control":               "public, max-age=86400",
+        },
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e.message }), {
+        status: 500, headers
+      });
+    }
+  }
+
   // ── GET /blog-gen/preview — 랭킹 데이터 미리보기 (테스트용) ──
   if (request.method === "GET" && path === "/blog-gen/preview") {
 
