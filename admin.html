@@ -863,32 +863,52 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:16px;
       font-family:var(--mono);letter-spacing:.5px">② 썸네일 생성 <span style="font-size:10px;font-weight:400">· 1:1 · PNG</span></div>
 
-    <!-- 작품 검색 -->
-    <div style="margin-bottom:12px">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">작품 검색</div>
-      <div style="position:relative">
-        <input class="inp" type="text" id="bgThumbSearchInp" style="margin-bottom:0"
-          placeholder="작품명 입력..."
-          oninput="bgSearchWork(this.value)"
-          autocomplete="off">
-        <div id="bgThumbSearchResults"
-          style="display:none;position:absolute;top:44px;left:0;right:0;z-index:50;
-            background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
-            max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
-      </div>
-      <!-- 선택된 작품 표시 -->
-      <div id="bgThumbSelectedWork" style="display:none;margin-top:8px;
-        display:none;align-items:center;gap:10px;padding:8px 12px;
-        background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:8px">
-        <img id="bgThumbWorkPoster" src="" alt=""
-          style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">
-        <div style="flex:1;min-width:0">
-          <div id="bgThumbWorkTitle" style="font-size:13px;font-weight:500;color:var(--green)"></div>
-          <div id="bgThumbWorkMeta" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+    <!-- 작품 검색 + OTT 선택 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">작품 검색</div>
+        <div style="position:relative">
+          <input class="inp" type="text" id="bgThumbSearchInp" style="margin-bottom:0"
+            placeholder="작품명 입력..."
+            oninput="bgSearchWork(this.value)"
+            autocomplete="off">
+          <div id="bgThumbSearchResults"
+            style="display:none;position:absolute;top:44px;left:0;right:0;z-index:50;
+              background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+              max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
         </div>
-        <button class="btn-sm" onclick="bgClearThumbWork()"
-          style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0">✕</button>
       </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+          OTT 배지 <span style="color:var(--muted);font-size:10px">(우측 상단 표시)</span>
+        </div>
+        <select class="inp" id="bgThumbPlatformSel" style="cursor:pointer;margin-bottom:0"
+          onchange="bgThumbPlatformSelChange()">
+          <option value="netflix">넷플릭스</option>
+          <option value="tving">티빙</option>
+          <option value="wavve">웨이브</option>
+          <option value="disney">디즈니+</option>
+          <option value="coupang">쿠팡플레이</option>
+          <option value="boxoffice">박스오피스</option>
+          <option value="custom">직접 입력</option>
+        </select>
+        <input class="inp" type="text" id="bgThumbPlatformCustom"
+          style="display:none;margin-top:6px;margin-bottom:0"
+          placeholder="배지 텍스트 입력...">
+      </div>
+    </div>
+    <!-- 선택된 작품 표시 -->
+    <div id="bgThumbSelectedWork" style="display:none;margin-bottom:12px;
+      align-items:center;gap:10px;padding:8px 12px;
+      background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:8px">
+      <img id="bgThumbWorkPoster" src="" alt=""
+        style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div id="bgThumbWorkTitle" style="font-size:13px;font-weight:500;color:var(--green)"></div>
+        <div id="bgThumbWorkMeta" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+      </div>
+      <button class="btn-sm" onclick="bgClearThumbWork()"
+        style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0">✕</button>
     </div>
 
     <!-- 썸네일 제목 입력 -->
@@ -5363,7 +5383,27 @@ function bgClearThumbWork() {
   document.getElementById('bgThumbSelectedWork').style.display = 'none';
 }
 
-/* 포스터 base64 변환 (review.html 방식) */
+/* OTT 배지 선택 변경 */
+function bgThumbPlatformSelChange() {
+  const val = document.getElementById('bgThumbPlatformSel').value;
+  const customInp = document.getElementById('bgThumbPlatformCustom');
+  customInp.style.display = val === 'custom' ? 'block' : 'none';
+}
+
+/* 썸네일 OTT 배지 텍스트/색상 가져오기 */
+function bgGetThumbBadge() {
+  const sel = document.getElementById('bgThumbPlatformSel').value;
+  if (sel === 'custom') {
+    return {
+      text:  document.getElementById('bgThumbPlatformCustom').value.trim() || 'OTT',
+      color: '#555'
+    };
+  }
+  return {
+    text:  BG_PLATFORM_LABELS[sel] || sel.toUpperCase(),
+    color: BG_PLATFORM_COLORS[sel] || '#e50914'
+  };
+}
 async function bgFetchPosterAsBase64(posterPath) {
   if (!posterPath) return '';
   try {
@@ -5408,9 +5448,10 @@ async function bgGenerateThumbnail() {
     document.getElementById('bgThumbTitleEl').textContent = title;
     document.getElementById('bgThumbWeek').textContent    = bgGetWeekLabel();
 
-    // 플랫폼 배지 — 작품 플랫폼 정보 없으므로 기본 OTT
-    document.getElementById('bgThumbPlatformBadge').textContent      = 'OTT RANK';
-    document.getElementById('bgThumbPlatformBadge').style.background = '#e50914';
+    // 플랫폼 배지 — OTT 선택값 사용
+    const badge = bgGetThumbBadge();
+    document.getElementById('bgThumbPlatformBadge').textContent      = badge.text;
+    document.getElementById('bgThumbPlatformBadge').style.background = badge.color;
 
     document.getElementById('bgThumbResult').style.display = 'block';
     document.getElementById('bgThumbResult').scrollIntoView({ behavior:'smooth' });
@@ -5538,38 +5579,46 @@ async function bgRenderTop10Dom(items, displayName, platform) {
     items.slice(0, 10).map(item => bgFetchPosterAsBase64(item.poster_path))
   );
 
-  // 1위 포스터 배경 적용
+  // 1위 포스터 — <img> 태그로 교체 (html2canvas 선명도 향상)
   const p1El = document.getElementById('bgTop10P1');
+  p1El.innerHTML = ''; // 기존 내용 초기화
   if (base64List[0]) {
-    p1El.style.backgroundImage = `url(${base64List[0]})`;
-    p1El.style.backgroundSize  = 'cover';
-    p1El.style.backgroundPosition = 'center';
+    const img = document.createElement('img');
+    img.src = base64List[0];
+    img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+    p1El.appendChild(img);
   } else {
-    p1El.style.backgroundImage = 'none';
-    p1El.style.background      = '#2a1010';
+    p1El.style.background = '#2a1010';
   }
+  // 순위 번호
+  const rank1El = document.createElement('div');
+  rank1El.textContent = '01';
+  rank1El.style.cssText = `position:absolute;top:6px;left:6px;font-size:28px;
+    font-weight:900;color:white;text-shadow:2px 2px 6px rgba(0,0,0,0.9);
+    font-family:Arial,sans-serif;z-index:1`;
+  p1El.appendChild(rank1El);
 
-  // 2~10위 그리드 생성
+  // 2~10위 그리드 — <img> 태그로 교체
   const gridEl = document.getElementById('bgTop10Grid');
   gridEl.innerHTML = '';
   for (let i = 1; i < 10; i++) {
     const cell = document.createElement('div');
-    cell.style.cssText = `
-      position:relative;border-radius:4px;overflow:hidden;
-      background:#2a2a3a;background-size:cover;background-position:center;
-    `;
+    cell.style.cssText = 'position:relative;border-radius:4px;overflow:hidden;background:#2a2a3a';
+
     if (base64List[i]) {
-      cell.style.backgroundImage = `url(${base64List[i]})`;
+      const img = document.createElement('img');
+      img.src = base64List[i];
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+      cell.appendChild(img);
     }
+
     // 순위 번호
     const rankEl = document.createElement('div');
     rankEl.textContent = String(i + 1).padStart(2, '0');
-    rankEl.style.cssText = `
-      position:absolute;top:3px;left:4px;
+    rankEl.style.cssText = `position:absolute;top:3px;left:4px;
       font-size:13px;font-weight:900;color:white;
-      font-family:Arial,sans-serif;
-      text-shadow:1px 1px 4px rgba(0,0,0,0.9);
-    `;
+      font-family:Arial,sans-serif;z-index:1;
+      text-shadow:1px 1px 4px rgba(0,0,0,0.9)`;
     cell.appendChild(rankEl);
     gridEl.appendChild(cell);
   }
