@@ -407,7 +407,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
               letter-spacing:1.5px;margin-bottom:4px">이번 주 1위</div>
             <div id="bgThumbTitleEl"
               style="font-size:22px;font-weight:900;color:#fff;line-height:1.2;
-                margin-bottom:6px;text-shadow:2px 2px 8px rgba(0,0,0,0.8);word-break:keep-all"></div>
+                margin-bottom:6px;text-shadow:2px 2px 8px rgba(0,0,0,0.8);
+                white-space:normal;word-break:keep-all;overflow-wrap:break-word"></div>
             <div id="bgThumbWeek"
               style="font-size:10px;color:rgba(255,255,255,0.45);
                 font-family:'DM Mono',monospace"></div>
@@ -1192,7 +1193,10 @@ async function bgDownloadThumbnail() {
   statusEl.textContent = '';
 
   try {
-    await new Promise(r => setTimeout(r, 80));
+    // 커스텀 폰트(Noto Sans KR 등)가 완전히 로드된 뒤에 캡처해야
+    // html2canvas가 줄바꿈을 정확히 계산함 (안 그러면 텍스트가 잘려서 캡처될 수 있음)
+    await document.fonts.ready;
+    await new Promise(r => setTimeout(r, 100));
     const card   = document.getElementById('bgThumbCard');
     const canvas = await html2canvas(card, {
       scale:2, useCORS:true, backgroundColor:'#0c0c10', logging:false,
@@ -1458,7 +1462,9 @@ async function bgDownloadTop10() {
   btn.textContent = '이미지 생성 중...';
 
   try {
-    await new Promise(r => setTimeout(r, 200)); // 포스터 10장 렌더 대기
+    // 커스텀 폰트 로딩 대기 (안 그러면 텍스트가 잘려서 캡처될 수 있음) + 포스터 10장 렌더 대기
+    await document.fonts.ready;
+    await new Promise(r => setTimeout(r, 200));
 
     const card   = document.getElementById('bgTop10Card');
     const canvas = await html2canvas(card, {
@@ -1759,7 +1765,8 @@ async function bgGenerateRankCards() {
       const cardDom = bgCreateRankCardDom(item, rank, platformLabel, platformColor, base64List[i], isBackdrop);
       hiddenWrap.appendChild(cardDom);
 
-      // html2canvas 캡처
+      // html2canvas 캡처 — 커스텀 폰트 로딩 대기 (텍스트 잘림 방지)
+      await document.fonts.ready;
       await new Promise(r => setTimeout(r, 50));
       const canvas = await html2canvas(cardDom, {
         scale: 3, useCORS: true, backgroundColor: '#13131a', logging: false,
