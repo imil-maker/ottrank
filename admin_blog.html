@@ -341,22 +341,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
         style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0">✕</button>
     </div>
 
-    <!-- 순위 라벨 입력 (비워두면 기본값 "이번 주 1위") -->
-    <div style="margin-bottom:12px">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
-        순위 라벨 <span style="color:var(--muted);font-size:10px">(비워두면 기본값: 이번 주 1위)</span>
+    <!-- 순위 라벨 + 기간 라벨 입력 (같은 줄에 배치) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+          순위 라벨 <span style="color:var(--muted);font-size:10px">(비워두면 기본값: 이번 주 1위)</span>
+        </div>
+        <input class="inp" type="text" id="bgThumbRankLabel" style="margin-bottom:0"
+          placeholder="예: 이번 주 3위, 상반기 1위">
       </div>
-      <input class="inp" type="text" id="bgThumbRankLabel" style="margin-bottom:0"
-        placeholder="예: 이번 주 3위, 이번 달 1위, 상반기 1위">
-    </div>
-
-    <!-- 기간 라벨 입력 (비워두면 자동 생성 주차) -->
-    <div style="margin-bottom:12px">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
-        기간 라벨 <span style="color:var(--muted);font-size:10px">(비워두면 자동 생성: 2026년 6월 5주차 형식)</span>
+      <div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:6px;font-family:var(--mono)">
+          기간 라벨 <span style="color:var(--muted);font-size:10px">(비워두면 자동 생성 주차)</span>
+        </div>
+        <input class="inp" type="text" id="bgThumbWeekLabel" style="margin-bottom:0"
+          placeholder="예: 2026년 상반기">
       </div>
-      <input class="inp" type="text" id="bgThumbWeekLabel" style="margin-bottom:0"
-        placeholder="예: 2026년 상반기, 2026.06.30 기준">
     </div>
 
     <!-- 썸네일 제목 입력 -->
