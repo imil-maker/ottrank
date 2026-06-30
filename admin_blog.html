@@ -337,6 +337,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
         <div id="bgThumbWorkTitle" style="font-size:13px;font-weight:500;color:var(--green)"></div>
         <div id="bgThumbWorkMeta" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
       </div>
+      <!-- 시즌 선택 (TV 시리즈일 때만 표시 — 시즌별로 포스터가 다르므로 TMDB에서 시즌 포스터 조회) -->
+      <div id="bgThumbSeasonRow" style="display:none;align-items:center;gap:6px;flex-shrink:0">
+        <input type="number" min="1" id="bgThumbSeasonInp" placeholder="시즌"
+          oninput="bgThumbSeasonInput(this.value)"
+          style="width:56px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;
+            padding:5px 6px;color:var(--text);font-family:var(--mono);font-size:12px;text-align:center">
+        <span id="bgThumbSeasonBadge" style="display:none;font-size:10px;color:var(--green);
+          font-family:var(--mono);white-space:nowrap">시즌 포스터 적용됨</span>
+      </div>
       <button class="btn-sm" onclick="bgClearThumbWork()"
         style="background:transparent;color:var(--muted);border:1px solid var(--border);flex-shrink:0">✕</button>
     </div>
@@ -966,13 +975,14 @@ function bgSearchWork(q) {
       const dbIds = new Set(dbWorks.map(w => w.tmdb_id));
 
       let tmdbItems = [];
-      for (const r of [tvRes, mvRes]) {
+      const tmdbResAndType = [[tvRes, 'tv'], [mvRes, 'movie']]; // 시즌 입력창 표시 여부 판단용
+      for (const [r, mt] of tmdbResAndType) {
         if (r.status === 'fulfilled' && r.value.ok) {
           const j = await r.value.json();
           (j.results || []).filter(i => !dbIds.has(i.id)).slice(0, 3).forEach(i => {
             tmdbItems.push({
               tmdb_id: i.id, title_ko: i.name||i.title||'',
-              poster_path: i.poster_path||'', _fromTmdb: true
+              poster_path: i.poster_path||'', media_type: mt, _fromTmdb: true
             });
           });
         }
@@ -989,7 +999,7 @@ function bgSearchWork(q) {
         return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;
           border-bottom:1px solid var(--border);transition:background .12s"
           onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
-          onclick="bgSelectThumbWork(${w.tmdb_id},'${(w.title_ko||'').replace(/'/g,"\\'")}','${w.poster_path||''}')">
+          onclick="bgSelectThumbWork(${w.tmdb_id},'${(w.title_ko||'').replace(/'/g,"\\'")}','${w.poster_path||''}','${w.media_type||''}')">
           ${poster
             ? `<img src="${poster}" style="width:24px;height:36px;object-fit:cover;border-radius:2px;flex-shrink:0">`
             : `<div style="width:24px;height:36px;background:var(--bg3);border-radius:2px;flex-shrink:0"></div>`
@@ -1005,8 +1015,14 @@ function bgSearchWork(q) {
 }
 
 /* 작품 선택 */
-function bgSelectThumbWork(tmdbId, titleKo, posterPath) {
-  bgThumbWorkData = { tmdb_id: tmdbId, title_ko: titleKo, poster_path: posterPath };
+function bgSelectThumbWork(tmdbId, titleKo, posterPath, mediaType) {
+  bgThumbWorkData = {
+    tmdb_id: tmdbId, title_ko: titleKo,
+    poster_path: posterPath,           // 기본 포스터
+    active_poster_path: posterPath,    // 실제 썸네일에 쓰일 포스터 (시즌 선택 시 교체)
+    media_type: mediaType || '',
+    season: null,
+  };
   document.getElementById('bgThumbSearchResults').style.display = 'none';
   document.getElementById('bgThumbSearchInp').value = titleKo;
 
@@ -1017,6 +1033,11 @@ function bgSelectThumbWork(tmdbId, titleKo, posterPath) {
   document.getElementById('bgThumbWorkPoster').style.display = posterPath ? 'block' : 'none';
   document.getElementById('bgThumbWorkTitle').textContent = titleKo;
   document.getElementById('bgThumbWorkMeta').textContent  = `TMDB ID: ${tmdbId}`;
+
+  // 시즌 입력창 — TV 시리즈일 때만 표시, 새로 선택할 때마다 초기화
+  document.getElementById('bgThumbSeasonRow').style.display   = (mediaType === 'tv') ? 'flex' : 'none';
+  document.getElementById('bgThumbSeasonInp').value            = '';
+  document.getElementById('bgThumbSeasonBadge').style.display  = 'none';
 }
 
 /* 작품 선택 해제 */
@@ -1024,6 +1045,52 @@ function bgClearThumbWork() {
   bgThumbWorkData = null;
   document.getElementById('bgThumbSearchInp').value = '';
   document.getElementById('bgThumbSelectedWork').style.display = 'none';
+  document.getElementById('bgThumbSeasonRow').style.display    = 'none';
+  document.getElementById('bgThumbSeasonInp').value             = '';
+  document.getElementById('bgThumbSeasonBadge').style.display   = 'none';
+}
+
+/* 시즌 번호 입력 시 TMDB에서 시즌 포스터 조회
+   (어드민 작품/랭킹 수정 모달의 시즌 포스터 조회 로직과 동일한 TMDB 엔드포인트 사용) */
+let bgThumbSeasonTimer = null;
+function bgThumbSeasonInput(val) {
+  clearTimeout(bgThumbSeasonTimer);
+  if (!bgThumbWorkData) return;
+
+  const season = parseInt(val);
+  const badge  = document.getElementById('bgThumbSeasonBadge');
+
+  if (!val || isNaN(season) || season <= 0) {
+    // 시즌 비움 → 기본 포스터로 복원
+    bgThumbWorkData.active_poster_path = bgThumbWorkData.poster_path;
+    bgThumbWorkData.season             = null;
+    badge.style.display = 'none';
+    document.getElementById('bgThumbWorkPoster').src =
+      bgThumbWorkData.poster_path ? `${IMG2}${bgThumbWorkData.poster_path}` : '';
+    return;
+  }
+
+  bgThumbSeasonTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(`${TMDB_PROXY}/tv/${bgThumbWorkData.tmdb_id}/season/${season}?language=ko-KR`);
+      const data = await res.json();
+      if (data.poster_path) {
+        bgThumbWorkData.active_poster_path = data.poster_path;
+        bgThumbWorkData.season             = season;
+        document.getElementById('bgThumbWorkPoster').src = `${IMG2}${data.poster_path}`;
+        badge.style.display = 'inline';
+      } else {
+        // 시즌 포스터 없음 → 기본 포스터 유지
+        bgThumbWorkData.active_poster_path = bgThumbWorkData.poster_path;
+        bgThumbWorkData.season             = season;
+        badge.style.display = 'none';
+        showToast(`시즌 ${season} 포스터가 없어 기본 포스터를 사용합니다.`, 'ok');
+      }
+    } catch(e) {
+      badge.style.display = 'none';
+      showToast(`시즌 포스터 조회 실패: ${e.message}`, 'err');
+    }
+  }, 400);
 }
 
 /* OTT 배지 선택 변경 */
@@ -1076,8 +1143,10 @@ async function bgGenerateThumbnail() {
   btn.textContent = '생성 중...';
 
   try {
-    // 포스터 base64 로딩
-    const posterDataUrl = await bgFetchPosterAsBase64(bgThumbWorkData.poster_path);
+    // 포스터 base64 로딩 — 시즌이 선택되어 있으면 시즌 포스터, 아니면 기본 포스터
+    const posterDataUrl = await bgFetchPosterAsBase64(
+      bgThumbWorkData.active_poster_path || bgThumbWorkData.poster_path
+    );
 
     // 카드 배경 적용 (review.html 방식)
     const cardEl = document.getElementById('bgThumbCard');
