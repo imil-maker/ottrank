@@ -387,8 +387,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
       <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
         <div id="bgThumbCard"
           style="width:320px;height:320px;position:relative;border-radius:12px;
-            overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2);
-            background-size:cover;background-position:center;background-repeat:no-repeat">
+            overflow:hidden;background:#0c0c10;flex-shrink:0;border:1px solid var(--border2)">
+          <!-- 포스터 이미지 (img 태그 사용 — html2canvas가 CSS background-image보다
+               img 태그를 원본 해상도 그대로 정확히 캡처하기 때문에 화질 차이가 남) -->
+          <img id="bgThumbPosterImg" src="" alt="" style="display:none;
+            position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center">
+          <!-- 포스터 위에 깔리는 어두운 그라디언트 (가독성용) -->
+          <div id="bgThumbGradientOverlay" style="display:none;position:absolute;inset:0"></div>
           <div style="position:absolute;top:0;left:0;right:0;padding:12px 14px;
             display:flex;align-items:center;justify-content:space-between;
             background:linear-gradient(to bottom,rgba(0,0,0,0.5),transparent)">
@@ -1150,16 +1155,21 @@ async function bgGenerateThumbnail() {
       bgThumbWorkData.active_poster_path || bgThumbWorkData.poster_path, 'original'
     );
 
-    // 카드 배경 적용 (review.html 방식)
-    const cardEl = document.getElementById('bgThumbCard');
+    // 카드 배경 적용 — img 태그 + 별도 그라디언트 오버레이 (html2canvas 화질 이슈 회피)
+    const cardEl     = document.getElementById('bgThumbCard');
+    const posterImgEl = document.getElementById('bgThumbPosterImg');
+    const overlayEl   = document.getElementById('bgThumbGradientOverlay');
     if (posterDataUrl) {
-      cardEl.style.backgroundImage = `
-        linear-gradient(to bottom,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.05) 35%,
-          rgba(0,0,0,0.55) 65%,rgba(0,0,0,0.9) 100%),
-        url(${posterDataUrl})`;
+      posterImgEl.src = posterDataUrl;
+      posterImgEl.style.display = 'block';
+      overlayEl.style.background = `linear-gradient(to bottom,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.05) 35%,
+        rgba(0,0,0,0.55) 65%,rgba(0,0,0,0.9) 100%)`;
+      overlayEl.style.display = 'block';
+      cardEl.style.background = '#0c0c10';
     } else {
-      cardEl.style.backgroundImage = 'none';
-      cardEl.style.background      = '#1a1a24';
+      posterImgEl.style.display = 'none';
+      overlayEl.style.display   = 'none';
+      cardEl.style.background   = '#1a1a24';
     }
 
     // 제목 + 순위 라벨 + 기간 라벨 반영 (입력 안 하면 기존 기본값 그대로 사용)
