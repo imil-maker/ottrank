@@ -425,6 +425,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   background:transparent;transition:all .15s;
 }
 .c-like:hover{color:var(--accent);border-color:rgba(230,57,70,.4);background:var(--danger-bg)}
+.c-like.liked{color:var(--accent);border-color:rgba(230,57,70,.5);background:var(--danger-bg)}
 .c-share{
   font-size:13px;color:var(--muted);cursor:pointer;
   font-family:var(--font-mono);display:inline-flex;align-items:center;gap:4px;
@@ -2057,7 +2058,9 @@ async function loadTmdb(){
     if(creditsRes.status==='fulfilled'){
       const cr=creditsRes.value;
       const directors=(cr.crew||[]).filter(p=>p.job==='Director'||p.department==='Directing').slice(0,3);
-      const cast=(cr.cast||[]).slice(0,12);
+      // 출연진 캡 제거 — TMDB credits API가 내려주는 cast 전체(billing order 순)를 그대로 렌더링
+      // 가로 스크롤 카드(cast-scroll)라 인원이 많아도 화살표로 끝까지 탐색 가능
+      const cast=(cr.cast||[]);
 
       if(directors.length||cast.length){
         document.getElementById('castSection').style.display='block';
@@ -2526,8 +2529,8 @@ function renderComments(){
       ${c.spoiler?'<span class="sp-badge">⚠ 스포일러</span>':''}
       <div class="c-text">${c.text}</div>
       <div class="c-footer">
-        <span class="c-like" onclick="likeComment('${c.id}')">
-          <i class="ti ti-heart" style="font-size:11px"></i>
+        <span class="c-like${c.liked?' liked':''}" id="like_btn_${c.id}" onclick="likeComment(${c.id})">
+          <i class="ti ${c.liked?'ti-heart-filled':'ti-heart'}" style="font-size:11px"></i>
           <span id="like_cmt_${c.id}">${c.likes}</span>
         </span>
         <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">
@@ -2542,7 +2545,45 @@ function renderComments(){
 
 async function likeComment(id){
   const c=ALL_COMMENTS.find(x=>x.id===id);if(!c)return;
-  try{await fetch(`${REVIEW_API}/reviews/${WORK.tmdb_id}/like/${id}`,{method:'POST'});c.likes++;const el=document.getElementById('like_cmt_'+id);if(el)el.textContent=c.likes;}catch(e){}
+
+  // 비로그인 시 로그인 페이지로 이동 (다른 쓰기 액션들과 동일한 패턴)
+  const sid=localStorage.getItem('ottrang_sid');
+  if(!sid){location.href='/login.html?redirect='+encodeURIComponent(location.pathname);return;}
+
+  const btn=document.getElementById('like_btn_'+id);
+  // 응답 오기 전 중복 클릭(연타) 방지
+  if(btn){
+    if(btn.dataset.pending==='1')return;
+    btn.dataset.pending='1';
+  }
+
+  try{
+    const res=await fetch(`${REVIEW_API}/reviews/${WORK.tmdb_id}/like/${id}`,{
+      method:'POST',
+      headers:{Authorization:'Bearer '+sid},
+    });
+    const data=await res.json().catch(()=>null);
+    if(!res.ok||!data?.ok){
+      showToast(data?.message||'좋아요 처리에 실패했어요');
+      return;
+    }
+
+    // 서버가 내려준 최종 상태(liked, likes)로 화면 갱신 — 낙관적 증가 대신 신뢰 가능한 값 사용
+    c.liked=!!data.liked;
+    c.likes=data.likes;
+
+    const countEl=document.getElementById('like_cmt_'+id);
+    if(countEl)countEl.textContent=c.likes;
+    if(btn){
+      btn.classList.toggle('liked',c.liked);
+      const icon=btn.querySelector('i');
+      if(icon)icon.className=`ti ${c.liked?'ti-heart-filled':'ti-heart'}`;
+    }
+  }catch(e){
+    showToast('네트워크 오류로 좋아요 처리에 실패했어요');
+  }finally{
+    if(btn)btn.dataset.pending='0';
+  }
 }
 function shareComment(id,user){
   const url=`${getShareUrl()}#cmt_${id}`;
@@ -2639,7 +2680,7 @@ async function loadReviews(tmdbId){
         id:r.id,user:r.nickname||'익명',init:(r.nickname||'익')[0],
         score:r.score,emotions:_safeParseArr(r.emotions),customTags:_safeParseArr(r.custom_tags),
         text:r.text||'',time:formatTime(r.created_at),likes:r.likes||0,spoiler:!!r.spoiler,
-        user_id:r.user_id,isMe:false,mbti:r.mbti||null,
+        user_id:r.user_id,isMe:false,mbti:r.mbti||null,liked:!!r.liked_by_me,
       }));
     }
     if(myRes.status==='fulfilled'&&myRes.value?.data){
