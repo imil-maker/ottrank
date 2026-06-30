@@ -106,6 +106,37 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   background: rgba(230,57,70,.95);
 }
 
+/* ══════════════════════════════════════
+   이 페이지 전용 — 리뷰 카드 구조 변경
+   review-card.css 원본은 글 영역(.rc-content)이 포스터(.rc-poster) "안"에
+   position:absolute로 겹쳐 떠 있는 구조라, 글이 길어지면 포스터의
+   overflow:hidden에 그대로 잘림 (2줄 제한을 풀어도 동일하게 잘림).
+   여긴 평점·후기 전체 보기 페이지라 글이 절대 잘리면 안 되므로,
+   #reviewArea 안에서만 "포스터 위 + 글은 그 아래 별도 영역"으로 재배치.
+   review-card.css 파일 자체는 손대지 않아 index/mypage/community에는 영향 없음.
+═══════════════════════════════════════ */
+#reviewArea .rc-content {
+  position: static;                 /* 절대배치 해제 → 포스터 다음에 자연스럽게 쌓임 */
+  background: var(--bg2);
+  border-radius: 0 0 var(--r) var(--r);
+}
+#reviewArea .rc-body {
+  display: block;                   /* -webkit-box(줄 제한) 해제 */
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  white-space: pre-wrap;            /* 줄바꿈 입력한 그대로 표시 */
+  word-break: break-word;
+  text-shadow: none;                /* 더 이상 이미지 위에 겹치지 않으므로 그림자 불필요 */
+}
+#reviewArea .rc-title {
+  text-shadow: none;
+}
+/* 카드마다 글 길이가 달라 높이가 제각각이므로, 한 행의 가장 긴 카드에
+   맞춰 나머지 카드까지 늘어나지 않도록(stretch 기본값 해제) start로 고정 */
+#reviewArea .rc-grid {
+  align-items: start;
+}
+
 @media(max-width:600px){
   .page-wrap{padding:24px 16px 60px}
 
@@ -123,11 +154,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     min-width: unset !important;
     scroll-snap-align: unset !important;
   }
-  /* 모바일 rc-poster 높이 20px 추가 */
-  #reviewArea .rc-poster {
-    aspect-ratio: unset !important;
-    height: calc((100vw - 40px) / 2 * 1.5 + 20px) !important;
-  }
+  /* rc-poster는 기본 aspect-ratio(2/3) 그대로 사용 —
+     이제 글이 포스터 아래 별도 블록이라 오버레이용 높이 보정이 필요 없음 */
 }
 </style>
 </head>
@@ -202,20 +230,19 @@ async function init() {
 
   try {
     if (targetUid) {
-      /* ── 타인 프로필 조회 ── */
+      /* ── 타인 프로필 조회 — 리뷰만 가볍게 ── */
       IS_OWN = false;
-      const json = await (await fetch(`${API}/user/${targetUid}`)).json();
+      const json = await (await fetch(`${API}/user/${targetUid}/reviews`)).json();
       if (!json.ok) { showError('유저를 찾을 수 없어요'); return; }
       ALL_REVIEWS = json.reviews || [];
       // 뒤로가기 → 해당 유저 마이페이지
       document.getElementById('backBtn').href = `/mypage.html?uid=${targetUid}`;
-      const nick = json.user?.nickname || '유저';
-      document.title = `${nick}의 평점·후기 | 오뜨랑`;
+      document.title = `${json.nickname || '유저'}의 평점·후기 | 오뜨랑`;
     } else {
-      /* ── 내 마이페이지 ── */
+      /* ── 내 리뷰 — 리뷰만 가볍게 ── */
       IS_OWN = true;
       if (!sid) { showError('로그인이 필요해요'); return; }
-      const json = await (await fetch(`${API}/mypage`, { headers: { Authorization: 'Bearer ' + sid } })).json();
+      const json = await (await fetch(`${API}/mypage/reviews`, { headers: { Authorization: 'Bearer ' + sid } })).json();
       if (!json.ok) { showError('로그인이 필요해요'); return; }
       ALL_REVIEWS = json.reviews || [];
     }
@@ -302,6 +329,7 @@ function renderReviews(page) {
         + '<div class="rc-poster-fade"></div>'
         + delBadge
         + (scoreNum ? '<div class="rc-poster-score">★ ' + scoreNum + '</div>' : '')
+        + '</div>'
         + '<div class="rc-content">'
         + '<div class="rc-title">' + (r.title_ko || '작품 #' + r.tmdb_id) + '</div>'
         + '<div class="rc-stars-row">'
@@ -311,7 +339,6 @@ function renderReviews(page) {
         + '<div class="rc-divider"></div>'
         + bodyHtml
         + ((evalBadge || emoTags) ? '<div class="rc-tags">' + evalBadge + emoTags + '</div>' : '')
-        + '</div>'
         + '</div>'
         + '</div>';
     }).join('')
