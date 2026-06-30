@@ -320,22 +320,25 @@ async function init(){
   }
 
   try {
-    const [gradeRes, mypageRes] = await Promise.all([
+    // 3개 요청을 동시에 발사 — 순서대로 기다리지 않고 가장 느린 1개만 기다리면 됨
+    // (무거운 /mypage 대신, 오뜨 점수/등급만 가볍게 주는 /mypage/summary 사용)
+    const [gradeRes, summaryRes, logsRes] = await Promise.all([
       fetch(`${API}/grade-settings`).then(r => r.json()),
-      fetch(`${API}/mypage`, { headers: { Authorization: 'Bearer ' + sid } }).then(r => r.json()),
+      fetch(`${API}/mypage/summary`, { headers: { Authorization: 'Bearer ' + sid } }).then(r => r.json()),
+      fetch(`${API}/mypage/point-logs?page=1&limit=${PAGE_LIMIT}`, { headers: { Authorization: 'Bearer ' + sid } }).then(r => r.json()),
     ]);
 
-    if (!mypageRes.ok) {
+    if (!summaryRes.ok) {
       localStorage.removeItem('ottrang_sid');
       show('loadingWrap', 'none'); show('loginPrompt', 'flex'); return;
     }
 
     ALL_GRADES = gradeRes.data || [];
-    CUR_USER = mypageRes.user;
+    CUR_USER = summaryRes.user;
 
     renderSummaryCard(CUR_USER);
     renderLevelRoadmap(CUR_USER);
-    await loadLogs(1);
+    applyLogsResponse(logsRes, 1);
 
     show('loadingWrap', 'none');
     show('pageContent', 'block');
@@ -435,22 +438,28 @@ function renderLevelRoadmap(user) {
    전체 적립 내역 — 10개씩 페이지네이션
 ═══════════════════════════════════════ */
 async function loadLogs(page) {
-  curPage = page;
   const sid = localStorage.getItem('ottrang_sid');
   try {
     const res = await fetch(`${API}/mypage/point-logs?page=${page}&limit=${PAGE_LIMIT}`, {
       headers: { Authorization: 'Bearer ' + sid },
     });
     const data = await res.json();
-    if (!data.ok) { renderLogList([]); return; }
-
-    TOTAL_LOGS = data.total || 0;
-    renderLogList(data.logs || []);
-    document.getElementById('logCount').textContent = `총 ${TOTAL_LOGS.toLocaleString()}건`;
-    renderPaginationUI();
+    applyLogsResponse(data, page);
   } catch (e) {
     renderLogList([]);
   }
+}
+
+// point-logs 응답을 화면에 반영하는 공용 함수
+// — init()에서 동시 요청으로 미리 받아온 1페이지 결과와, goPage()로 재조회한 결과 둘 다 여기서 처리
+function applyLogsResponse(data, page) {
+  curPage = page;
+  if (!data || !data.ok) { renderLogList([]); return; }
+
+  TOTAL_LOGS = data.total || 0;
+  renderLogList(data.logs || []);
+  document.getElementById('logCount').textContent = `총 ${TOTAL_LOGS.toLocaleString()}건`;
+  renderPaginationUI();
 }
 
 function renderLogList(logs) {
