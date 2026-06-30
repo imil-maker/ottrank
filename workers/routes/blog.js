@@ -276,7 +276,8 @@ async function callAnthropicAPI(prompt, apiKey, { useWebSearch = true, maxTokens
   };
 
   if (useWebSearch) {
-    requestBody.tools = [{ type: "web_search_20250305", name: "web_search" }];
+    // max_uses: 검색을 무한정 반복하지 않도록 상한을 둬서 응답 지연을 방지
+    requestBody.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }];
   }
 
   const res = await fetch(ANTHROPIC_API_URL, {
@@ -536,7 +537,7 @@ ${ruleText}
           model:      "claude-haiku-4-5-20251001", // 빠른 응답 우선 (Haiku)
           max_tokens: 1500, // 웹 검색 사용 시를 대비해 기존 1200보다 여유있게
           messages:   [{ role: "user", content: prompt }],
-          tools:      [{ type: "web_search_20250305", name: "web_search" }],
+          tools:      [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
         }),
       });
 
@@ -709,29 +710,53 @@ ${ruleText}
         return "드라마";
       })();
 
+      // extraRequest(추가 요청사항)가 있으면 이게 글의 진짜 주제 — 아래에서
+      // "주제:" 줄 자체를 이걸로 바꾸고, 프롬프트 맨 앞에서 강하게 명시한다.
+      // (예전엔 이게 그냥 [추가 지시사항] 목록 맨 끝에 묻혀 있어서, AI가 항상
+      //  "이번 주 랭킹"이라는 고정 주제만 따라가는 버그가 있었음)
+      const hasCustomTopic = !!(extraRequest && extraRequest.trim());
+      const topicLine = hasCustomTopic
+        ? extraRequest.trim()
+        : `${weekInfo} ${platformName} — ${CONTENT_TYPE_PROMPTS[contentType] || CONTENT_TYPE_PROMPTS.weekly_ranking}`;
+
       const options = [];
       if (!useEmoji)    options.push("이모지를 사용하지 마세요.");
       if (useRating)    options.push(`오뜨랑(${SITE_URL}) 평점 정보를 자연스럽게 언급해주세요.`);
       if (useLink)      options.push(`포스팅 중간이나 마지막에 "${SITE_URL}" 링크를 "오뜨랑에서 더 보기" 형태로 자연스럽게 삽입해주세요.`);
       if (useSpoiler)   options.push("스포일러 주의 문구가 필요한 작품에는 ⚠️ 스포주의 라벨을 달아주세요.");
       if (useHashtag)   options.push(`포스팅 마지막에 네이버 블로그용 해시태그를 15개 이상 추가해주세요. (예: #${platformName}${hashtagMediaWord}추천 #OTT추천 #${platformName}순위 등)`);
-      if (extraRequest) options.push(extraRequest);
+      // extraRequest는 더 이상 여기 안 넣음 — topicLine으로 격상해서 프롬프트 앞부분에서 사용
 
       const prompt = `당신은 네이버 블로그에 OTT 콘텐츠 글을 매일 쓰는 30대 직장인입니다.
 드라마를 진짜 좋아해서 퇴근 후에 보고, 주말에 몰아보고, 느낀 대로 솔직하게 씁니다.
-아래 랭킹 데이터를 바탕으로 지금 당장 이 사람이 쓸 것 같은 블로그 글을 작성해주세요.
+${hasCustomTopic
+  ? `오늘 쓸 글의 주제는 정확히 이겁니다: "${topicLine}"
+이 주제에 맞게 글을 작성해주세요. 아래 랭킹 데이터는 참고용 보조자료일 뿐입니다 —
+주제와 직접 관련된 부분만 참고하고, 관련 없으면 무시하세요.`
+  : `아래 랭킹 데이터를 바탕으로 지금 당장 이 사람이 쓸 것 같은 블로그 글을 작성해주세요.`}
 
 ${rankingText}
 
-이 데이터에 없는 주제(예: 다음 달 공개 예정 신작, 이번 분기·반기 결산, 데이터에 아직
+${hasCustomTopic
+  ? `주제("${topicLine}")가 위 데이터만으로는 부족할 가능성이 높습니다 — 그런 경우
+web_search를 여러 번 사용해서 언론 보도·화제성·공개 시기·시즌 갱신 여부 같은 단서들을
+충분히 모은 뒤, 그걸 근거로 순위·추천 리스트를 당당하게 만들어내세요. "정확한 공식
+수치가 없다"는 식으로 발뺌하거나 애매하게 얼버무리지 말고, 실제 OTT 블로거가 쓰듯
+자연스럽게 단정해서 쓰세요. 단, 검색 결과 문장을 그대로 베끼지 말고 네이버 블로거
+말투로 직접 다시 써야 합니다.
+이 주제는 사용자가 직접 지정한 만큼 글의 핵심입니다. 순위·추천 항목을 다룰 때는
+"1위. 작품명" 식으로 순번과 정확한 작품명을 또렷하게 밝히고, 바로 옆이나 다음 줄에
+화제성·흥행도를 짧게라도 표시해주세요 (예: "화제성 ★★★★☆", "흥행도 매우 높음" 등).
+모호하게 뭉뚱그리지 말고, 항목 하나하나를 구체적으로 채워서 한눈에 비교되게 써주세요.`
+  : `이 데이터에 없는 주제(예: 다음 달 공개 예정 신작, 이번 분기·반기 결산, 데이터에 아직
 안 잡힌 최신 화제작·이슈 등)를 다뤄야 한다면, web_search를 여러 번 사용해서 언론 보도·
 화제성·공개 시기·시즌 갱신 여부 같은 단서들을 충분히 모은 뒤, 그걸 근거로 순위·추천
 리스트를 당당하게 만들어내세요. "정확한 공식 수치가 없다"는 식으로 발뺌하거나 애매하게
 얼버무리지 말고, 실제 OTT 블로거가 쓰듯 자연스럽게 단정해서 쓰세요. 단, 검색 결과 문장을
-그대로 베끼지 말고 네이버 블로거 말투로 직접 다시 써야 합니다.
+그대로 베끼지 말고 네이버 블로거 말투로 직접 다시 써야 합니다.`}
 
 ━━━ 작성 조건 ━━━
-주제: ${weekInfo} ${platformName} — ${CONTENT_TYPE_PROMPTS[contentType] || CONTENT_TYPE_PROMPTS.weekly_ranking}
+주제: ${topicLine}
 말투: ${TONE_LABELS[tone] || TONE_LABELS.friendly}
 길이: 1500자~2500자
 구조: [제목] → 도입부 → 본문 → 마무리
@@ -752,7 +777,7 @@ ${contentType === 'weekly_ranking'
 - 소제목에 ★, ■, ◆ 같은 특수기호 남발
 - 마크다운 ##, **, --- 기호
 
-━━━ 실제 네이버 블로그 글 구조 예시 (반드시 이 형식으로) ━━━
+━━━ 실제 네이버 블로그 글 구조 예시 (문장 스타일·줄바꿈 형식만 참고하세요 — 아래 예시 속 소재는 실제 주제와 무관합니다) ━━━
 
 네이버 블로그는 아래처럼 짧은 문장을 한 줄씩 줄바꿈해서 씁니다.
 문단을 길게 쓰지 않고, 숨 쉬듯 끊어서 씁니다.
@@ -806,7 +831,12 @@ ${options.length > 0 ? "[추가 지시사항]\n" + options.map((o, i) => `${i + 
 마크다운 기호 없이 일반 텍스트로, 단락 구분은 빈 줄로만 해주세요.`;
 
       // ③ Anthropic API 호출
-      const generatedText = await callAnthropicAPI(prompt, apiKey);
+      // 추가 요청사항(커스텀 주제)이 있을 때만 웹검색 사용 — 데이터에 이미 다 있는
+      // "이번 주 랭킹" 같은 평범한 글까지 매번 검색 도느라 느려지는 걸 방지
+      const generatedText = await callAnthropicAPI(prompt, apiKey, {
+        useWebSearch: hasCustomTopic,
+        maxTokens:    hasCustomTopic ? 5000 : 4096,
+      });
 
       if (!generatedText) {
         throw new Error("AI 응답이 비어있습니다. 다시 시도해주세요.");
