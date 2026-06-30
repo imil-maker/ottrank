@@ -349,11 +349,12 @@ export async function handleUser(path, request, env, ctx, headers) {
 
       const uid = session.user_id;
 
-      // 아래 8개 조회는 서로 결과를 참조하지 않는 독립적인 쿼리들이라
-      // 순서대로 기다리지 않고 Promise.all로 한꺼번에 보낸다.
-      // (전: 8번 왕복을 순서대로 기다림 → 후: 가장 느린 1번만 기다리면 됨)
+      // 아래 8개는 서로 독립적인 조회라서, 8번 왕복하는 대신
+      // env.DB.batch()로 한 봉투에 묶어서 D1에 단 1번만 왕복한다.
+      // (Promise.all은 JS 쪽에서 동시에 "보내기"는 하지만 D1까지의 왕복 자체는 각각 따로 발생함
+      //  → batch()를 써야 실제로 네트워크 왕복 횟수가 줄어듦)
       const [
-        user,
+        userRes,
         reviewsRes,
         wishlistRes,
         postsRes,
@@ -361,7 +362,7 @@ export async function handleUser(path, request, env, ctx, headers) {
         pickListRowsRes,
         recentLogsRes,
         gradeSettingsRes,
-      ] = await Promise.all([
+      ] = await env.DB.batch([
         env.DB.prepare(`
           SELECT u.id, u.nickname, u.provider, u.email, u.avatar_url,
             u.grade, u.total_likes_received, u.created_at, u.wishlist_public, u.mbti,
@@ -371,7 +372,7 @@ export async function handleUser(path, request, env, ctx, headers) {
           FROM users u
           LEFT JOIN grade_settings gs ON gs.grade_key = u.grade
           WHERE u.id = ?
-        `).bind(uid).first(),
+        `).bind(uid),
 
         env.DB.prepare(`
           SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
@@ -388,7 +389,7 @@ export async function handleUser(path, request, env, ctx, headers) {
           LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
           WHERE r.user_id = ?
           ORDER BY r.created_at DESC
-        `).bind(uid).all(),
+        `).bind(uid),
 
         env.DB.prepare(`
           SELECT w.*,
@@ -403,14 +404,14 @@ export async function handleUser(path, request, env, ctx, headers) {
           ) rk ON rk.tmdb_id = w.tmdb_id
           WHERE w.user_id = ?
           ORDER BY w.created_at DESC
-        `).bind(uid).all(),
+        `).bind(uid),
 
         env.DB.prepare(`
           SELECT id, board_type, title, like_count, view_count, created_at
           FROM posts
           WHERE user_id = ? AND is_hidden = 0
           ORDER BY created_at DESC
-        `).bind(uid).all(),
+        `).bind(uid),
 
         env.DB.prepare(`
           SELECT lw.*,
@@ -420,11 +421,11 @@ export async function handleUser(path, request, env, ctx, headers) {
           LEFT JOIN works wk ON wk.tmdb_id = lw.tmdb_id
           WHERE lw.user_id = ?
           ORDER BY lw.created_at DESC
-        `).bind(uid).all(),
+        `).bind(uid),
 
         env.DB.prepare(
           "SELECT * FROM pick_lists WHERE user_id = ? ORDER BY created_at DESC"
-        ).bind(uid).all(),
+        ).bind(uid),
 
         env.DB.prepare(`
           SELECT points, reason, created_at
@@ -432,28 +433,39 @@ export async function handleUser(path, request, env, ctx, headers) {
           WHERE user_id = ?
           ORDER BY created_at DESC
           LIMIT 20
-        `).bind(uid).all(),
+        `).bind(uid),
 
         env.DB.prepare(
           "SELECT grade_key, grade_name, min_ott_points, emoji_url, is_special, sort_order FROM grade_settings ORDER BY sort_order ASC"
-        ).all(),
+        ),
       ]);
 
-      const reviews            = reviewsRes.results;
-      const wishlist           = wishlistRes.results;
-      const posts               = postsRes.results;
-      const life_works          = lifeWorksRes.results;
-      const recent_point_logs   = recentLogsRes.results;
-      const grade_settings      = gradeSettingsRes.results;
+      // batch()는 .first()를 지원하지 않아서, user는 results 배열의 첫 행을 직접 꺼내야 함
+      const user                = userRes.results[0] || null;
+      const reviews              = reviewsRes.results;
+      const wishlist             = wishlistRes.results;
+      const posts                = postsRes.results;
+      const life_works           = lifeWorksRes.results;
+      const pickListRows         = pickListRowsRes.results;
+      const recent_point_logs    = recentLogsRes.results;
+      const grade_settings       = gradeSettingsRes.results;
 
-      // 추천작품 컬렉션은 각 컬렉션마다 작품 목록을 추가로 조회해야 해서
-      // pickListRows가 준비된 다음에만 실행 가능 — 컬렉션끼리는 서로 독립적이므로 Promise.all로 동시 조회
-      const pick_lists = await Promise.all(pickListRowsRes.results.map(async (list) => {
-        const { results: works } = await env.DB.prepare(
-          "SELECT * FROM pick_list_works WHERE pick_list_id = ? ORDER BY sort_order ASC, created_at DESC"
-        ).bind(list.id).all();
-        return { ...list, works, work_count: works.length };
-      }));
+      // 추천작품 컬렉션 작품 목록도 컬렉션 개수만큼 따로 왕복하지 않도록 batch로 한 번에 조회
+      // (컬렉션이 하나도 없으면 batch([])가 에러날 수 있어 빈 배열일 때는 건너뜀)
+      let pick_lists = [];
+      if (pickListRows.length) {
+        const workResults = await env.DB.batch(
+          pickListRows.map((list) =>
+            env.DB.prepare(
+              "SELECT * FROM pick_list_works WHERE pick_list_id = ? ORDER BY sort_order ASC, created_at DESC"
+            ).bind(list.id)
+          )
+        );
+        pick_lists = pickListRows.map((list, i) => {
+          const works = workResults[i].results;
+          return { ...list, works, work_count: works.length };
+        });
+      }
 
       return new Response(JSON.stringify({
         ok: true, is_own: true, user, reviews, wishlist, posts,
@@ -517,18 +529,21 @@ export async function handleUser(path, request, env, ctx, headers) {
       const limit = Math.min(50, Math.max(1, parseInt(params.get('limit') || '10')));
       const offset = (page - 1) * limit;
 
-      const countRow = await env.DB.prepare(
-        "SELECT COUNT(*) AS total FROM user_point_logs WHERE user_id = ?"
-      ).bind(session.user_id).first();
-      const total = countRow?.total || 0;
-
-      const { results: logs } = await env.DB.prepare(`
-        SELECT points, reason, created_at
-        FROM user_point_logs
-        WHERE user_id = ?
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-      `).bind(session.user_id, limit, offset).all();
+      // 개수 조회 + 목록 조회를 batch로 묶어서 1번만 왕복
+      const [countRes, logsRes] = await env.DB.batch([
+        env.DB.prepare(
+          "SELECT COUNT(*) AS total FROM user_point_logs WHERE user_id = ?"
+        ).bind(session.user_id),
+        env.DB.prepare(`
+          SELECT points, reason, created_at
+          FROM user_point_logs
+          WHERE user_id = ?
+          ORDER BY created_at DESC
+          LIMIT ? OFFSET ?
+        `).bind(session.user_id, limit, offset),
+      ]);
+      const total = countRes.results[0]?.total || 0;
+      const logs  = logsRes.results;
 
       return new Response(JSON.stringify({ ok: true, logs, total, page, limit }), { headers });
     } catch (e) {
