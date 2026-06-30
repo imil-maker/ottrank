@@ -13,6 +13,8 @@
    GET    /mypage/point-logs           오뜨 적립 내역 전체 조회 (페이지네이션)
    PATCH  /mypage/wishlist-public
    GET    /user/:uid
+   GET    /user/:uid/reviews           타인 리뷰 목록만 가볍게 조회 (my_review.html 전용)
+   GET    /mypage/reviews              본인 리뷰 목록만 가볍게 조회 (my_review.html 전용)
    GET    /grade-settings
    POST   /life-works                  인생작품 토글 (추가/해제)
    GET    /life-works/check/:tmdb_id   인생작품 저장 여부 확인
@@ -667,6 +669,79 @@ export async function handleUser(path, request, env, ctx, headers) {
           pick_list_count: pick_lists.length,
         },
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // 리뷰 목록 전용 (my_review.html) — 찜/게시글/인생작품/추천작품 없이
+  // 리뷰만 가볍게 조회. /mypage, /user/:uid는 그 페이지들 전체 데이터까지
+  // 다 가져와서 무겁기 때문에 분리.
+  // ════════════════════════════════════════════════════════════
+
+  // ── GET /mypage/reviews — 본인 리뷰 목록만 조회 ────────────
+  if (path === "/mypage/reviews" && request.method === "GET") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      const { results: reviews } = await env.DB.prepare(`
+        SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
+          r.likes, r.spoiler, r.created_at,
+          COALESCE(rk.title_ko,  wk.title_ko)    as title_ko,
+          COALESCE(rk.poster_path, wk.poster_path) as poster_path,
+          COALESCE(rk.category,  wk.media_type)  as category,
+          rk.release_year
+        FROM reviews r
+        LEFT JOIN (
+          SELECT tmdb_id, title_ko, poster_path, category, release_year
+          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+        ) rk ON rk.tmdb_id = r.tmdb_id
+        LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
+        WHERE r.user_id = ?
+        ORDER BY r.created_at DESC
+      `).bind(session.user_id).all();
+
+      return new Response(JSON.stringify({ ok: true, reviews }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /user/:uid/reviews — 타인 리뷰 목록만 조회 ─────────
+  if (path.match(/^\/user\/\d+\/reviews$/) && request.method === "GET") {
+    try {
+      const targetUid = parseInt(path.split("/")[2]);
+
+      const userRow = await env.DB.prepare(
+        "SELECT nickname FROM users WHERE id = ?"
+      ).bind(targetUid).first();
+      if (!userRow) return new Response(JSON.stringify({ ok: false, message: "유저를 찾을 수 없어요" }), { status: 404, headers });
+
+      const { results: reviews } = await env.DB.prepare(`
+        SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
+          r.likes, r.spoiler, r.created_at,
+          COALESCE(rk.title_ko,  wk.title_ko)    as title_ko,
+          COALESCE(rk.poster_path, wk.poster_path) as poster_path,
+          COALESCE(rk.category,  wk.media_type)  as category,
+          rk.release_year
+        FROM reviews r
+        LEFT JOIN (
+          SELECT tmdb_id, title_ko, poster_path, category, release_year
+          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+        ) rk ON rk.tmdb_id = r.tmdb_id
+        LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
+        WHERE r.user_id = ?
+        ORDER BY r.created_at DESC
+      `).bind(targetUid).all();
+
+      return new Response(JSON.stringify({ ok: true, reviews, nickname: userRow.nickname || '유저' }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
