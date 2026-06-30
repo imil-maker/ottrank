@@ -9,6 +9,7 @@
    POST   /reviews/:tmdb_id/like/:id   좋아요 토글 (로그인 필요, 다시 누르면 취소)
    DELETE /reviews/:tmdb_id
    GET    /mypage
+   GET    /mypage/summary              오뜨 점수/등급만 가볍게 조회 (my_ott.html 전용)
    GET    /mypage/point-logs           오뜨 적립 내역 전체 조회 (페이지네이션)
    PATCH  /mypage/wishlist-public
    GET    /user/:uid
@@ -348,91 +349,111 @@ export async function handleUser(path, request, env, ctx, headers) {
 
       const uid = session.user_id;
 
-      const user = await env.DB.prepare(`
-        SELECT u.id, u.nickname, u.provider, u.email, u.avatar_url,
-          u.grade, u.total_likes_received, u.created_at, u.wishlist_public, u.mbti,
-          u.ott_points,
-          gs.grade_name, gs.emoji_url as grade_emoji_url, gs.sort_order as grade_order,
-          gs.is_special as grade_is_special
-        FROM users u
-        LEFT JOIN grade_settings gs ON gs.grade_key = u.grade
-        WHERE u.id = ?
-      `).bind(uid).first();
+      // 아래 8개 조회는 서로 결과를 참조하지 않는 독립적인 쿼리들이라
+      // 순서대로 기다리지 않고 Promise.all로 한꺼번에 보낸다.
+      // (전: 8번 왕복을 순서대로 기다림 → 후: 가장 느린 1번만 기다리면 됨)
+      const [
+        user,
+        reviewsRes,
+        wishlistRes,
+        postsRes,
+        lifeWorksRes,
+        pickListRowsRes,
+        recentLogsRes,
+        gradeSettingsRes,
+      ] = await Promise.all([
+        env.DB.prepare(`
+          SELECT u.id, u.nickname, u.provider, u.email, u.avatar_url,
+            u.grade, u.total_likes_received, u.created_at, u.wishlist_public, u.mbti,
+            u.ott_points,
+            gs.grade_name, gs.emoji_url as grade_emoji_url, gs.sort_order as grade_order,
+            gs.is_special as grade_is_special
+          FROM users u
+          LEFT JOIN grade_settings gs ON gs.grade_key = u.grade
+          WHERE u.id = ?
+        `).bind(uid).first(),
 
-      const { results: reviews } = await env.DB.prepare(`
-        SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
-          r.likes, r.spoiler, r.created_at,
-          COALESCE(rk.title_ko,  wk.title_ko)    as title_ko,
-          COALESCE(rk.poster_path, wk.poster_path) as poster_path,
-          COALESCE(rk.category,  wk.media_type)  as category,
-          rk.release_year
-        FROM reviews r
-        LEFT JOIN (
-          SELECT tmdb_id, title_ko, poster_path, category, release_year
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
-        ) rk ON rk.tmdb_id = r.tmdb_id
-        LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
-        WHERE r.user_id = ?
-        ORDER BY r.created_at DESC
-      `).bind(uid).all();
+        env.DB.prepare(`
+          SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
+            r.likes, r.spoiler, r.created_at,
+            COALESCE(rk.title_ko,  wk.title_ko)    as title_ko,
+            COALESCE(rk.poster_path, wk.poster_path) as poster_path,
+            COALESCE(rk.category,  wk.media_type)  as category,
+            rk.release_year
+          FROM reviews r
+          LEFT JOIN (
+            SELECT tmdb_id, title_ko, poster_path, category, release_year
+            FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+          ) rk ON rk.tmdb_id = r.tmdb_id
+          LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
+          WHERE r.user_id = ?
+          ORDER BY r.created_at DESC
+        `).bind(uid).all(),
 
-      const { results: wishlist } = await env.DB.prepare(`
-        SELECT w.*,
-          COALESCE(rk.title_ko, w.title_ko) as title_ko,
-          COALESCE(rk.poster_path, w.poster_path) as poster_path,
-          COALESCE(rk.category, w.category, 'movie') as category,
-          rk.release_year
-        FROM wishlist w
-        LEFT JOIN (
-          SELECT tmdb_id, title_ko, poster_path, category, release_year
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
-        ) rk ON rk.tmdb_id = w.tmdb_id
-        WHERE w.user_id = ?
-        ORDER BY w.created_at DESC
-      `).bind(uid).all();
+        env.DB.prepare(`
+          SELECT w.*,
+            COALESCE(rk.title_ko, w.title_ko) as title_ko,
+            COALESCE(rk.poster_path, w.poster_path) as poster_path,
+            COALESCE(rk.category, w.category, 'movie') as category,
+            rk.release_year
+          FROM wishlist w
+          LEFT JOIN (
+            SELECT tmdb_id, title_ko, poster_path, category, release_year
+            FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+          ) rk ON rk.tmdb_id = w.tmdb_id
+          WHERE w.user_id = ?
+          ORDER BY w.created_at DESC
+        `).bind(uid).all(),
 
-      const { results: posts } = await env.DB.prepare(`
-        SELECT id, board_type, title, like_count, view_count, created_at
-        FROM posts
-        WHERE user_id = ? AND is_hidden = 0
-        ORDER BY created_at DESC
-      `).bind(uid).all();
+        env.DB.prepare(`
+          SELECT id, board_type, title, like_count, view_count, created_at
+          FROM posts
+          WHERE user_id = ? AND is_hidden = 0
+          ORDER BY created_at DESC
+        `).bind(uid).all(),
 
-      // 인생작품 조회
-      const { results: life_works } = await env.DB.prepare(`
-        SELECT lw.*,
-          COALESCE(wk.poster_path, lw.poster_path) as poster_path,
-          COALESCE(wk.title_ko, lw.title_ko) as title_ko
-        FROM life_works lw
-        LEFT JOIN works wk ON wk.tmdb_id = lw.tmdb_id
-        WHERE lw.user_id = ?
-        ORDER BY lw.created_at DESC
-      `).bind(uid).all();
+        env.DB.prepare(`
+          SELECT lw.*,
+            COALESCE(wk.poster_path, lw.poster_path) as poster_path,
+            COALESCE(wk.title_ko, lw.title_ko) as title_ko
+          FROM life_works lw
+          LEFT JOIN works wk ON wk.tmdb_id = lw.tmdb_id
+          WHERE lw.user_id = ?
+          ORDER BY lw.created_at DESC
+        `).bind(uid).all(),
 
-      // 추천작품 컬렉션 조회 (작품 목록 포함)
-      const { results: pickListRows } = await env.DB.prepare(
-        "SELECT * FROM pick_lists WHERE user_id = ? ORDER BY created_at DESC"
-      ).bind(uid).all();
-      const pick_lists = await Promise.all(pickListRows.map(async (list) => {
+        env.DB.prepare(
+          "SELECT * FROM pick_lists WHERE user_id = ? ORDER BY created_at DESC"
+        ).bind(uid).all(),
+
+        env.DB.prepare(`
+          SELECT points, reason, created_at
+          FROM user_point_logs
+          WHERE user_id = ?
+          ORDER BY created_at DESC
+          LIMIT 20
+        `).bind(uid).all(),
+
+        env.DB.prepare(
+          "SELECT grade_key, grade_name, min_ott_points, emoji_url, is_special, sort_order FROM grade_settings ORDER BY sort_order ASC"
+        ).all(),
+      ]);
+
+      const reviews            = reviewsRes.results;
+      const wishlist           = wishlistRes.results;
+      const posts               = postsRes.results;
+      const life_works          = lifeWorksRes.results;
+      const recent_point_logs   = recentLogsRes.results;
+      const grade_settings      = gradeSettingsRes.results;
+
+      // 추천작품 컬렉션은 각 컬렉션마다 작품 목록을 추가로 조회해야 해서
+      // pickListRows가 준비된 다음에만 실행 가능 — 컬렉션끼리는 서로 독립적이므로 Promise.all로 동시 조회
+      const pick_lists = await Promise.all(pickListRowsRes.results.map(async (list) => {
         const { results: works } = await env.DB.prepare(
           "SELECT * FROM pick_list_works WHERE pick_list_id = ? ORDER BY sort_order ASC, created_at DESC"
         ).bind(list.id).all();
         return { ...list, works, work_count: works.length };
       }));
-
-      // 오뜨 최근 적립 내역 (최근 20개)
-      const { results: recent_point_logs } = await env.DB.prepare(`
-        SELECT points, reason, created_at
-        FROM user_point_logs
-        WHERE user_id = ?
-        ORDER BY created_at DESC
-        LIMIT 20
-      `).bind(uid).all();
-
-      // 등급 설정 목록 (진행바 계산용)
-      const { results: grade_settings } = await env.DB.prepare(
-        "SELECT grade_key, grade_name, min_ott_points, emoji_url, is_special, sort_order FROM grade_settings ORDER BY sort_order ASC"
-      ).all();
 
       return new Response(JSON.stringify({
         ok: true, is_own: true, user, reviews, wishlist, posts,
@@ -446,6 +467,34 @@ export async function handleUser(path, request, env, ctx, headers) {
           pick_list_count: pick_lists.length,
         },
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /mypage/summary — 오뜨 점수/등급 정보만 가볍게 조회 (my_ott.html 전용) ──
+  // 전체 /mypage는 리뷰/찜/게시글/인생작품/추천작품까지 다 조회해서 무겁다.
+  // my_ott.html은 그중 user(오뜨 점수, 등급)만 필요하므로, 세션확인+유저조회 딱 2번만 하는 가벼운 버전.
+  if (path === "/mypage/summary" && request.method === "GET") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      const user = await env.DB.prepare(`
+        SELECT u.id, u.nickname, u.grade, u.ott_points,
+          gs.grade_name, gs.emoji_url as grade_emoji_url, gs.sort_order as grade_order,
+          gs.is_special as grade_is_special
+        FROM users u
+        LEFT JOIN grade_settings gs ON gs.grade_key = u.grade
+        WHERE u.id = ?
+      `).bind(session.user_id).first();
+
+      return new Response(JSON.stringify({ ok: true, user }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
