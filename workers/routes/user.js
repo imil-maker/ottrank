@@ -6,7 +6,7 @@
    GET    /reviews/:tmdb_id
    GET    /reviews/:tmdb_id/me
    POST   /reviews/:tmdb_id
-   POST   /reviews/:tmdb_id/like/:id
+   POST   /reviews/:tmdb_id/like/:id   좋아요 토글 (로그인 필요, 다시 누르면 취소)
    DELETE /reviews/:tmdb_id
    GET    /mypage
    PATCH  /mypage/wishlist-public
@@ -115,15 +115,31 @@ export async function handleUser(path, request, env, ctx, headers) {
   if (path.match(/^\/reviews\/\d+$/) && request.method === "GET") {
     try {
       const tmdb_id = parseInt(path.split("/")[2]);
+
+      // 로그인 상태면 "내가 이미 좋아요 눌렀는지"도 같이 조회한다.
+      // 비로그인이거나 세션이 만료된 경우엔 myUserId를 -1로 둬서
+      // review_likes.user_id(항상 양수)와 매칭되지 않게 처리한다.
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      let myUserId = -1;
+      if (sessionId) {
+        const session = await env.DB.prepare(
+          "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+        ).bind(sessionId).first();
+        if (session) myUserId = session.user_id;
+      }
+
       const { results } = await env.DB.prepare(`
         SELECT r.*, u.nickname, u.provider, u.grade, u.mbti,
-          gs.emoji_url as grade_emoji_url, gs.grade_name
+          gs.emoji_url as grade_emoji_url, gs.grade_name,
+          CASE WHEN rl.id IS NOT NULL THEN 1 ELSE 0 END AS liked_by_me
         FROM reviews r
         JOIN users u ON r.user_id = u.id
         LEFT JOIN grade_settings gs ON gs.grade_key = u.grade
+        LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ?
         WHERE r.tmdb_id = ?
         ORDER BY r.likes DESC, r.created_at DESC
-      `).bind(tmdb_id).all();
+      `).bind(myUserId, tmdb_id).all();
       return new Response(JSON.stringify({ ok: true, data: results }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
@@ -202,25 +218,73 @@ export async function handleUser(path, request, env, ctx, headers) {
     }
   }
 
-  // ── POST /reviews/:tmdb_id/like/:id ───────────────────────
+  // ── POST /reviews/:tmdb_id/like/:id — 좋아요 토글 ──────────
+  // 처음 누르면: review_likes에 기록 추가 + likes+1 + 받은 사람 오뜨+1
+  // 다시 누르면(취소): review_likes 기록 삭제 + likes-1 (오뜨는 회수하지 않음 — 정책 확정)
   if (path.match(/^\/reviews\/\d+\/like\/\d+$/) && request.method === "POST") {
     try {
       const review_id = parseInt(path.split("/")[4]);
-      const review    = await env.DB.prepare(
+
+      // 좋아요는 로그인한 유저만 가능 (다른 쓰기 API들과 동일한 패턴)
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      const review = await env.DB.prepare(
         "SELECT user_id FROM reviews WHERE id = ?"
       ).bind(review_id).first();
-      await env.DB.prepare(
-        "UPDATE reviews SET likes = likes + 1 WHERE id = ?"
-      ).bind(review_id).run();
-      if (review?.user_id) {
+      if (!review) return new Response(JSON.stringify({ ok: false, message: "리뷰를 찾을 수 없어요" }), { status: 404, headers });
+
+      // 이미 좋아요를 누른 기록이 있는지 확인 (review_likes의 UNIQUE(review_id, user_id) 기준)
+      const existing = await env.DB.prepare(
+        "SELECT id FROM review_likes WHERE review_id = ? AND user_id = ?"
+      ).bind(review_id, session.user_id).first();
+
+      let liked;
+      if (existing) {
+        // ── 좋아요 취소 ──
         await env.DB.prepare(
-          "UPDATE users SET total_likes_received = total_likes_received + 1 WHERE id = ?"
-        ).bind(review.user_id).run();
-        // 좋아요 받은 유저 +1 오뜨
-        ctx.waitUntil(_addOttPoints(review.user_id, 1, 'like_received', env));
-        ctx.waitUntil(_recalcGrade(review.user_id, env));
+          "DELETE FROM review_likes WHERE id = ?"
+        ).bind(existing.id).run();
+        await env.DB.prepare(
+          "UPDATE reviews SET likes = MAX(0, likes - 1) WHERE id = ?"
+        ).bind(review_id).run();
+        if (review.user_id) {
+          await env.DB.prepare(
+            "UPDATE users SET total_likes_received = MAX(0, total_likes_received - 1) WHERE id = ?"
+          ).bind(review.user_id).run();
+        }
+        // 오뜨는 회수하지 않음 (정책 확정 — 취소해도 이미 받은 포인트는 그대로 유지)
+        liked = false;
+      } else {
+        // ── 좋아요 추가 ──
+        await env.DB.prepare(
+          "INSERT INTO review_likes (review_id, user_id) VALUES (?, ?)"
+        ).bind(review_id, session.user_id).run();
+        await env.DB.prepare(
+          "UPDATE reviews SET likes = likes + 1 WHERE id = ?"
+        ).bind(review_id).run();
+        if (review.user_id) {
+          await env.DB.prepare(
+            "UPDATE users SET total_likes_received = total_likes_received + 1 WHERE id = ?"
+          ).bind(review.user_id).run();
+          // 좋아요 받은 유저 +1 오뜨
+          ctx.waitUntil(_addOttPoints(review.user_id, 1, 'like_received', env));
+          ctx.waitUntil(_recalcGrade(review.user_id, env));
+        }
+        liked = true;
       }
-      return new Response(JSON.stringify({ ok: true }), { headers });
+
+      // 프론트가 재조회 없이 바로 반영할 수 있도록 최신 likes 수치도 같이 반환
+      const updated = await env.DB.prepare(
+        "SELECT likes FROM reviews WHERE id = ?"
+      ).bind(review_id).first();
+
+      return new Response(JSON.stringify({ ok: true, liked, likes: updated?.likes ?? 0 }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
