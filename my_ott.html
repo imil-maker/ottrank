@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오뜨 포인트 내역 | 오뜨랑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+/* ══════════════════════════════════════
+   CSS 변수 — mypage.html과 동일 팔레트 사용 (디자인 통일)
+   content-w만 단일 컬럼 페이지에 맞게 좁힘
+═══════════════════════════════════════ */
+:root{
+  --bg:#0d0d18;--bg2:#13131f;--bg3:#0f0f1c;--card:#13131f;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.13);
+  --text:#ededf0;--muted:#555568;--muted2:#888899;
+  --accent:#e63946;
+  --gold:#e8a020;--gold-bg:#1a1200;--gold-border:#2e2000;--gold-muted:#8a6a00;
+  --green:#34d399;
+  --font-sans:'Noto Sans KR',sans-serif;--font-mono:'DM Mono',monospace;
+  --r:10px;--r-lg:16px;--content-w:720px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh}
+.page-wrap{max-width:var(--content-w);margin:0 auto;padding:24px 20px 80px}
+
+/* ── 뒤로가기 ── */
+.back-link{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:13px;color:var(--muted2);text-decoration:none;
+  margin-bottom:18px;transition:color .15s;font-family:var(--font-sans);
+}
+.back-link:hover{color:var(--gold)}
+
+/* ── 페이지 타이틀 ── */
+.page-title-row{margin-bottom:18px}
+.page-title{font-size:20px;font-weight:700;margin-bottom:4px}
+.page-sub{font-size:13px;color:var(--muted2)}
+
+/* ── 로딩 / 로그인 안내 (mypage.html과 동일 패턴) ── */
+.loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px}
+.loading-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-wrap p{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
+.empty-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;text-align:center}
+.empty-icon{font-size:48px;opacity:.4}
+.empty-prompt h2{font-size:20px;font-weight:700}
+.empty-prompt p{font-size:14px;color:var(--muted2)}
+.empty-btn{margin-top:8px;padding:12px 32px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:var(--font-sans)}
+
+/* ══════════════════════════════════════
+   오뜨 요약 카드 (mypage.html .ott-card와 동일 스타일)
+═══════════════════════════════════════ */
+.ott-card{
+  background:var(--bg2);border:.5px solid var(--gold-border);
+  border-radius:var(--r-lg);padding:20px 22px;margin-bottom:16px;
+  position:relative;overflow:hidden;
+}
+.ott-card::before{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:160px;height:160px;border-radius:50%;
+  background:radial-gradient(circle,rgba(232,160,32,.07),transparent 70%);
+  pointer-events:none;
+}
+.ott-label-row{display:flex;align-items:center;gap:5px;margin-bottom:14px}
+.ott-label-dot{width:5px;height:5px;background:var(--gold);border-radius:50%}
+.ott-label-txt{font-size:12px;color:var(--gold);font-weight:600;letter-spacing:.4px;font-family:var(--font-mono)}
+.ott-main-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+.ott-score{font-size:38px;font-weight:700;color:var(--gold);line-height:1;letter-spacing:-1px}
+.ott-score-unit{font-size:14px;color:var(--gold-muted);margin-left:4px}
+.ott-next-hint{font-size:12px;color:var(--muted);margin-top:6px}
+.ott-next-hint b{color:var(--gold-muted)}
+.ott-grade-block{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.ott-grade-emoji{
+  width:48px;height:48px;border-radius:12px;
+  background:var(--gold-bg);border:.5px solid var(--gold-border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;overflow:hidden;
+}
+.ott-grade-emoji img{width:100%;height:100%;object-fit:cover}
+.ott-grade-name{font-size:13px;font-weight:600;color:var(--gold);font-family:var(--font-mono)}
+.ott-pbar-wrap{}
+.ott-pbar-labels{display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;font-family:var(--font-mono)}
+.ott-pbar-labels span:first-child{color:var(--muted)}
+.ott-pbar-labels span:last-child{color:var(--gold-muted)}
+.ott-pbar-bg{width:100%;height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.ott-pbar-fill{height:100%;background:var(--gold);border-radius:3px;transition:width .6s ease}
+
+/* ══════════════════════════════════════
+   섹션 공통
+═══════════════════════════════════════ */
+.sec-wrap{
+  margin-bottom:16px;background:var(--bg2);
+  border:.5px solid var(--border2);border-radius:var(--r-lg);
+  padding:18px 20px 16px;
+}
+.sec-header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.sec-title{font-size:14px;font-weight:700}
+.sec-count{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+.sec-empty{
+  background:var(--bg3);border:.5px solid var(--border);
+  border-radius:var(--r);padding:32px 20px;
+  text-align:center;font-size:13px;color:var(--muted);
+}
+.sec-empty i{font-size:26px;opacity:.25;display:block;margin-bottom:8px}
+
+/* ══════════════════════════════════════
+   레벨 로드맵 — ott_intro.html 레벨 시스템 디자인 참고
+═══════════════════════════════════════ */
+.level-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);
+  gap:10px 6px;margin-bottom:4px;
+}
+.lv{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 2px;border-radius:10px}
+.lv-badge{
+  width:48px;height:48px;border-radius:50%;
+  border:1.5px solid var(--border2);background:var(--bg3);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  transition:all .15s;
+}
+.lv-badge.achieved{border-color:var(--gold-border);background:var(--gold-bg)}
+.lv-badge.current{
+  border-color:var(--gold);background:var(--gold-bg);
+  box-shadow:0 0 0 3px rgba(232,160,32,.18);
+}
+.lv-name{font-size:11px;color:var(--muted);text-align:center;font-weight:600}
+.lv-name.achieved{color:var(--gold-muted)}
+.lv-name.current{color:var(--gold)}
+.lv-pts{font-size:9px;color:var(--muted);text-align:center;font-family:var(--font-mono)}
+
+@media (max-width:520px){
+  .level-grid{grid-template-columns:repeat(3,1fr)}
+}
+
+/* ══════════════════════════════════════
+   적립 내역 리스트
+═══════════════════════════════════════ */
+.log-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.log-item{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg3);border-radius:var(--r);padding:11px 14px;
+}
+.log-item-left{display:flex;align-items:center;gap:12px}
+.log-icon{
+  width:30px;height:30px;border-radius:8px;
+  background:var(--gold-bg);border:.5px solid var(--gold-border);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold);font-size:14px;flex-shrink:0;
+}
+.log-reason{font-size:13px;color:var(--text);font-weight:500}
+.log-date{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-top:1px}
+.log-pt{font-size:13px;font-weight:700;color:var(--gold);font-family:var(--font-mono)}
+.log-pt.minus{color:var(--muted2)}
+
+/* 페이지네이션 — _title_detail.html과 동일 스타일 */
+.pagination{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:4px}
+.pg-btn{min-width:34px;height:34px;padding:0 8px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;font-size:14px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.pg-btn:hover{background:var(--bg3);color:var(--text)}
+.pg-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2);font-weight:600}
+.pg-btn:disabled{opacity:.3;cursor:default}
+.pg-dots{font-size:14px;color:var(--muted);padding:0 4px}
+</style>
+</head>
+<body>
+<!-- 헤더: 기존 header.html fetch 연결 -->
+<div id="headerArea"></div>
+
+<div class="page-wrap">
+
+  <!-- 로딩 -->
+  <div class="loading-wrap" id="loadingWrap">
+    <div class="loading-spinner"></div>
+    <p>불러오는 중...</p>
+  </div>
+
+  <!-- 로그인 필요 -->
+  <div class="empty-prompt" id="loginPrompt" style="display:none">
+    <div class="empty-icon">🎬</div>
+    <h2>로그인이 필요해요</h2>
+    <p>오뜨 포인트 내역은 로그인 후 확인할 수 있어요.</p>
+    <button class="empty-btn" onclick="location.href='/login.html?redirect=/my_ott.html'">로그인 / 가입하기</button>
+  </div>
+
+  <!-- 본문 -->
+  <div id="pageContent" style="display:none">
+
+    <a href="/mypage.html" class="back-link">
+      <i class="ti ti-arrow-left" style="font-size:14px"></i> 마이페이지로
+    </a>
+
+    <div class="page-title-row">
+      <div class="page-title">오뜨 포인트</div>
+      <div class="page-sub">지금까지 쌓은 오뜨와 등급, 전체 적립 내역을 확인하세요.</div>
+    </div>
+
+    <!-- 오뜨 요약 카드 -->
+    <div class="ott-card">
+      <div class="ott-label-row">
+        <span class="ott-label-dot"></span>
+        <span class="ott-label-txt">내 오뜨 포인트</span>
+      </div>
+      <div class="ott-main-row">
+        <div>
+          <div>
+            <span class="ott-score" id="ottScore">0</span>
+            <span class="ott-score-unit">오뜨</span>
+          </div>
+          <div class="ott-next-hint" id="ottNextHint"></div>
+        </div>
+        <div class="ott-grade-block">
+          <div class="ott-grade-emoji" id="ottGradeEmoji">🍿</div>
+          <span class="ott-grade-name" id="ottGradeName">막내</span>
+        </div>
+      </div>
+      <div class="ott-pbar-wrap" id="ottPbarWrap">
+        <div class="ott-pbar-labels">
+          <span id="ottPbarLabel">다음 등급까지</span>
+          <span id="ottPbarVal">0 / 0</span>
+        </div>
+        <div class="ott-pbar-bg">
+          <div class="ott-pbar-fill" id="ottPbarFill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 레벨 로드맵 -->
+    <div class="sec-wrap">
+      <div class="sec-header">
+        <span class="sec-title"><i class="ti ti-stairs-up" style="font-size:14px"></i>&nbsp; 레벨 로드맵</span>
+        <span class="sec-count">막내부터 제작자까지 10단계</span>
+      </div>
+      <div class="level-grid" id="levelGrid"></div>
+    </div>
+
+    <!-- 전체 적립 내역 -->
+    <div class="sec-wrap" id="logListSec">
+      <div class="sec-header">
+        <span class="sec-title"><i class="ti ti-list-details" style="font-size:14px"></i>&nbsp; 전체 적립 내역</span>
+        <span class="sec-count" id="logCount">총 0건</span>
+      </div>
+      <div class="log-list" id="logList"></div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="ottrang-footer"></div>
+
+<script>
+/* ══════════════════════════════════════
+   상수 & 전역 상태
+═══════════════════════════════════════ */
+const API = 'https://ottrank-api.tdidream.workers.dev';
+const PAGE_LIMIT = 10;
+
+let ALL_GRADES = [];
+let CUR_USER = null;
+let curPage = 1;
+let TOTAL_LOGS = 0;
+
+// 등급별 기본 이모지 폴백 (grade_settings.emoji_url 비어있을 때 사용)
+// ott_intro.html 레벨 시스템과 동일 세트로 통일
+const GRADE_EMOJI_FALLBACK = {
+  rookie:'🍿', third:'🎞️', asst_dir:'🎬', critic:'📓', staff:'📟',
+  pd:'📣', writer:'📝', director:'🪑', legend:'🏆', producer:'🎥', admin:'⭐'
+};
+
+// 오뜨 로그 아이콘 매핑 — mypage.html OTT_LOG_ICON과 동일 (라벨/아이콘 통일)
+const OTT_LOG_ICON = {
+  signup:          { icon:'ti-user-check', label:'가입 완료' },
+  mbti_register:   { icon:'ti-mood-smile', label:'MBTI 등록' },
+  mbti_unregister: { icon:'ti-mood-sad',   label:'MBTI 해제' },
+  review:          { icon:'ti-star',       label:'리뷰 작성' },
+  share:           { icon:'ti-share',      label:'카드 공유' },
+  wishlist:        { icon:'ti-heart',      label:'찜 등록' },
+  life_work:       { icon:'ti-crown',      label:'인생작품 등록' },
+  pick_list:       { icon:'ti-playlist',   label:'추천작품 생성' },
+  like_received:   { icon:'ti-thumb-up',   label:'좋아요 받음' },
+  login:           { icon:'ti-login',      label:'출석 보너스' },
+  admin_adjust:    { icon:'ti-settings',   label:'관리자 조정' },
+};
+
+/* ══ 헤더 / 푸터 로드 (mypage.html과 동일 패턴) ══ */
+fetch('/header.html')
+  .then(r => r.text())
+  .then(html => {
+    document.getElementById('headerArea').innerHTML = html;
+    document.querySelectorAll('#headerArea script').forEach(s => {
+      const ns = document.createElement('script');
+      ns.textContent = s.textContent;
+      document.body.appendChild(ns);
+    });
+  }).catch(() => {});
+
+fetch('/footer.html')
+  .then(r => r.ok ? r.text() : Promise.reject())
+  .then(h => { document.getElementById('ottrang-footer').innerHTML = h; })
+  .catch(() => {});
+
+/* ══════════════════════════════════════
+   초기화
+═══════════════════════════════════════ */
+async function init(){
+  // URL에 sid 파라미터가 있으면 localStorage에 저장 (소셜 로그인 직후 리다이렉트 대응)
+  const params = new URLSearchParams(location.search);
+  const sidFromUrl = params.get('sid');
+  if (sidFromUrl) {
+    localStorage.setItem('ottrang_sid', sidFromUrl);
+    const cleanUrl = new URL(location.href);
+    cleanUrl.searchParams.delete('sid');
+    history.replaceState(null, '', cleanUrl.toString());
+  }
+
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!sid) {
+    show('loadingWrap', 'none'); show('loginPrompt', 'flex'); return;
+  }
+
+  try {
+    const [gradeRes, mypageRes] = await Promise.all([
+      fetch(`${API}/grade-settings`).then(r => r.json()),
+      fetch(`${API}/mypage`, { headers: { Authorization: 'Bearer ' + sid } }).then(r => r.json()),
+    ]);
+
+    if (!mypageRes.ok) {
+      localStorage.removeItem('ottrang_sid');
+      show('loadingWrap', 'none'); show('loginPrompt', 'flex'); return;
+    }
+
+    ALL_GRADES = gradeRes.data || [];
+    CUR_USER = mypageRes.user;
+
+    renderSummaryCard(CUR_USER);
+    renderLevelRoadmap(CUR_USER);
+    await loadLogs(1);
+
+    show('loadingWrap', 'none');
+    show('pageContent', 'block');
+  } catch (e) {
+    show('loadingWrap', 'none'); show('loginPrompt', 'flex');
+  }
+}
+
+function show(id, display) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = display;
+}
+
+/* ══════════════════════════════════════
+   오뜨 요약 카드 렌더링 (mypage.html renderOttCard와 동일 로직)
+═══════════════════════════════════════ */
+function renderSummaryCard(user) {
+  if (!user) return;
+  const ottPoints = user.ott_points || 0;
+
+  document.getElementById('ottScore').textContent = ottPoints.toLocaleString();
+
+  const gradeEmoji = document.getElementById('ottGradeEmoji');
+  const gradeName = document.getElementById('ottGradeName');
+  gradeName.textContent = user.grade_name || user.grade || '막내';
+
+  if (user.grade_emoji_url) {
+    gradeEmoji.innerHTML = `<img src="${user.grade_emoji_url}" alt=""
+      style="width:100%;height:100%;object-fit:cover;border-radius:10px"
+      onerror="this.parentNode.textContent='${GRADE_EMOJI_FALLBACK[user.grade] || '🍿'}'">`;
+  } else {
+    gradeEmoji.textContent = GRADE_EMOJI_FALLBACK[user.grade] || '🍿';
+  }
+
+  const cur = ALL_GRADES.find(g => g.grade_key === user.grade);
+  const next = ALL_GRADES
+    .filter(g => !g.is_special && g.sort_order > (cur?.sort_order || 0))
+    .sort((a, b) => a.sort_order - b.sort_order)[0];
+
+  const pbarWrap = document.getElementById('ottPbarWrap');
+  const nextHint = document.getElementById('ottNextHint');
+
+  if (!next || user.grade_is_special) {
+    pbarWrap.style.display = 'none';
+    nextHint.innerHTML = user.grade_is_special ? '' : '최고 등급을 달성했어요! 🎉';
+  } else {
+    pbarWrap.style.display = 'block';
+    const nextPts = next.min_ott_points || 0;
+    const curPts = cur?.min_ott_points || 0;
+    const progress = nextPts > curPts
+      ? Math.min(100, Math.round((ottPoints - curPts) / (nextPts - curPts) * 100))
+      : 100;
+    const remain = Math.max(0, nextPts - ottPoints);
+
+    document.getElementById('ottPbarFill').style.width = progress + '%';
+    document.getElementById('ottPbarLabel').textContent = `${next.grade_name}까지`;
+    document.getElementById('ottPbarVal').textContent =
+      `${ottPoints.toLocaleString()} / ${nextPts.toLocaleString()}`;
+
+    nextHint.innerHTML = remain > 0
+      ? `<b>${next.grade_name}</b>까지 <b>${remain.toLocaleString()} 오뜨</b> 남음`
+      : `<b>${next.grade_name}</b> 달성 직전이에요! 🎉`;
+  }
+}
+
+/* ══════════════════════════════════════
+   레벨 로드맵 렌더링 — 관리자(is_special) 등급은 일반 성장경로가 아니므로 제외
+═══════════════════════════════════════ */
+function renderLevelRoadmap(user) {
+  const grades = ALL_GRADES
+    .filter(g => !g.is_special)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  const cur = ALL_GRADES.find(g => g.grade_key === user.grade);
+  const curOrder = cur?.sort_order ?? 0;
+
+  const el = document.getElementById('levelGrid');
+  el.innerHTML = grades.map(g => {
+    const achieved = g.sort_order < curOrder;
+    const isCurrent = g.sort_order === curOrder;
+    const stateClass = isCurrent ? 'current' : (achieved ? 'achieved' : '');
+    const fallback = GRADE_EMOJI_FALLBACK[g.grade_key] || '🍿';
+    const emojiInner = g.emoji_url
+      ? `<img src="${g.emoji_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"
+           onerror="this.parentNode.textContent='${fallback}'">`
+      : fallback;
+
+    return `<div class="lv">
+      <div class="lv-badge ${stateClass}">${emojiInner}</div>
+      <div class="lv-name ${stateClass}">${g.grade_name}</div>
+      <div class="lv-pts">${(g.min_ott_points || 0).toLocaleString()} 오뜨</div>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
+   전체 적립 내역 — 10개씩 페이지네이션
+═══════════════════════════════════════ */
+async function loadLogs(page) {
+  curPage = page;
+  const sid = localStorage.getItem('ottrang_sid');
+  try {
+    const res = await fetch(`${API}/mypage/point-logs?page=${page}&limit=${PAGE_LIMIT}`, {
+      headers: { Authorization: 'Bearer ' + sid },
+    });
+    const data = await res.json();
+    if (!data.ok) { renderLogList([]); return; }
+
+    TOTAL_LOGS = data.total || 0;
+    renderLogList(data.logs || []);
+    document.getElementById('logCount').textContent = `총 ${TOTAL_LOGS.toLocaleString()}건`;
+    renderPaginationUI();
+  } catch (e) {
+    renderLogList([]);
+  }
+}
+
+function renderLogList(logs) {
+  const el = document.getElementById('logList');
+  if (!logs || !logs.length) {
+    el.innerHTML = `<div class="sec-empty"><i class="ti ti-coin-off"></i>아직 적립 내역이 없어요</div>`;
+    return;
+  }
+  el.innerHTML = logs.map(log => {
+    const info = OTT_LOG_ICON[log.reason] || { icon: 'ti-plus', label: log.reason };
+    const isPlus = log.points > 0;
+    const ptClass = isPlus ? '' : 'minus';
+    const ptText = (isPlus ? '+' : '') + log.points + ' 오뜨';
+    const dateStr = log.created_at ? log.created_at.slice(0, 10).replace(/-/g, '.') : '';
+    return `<div class="log-item">
+      <div class="log-item-left">
+        <div class="log-icon"><i class="ti ${info.icon}"></i></div>
+        <div>
+          <div class="log-reason">${info.label}</div>
+          <div class="log-date">${dateStr}</div>
+        </div>
+      </div>
+      <span class="log-pt ${ptClass}">${ptText}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderPaginationUI() {
+  const totalPages = Math.ceil(TOTAL_LOGS / PAGE_LIMIT);
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+
+  let html = `<button class="pg-btn" onclick="goPage(${curPage - 1})" ${curPage === 1 ? 'disabled' : ''}>‹</button>`;
+  const pages = totalPages <= 7
+    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+    : [1,
+        ...(curPage > 3 ? ['...'] : []),
+        ...Array.from({ length: 3 }, (_, i) => Math.max(2, curPage - 1) + i).filter(p => p > 1 && p < totalPages),
+        ...(curPage < totalPages - 2 ? ['...'] : []),
+        totalPages];
+
+  pages.forEach(p => {
+    html += p === '...'
+      ? `<span class="pg-dots">···</span>`
+      : `<button class="pg-btn${p === curPage ? ' on' : ''}" onclick="goPage(${p})">${p}</button>`;
+  });
+  html += `<button class="pg-btn" onclick="goPage(${curPage + 1})" ${curPage === totalPages ? 'disabled' : ''}>›</button>`;
+  el.innerHTML = html;
+}
+
+function goPage(p) {
+  const totalPages = Math.ceil(TOTAL_LOGS / PAGE_LIMIT) || 1;
+  if (p < 1 || p > totalPages) return;
+  loadLogs(p);
+  document.getElementById('logListSec').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+init();
+</script>
+</body>
+</html>
