@@ -1145,8 +1145,9 @@ async function bgGenerateThumbnail() {
 
   try {
     // 포스터 base64 로딩 — 시즌이 선택되어 있으면 시즌 포스터, 아니면 기본 포스터
+    // 포스터는 TMDB에서 'original' 사이즈로 — w1280은 백드롭 전용 사이즈라 포스터엔 안 맞음
     const posterDataUrl = await bgFetchPosterAsBase64(
-      bgThumbWorkData.active_poster_path || bgThumbWorkData.poster_path, 'w1280'
+      bgThumbWorkData.active_poster_path || bgThumbWorkData.poster_path, 'original'
     );
 
     // 카드 배경 적용 (review.html 방식)
@@ -1198,9 +1199,9 @@ async function bgDownloadThumbnail() {
     await document.fonts.ready;
     await new Promise(r => setTimeout(r, 100));
     const card   = document.getElementById('bgThumbCard');
-    // scale:3.375 → 320px 카드가 정확히 1080×1080px PNG로 출력됨
+    // scale:4 (정수) → 320px 카드가 1280×1280px PNG로 출력됨. 비정수 배율은 서브픽셀 흐림이 생길 수 있어 정수로 고정
     const canvas = await html2canvas(card, {
-      scale:3.375, useCORS:true, backgroundColor:'#0c0c10', logging:false,
+      scale:4, useCORS:true, backgroundColor:'#0c0c10', logging:false,
     });
     const blob     = await new Promise(res => canvas.toBlob(res, 'image/png'));
     const title    = (bgThumbWorkData?.title_ko || 'thumb').replace(/[^\w가-힣]/g,'');
@@ -1731,23 +1732,24 @@ async function bgGenerateRankCards() {
       const sourceName = group.source_name || '';
       const mediaType  = sourceName.includes('Movies') ? 'movie' : 'tv';
 
+      // 포스터는 'original'(포스터 사이즈 세트에 w1280 없음), 백드롭은 'w1280'(백드롭 전용 사이즈라 유효)
       base64List = await Promise.all(
         bgRankCardItems.map(async item => {
-          if (!item.tmdb_id) return bgFetchPosterAsBase64(item.poster_path, 'w1280');
+          if (!item.tmdb_id) return bgFetchPosterAsBase64(item.poster_path, 'original');
           try {
             const res = await fetch(`${TMDB_PROXY}/${mediaType}/${item.tmdb_id}?language=ko-KR`);
             if (!res.ok) throw new Error();
             const d = await res.json();
-            if (!d.backdrop_path) return bgFetchPosterAsBase64(item.poster_path, 'w1280');
+            if (!d.backdrop_path) return bgFetchPosterAsBase64(item.poster_path, 'original');
             return await bgFetchPosterAsBase64(d.backdrop_path, 'w1280', true);
           } catch {
-            return bgFetchPosterAsBase64(item.poster_path, 'w1280');
+            return bgFetchPosterAsBase64(item.poster_path, 'original');
           }
         })
       );
     } else {
       base64List = await Promise.all(
-        bgRankCardItems.map(item => bgFetchPosterAsBase64(item.poster_path, 'w1280'))
+        bgRankCardItems.map(item => bgFetchPosterAsBase64(item.poster_path, 'original'))
       );
 
     }
@@ -1769,9 +1771,9 @@ async function bgGenerateRankCards() {
       // html2canvas 캡처 — 커스텀 폰트 로딩 대기 (텍스트 잘림 방지)
       await document.fonts.ready;
       await new Promise(r => setTimeout(r, 50));
-      // scale:3.375 → 포스터형(320px)은 1080×1080px, 백드롭형(240px)은 1080×810px로 출력
+      // scale:4(정수) → 포스터형(320px)은 1280×1280px, 백드롭형(240px)은 1280×960px로 출력
       const canvas = await html2canvas(cardDom, {
-        scale: 3.375, useCORS: true, backgroundColor: '#13131a', logging: false,
+        scale: 4, useCORS: true, backgroundColor: '#13131a', logging: false,
       });
       bgRankCardCanvases.push({ canvas, rank, title: item.title_ko || item.title_en || `rank${rank}` });
 
