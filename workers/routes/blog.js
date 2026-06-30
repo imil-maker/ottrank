@@ -2,11 +2,23 @@
    blog.js — 블로그 포스팅 자동 생성 API
    라우트:
      POST /blog-gen         : D1 랭킹 조회 + Anthropic API → 포스팅 생성 (관리자 전용)
+     POST /blog-gen/suggest : D1 랭킹 조회 + Anthropic API → 제목 8개 추천 (관리자 전용)
      GET  /blog-gen/preview : 랭킹 데이터 미리보기 (관리자 전용, 테스트용)
 
    필요 환경 변수:
      env.DB                : Cloudflare D1 바인딩
      env.ANTHROPIC_API_KEY : Anthropic API 키 (Secret)
+
+   2026-06-30 업데이트:
+     - platform 단위가 아니라 ott_categories의 개별 category_slot 단위로
+       랭킹 데이터를 선택할 수 있도록 변경 (categorySlot 파라미터, 'all'이면 기존처럼 전체 합산)
+       → TV 시리즈/영화가 같은 platform 안에서도 카테고리로 이미 나뉘어 있으므로
+         이걸 직접 고르게 하는 게 source_name 기반 추측보다 정확함
+     - Anthropic API 호출에 web_search_20250305 툴 추가
+       → D1에 없는 최신 트렌드(예: "다음 달 신작")가 필요하면 모델이 알아서 검색해서 반영
+     - /blog-gen/suggest 프롬프트를 topicType(순위/추천/리뷰/화제)별로 완전히 분리
+       → 예전엔 4개 유형 예시를 항상 다 보여주고 "골고루 섞어서 작성"하라고 시켜서
+         topicType을 뭘 골라도 결과가 순위형/TOP10으로만 나오던 버그 수정
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
@@ -79,19 +91,89 @@ const CONTENT_TYPE_PROMPTS = {
   review:         "상위 3~5개 작품에 집중해서 줄거리, 볼거리, 추천 포인트를 담은 미니 리뷰 형태의 포스팅을 작성해주세요.",
 };
 
+// ─── 주제 유형(topicType)별 네이버 SEO 제목 패턴 ────────────
+// ⚠️ 핵심: 각 유형의 예시·생성 규칙을 완전히 분리해서 프롬프트에는
+//          사용자가 고른 topicType 패턴만 들어가게 한다.
+//          (예전엔 4개 유형을 항상 다 보여주고 "골고루 섞어서 작성"까지 시켜서
+//           어떤 topicType을 골라도 결과가 순위형/TOP10 위주로만 나오는 버그가 있었음)
+// 플레이스홀더: {platform} {media} {week} → 프롬프트 생성 시 실제 값으로 치환
+const TOPIC_PATTERNS = {
+  ranking: {
+    label: "순위형",
+    examples: [
+      "{platform} {media} 순위 TOP 10 ({week} 업데이트)",
+      "요즘 {platform} 순위 {media} TOP 10 골라봄",
+      "{week} {platform} 순위 {media} 정리",
+      "{platform} 오늘 순위 TOP 10 {media} (최신)",
+    ],
+    rule:
+      `1. "{platform} + 순위 + TOP N 또는 날짜" 조합 필수\n` +
+      `2. 실제 랭킹 1~3위 작품명을 제목에 직접 활용 (검색량 극대화)\n` +
+      `3. 날짜/주차 표기로 최신성 강조 (예: {week}, 2026 최신)`,
+  },
+  recommendation: {
+    label: "추천형",
+    examples: [
+      "지금 당장 봐야 할 {platform} 추천 {media} BEST 5",
+      "{platform} 볼만한거 없을 때 추천 {media} TOP 7",
+      "요즘 핫한 {platform} {media} 추천 2026 최신판",
+      "{platform} {media} 추천 장르별 모음 (로맨스·스릴러·범죄)",
+    ],
+    rule:
+      `1. "지금 봐야 할", "추천", "BEST", "강추" 등 큐레이션 키워드 필수\n` +
+      `2. TOP N 숫자는 선택적으로만 사용 — 순위 나열형 제목으로 흐르지 말 것\n` +
+      `3. 장르·취향 기반 표현을 적극 활용`,
+  },
+  review: {
+    label: "리뷰형",
+    examples: [
+      "{platform} 1위 [작품명] 솔직 후기 재밌어? 결말까지",
+      "[작품명] {platform} {media} 완주 후기 (스포없음)",
+      "{platform} [작품명] 정주행 완료 별점 몇 점?",
+    ],
+    rule:
+      `1. 랭킹 1위 작품 하나에 집중한 단일 작품 리뷰 제목\n` +
+      `2. "후기", "솔직 리뷰", "결말", "정주행" 등 감상 키워드 필수\n` +
+      `3. TOP N 순위 나열형 제목은 절대 사용하지 말 것`,
+  },
+  issue: {
+    label: "화제형",
+    examples: [
+      "{platform} {media} 화제작 이번 주 놓치면 후회 TOP 5",
+      "2026 상반기 {platform} {media} 흥행 순위 정리",
+      "{platform} [작품명] 시즌2 기대되는 이유",
+    ],
+    rule:
+      `1. "화제", "이슈", "흥행", "논란", "시즌2 기대" 등 화제성 키워드 필수\n` +
+      `2. 단순 순위 나열형(TOP N) 제목은 지양하고 화제성에 집중`,
+  },
+};
+
 // ─────────────────────────────────────────────────────────────
 // D1에서 플랫폼별 랭킹 데이터 조회
+// categorySlot: 특정 카테고리 슬롯(예: 'category02')을 주면 그 카테고리 하나만 조회.
+//               null(기본값)이면 기존처럼 해당 플랫폼의 노출 중인 카테고리 전부 조회.
 // ─────────────────────────────────────────────────────────────
-async function fetchRankingFromD1(platform, env) {
+async function fetchRankingFromD1(platform, env, categorySlot = null) {
   // OTT 페이지에 노출 중인 활성 카테고리 목록 조회
-  const cats = await env.DB.prepare(
-    `SELECT category_slot, display_name, platform_limit, source_name
-     FROM ott_categories
-     WHERE platform = ?
-       AND is_active = 1
-       AND platform_section IS NOT NULL
-     ORDER BY platform_order ASC`
-  ).bind(platform).all();
+  const catQuery = categorySlot
+    ? `SELECT category_slot, display_name, platform_limit, source_name
+       FROM ott_categories
+       WHERE platform = ?
+         AND is_active = 1
+         AND platform_section IS NOT NULL
+         AND category_slot = ?
+       ORDER BY platform_order ASC`
+    : `SELECT category_slot, display_name, platform_limit, source_name
+       FROM ott_categories
+       WHERE platform = ?
+         AND is_active = 1
+         AND platform_section IS NOT NULL
+       ORDER BY platform_order ASC`;
+
+  const cats = categorySlot
+    ? await env.DB.prepare(catQuery).bind(platform, categorySlot).all()
+    : await env.DB.prepare(catQuery).bind(platform).all();
 
   if (!cats.results || cats.results.length === 0) return [];
 
@@ -183,8 +265,20 @@ function getWeekInfo() {
 
 // ─────────────────────────────────────────────────────────────
 // Anthropic API 호출
+// useWebSearch: D1에 없는 최신 정보(다음 달 신작, 최신 이슈 등)가 필요하면
+//               모델이 알아서 web_search 툴을 사용하도록 허용 (기본 true)
 // ─────────────────────────────────────────────────────────────
-async function callAnthropicAPI(prompt, apiKey) {
+async function callAnthropicAPI(prompt, apiKey, { useWebSearch = true, maxTokens = 4096 } = {}) {
+  const requestBody = {
+    model:      "claude-sonnet-4-6",
+    max_tokens: maxTokens,
+    messages:   [{ role: "user", content: prompt }],
+  };
+
+  if (useWebSearch) {
+    requestBody.tools = [{ type: "web_search_20250305", name: "web_search" }];
+  }
+
   const res = await fetch(ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
@@ -192,11 +286,7 @@ async function callAnthropicAPI(prompt, apiKey) {
       "x-api-key":         apiKey,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({
-      model:      "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages:   [{ role: "user", content: prompt }],
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!res.ok) {
@@ -205,7 +295,13 @@ async function callAnthropicAPI(prompt, apiKey) {
   }
 
   const data = await res.json();
-  return data.content?.[0]?.text || "";
+
+  // 웹 검색을 쓰면 응답이 text / server_tool_use / web_search_tool_result 등
+  // 여러 블록으로 섞여서 옴 → text 타입 블록만 모아서 이어붙임
+  return (data.content || [])
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -259,7 +355,8 @@ export async function handleBlog(path, request, env, url, headers) {
       );
     }
 
-    const platform = url.searchParams.get("platform") || "netflix";
+    const platform     = url.searchParams.get("platform") || "netflix";
+    const categorySlot = url.searchParams.get("categorySlot") || null;
 
     if (!PLATFORM_NAMES[platform]) {
       return new Response(
@@ -269,7 +366,7 @@ export async function handleBlog(path, request, env, url, headers) {
     }
 
     try {
-      const rankingData = await fetchRankingFromD1(platform, env);
+      const rankingData = await fetchRankingFromD1(platform, env, categorySlot);
       return new Response(
         JSON.stringify({ ok: true, data: rankingData }),
         { headers }
@@ -315,7 +412,13 @@ export async function handleBlog(path, request, env, url, headers) {
 
     // platform: 'netflix' | 'tving' | 'wavve' | 'disney' | 'coupang' | 'boxoffice' | 'all'
     // topicType: 'ranking' | 'recommendation' | 'review' | 'issue'
-    const { platform = "netflix", topicType = "ranking" } = body;
+    // categorySlot: 특정 카테고리 슬롯(예: 'category02') 또는 'all'(해당 플랫폼 노출 카테고리 전체 합산)
+    //   ⚠️ platform='all'(복수 플랫폼 합산) 모드에서는 categorySlot을 무시하고 항상 전체로 처리
+    const {
+      platform     = "netflix",
+      topicType    = "ranking",
+      categorySlot = "all",
+    } = body;
 
     try {
       // ① 랭킹 데이터 조회 — fetchRankingFromD1 재사용
@@ -323,10 +426,15 @@ export async function handleBlog(path, request, env, url, headers) {
       let rankingData = [];
       const platformsToFetch = platform === "all" ? ["netflix", "tving"] : [platform];
 
+      // platform='all'일 땐 복수 플랫폼 합산이라 카테고리 단일 선택이 의미 없으므로 무시
+      const effectiveCategorySlot = (platform !== "all" && categorySlot && categorySlot !== "all")
+        ? categorySlot
+        : null;
+
       for (const p of platformsToFetch) {
         // 유효하지 않은 플랫폼은 스킵
         if (p !== "all" && !PLATFORM_NAMES[p]) continue;
-        const data = await fetchRankingFromD1(p, env);
+        const data = await fetchRankingFromD1(p, env, effectiveCategorySlot);
         rankingData.push(...data);
       }
 
@@ -346,68 +454,63 @@ export async function handleBlog(path, request, env, url, headers) {
           }).join("\n")
         ).join("\n\n");
       } else {
-        // 랭킹 데이터가 없으면 일반 추천으로 대체
+        // 랭킹 데이터가 없으면 일반 추천으로 대체 (+ 아래에서 web_search로 보강)
         rankingText = "현재 랭킹 데이터 없음. OTT 인기 콘텐츠 일반 트렌드 기반으로 추천해주세요.";
       }
-
-      // ③ 주제 유형별 추천 방향 설명
-      const TOPIC_TYPE_DESC = {
-        ranking:       "현재 순위 기반 정보성 제목 (TOP10, 이번 주 1위 등 랭킹 키워드 포함)",
-        recommendation:"장르/취향 추천형 제목 (요즘 핫한, 꼭 봐야 할, 강추 등 큐레이션 키워드)",
-        review:        "신작·화제작 리뷰 유도 제목 (후기, 솔직 리뷰, 결말 해석 등 감상 키워드)",
-        issue:         "지금 화제·이슈 중심 제목 (논란, 결말 예측, 시즌2 기대 등 화제성 키워드)",
-      };
 
       const platformKo = platform === "all"
         ? "넷플릭스·티빙"
         : (PLATFORM_NAMES[platform] || platform);
-      const weekInfo   = getWeekInfo();
-      const topicDesc  = TOPIC_TYPE_DESC[topicType] || TOPIC_TYPE_DESC.ranking;
+      const weekInfo = getWeekInfo();
+
+      // 예시 문구에 쓸 "드라마/영화" 단어를 실제로 가져온 카테고리 표시명에서 결정
+      // (별도 추측 로직이 아니라, 관리자가 직접 고른 카테고리의 display_name을 그대로 참고)
+      const mediaLabel = (() => {
+        if (rankingData.length === 1) {
+          const name = rankingData[0].display_name || "";
+          if (name.includes("영화")) return "영화";
+          if (name.includes("드라마") || name.includes("TV") || name.includes("시리즈")) return "드라마";
+        }
+        return "드라마·영화";
+      })();
+
+      // ③ topicType에 해당하는 패턴 세트만 사용 (다른 유형과 절대 섞이지 않도록)
+      const patternSet = TOPIC_PATTERNS[topicType] || TOPIC_PATTERNS.ranking;
+      const exampleText = patternSet.examples
+        .map((ex) => "- " + ex
+          .replace(/{platform}/g, platformKo)
+          .replace(/{media}/g, mediaLabel)
+          .replace(/{week}/g, weekInfo))
+        .join("\n");
+      const ruleText = patternSet.rule
+        .replace(/{platform}/g, platformKo)
+        .replace(/{week}/g, weekInfo);
 
       // ④ Claude API 프롬프트 구성
       // 네이버 "넷플릭스 순위" "넷플릭스 추천" 실제 상위 노출 제목 패턴을 학습시킴
       const prompt = `당신은 네이버 블로그 SEO 전문가입니다.
-아래는 네이버에서 실제로 상위 노출되는 OTT 블로그 제목 패턴 예시입니다.
-이 패턴을 철저히 참고하여, 현재 랭킹 데이터 기반으로 제목 8개를 추천해주세요.
+아래는 네이버에서 실제로 상위 노출되는 OTT 블로그 제목 패턴 중 "${patternSet.label}" 유형 예시입니다.
+이번 추천은 반드시 "${patternSet.label}" 스타일로만 작성하고, 다른 유형과 섞지 마세요.
 
-[순위형]
-- 넷플릭스 드라마 순위 TOP 10 (6월 4주차 업데이트)
-- 요즘 넷플릭스 순위 드라마 TOP 10 골라봄
-- 2026년 6월 4주차 넷플릭스 순위 드라마·영화 정리
-- 넷플릭스 오늘 순위 TOP 10 드라마 영화 (6월 최신)
-- 티빙 순위 TOP 10 이번 주 드라마·영화 정리
-
-[추천형]
-- 지금 당장 봐야 할 넷플릭스 추천 드라마 BEST 5
-- 넷플릭스 볼만한거 없을 때 추천 드라마 TOP 7
-- 요즘 핫한 넷플릭스 드라마 추천 2026 최신판
-- 넷플릭스 드라마 추천 장르별 모음 (로맨스·스릴러·범죄)
-- 티빙 드라마 추천 지금 봐야 할 인기작 모음
-
-[리뷰형]
-- 넷플릭스 1위 [작품명] 솔직 후기 재밌어? 결말까지
-- [작품명] 넷플릭스 드라마 완주 후기 (스포없음)
-- 넷플릭스 [작품명] 정주행 완료 별점 몇 점?
-
-[화제형]
-- 넷플릭스 드라마 화제작 이번 주 놓치면 후회 TOP 5
-- 2026 상반기 넷플릭스 드라마 흥행 순위 정리
+[${patternSet.label} 패턴 예시]
+${exampleText}
 
 현재 랭킹 데이터:
 플랫폼: ${platformKo} / 기간: ${weekInfo}
-주제 유형 힌트: ${topicDesc}
 
 ${rankingText}
 
+위 데이터에 없는 정보(예: 다음 달 공개 예정 신작, 아직 랭킹에 안 잡힌 최신 화제작·이슈 등)가
+제목 주제로 필요하다고 판단되면 web_search 툴로 사실관계를 확인한 뒤 반영하세요.
+검색 결과 문장을 그대로 베끼지 말고 직접 새로 표현해야 합니다.
+
 제목 생성 조건:
-1. 위 패턴처럼 "넷플릭스/티빙 + 순위/추천/드라마/영화 + TOP N or 날짜" 조합 필수
-2. 실제 랭킹 1~3위 작품명을 제목에 직접 활용 (검색량 극대화)
-3. 날짜/주차 표기로 최신성 강조 (예: 6월 4주차, 2026 최신)
+${ruleText}
 4. 15~35자 한국어, 특수기호 최소화
-5. 8개 모두 위 순위형·추천형·리뷰형·화제형 골고루 섞어서 작성
+5. 8개 모두 위 "${patternSet.label}" 패턴 스타일을 유지하되 표현은 다양하게 변주
 6. contentType: weekly_ranking / recommendation / genre / review 중 선택
 
-반드시 아래 JSON 배열 형식으로만 응답하세요.
+다른 설명, 검색 과정 설명, 출처 표기 없이 아래 JSON 배열 형식으로만 응답하세요.
 마크다운 코드블록(\`\`\`) 없이 순수 JSON만 반환합니다:
 [
   {
@@ -418,6 +521,7 @@ ${rankingText}
 ]`;
 
       // ⑤ Anthropic API 호출 — 제목 추천은 Haiku로 빠르게
+      // web_search: D1에 없는 최신 트렌드(다음 달 신작 등)가 필요하면 모델이 알아서 검색
       const res = await fetch(ANTHROPIC_API_URL, {
         method: "POST",
         headers: {
@@ -427,8 +531,9 @@ ${rankingText}
         },
         body: JSON.stringify({
           model:      "claude-haiku-4-5-20251001", // 빠른 응답 우선 (Haiku)
-          max_tokens: 1200,
+          max_tokens: 1500, // 웹 검색 사용 시를 대비해 기존 1200보다 여유있게
           messages:   [{ role: "user", content: prompt }],
+          tools:      [{ type: "web_search_20250305", name: "web_search" }],
         }),
       });
 
@@ -437,10 +542,17 @@ ${rankingText}
         throw new Error(err.error?.message || `Anthropic API 오류: ${res.status}`);
       }
 
-      const aiData  = await res.json();
-      const rawText = aiData.content?.[0]?.text?.trim() || "[]";
+      const aiData = await res.json();
 
-      // ⑥ JSON 파싱 — 혹시 코드블록이 포함됐을 경우 제거
+      // 웹 검색을 쓰면 응답이 text / server_tool_use / web_search_tool_result 등
+      // 여러 블록으로 섞여서 옴 → text 타입 블록만 모아서 이어붙임
+      const rawText = (aiData.content || [])
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("")
+        .trim() || "[]";
+
+      // ⑥ JSON 파싱 — 코드블록 기호 제거
       const cleanText = rawText
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/,      "")
@@ -451,6 +563,15 @@ ${rankingText}
       try {
         suggestions = JSON.parse(cleanText);
       } catch {
+        // 웹 검색 사용 시 JSON 앞뒤로 설명 텍스트가 섞여 나올 수 있어
+        // 배열([...]) 부분만 다시 추출해서 재시도
+        const match = cleanText.match(/\[[\s\S]*\]/);
+        if (match) {
+          try { suggestions = JSON.parse(match[0]); } catch { /* 아래에서 에러 처리 */ }
+        }
+      }
+
+      if (!suggestions) {
         throw new Error("AI 응답을 JSON으로 파싱할 수 없습니다. 다시 시도해주세요.");
       }
 
@@ -475,10 +596,14 @@ ${rankingText}
           suggestions,
           rankingData,
           meta: {
-            platform:     platformKo,
-            weekLabel:    weekInfo,
+            platform:      platformKo,
+            weekLabel:     weekInfo,
             topicType,
-            generatedAt:  new Date().toISOString(),
+            categorySlot:  effectiveCategorySlot || "all",
+            categoryLabel: (effectiveCategorySlot && rankingData.length === 1)
+              ? rankingData[0].display_name
+              : "전체",
+            generatedAt:   new Date().toISOString(),
           },
         }),
         { headers }
@@ -530,6 +655,7 @@ ${rankingText}
     const {
       platform     = "netflix",
       contentType  = "weekly_ranking",
+      categorySlot = "all",
       tone         = "friendly",
       useEmoji     = true,
       useRating    = true,
@@ -547,15 +673,20 @@ ${rankingText}
       );
     }
 
+    // categorySlot이 'all'이 아니면 해당 카테고리 하나만 조회
+    const effectiveCategorySlot = (categorySlot && categorySlot !== "all") ? categorySlot : null;
+
     try {
-      // ① D1에서 랭킹 데이터 조회
-      const rankingData = await fetchRankingFromD1(platform, env);
+      // ① D1에서 랭킹 데이터 조회 (카테고리 지정 시 해당 카테고리만)
+      const rankingData = await fetchRankingFromD1(platform, env, effectiveCategorySlot);
 
       if (rankingData.length === 0) {
         return new Response(
           JSON.stringify({
             ok: false,
-            error: "랭킹 데이터가 없습니다. 크롤링 완료 후 다시 시도하거나, 페이지 카테고리 설정에서 OTT 페이지 노출 여부를 확인해주세요.",
+            error: effectiveCategorySlot
+              ? "선택한 카테고리의 랭킹 데이터가 없습니다. 다른 카테고리를 선택하거나 '전체'로 다시 시도해주세요."
+              : "랭킹 데이터가 없습니다. 크롤링 완료 후 다시 시도하거나, 페이지 카테고리 설정에서 OTT 페이지 노출 여부를 확인해주세요.",
           }),
           { status: 404, headers }
         );
@@ -566,12 +697,21 @@ ${rankingText}
       const weekInfo     = getWeekInfo();
       const platformName = PLATFORM_NAMES[platform];
 
+      // 해시태그 예시 단어(드라마/영화) — 선택한 카테고리의 실제 표시명 기준으로 결정
+      // (추측이 아니라 관리자가 고른 카테고리의 display_name을 그대로 참고)
+      const hashtagMediaWord = (() => {
+        if (rankingData.length === 1 && (rankingData[0].display_name || "").includes("영화")) {
+          return "영화";
+        }
+        return "드라마";
+      })();
+
       const options = [];
       if (!useEmoji)    options.push("이모지를 사용하지 마세요.");
       if (useRating)    options.push(`오뜨랑(${SITE_URL}) 평점 정보를 자연스럽게 언급해주세요.`);
       if (useLink)      options.push(`포스팅 중간이나 마지막에 "${SITE_URL}" 링크를 "오뜨랑에서 더 보기" 형태로 자연스럽게 삽입해주세요.`);
       if (useSpoiler)   options.push("스포일러 주의 문구가 필요한 작품에는 ⚠️ 스포주의 라벨을 달아주세요.");
-      if (useHashtag)   options.push(`포스팅 마지막에 네이버 블로그용 해시태그를 15개 이상 추가해주세요. (예: #${platformName}드라마추천 #OTT추천 #넷플릭스순위 등)`);
+      if (useHashtag)   options.push(`포스팅 마지막에 네이버 블로그용 해시태그를 15개 이상 추가해주세요. (예: #${platformName}${hashtagMediaWord}추천 #OTT추천 #${platformName}순위 등)`);
       if (extraRequest) options.push(extraRequest);
 
       const prompt = `당신은 네이버 블로그에 OTT 콘텐츠 글을 매일 쓰는 30대 직장인입니다.
@@ -580,12 +720,20 @@ ${rankingText}
 
 ${rankingText}
 
+이 데이터에 없는 정보(예: 다음 달 공개 예정 신작, 데이터에 아직 안 잡힌 최신 화제작·이슈 등)가
+글 내용에 필요하다고 판단되면 web_search 툴로 사실관계를 확인한 뒤 자연스럽게 녹여서 써주세요.
+검색 결과 문장을 그대로 베끼지 말고 네이버 블로거 말투로 직접 다시 써야 합니다.
+
 ━━━ 작성 조건 ━━━
 주제: ${weekInfo} ${platformName} — ${CONTENT_TYPE_PROMPTS[contentType] || CONTENT_TYPE_PROMPTS.weekly_ranking}
 말투: ${TONE_LABELS[tone] || TONE_LABELS.friendly}
 길이: 1500자~2500자
 구조: [제목] → 도입부 → 본문 → 마무리
-${contentType === 'weekly_ranking' ? '순위 나열: 10위→1위 역순 (끝까지 읽게 유도)' : ''}
+${contentType === 'weekly_ranking'
+  ? (rankingData.length > 1
+      ? '순위 나열: 카테고리별로 섹션을 나눠서 각각 10위→1위 역순으로 작성 (서로 다른 카테고리를 하나의 순위 리스트로 합치지 말 것)'
+      : '순위 나열: 10위→1위 역순 (끝까지 읽게 유도)')
+  : ''}
 
 ━━━ 절대 쓰지 말아야 할 AI 표현 ━━━
 금지 단어/표현:
@@ -668,6 +816,10 @@ ${options.length > 0 ? "[추가 지시사항]\n" + options.map((o, i) => `${i + 
             platform,
             platformName,
             weekInfo,
+            categorySlot:  effectiveCategorySlot || "all",
+            categoryLabel: (effectiveCategorySlot && rankingData.length === 1)
+              ? rankingData[0].display_name
+              : "전체",
             generatedAt: new Date().toISOString(),
           },
         }),
