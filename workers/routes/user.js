@@ -136,7 +136,7 @@ export async function handleUser(path, request, env, ctx, headers) {
         FROM reviews r
         JOIN users u ON r.user_id = u.id
         LEFT JOIN grade_settings gs ON gs.grade_key = u.grade
-        LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ?
+        LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ? AND rl.is_active = 1
         WHERE r.tmdb_id = ?
         ORDER BY r.likes DESC, r.created_at DESC
       `).bind(myUserId, tmdb_id).all();
@@ -219,8 +219,12 @@ export async function handleUser(path, request, env, ctx, headers) {
   }
 
   // ── POST /reviews/:tmdb_id/like/:id — 좋아요 토글 ──────────
-  // 처음 누르면: review_likes에 기록 추가 + likes+1 + 받은 사람 오뜨+1
-  // 다시 누르면(취소): review_likes 기록 삭제 + likes-1 (오뜨는 회수하지 않음 — 정책 확정)
+  // review_likes 행을 지우지 않고 is_active(켜짐/꺼짐)만 바꾸는 방식.
+  // 이렇게 해야 "이 유저가 이 리뷰에 평생 한 번이라도 좋아요를 줬는지"를
+  // 계속 기억할 수 있어서, 토글을 아무리 반복해도 오뜨는 최초 1회만 지급된다.
+  //   - 기록이 아예 없음        → INSERT(is_active=1) + likes+1 + 오뜨 +1 (최초 1회)
+  //   - 기록 있고 is_active=1  → is_active=0으로 변경(취소) + likes-1 (오뜨 변화 없음)
+  //   - 기록 있고 is_active=0  → is_active=1로 변경(재좋아요) + likes+1 (오뜨 변화 없음 — 예전에 이미 지급함)
   if (path.match(/^\/reviews\/\d+\/like\/\d+$/) && request.method === "POST") {
     try {
       const review_id = parseInt(path.split("/")[4]);
@@ -239,16 +243,34 @@ export async function handleUser(path, request, env, ctx, headers) {
       ).bind(review_id).first();
       if (!review) return new Response(JSON.stringify({ ok: false, message: "리뷰를 찾을 수 없어요" }), { status: 404, headers });
 
-      // 이미 좋아요를 누른 기록이 있는지 확인 (review_likes의 UNIQUE(review_id, user_id) 기준)
+      // 이 유저가 이 리뷰에 좋아요를 누른 적이 있는지 확인 (취소했어도 행 자체는 남아있음)
       const existing = await env.DB.prepare(
-        "SELECT id FROM review_likes WHERE review_id = ? AND user_id = ?"
+        "SELECT id, is_active FROM review_likes WHERE review_id = ? AND user_id = ?"
       ).bind(review_id, session.user_id).first();
 
       let liked;
-      if (existing) {
-        // ── 좋아요 취소 ──
+
+      if (!existing) {
+        // ── 최초 좋아요 — 행 신규 생성 + 오뜨 지급 ──
         await env.DB.prepare(
-          "DELETE FROM review_likes WHERE id = ?"
+          "INSERT INTO review_likes (review_id, user_id, is_active) VALUES (?, ?, 1)"
+        ).bind(review_id, session.user_id).run();
+        await env.DB.prepare(
+          "UPDATE reviews SET likes = likes + 1 WHERE id = ?"
+        ).bind(review_id).run();
+        if (review.user_id) {
+          await env.DB.prepare(
+            "UPDATE users SET total_likes_received = total_likes_received + 1 WHERE id = ?"
+          ).bind(review.user_id).run();
+          ctx.waitUntil(_addOttPoints(review.user_id, 1, 'like_received', env));
+          ctx.waitUntil(_recalcGrade(review.user_id, env));
+        }
+        liked = true;
+
+      } else if (existing.is_active) {
+        // ── 좋아요 취소 — is_active만 0으로, 오뜨는 그대로 유지 ──
+        await env.DB.prepare(
+          "UPDATE review_likes SET is_active = 0 WHERE id = ?"
         ).bind(existing.id).run();
         await env.DB.prepare(
           "UPDATE reviews SET likes = MAX(0, likes - 1) WHERE id = ?"
@@ -258,13 +280,13 @@ export async function handleUser(path, request, env, ctx, headers) {
             "UPDATE users SET total_likes_received = MAX(0, total_likes_received - 1) WHERE id = ?"
           ).bind(review.user_id).run();
         }
-        // 오뜨는 회수하지 않음 (정책 확정 — 취소해도 이미 받은 포인트는 그대로 유지)
         liked = false;
+
       } else {
-        // ── 좋아요 추가 ──
+        // ── 재좋아요 — is_active만 1로, 오뜨는 다시 지급하지 않음(예전에 이미 줬음) ──
         await env.DB.prepare(
-          "INSERT INTO review_likes (review_id, user_id) VALUES (?, ?)"
-        ).bind(review_id, session.user_id).run();
+          "UPDATE review_likes SET is_active = 1 WHERE id = ?"
+        ).bind(existing.id).run();
         await env.DB.prepare(
           "UPDATE reviews SET likes = likes + 1 WHERE id = ?"
         ).bind(review_id).run();
@@ -272,9 +294,6 @@ export async function handleUser(path, request, env, ctx, headers) {
           await env.DB.prepare(
             "UPDATE users SET total_likes_received = total_likes_received + 1 WHERE id = ?"
           ).bind(review.user_id).run();
-          // 좋아요 받은 유저 +1 오뜨
-          ctx.waitUntil(_addOttPoints(review.user_id, 1, 'like_received', env));
-          ctx.waitUntil(_recalcGrade(review.user_id, env));
         }
         liked = true;
       }
