@@ -723,6 +723,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .yt-grid{ grid-template-columns:1fr; }
   .cast-card{ width:72px; }.cast-photo{ width:72px;height:72px; }
   .gallery-grid{ grid-template-columns:repeat(2,1fr); }
+  .sim-card{ width:104px; }.sim-poster{ width:104px; }
 }
 
 
@@ -1211,6 +1212,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   margin-bottom: 28px;
 }
 
+/* ══ 비슷한 취향/장르의 작품 — recommendations 우선, 없으면 similar 폴백 ══ */
+.similar-section{margin-bottom:28px}
+.sim-scroll-wrap{display:flex;align-items:center;gap:4px}
+.sim-arrow{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
+.sim-arrow:hover{background:var(--bg3);border-color:var(--info-border);color:var(--info)}
+.sim-arrow:disabled{opacity:.25;cursor:default}
+.sim-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;-ms-overflow-style:none}
+.sim-scroll::-webkit-scrollbar{display:none}
+.sim-card{flex-shrink:0;width:130px;cursor:pointer;text-decoration:none;color:var(--text);transition:transform .2s ease}
+.sim-card:hover{transform:translateY(-3px)}
+.sim-poster{position:relative;width:130px;aspect-ratio:2/3;border-radius:var(--r);overflow:hidden;background:var(--bg3)}
+.sim-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.sim-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
+.sim-match{position:absolute;right:6px;bottom:6px;font-family:var(--font-mono);font-size:12px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(12,12,16,.78);color:var(--muted2);letter-spacing:.3px}
+.sim-match.hi{color:var(--gold)}
+.sim-title{font-size:13px;font-weight:600;color:var(--text);margin-top:7px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 </style>
 <!-- Tabler Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -1503,6 +1521,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div class="gallery-section" id="gallerySection">
   <div class="plain-section-title">관련이미지</div>
   <div class="gallery-grid" id="galleryGrid"></div>
+</div>
+
+<!-- ══════════════════════════════════════
+     비슷한 취향/장르의 작품 — recommendations 우선, 없으면 similar 폴백
+══════════════════════════════════════ -->
+<div class="similar-section" id="similarSection" style="display:none">
+  <div class="plain-section-title" id="similarSectionTitle">비슷한 취향의 작품</div>
+  <div class="sim-scroll-wrap">
+    <button class="sim-arrow sim-arrow-left" id="simArrowLeft" onclick="scrollSimilar(-1)" aria-label="이전">‹</button>
+    <div class="sim-scroll" id="simScroll"></div>
+    <button class="sim-arrow sim-arrow-right" id="simArrowRight" onclick="scrollSimilar(1)" aria-label="다음">›</button>
+  </div>
 </div>
 
 </div><!-- /.page-wrap -->
@@ -1839,6 +1869,55 @@ async function loadGallery(){
   }catch(e){}
 }
 
+/* == 비슷한 취향/장르의 작품 ==
+   1) recommendations 먼저 조회 — 결과 있으면 그대로 사용, 제목 '비슷한 취향의 작품'
+   2) recommendations 결과 0건일 때만 similar 조회(폴백), 제목 '비슷한 장르의 작품'
+   두 데이터를 섞지 않음 — 항상 하나의 출처만 노출 (매치율 % 신뢰도 보호) */
+const SIM_COUNT=8;
+async function loadSimilarWorks(){
+  if(!WORK.tmdb_id)return;
+  try{
+    let list=[],usedSimilar=false;
+    const recRes=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/recommendations?language=ko-KR`).then(r=>r.json()).catch(()=>null);
+    list=(recRes?.results||[]).filter(it=>it.poster_path&&it.id!==WORK.tmdb_id);
+
+    if(!list.length){
+      const simRes=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/similar?language=ko-KR`).then(r=>r.json()).catch(()=>null);
+      list=(simRes?.results||[]).filter(it=>it.poster_path&&it.id!==WORK.tmdb_id);
+      usedSimilar=true;
+    }
+    if(!list.length)return; // 둘 다 없으면 섹션 숨김 유지 (기본 display:none)
+
+    list=list.slice(0,SIM_COUNT);
+
+    const titleEl=document.getElementById('similarSectionTitle');
+    if(titleEl)titleEl.textContent=usedSimilar?'비슷한 장르의 작품':'비슷한 취향의 작품';
+
+    document.getElementById('simScroll').innerHTML=list.map(it=>{
+      const title=_hesc(it.name||it.title||'');
+      const year=(it.first_air_date||it.release_date||'').slice(0,4)||new Date().getFullYear();
+      const pct=it.vote_average?Math.round(it.vote_average*10):null;
+      const matchBadge=pct?`<span class="sim-match${pct>=70?' hi':''}">${pct}%</span>`:'';
+      return `
+        <a class="sim-card" href="/title/1-${year}${it.id}">
+          <div class="sim-poster">
+            <img src="${IMG}${it.poster_path}" alt="${title}" loading="lazy">
+            ${matchBadge}
+          </div>
+          <div class="sim-title">${title}</div>
+        </a>`;
+    }).join('');
+
+    document.getElementById('similarSection').style.display='block';
+
+    setTimeout(()=>{
+      updateSimilarArrows();
+      const ss=document.getElementById('simScroll');
+      if(ss)ss.addEventListener('scroll',updateSimilarArrows,{passive:true});
+    },100);
+  }catch(e){}
+}
+
 /* == MBTI / 지금 보러가기 행(row) 표시 갱신 ==
    둘 중 하나라도 보이면 row 표시, 둘 다 숨겨지면 row 숨김 */
 function updateMbtiWgRow(){
@@ -2168,6 +2247,9 @@ async function loadTmdb(){
     // Gallery (lazy)
     loadGallery();
 
+    // 비슷한 취향/장르의 작품 (lazy)
+    loadSimilarWorks();
+
     // 제작사 탭 렌더링 — det.networks 사용 (TV: 방영사, Movie: 배급사)
     const networks = det.networks || det.production_companies || [];
     WORK.networks = networks; // OTT 탭의 쿠팡 보완 로직에서도 사용
@@ -2301,6 +2383,21 @@ function updateCastArrows(){
   const el=document.getElementById('castScroll');if(!el)return;
   const left=document.getElementById('castArrowLeft');
   const right=document.getElementById('castArrowRight');
+  if(left)left.disabled=el.scrollLeft<=0;
+  if(right)right.disabled=el.scrollLeft+el.clientWidth>=el.scrollWidth-4;
+}
+
+/* == 비슷한 취향/장르의 작품 화살표 스크롤 (출연진과 동일 패턴) == */
+function scrollSimilar(dir){
+  const el=document.getElementById('simScroll');if(!el)return;
+  const scrollAmt=el.clientWidth*0.7;
+  el.scrollBy({left:dir*scrollAmt,behavior:'smooth'});
+  setTimeout(()=>updateSimilarArrows(),350);
+}
+function updateSimilarArrows(){
+  const el=document.getElementById('simScroll');if(!el)return;
+  const left=document.getElementById('simArrowLeft');
+  const right=document.getElementById('simArrowRight');
   if(left)left.disabled=el.scrollLeft<=0;
   if(right)right.disabled=el.scrollLeft+el.clientWidth>=el.scrollWidth-4;
 }
