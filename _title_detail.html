@@ -2022,9 +2022,14 @@ async function loadTmdb(){
     // 후기 API와 무관하게 바로 표시 가능
     renderMbtiSection(WORK.mbti_tags||null);
 
+    // TV 작품은 aggregate_credits 사용 — 기본 /credits는 시즌 일부 출연진만 내려주지만
+    // TMDB 웹사이트가 실제로 보여주는 전체 출연진(에피소드 전체 기준 집계)은 aggregate_credits 응답 기준임.
+    // 영화는 기본 /credits가 이미 전체 출연진을 담고 있어 그대로 사용.
+    const creditsEndpoint=WORK.type==='tv'?'aggregate_credits':'credits';
+
     // Parallel API calls after hero shown
     const [creditsRes, videosRes, ratingsRes, extIdsRes] = await Promise.allSettled([
-      fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/credits?language=ko-KR`).then(r=>r.json()),
+      fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${creditsEndpoint}?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/videos?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${det.number_of_seasons?'content_ratings':'release_dates'}?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/external_ids`).then(r=>r.json()),
@@ -2092,7 +2097,7 @@ async function loadTmdb(){
               <div class="cast-photo-ph" style="${p.profile_path?'display:none':'display:flex'}">${(p.name||'?')[0]}</div>
             </div>
             <div class="cast-name">${p.name}</div>
-            <div class="cast-role">${p.character||''}</div>
+            <div class="cast-role">${p.character||p.roles?.[0]?.character||''}</div>
           </a>`).join('');
 
         // 화살표 초기 상태 + 스크롤 이벤트 연결
@@ -2543,6 +2548,18 @@ function renderComments(){
   renderPagination();
 }
 
+// 좋아요 버튼 화면 갱신 공통 함수 (낙관적 업데이트/서버 응답 반영/롤백에서 공통 사용)
+function _applyLikeUI(id,liked,likes){
+  const countEl=document.getElementById('like_cmt_'+id);
+  if(countEl)countEl.textContent=likes;
+  const btn=document.getElementById('like_btn_'+id);
+  if(btn){
+    btn.classList.toggle('liked',liked);
+    const icon=btn.querySelector('i');
+    if(icon)icon.className=`ti ${liked?'ti-heart-filled':'ti-heart'}`;
+  }
+}
+
 async function likeComment(id){
   const c=ALL_COMMENTS.find(x=>x.id===id);if(!c)return;
 
@@ -2557,6 +2574,14 @@ async function likeComment(id){
     btn.dataset.pending='1';
   }
 
+  // 클릭 즉시 화면부터 토글(낙관적 업데이트) — 네트워크 왕복을 기다리지 않고 바로 반응
+  // 실패하면 catch/실패 분기에서 원래 상태로 되돌림
+  const prevLiked=c.liked,prevLikes=c.likes;
+  const optimisticLiked=!prevLiked;
+  const optimisticLikes=prevLikes+(optimisticLiked?1:-1);
+  c.liked=optimisticLiked;c.likes=optimisticLikes;
+  _applyLikeUI(id,optimisticLiked,optimisticLikes);
+
   try{
     const res=await fetch(`${REVIEW_API}/reviews/${WORK.tmdb_id}/like/${id}`,{
       method:'POST',
@@ -2564,22 +2589,19 @@ async function likeComment(id){
     });
     const data=await res.json().catch(()=>null);
     if(!res.ok||!data?.ok){
+      // 실패 — 낙관적으로 바꿨던 화면을 원래 상태로 롤백
+      c.liked=prevLiked;c.likes=prevLikes;
+      _applyLikeUI(id,prevLiked,prevLikes);
       showToast(data?.message||'좋아요 처리에 실패했어요');
       return;
     }
-
-    // 서버가 내려준 최종 상태(liked, likes)로 화면 갱신 — 낙관적 증가 대신 신뢰 가능한 값 사용
-    c.liked=!!data.liked;
-    c.likes=data.likes;
-
-    const countEl=document.getElementById('like_cmt_'+id);
-    if(countEl)countEl.textContent=c.likes;
-    if(btn){
-      btn.classList.toggle('liked',c.liked);
-      const icon=btn.querySelector('i');
-      if(icon)icon.className=`ti ${c.liked?'ti-heart-filled':'ti-heart'}`;
-    }
+    // 서버가 내려준 최종 값으로 동기화 (낙관적 값과 어긋나는 경우 보정)
+    c.liked=!!data.liked;c.likes=data.likes;
+    _applyLikeUI(id,c.liked,c.likes);
   }catch(e){
+    // 네트워크 오류 — 롤백
+    c.liked=prevLiked;c.likes=prevLikes;
+    _applyLikeUI(id,prevLiked,prevLikes);
     showToast('네트워크 오류로 좋아요 처리에 실패했어요');
   }finally{
     if(btn)btn.dataset.pending='0';
