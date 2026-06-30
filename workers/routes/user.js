@@ -9,6 +9,7 @@
    POST   /reviews/:tmdb_id/like/:id   좋아요 토글 (로그인 필요, 다시 누르면 취소)
    DELETE /reviews/:tmdb_id
    GET    /mypage
+   GET    /mypage/point-logs           오뜨 적립 내역 전체 조회 (페이지네이션)
    PATCH  /mypage/wishlist-public
    GET    /user/:uid
    GET    /grade-settings
@@ -445,6 +446,42 @@ export async function handleUser(path, request, env, ctx, headers) {
           pick_list_count: pick_lists.length,
         },
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /mypage/point-logs — 오뜨 적립 내역 전체 조회 (페이지네이션) ──
+  // my_ott.html의 "전체 내역" 목록에서 사용. /mypage는 미리보기용 최근 20개만 주므로 별도 분리.
+  if (path === "/mypage/point-logs" && request.method === "GET") {
+    try {
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      if (!sessionId) return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+      const session = await env.DB.prepare(
+        "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+      ).bind(sessionId).first();
+      if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+
+      const params = new URL(request.url).searchParams;
+      const page  = Math.max(1, parseInt(params.get('page') || '1'));
+      const limit = Math.min(50, Math.max(1, parseInt(params.get('limit') || '10')));
+      const offset = (page - 1) * limit;
+
+      const countRow = await env.DB.prepare(
+        "SELECT COUNT(*) AS total FROM user_point_logs WHERE user_id = ?"
+      ).bind(session.user_id).first();
+      const total = countRow?.total || 0;
+
+      const { results: logs } = await env.DB.prepare(`
+        SELECT points, reason, created_at
+        FROM user_point_logs
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(session.user_id, limit, offset).all();
+
+      return new Response(JSON.stringify({ ok: true, logs, total, page, limit }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
