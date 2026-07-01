@@ -747,6 +747,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .r-card:nth-child(4){ display:none; } /* '내 평점' 카드 — 모바일에서 숨김, 나머지 3개를 한 줄로 노출 */
   .r-card{ padding:12px 4px; }
   .r-logo{ margin-bottom:2px; }
+  #userRatingEmpty{ padding-top:2px !important; }
   .uremp-desktop{ display:none; }
   .uremp-mobile{ display:flex; }
   .r-score{ font-size:13px; }
@@ -2415,7 +2416,7 @@ function renderYtPage(page){
           <div class="yt-play"><div class="yt-play-icon"><i class="ti ti-player-play" style="font-size:13px"></i></div></div>
           ${(v.type==='Trailer'||v.type==='Teaser')?`<div class="yt-badge">${v.type}</div>`:''}
         </div>
-        <div class="yt-info"><div class="yt-title">${v.name||''}</div><div class="yt-meta"><span>${v.type||''}</span></div></div>
+        <div class="yt-info"><div class="yt-title">${v.name||''}</div></div>
       </div>`).join('')}</div>`;
 
   const pgEl=document.getElementById('ytPagination');
@@ -3328,7 +3329,10 @@ function renderNetworkTab(networks){
     labelEl.textContent = '';
     return;
   }
-  const names = networks.slice(0, 3).map(n => n.name).join(' · ');
+  const names = networks.slice(0, 3).map(n => {
+    const nm = n.name || '';
+    return nm.length > 20 ? nm.slice(0, 20) + '…' : nm;
+  }).join(' · ');
   labelEl.textContent = `제작: ${names}`;
   /* 보러가기 섹션 표시 (데이터 있으면) */
   const sec = document.getElementById('ottSection');
