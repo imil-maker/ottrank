@@ -63,29 +63,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ── 페이지 타이틀 ── */
 .page-title{font-size:20px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:8px}
 
-/* ── 작품 헤더 카드 (mypage profile-card 톤) ── */
+/* ── 작품 헤더 카드 (배경이미지 배너 방식) ── */
 .work-header{
-  display:flex;gap:16px;align-items:flex-start;
-  background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%);
+  position:relative;overflow:hidden;
+  min-height:64px;
   border:.5px solid var(--border2);border-radius:var(--r-lg);
-  padding:12px;margin-bottom:8px;position:relative;overflow:hidden;
+  padding:10px 14px;margin-bottom:8px;
+  display:flex;align-items:flex-end;
+  background:var(--bg2);
 }
-.work-header::before{
-  content:'';position:absolute;top:-40px;right:-40px;
-  width:160px;height:160px;border-radius:50%;
-  background:radial-gradient(circle,rgba(230,57,70,.07),transparent 70%);
-  pointer-events:none;
+.work-header-bg{
+  position:absolute;inset:0;
+  background-size:cover;background-position:center;
+  z-index:0;
 }
-.work-poster{
-  width:68px;height:102px;border-radius:8px;
-  overflow:hidden;background:var(--bg3);flex-shrink:0;
-  border:.5px solid var(--border);
+.work-header-fade{
+  position:absolute;inset:0;
+  background:linear-gradient(90deg,rgba(12,12,16,.92) 0%,rgba(12,12,16,.75) 45%,rgba(12,12,16,.35) 100%);
+  z-index:1;
 }
-.work-poster img{width:100%;height:100%;object-fit:cover;display:block}
-.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26px}
-.work-info{flex:1;min-width:0;padding-top:2px}
+.work-info{flex:1;min-width:0;position:relative;z-index:2}
 .work-title{font-size:18px;font-weight:700;margin-bottom:6px;line-height:1.3}
-.work-sub{font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+.work-sub{font-size:12px;color:var(--muted2);font-family:var(--font-mono)}
 
 /* ── 섹션 공통 (mypage sec-wrap 동일) ── */
 .review-section{
@@ -153,7 +152,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   padding:2px 8px;border-radius:10px;white-space:nowrap;
 }
 .etag-slide{
-  display:flex;gap:8px;overflow-x:auto;
+  display:grid;
+  grid-template-rows:repeat(2,auto);
+  grid-auto-flow:column;
+  grid-auto-columns:max-content;
+  gap:8px;
+  overflow-x:auto;
   padding-bottom:4px;scrollbar-width:none;
   -webkit-overflow-scrolling:touch;
 }
@@ -458,18 +462,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <div class="review-wrap">
 
-  <!-- 작품 헤더 + 돌아가기 버튼 통합 -->
+  <!-- 작품 헤더 + 돌아가기 버튼 통합 (배경이미지 배너) -->
   <div class="work-header">
-    <div class="work-poster" id="workPoster">
-      <div class="work-poster-ph">🎬</div>
-    </div>
-    <div class="work-info" style="display:flex;flex-direction:column;justify-content:space-between">
+    <div class="work-header-bg" id="workHeaderBg"></div>
+    <div class="work-header-fade"></div>
+    <div class="work-info" style="display:flex;flex-direction:column;justify-content:flex-end">
       <div>
         <div class="work-title" id="workTitle">작품명</div>
         <div class="work-sub" id="workSub"></div>
       </div>
-      <!-- 돌아가기 버튼 — 포스터 오른쪽 하단 -->
-      <button class="back-btn" onclick="goBack()" style="margin-bottom:0;align-self:flex-start">
+      <button class="back-btn" onclick="goBack()" style="margin-bottom:0;margin-top:6px;align-self:flex-start">
         <i class="ti ti-arrow-left" style="font-size:14px"></i> 돌아가기
       </button>
     </div>
@@ -490,16 +492,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- 평가 4버튼 — 제목 옆 1개 + 아래 3개 -->
+  <!-- 평가 4버튼 — 전부 타이틀 옆 한 줄, 동일 사이즈 -->
   <div class="review-section">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
       <div class="review-section-title" style="margin-bottom:0"><i class="ti ti-mood-smile" style="font-size:15px;color:var(--green)"></i>이 작품을 한마디로?</div>
       <button class="eval-btn" data-val="강추해요" onclick="toggleEval(this)">🔥 강추해요</button>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:nowrap">
-      <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)" style="flex:1;justify-content:center">👍 추천해요</button>
-      <button class="eval-btn" data-val="평범해요" onclick="toggleEval(this)" style="flex:1;justify-content:center">😐 평범해요</button>
-      <button class="eval-btn" data-val="별로예요" onclick="toggleEval(this)" style="flex:1;justify-content:center">👎 별로예요</button>
+      <button class="eval-btn" data-val="추천해요" onclick="toggleEval(this)">👍 추천해요</button>
+      <button class="eval-btn" data-val="평범해요" onclick="toggleEval(this)">😐 평범해요</button>
+      <button class="eval-btn" data-val="별로예요" onclick="toggleEval(this)">👎 별로예요</button>
     </div>
   </div>
 
@@ -682,10 +682,10 @@ let LAST_REVIEW=null; // 공유 카드용 — 제출 성공 시 채워짐
   document.getElementById('workTitle').textContent=RDATA.title||'작품명';
   document.getElementById('workSub').textContent=[RDATA.platform?({netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'}[RDATA.platform]||RDATA.platform):'',RDATA.year].filter(Boolean).join(' · ');
 
-  // 포스터
+  // 포스터 — 배너 배경이미지로 세팅 (cover 방식: 비율 유지하며 넘치는 부분만 크롭, 찌그러짐 없음)
   if(RDATA.poster_path&&RDATA.poster_path.includes('image.tmdb.org')){
-    const ph=document.getElementById('workPoster');
-    ph.innerHTML=`<img src="${RDATA.poster_path}" alt="${RDATA.title}" onerror="this.parentNode.innerHTML='<div class=work-poster-ph>🎬</div>'">`;
+    const bg=document.getElementById('workHeaderBg');
+    if(bg)bg.style.backgroundImage=`url('${RDATA.poster_path}')`;
   }
 
   // 초기 별점 설정 (작품 페이지에서 별 클릭하고 온 경우)
