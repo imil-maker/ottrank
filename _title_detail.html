@@ -2904,9 +2904,14 @@ async function loadReviews(tmdbId){
       }
     }
     renderMyReview();
-    curPage=1;renderComments();updateUserRatingCard();
+    curPage=1;renderComments();
     // renderMbtiSection은 loadTmdb()에서 즉시 호출하므로 여기서 제거
   }catch(e){}
+  finally{
+    // try 블록 중간에 예외가 나더라도(네트워크 오류 등) 모바일 '평점 남기기' 바 노출 여부는
+    // 항상 최신 ALL_COMMENTS 기준으로 갱신되도록 finally에서 보장
+    updateUserRatingCard();
+  }
 }
 
 async function deleteMyReview(reviewId){
