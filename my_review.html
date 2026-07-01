@@ -27,12 +27,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ── 본문 ── */
 .page-wrap{max-width:var(--content-w);margin:0 auto;padding:32px 20px 80px}
 
-/* 페이지 헤더 */
-.page-header{display:flex;align-items:center;gap:12px;margin-bottom:28px;flex-wrap:wrap}
-.page-back{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;text-decoration:none;color:var(--muted2);border:.5px solid var(--border);transition:all .15s;flex-shrink:0}
+/* 페이지 헤더 —
+   PC: [화살표] [가운데 정렬 타이틀] [개수]  한 줄
+   모바일: 1줄=타이틀(가운데정렬), 2줄=화살표(좌)…개수(우) */
+.page-header{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  grid-template-areas:"back title count";
+  align-items:center;
+  column-gap:12px;
+  margin-bottom:28px;
+}
+.page-back{grid-area:back;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;text-decoration:none;color:var(--muted2);border:.5px solid var(--border);transition:all .15s;flex-shrink:0}
 .page-back:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
-.page-title{font-size:20px;font-weight:700}
-.page-count{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
+.page-title{grid-area:title;font-size:20px;font-weight:700;text-align:center}
+.page-title-nick{color:var(--gold)}
+.page-count{grid-area:count;font-size:13px;color:var(--muted);font-family:var(--font-mono);text-align:right}
 
 /* 로딩 */
 .loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:14px}
@@ -140,6 +150,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 @media(max-width:600px){
   .page-wrap{padding:24px 16px 60px}
 
+  /* 헤더 2줄 배치: 1줄=타이틀(전체너비, 가운데정렬), 2줄=화살표(좌)…개수(우) */
+  .page-header{
+    grid-template-columns:auto 1fr auto;
+    grid-template-areas:
+      "title title title"
+      "back  .     count";
+    row-gap:10px;
+  }
+
   /* 모바일 — 2열 그리드로 전환 */
   #reviewArea .rc-grid {
     display: grid !important;
@@ -171,7 +190,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <a class="page-back" id="backBtn" href="/mypage.html">
       <i class="ti ti-arrow-left" style="font-size:15px"></i>
     </a>
-    <span class="page-title" id="pageTitle">⭐ 평점·후기</span>
+    <span class="page-title" id="pageTitle">⭐ <span class="page-title-nick" id="pageTitleNick"></span> 평점·후기</span>
     <span class="page-count" id="totalCount"></span>
   </div>
 
@@ -238,7 +257,7 @@ async function init() {
       // 뒤로가기 → 해당 유저 마이페이지
       document.getElementById('backBtn').href = `/mypage.html?uid=${targetUid}`;
       document.title = `${json.nickname || '유저'}의 평점·후기 | 오뜨랑`;
-      document.getElementById('pageTitle').textContent = `⭐ "${json.nickname || '유저'}" 평점·후기`;
+      document.getElementById('pageTitleNick').textContent = json.nickname || '유저';
     } else {
       /* ── 내 리뷰 — 리뷰만 가볍게 ── */
       IS_OWN = true;
@@ -246,7 +265,7 @@ async function init() {
       const json = await (await fetch(`${API}/mypage/reviews`, { headers: { Authorization: 'Bearer ' + sid } })).json();
       if (!json.ok) { showError('로그인이 필요해요'); return; }
       ALL_REVIEWS = json.reviews || [];
-      document.getElementById('pageTitle').textContent = `⭐ "${json.nickname || '나'}" 평점·후기`;
+      document.getElementById('pageTitleNick').textContent = json.nickname || '나';
     }
 
     document.getElementById('totalCount').textContent = `전체 ${ALL_REVIEWS.length}개`;
