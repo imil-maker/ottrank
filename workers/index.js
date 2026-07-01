@@ -6,7 +6,7 @@
 
    라우트 모듈 목록:
    rankings.js  : /rankings/*, /latest-date, /platforms, /sitemap.xml
-   videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*, /kmrb/*
+   videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*, /kmrb/*, /search/*
    reactions.js : /reactions/*, /admin/reactions*
    auth.js      : /auth/*
    user.js      : /wishlist/*, /reviews/*, /mypage/*, /user/*, /grade-settings, /life-works/*, /pick-lists/*
@@ -83,14 +83,15 @@ export default {
       res = await handleRankings(path, request, env, url, headers);
     }
 
-    // 4. 영상 / IMDb / YouTube / works / kmrb
+    // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
     if (!res && (
       path.startsWith("/videos/") ||
       path.startsWith("/admin/videos") ||
       path.startsWith("/imdb/") ||
       path.startsWith("/youtube/") ||
       path.startsWith("/works/") ||
-      path.startsWith("/kmrb/")
+      path.startsWith("/kmrb/") ||
+      path.startsWith("/search/")
     )) {
       res = await handleVideos(path, request, env, ctx, url, headers);
     }
