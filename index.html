@@ -1514,7 +1514,9 @@ async function loadRecentReviews() {
   try {
     // 넉넉히 20개 가져와서 JS에서 닉네임 중복 제거
     // (한 명이 연속 도배해도 5개의 서로 다른 닉네임을 확보하기 위함)
-    const res  = await fetch(`${API}/reviews/recent?limit=20`);
+    const sid = localStorage.getItem('ottrang_sid');
+    const res  = await fetch(`${API}/reviews/recent?limit=20`,
+      sid ? { headers: { Authorization: 'Bearer ' + sid } } : {});
     const data = await res.json();
 
     if (!data.ok || !data.reviews?.length) {
