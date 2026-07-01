@@ -1186,6 +1186,70 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
+  // ── POST /admin/works/collect-keywords ────────────────────
+  // keywords가 비어있는 works를 대상으로 TMDB에서 일괄 수집
+  // Workers 실행시간 제한 때문에 요청당 limit(기본 20, 최대 50)개씩만 처리 —
+  // 어드민 화면에서 remaining이 0이 될 때까지 반복 호출하는 방식으로 사용
+  if (path === "/admin/works/collect-keywords" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 20, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE keywords IS NULL OR keywords = ''
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({ ok: true, processed: 0, attempted: 0, remaining: 0, message: "수집할 작품 없음" }), { headers });
+      }
+
+      let processed = 0;
+      const updates = [];
+      for (const row of targets) {
+        const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
+        let keywords = "";
+        for (const mtype of mtypes) {
+          try {
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}/keywords?api_key=${env.TMDB_API_KEY}`
+            );
+            if (!resp.ok) continue;
+            const data   = await resp.json();
+            const kwList = data.keywords || data.results || []; // 영화: keywords, TV: results
+            if (kwList.length) {
+              keywords = kwList.map(k => k.name).filter(Boolean).join(",");
+              break;
+            }
+          } catch (e) { /* 다음 media_type으로 계속 시도 */ }
+        }
+        // TMDB에 키워드가 아예 없는 작품도 있음 — 빈 문자열('')로 저장하면
+        // WHERE 조건(keywords='')에 계속 걸려서 다음 배치마다 같은 작품을 재시도하게 됨.
+        // '__NONE__' 센티널로 구분 저장해서 "시도했지만 결과 없음"을 표시.
+        // (프론트/검색 쪽에서 keywords==='__NONE__'이면 빈 배열로 취급하면 됨)
+        updates.push(
+          env.DB.prepare("UPDATE works SET keywords = ? WHERE tmdb_id = ?").bind(keywords || "__NONE__", row.tmdb_id)
+        );
+        if (keywords) processed++;
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE keywords IS NULL OR keywords = ''"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, processed, attempted: targets.length, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /grade-settings (admin) ───────────────────────────
   if (path === "/admin/grade-settings" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
