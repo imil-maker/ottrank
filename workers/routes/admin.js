@@ -31,6 +31,7 @@
    POST   /admin/ott-points/adjust
    POST   /admin/works/collect-keywords
    POST   /admin/works/discover-collect
+   POST   /admin/persons/collect
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
    POST   /work-ott                   ← OTT 오버라이드 추가/수정 (관리자 전용)
    DELETE /work-ott/:id               ← OTT 오버라이드 삭제/복원 (관리자 전용)
@@ -1364,6 +1365,97 @@ export async function handleAdmin(path, request, env, url, headers) {
         hasNextPage: page < totalPages,
         nextPage: page + 1,
         totalPages,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/collect ─────────────────────────────
+  // works의 크레딧(출연진/감독)에서 person id를 추출해 persons 테이블에 등록
+  // TMDB에는 "한국 인물만 인기순" 조회가 없어서, 이미 한국 작품으로 필터된
+  // works의 크레딧에서 역으로 뽑는 방식 — person.html이 tmdb_id만으로 라이브 렌더링하므로
+  // 여기서는 이름/직업 정도만 참고용으로 저장하고 상세정보는 캐싱하지 않음
+  // works.credits_scanned=0인 작품을 대상으로 하며, 처리 후 1로 마킹해 재스캔 방지
+  if (path === "/admin/persons/collect" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 20, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE credits_scanned IS NULL OR credits_scanned = 0
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, worksScanned: 0, personsFound: 0, remaining: 0, message: "스캔할 작품 없음"
+        }), { headers });
+      }
+
+      const personRows = new Map(); // tmdb_id → { name, job }  (배치 내 중복 제거용)
+      const scannedIds  = [];
+
+      for (const row of targets) {
+        scannedIds.push(row.tmdb_id);
+        const mtype = row.media_type === "tv" ? "tv" : "movie";
+        // TV는 시즌 전체 출연진을 보려면 aggregate_credits가 필요 (§ 캐스트 표시 수정과 동일 원칙)
+        const endpoint = mtype === "tv" ? "aggregate_credits" : "credits";
+
+        try {
+          const resp = await fetch(
+            `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}/${endpoint}?api_key=${env.TMDB_API_KEY}`
+          );
+          if (!resp.ok) continue;
+          const data = await resp.json();
+
+          // 출연진 — 너무 많으면 의미 없는 단역까지 다 들어가니 상위 15명만
+          for (const c of (data.cast || []).slice(0, 15)) {
+            if (c.id && c.name && !personRows.has(c.id)) {
+              personRows.set(c.id, { name: c.name, job: "act" });
+            }
+          }
+          // 감독/크리에이터만 crew에서 추출
+          for (const c of (data.crew || [])) {
+            const isDirector = c.job === "Director" || c.job === "Creator" || c.department === "Directing"
+              || (c.jobs || []).some(j => j.job === "Director" || j.job === "Creator"); // aggregate_credits는 jobs 배열 형태
+            if (isDirector && c.id && c.name) {
+              personRows.set(c.id, { name: c.name, job: "direct" });
+            }
+          }
+        } catch (e) { /* 이 작품만 스킵, 다음 작품 계속 */ }
+      }
+
+      const updates = [];
+      for (const [tmdbId, info] of personRows) {
+        updates.push(
+          env.DB.prepare(
+            `INSERT INTO persons (tmdb_id, name, job) VALUES (?, ?, ?)
+             ON CONFLICT(tmdb_id) DO NOTHING`
+          ).bind(tmdbId, info.name, info.job)
+        );
+      }
+      // 스캔 완료 마킹 (person 발견 여부와 무관하게 항상 마킹 — 재시도 방지)
+      for (const id of scannedIds) {
+        updates.push(
+          env.DB.prepare(`UPDATE works SET credits_scanned = 1 WHERE tmdb_id = ?`).bind(id)
+        );
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE credits_scanned IS NULL OR credits_scanned = 0"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        worksScanned: targets.length,
+        personsFound: personRows.size,
+        remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
