@@ -10,6 +10,7 @@
    GET    /youtube/trending         YouTube 한국 급상승 TOP50
    GET    /works/search             작품 검색 (공개)
    GET    /works/:tmdb_id           작품 단건 조회
+   GET    /search/keyword           키워드로 작품 검색 (공개, 한국작품 우선)
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
@@ -322,7 +323,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   if (path === "/works/register" && request.method === "POST") {
     try {
       const body = await request.json();
-      const { tmdb_id, title_ko, title_en, poster_path, media_type, genre } = body;
+      const { tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language } = body;
 
       // 필수값 검증
       if (!tmdb_id || !title_ko) {
@@ -337,8 +338,8 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const validTitle_en = (hasLatin && !hasKorean) ? title_en : null;
 
       await env.DB.prepare(`
-        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type, genre)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- title_en 업데이트 조건:
           --   1) 현재 title_en이 비어있을 때
@@ -358,6 +359,12 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             WHEN works.genre IS NULL OR works.genre = ''
               THEN excluded.genre
             ELSE works.genre
+          END,
+          -- original_language: 비어있을 때만 업데이트 (genre와 동일 원칙)
+          original_language = CASE
+            WHEN works.original_language IS NULL OR works.original_language = ''
+              THEN excluded.original_language
+            ELSE works.original_language
           END
       `).bind(
         parseInt(tmdb_id),
@@ -365,7 +372,8 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         validTitle_en  || null,
         poster_path    || null,
         media_type     || 'tv',
-        genre          || null
+        genre          || null,
+        original_language || null
       ).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
@@ -402,6 +410,34 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     }
 
     return new Response(JSON.stringify({ ok: true, data: work }), { headers });
+  }
+
+  // ── GET /search/keyword ───────────────────────────────────
+  // 공개 API — 작품 상세페이지의 키워드 태그 클릭 시 호출
+  // works.keywords(콤마구분 문자열)에서 정확히 일치하는 키워드를 가진 작품 조회
+  // 한국 작품(original_language='ko') 우선 정렬 — "비슷한 취향의 작품" 섹션과 동일 원칙
+  // ⚠️ 알려진 한계: TMDB 키워드 이름 자체에 콤마가 포함된 경우(예: "Paris, France")는
+  //    콤마 join 특성상 정확매칭이 안 될 수 있음 (극소수 사례, 추후 개선 여지로 남겨둠)
+  if (path === "/search/keyword" && request.method === "GET") {
+    const keyword = (url.searchParams.get("keyword") || "").trim().toLowerCase();
+    const limit   = Math.min(parseInt(url.searchParams.get("limit") || "20"), 40);
+    if (!keyword) {
+      return new Response(JSON.stringify({ ok: false, message: "keyword required" }), { status: 400, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, poster_path, genre, tmdb_rating, media_type, original_language
+        FROM works
+        WHERE (',' || LOWER(keywords) || ',') LIKE ('%,' || ? || ',%')
+        ORDER BY
+          CASE WHEN original_language = 'ko' THEN 0 ELSE 1 END,
+          tmdb_rating DESC
+        LIMIT ?
+      `).bind(keyword, limit).all();
+      return new Response(JSON.stringify({ ok: true, keyword, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
   }
 
   return null;
