@@ -236,6 +236,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎬 작품 사전등록
         </button>
+        <button id="tabPerson" onclick="switchPageTab('person')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🎭 인물 사전등록
+        </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
     </div>
@@ -479,6 +483,54 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="dcLogWrap" style="display:none">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
       <div id="dcLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+  </div>
+
+  <!-- ══ 인물 사전등록 섹션 ══ -->
+  <div class="wrap" id="personWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 <span style="color:var(--gold)">works</span>에 등록된 작품들의 출연진·감독 크레딧에서 인물을 추출해<br>
+      <span style="color:var(--green)">persons</span> 테이블에 등록합니다 (배우 이름 검색 SEO 유입용 — <span style="color:var(--gold)">/person/{id}</span> 페이지).<br>
+      TMDB에는 "한국 인물만 인기순" 조회가 없어서, 이미 한국 작품인 works의 크레딧에서 역으로 뽑는 방식입니다.<br>
+      각 작품은 한 번만 스캔되며(재스캔 없음), 상세정보는 저장 안 하고 <span style="color:var(--gold)">tmdb_id</span>만 확보 — person 페이지가 접속 시점에 TMDB에서 실시간으로 불러옵니다.
+    </div>
+
+    <!-- 상태 카드 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">스캔한 작품</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="pcScanned">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">신규 인물</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="pcFound">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남은 작품</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="pcRemaining">-</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="pcStartBtn" onclick="startPersonCollect()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 인물 수집 시작
+        </button>
+        <button class="btn-secondary" id="pcStopBtn" onclick="stopPersonCollect()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="pcStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <!-- 최근 배치 로그 -->
+    <div id="pcLogWrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="pcLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
     </div>
 
   </div>
@@ -797,6 +849,7 @@ const PAGE_TABS = [
   { key: 'mbti',     wrapId: 'mbtiWrap',     btnId: 'tabMbti',     title: '✦ MBTI 관리',      onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
   { key: 'keyword',  wrapId: 'keywordWrap',  btnId: 'tabKeyword',  title: '🏷 키워드 수집',    onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
   { key: 'discover', wrapId: 'discoverWrap', btnId: 'tabDiscover', title: '🎬 작품 사전등록',  onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
+  { key: 'person',   wrapId: 'personWrap',   btnId: 'tabPerson',   title: '🎭 인물 사전등록',  onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
 ];
 let currentPageTab = 'video';
 function switchPageTab(tab) {
@@ -1389,6 +1442,118 @@ function stopDiscoverCollect() {
   setTimeout(() => {
     document.getElementById('dcStopBtn').disabled = false;
     document.getElementById('dcStopBtn').textContent = '⏸ 중단';
+  }, 1500);
+}
+
+/* ══════════════════════════════════════════════════════
+   인물 사전등록 (works 크레딧 → persons 테이블에 tmdb_id 등록)
+   /admin/persons/collect 를 remaining이 0이 될 때까지 반복 호출
+   (키워드 수집 탭과 동일한 배치+반복 패턴)
+══════════════════════════════════════════════════════ */
+let pcRunning       = false;
+let pcStopRequested = false;
+let pcTotalScanned  = 0;
+let pcTotalFound    = 0;
+
+function pcLog(msg, isError) {
+  const logWrap = document.getElementById('pcLogWrap');
+  const logEl   = document.getElementById('pcLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function pcUpdateCounters(remaining) {
+  document.getElementById('pcScanned').textContent   = pcTotalScanned;
+  document.getElementById('pcFound').textContent     = pcTotalFound;
+  document.getElementById('pcRemaining').textContent = remaining === null ? '-' : remaining;
+}
+
+async function startPersonCollect() {
+  if (pcRunning) return;
+  pcRunning        = true;
+  pcStopRequested  = false;
+  pcTotalScanned   = 0;
+  pcTotalFound     = 0;
+
+  const startBtn   = document.getElementById('pcStartBtn');
+  const stopBtn    = document.getElementById('pcStopBtn');
+  const statusLine = document.getElementById('pcStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '수집 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('pcLog').innerHTML = '';
+  pcUpdateCounters(null);
+  pcLog('인물 수집 시작');
+
+  let batchNum = 0;
+
+  try {
+    while (true) {
+      if (pcStopRequested) {
+        pcLog('사용자 요청으로 중단됨');
+        break;
+      }
+      batchNum++;
+      statusLine.textContent = `${batchNum}번째 배치 처리 중...`;
+
+      let res, data;
+      try {
+        res = await fetch(`${API}/admin/persons/collect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+          body: JSON.stringify({ limit: 30 }),
+        });
+        data = await res.json();
+      } catch (e) {
+        pcLog(`네트워크 오류 — 배치 ${batchNum} 실패: ${e.message}`, true);
+        statusLine.textContent = '네트워크 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        pcLog(`API 오류 — 배치 ${batchNum}: ${data.message || res.status}`, true);
+        statusLine.textContent = 'API 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      pcTotalScanned += data.worksScanned || 0;
+      pcTotalFound   += data.personsFound || 0;
+      pcUpdateCounters(data.remaining);
+      pcLog(`배치 ${batchNum}: 작품 ${data.worksScanned}개 스캔 · 신규 인물 ${data.personsFound}명 · 남은 작품 ${data.remaining}개`);
+
+      if (!data.worksScanned || data.remaining === 0) {
+        statusLine.textContent = `✅ 완료! 작품 ${pcTotalScanned}개 스캔, 인물 ${pcTotalFound}명 등록됨`;
+        pcLog('모든 작품 스캔 완료');
+        showToast('✅ 인물 사전등록 완료!');
+        break;
+      }
+
+      // 다음 배치 전 짧은 대기 (Workers/TMDB 부하 방지)
+      await _sleep(400);
+    }
+  } finally {
+    pcRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 인물 수집 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopPersonCollect() {
+  if (!pcRunning) return;
+  pcStopRequested = true;
+  document.getElementById('pcStopBtn').disabled = true;
+  document.getElementById('pcStopBtn').textContent = '중단 중...';
+  setTimeout(() => {
+    document.getElementById('pcStopBtn').disabled = false;
+    document.getElementById('pcStopBtn').textContent = '⏸ 중단';
   }, 1500);
 }
 </script>
