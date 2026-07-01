@@ -220,10 +220,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .cast-title-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .cast-title-row .director-row{margin-bottom:0;flex-wrap:wrap}
 /* ══ 출연진 화살표 ══ */
-.cast-scroll-wrap{display:flex;align-items:center;gap:4px}
-.cast-arrow{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
-.cast-arrow:hover{background:var(--bg3);border-color:var(--info-border);color:var(--info)}
-.cast-arrow:disabled{opacity:.25;cursor:default}
+.cast-scroll-wrap{position:relative}
+.cast-arrow{
+  position:absolute;top:34%;transform:translateY(-50%);z-index:2;
+  width:32px;height:32px;border-radius:50%;
+  border:.5px solid rgba(255,255,255,.25);
+  background:rgba(12,12,16,.6);backdrop-filter:blur(4px);
+  color:#fff;font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;line-height:1;
+}
+.cast-arrow:hover{background:rgba(12,12,16,.85)}
+.cast-arrow:disabled{opacity:0;pointer-events:none}
+.cast-arrow-left{left:4px}
+.cast-arrow-right{right:4px}
 .cast-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;-ms-overflow-style:none}
 .cast-scroll::-webkit-scrollbar{display:none}
 .cast-card{flex-shrink:0;width:88px;cursor:pointer;text-decoration:none;
@@ -1369,8 +1379,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <div class="director-row" id="directorRow"></div>
   </div>
   <div class="cast-scroll-wrap">
-    <button class="cast-arrow cast-arrow-left" id="castArrowLeft" onclick="scrollCast(-1)" aria-label="이전">‹</button>
     <div class="cast-scroll" id="castScroll"></div>
+    <button class="cast-arrow cast-arrow-left" id="castArrowLeft" onclick="scrollCast(-1)" aria-label="이전">‹</button>
     <button class="cast-arrow cast-arrow-right" id="castArrowRight" onclick="scrollCast(1)" aria-label="다음">›</button>
   </div>
 </div>
@@ -1401,7 +1411,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="r-card" style="position:relative">
         <div class="r-logo" style="color:var(--gold)">오뜨랑</div>
         <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
-          <span style="font-size:13px;color:var(--muted);font-family:var(--font-mono);text-align:center;line-height:1.5">첫번째<br>평점 남기기</span>
+          <span style="font-size:13px;color:var(--muted);font-family:var(--font-mono);text-align:center;line-height:1.5">이 작품의 첫번째<br>평점을 남겨보세요</span>
         </div>
         <div id="userRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
           <div class="r-score-wrap"><div class="r-score" id="userScore" style="color:var(--gold)">—</div><span class="r-out-of">/10</span></div>
