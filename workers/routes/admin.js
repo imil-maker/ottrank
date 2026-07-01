@@ -32,6 +32,7 @@
    POST   /admin/works/collect-keywords
    POST   /admin/works/discover-collect
    POST   /admin/persons/collect
+   POST   /admin/works/backfill-language
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
    POST   /work-ott                   ← OTT 오버라이드 추가/수정 (관리자 전용)
    DELETE /work-ott/:id               ← OTT 오버라이드 삭제/복원 (관리자 전용)
@@ -1456,6 +1457,75 @@ export async function handleAdmin(path, request, env, url, headers) {
         worksScanned: targets.length,
         personsFound: personRows.size,
         remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/backfill-language ─────────────────────
+  // 기존 works 중 original_language가 비어있는 작품에 TMDB 원어 정보를 채워넣음
+  // (키워드 수집 탭 등과 동일한 배치+반복 패턴 — 앞으로 신규 등록되는 작품은
+  //  works/register가 자동으로 채우므로, 이건 과거분 일회성 백필용)
+  if (path === "/admin/works/backfill-language" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 30, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE original_language IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: 0, message: "채울 작품 없음"
+        }), { headers });
+      }
+
+      const updates = [];
+      let filled = 0;
+      for (const row of targets) {
+        const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
+        let lang = null;
+        for (const mtype of mtypes) {
+          try {
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
+            );
+            if (!resp.ok) continue;
+            const data = await resp.json();
+            if (data.original_language) { lang = data.original_language; break; }
+          } catch (e) { /* 다음 media_type으로 계속 시도 */ }
+        }
+        if (lang) {
+          updates.push(
+            env.DB.prepare("UPDATE works SET original_language = ? WHERE tmdb_id = ?")
+              .bind(lang, row.tmdb_id)
+          );
+          filled++;
+        } else {
+          // TMDB에서 못 가져와도 무한 재시도 방지를 위해 'unknown' 센티널로 마킹
+          // (빈 문자열로 저장하면 위 WHERE IS NULL 조건은 피하지만 나중에 실수로
+          //  IS NULL OR = '' 조건을 쓰면 재시도 루프 생길 수 있어 명확히 구분)
+          updates.push(
+            env.DB.prepare("UPDATE works SET original_language = 'unknown' WHERE tmdb_id = ?")
+              .bind(row.tmdb_id)
+          );
+        }
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE original_language IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
