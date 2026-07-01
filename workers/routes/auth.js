@@ -83,7 +83,7 @@ export async function handleAuth(path, request, env, headers) {
       `).bind(providerId, email, avatar_url).run();
 
       const userRow = await env.DB.prepare(
-        "SELECT id, nickname FROM users WHERE provider = 'google' AND provider_id = ?"
+        "SELECT id, nickname, last_login_bonus_date FROM users WHERE provider = 'google' AND provider_id = ?"
       ).bind(providerId).first();
 
       const isNew = !existingGoogle || !existingGoogle.nickname || existingGoogle.nickname.trim() === "";
@@ -97,13 +97,15 @@ export async function handleAuth(path, request, env, headers) {
       const googleState = url.searchParams.get("state") || "";
       const googleAfter = googleState ? decodeURIComponent(googleState) : "";
 
-      // 기존 로그인 시 1일 1회 +3 오뜨
+      // 기존 로그인 시 1일 1회 +3 오뜨 — users.last_login_bonus_date 기준으로 판단 (/auth/me와 동일 기준)
       if (!isNew) {
         const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const alreadyLogin = await env.DB.prepare(
-          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
-        ).bind(userRow.id, todayKST).first();
-        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+        if (userRow.last_login_bonus_date !== todayKST) {
+          await _addOttPoints(userRow.id, 3, 'login', env);
+          await env.DB.prepare(
+            "UPDATE users SET last_login_bonus_date = ? WHERE id = ?"
+          ).bind(todayKST, userRow.id).run();
+        }
       }
 
       const redirectTo = isNew
@@ -180,7 +182,7 @@ export async function handleAuth(path, request, env, headers) {
       `).bind(providerId, email, avatar_url).run();
 
       const userRow = await env.DB.prepare(
-        "SELECT id, nickname FROM users WHERE provider = 'naver' AND provider_id = ?"
+        "SELECT id, nickname, last_login_bonus_date FROM users WHERE provider = 'naver' AND provider_id = ?"
       ).bind(providerId).first();
 
       const isNew = !existingNaver || !existingNaver.nickname || existingNaver.nickname.trim() === "";
@@ -196,13 +198,15 @@ export async function handleAuth(path, request, env, headers) {
       try { naverAfter = naverState ? decodeURIComponent(naverState) : ""; } catch (e) {}
       if (!naverAfter.startsWith("/")) naverAfter = "";
 
-      // 기존 로그인 시 1일 1회 +3 오뜨
+      // 기존 로그인 시 1일 1회 +3 오뜨 — users.last_login_bonus_date 기준으로 판단 (/auth/me와 동일 기준)
       if (!isNew) {
         const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const alreadyLogin = await env.DB.prepare(
-          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
-        ).bind(userRow.id, todayKST).first();
-        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+        if (userRow.last_login_bonus_date !== todayKST) {
+          await _addOttPoints(userRow.id, 3, 'login', env);
+          await env.DB.prepare(
+            "UPDATE users SET last_login_bonus_date = ? WHERE id = ?"
+          ).bind(todayKST, userRow.id).run();
+        }
       }
 
       const redirectTo = isNew
@@ -277,7 +281,7 @@ export async function handleAuth(path, request, env, headers) {
       `).bind(providerId, email, avatar_url).run();
 
       const userRow = await env.DB.prepare(
-        "SELECT id, nickname FROM users WHERE provider = 'kakao' AND provider_id = ?"
+        "SELECT id, nickname, last_login_bonus_date FROM users WHERE provider = 'kakao' AND provider_id = ?"
       ).bind(providerId).first();
 
       const isNew = !existingKakao || !existingKakao.nickname || existingKakao.nickname.trim() === "";
@@ -291,13 +295,15 @@ export async function handleAuth(path, request, env, headers) {
       const stateParam = url.searchParams.get("state") || "";
       const afterLogin = stateParam ? decodeURIComponent(stateParam) : "";
 
-      // 기존 로그인 시 1일 1회 +3 오뜨
+      // 기존 로그인 시 1일 1회 +3 오뜨 — users.last_login_bonus_date 기준으로 판단 (/auth/me와 동일 기준)
       if (!isNew) {
         const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const alreadyLogin = await env.DB.prepare(
-          "SELECT id FROM user_point_logs WHERE user_id = ? AND reason = 'login' AND DATE(created_at) = ? LIMIT 1"
-        ).bind(userRow.id, todayKST).first();
-        if (!alreadyLogin) await _addOttPoints(userRow.id, 3, 'login', env);
+        if (userRow.last_login_bonus_date !== todayKST) {
+          await _addOttPoints(userRow.id, 3, 'login', env);
+          await env.DB.prepare(
+            "UPDATE users SET last_login_bonus_date = ? WHERE id = ?"
+          ).bind(todayKST, userRow.id).run();
+        }
       }
 
       const redirectTo = isNew
@@ -332,9 +338,23 @@ export async function handleAuth(path, request, env, headers) {
 
       // mbti, ott_points 컬럼 포함하여 조회
       const user = await env.DB.prepare(
-        "SELECT id, nickname, email, avatar_url, provider, grade, total_likes_received, mbti, ott_points, created_at FROM users WHERE id = ?"
+        "SELECT id, nickname, email, avatar_url, provider, grade, total_likes_received, mbti, ott_points, created_at, last_login_bonus_date FROM users WHERE id = ?"
       ).bind(session.user_id).first();
       if (!user) return new Response(JSON.stringify({ ok: false }), { headers });
+
+      // 로그인 세션을 계속 유지 중이어도 자정(KST)이 지나 날짜가 바뀌었으면
+      // 페이지 이동 시(=이 /auth/me 호출 시) 1일 1회 로그인 오뜨(+3)를 적립
+      // — 이미 오늘 적립됐으면(대부분의 호출) 컬럼 비교만 하고 그대로 통과, 추가 쿼리 없음
+      const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      if (user.last_login_bonus_date !== todayKST) {
+        await _addOttPoints(user.id, 3, 'login', env);
+        await env.DB.prepare(
+          "UPDATE users SET last_login_bonus_date = ? WHERE id = ?"
+        ).bind(todayKST, user.id).run();
+        // 응답에도 최신 값 반영 (재조회 없이 즉시 갱신)
+        user.ott_points = (user.ott_points || 0) + 3;
+        user.last_login_bonus_date = todayKST;
+      }
 
       const gradeInfo = await env.DB.prepare(
         "SELECT grade_name, grade_key, emoji_url, sort_order FROM grade_settings WHERE grade_key = ?"
