@@ -125,12 +125,12 @@ const ReviewCard = (() => {
     <a class="rc-nick-badge" href="${nickUrl}"
        onclick="event.stopPropagation()">${nickLabel}</a>
 
-    <!-- 우상단 좋아요 버튼 -->
+    <!-- 우상단 좋아요 버튼 (숫자는 2개 이상일 때만 표시) -->
     <button type="button" class="rc-like-badge${likedByMe ? ' liked' : ''}"
        id="rc_like_${rv.id}" data-pending="0"
        onclick="event.stopPropagation();ReviewCard.toggleLike(${rv.id},${rv.tmdb_id},this)">
       <i class="ti ${likedByMe ? 'ti-heart-filled' : 'ti-heart'}" style="font-size:12px"></i>
-      <span class="rc-like-count">${likeCount}</span>
+      <span class="rc-like-count"${likeCount < 2 ? ' style="display:none"' : ''}>${likeCount}</span>
     </button>
 
     <!-- 콘텐츠 — 포스터 50% 지점에서 시작 -->
@@ -205,7 +205,10 @@ const ReviewCard = (() => {
     const icon  = btn.querySelector('i');
     if (icon) icon.className = `ti ${liked ? 'ti-heart-filled' : 'ti-heart'}`;
     const count = btn.querySelector('.rc-like-count');
-    if (count) count.textContent = likes;
+    if (count) {
+      count.textContent = likes;
+      count.style.display = likes < 2 ? 'none' : '';
+    }
   }
 
   /* ── 좋아요 토글 (낙관적 업데이트 + 연타 방지 + 실패 시 롤백) ──
