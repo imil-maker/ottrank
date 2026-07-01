@@ -1218,7 +1218,7 @@ function renderProfile(user, stats, isOwn) {
 
   // 가입일
   document.getElementById('profileJoinDate').textContent =
-    user.created_at ? user.created_at.slice(0, 10).replace(/-/g, '.') : '—';
+    user.created_at ? _date(user.created_at) : '—';
 
   // 소셜 로그인 제공자 (본인만)
   if (isOwn && user.provider) {
@@ -1346,7 +1346,7 @@ function renderOttRecentLogs(logs) {
     const isPlus = log.points > 0;
     const ptClass = isPlus ? '' : 'minus';
     const ptText = (isPlus ? '+' : '') + log.points + ' 오뜨';
-    const dateStr = log.created_at ? log.created_at.slice(0, 10).replace(/-/g, '.') : '';
+    const dateStr = _date(log.created_at);
     return `<div class="ott-log-item">
       <div class="ott-log-left">
         <div class="ott-log-icon"><i class="ti ${info.icon}"></i></div>
