@@ -29,7 +29,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* 페이지 헤더 */
 .page-header{display:flex;align-items:center;gap:12px;margin-bottom:28px;flex-wrap:wrap}
-.page-back{display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--muted2);font-size:13px;font-family:var(--font-mono);padding:6px 12px;border-radius:8px;border:.5px solid var(--border);transition:all .15s}
+.page-back{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;text-decoration:none;color:var(--muted2);border:.5px solid var(--border);transition:all .15s;flex-shrink:0}
 .page-back:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
 .page-title{font-size:20px;font-weight:700}
 .page-count{font-size:13px;color:var(--muted);font-family:var(--font-mono)}
@@ -169,9 +169,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <!-- 페이지 헤더 -->
   <div class="page-header">
     <a class="page-back" id="backBtn" href="/mypage.html">
-      <i class="ti ti-arrow-left" style="font-size:13px"></i> 마이페이지
+      <i class="ti ti-arrow-left" style="font-size:15px"></i>
     </a>
-    <span class="page-title">⭐ 평점·후기</span>
+    <span class="page-title" id="pageTitle">⭐ 평점·후기</span>
     <span class="page-count" id="totalCount"></span>
   </div>
 
@@ -238,6 +238,7 @@ async function init() {
       // 뒤로가기 → 해당 유저 마이페이지
       document.getElementById('backBtn').href = `/mypage.html?uid=${targetUid}`;
       document.title = `${json.nickname || '유저'}의 평점·후기 | 오뜨랑`;
+      document.getElementById('pageTitle').textContent = `⭐ "${json.nickname || '유저'}" 평점·후기`;
     } else {
       /* ── 내 리뷰 — 리뷰만 가볍게 ── */
       IS_OWN = true;
@@ -245,6 +246,7 @@ async function init() {
       const json = await (await fetch(`${API}/mypage/reviews`, { headers: { Authorization: 'Bearer ' + sid } })).json();
       if (!json.ok) { showError('로그인이 필요해요'); return; }
       ALL_REVIEWS = json.reviews || [];
+      document.getElementById('pageTitle').textContent = `⭐ "${json.nickname || '나'}" 평점·후기`;
     }
 
     document.getElementById('totalCount').textContent = `전체 ${ALL_REVIEWS.length}개`;
