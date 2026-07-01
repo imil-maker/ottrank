@@ -473,7 +473,7 @@ function renderLogList(logs) {
     const isPlus = log.points > 0;
     const ptClass = isPlus ? '' : 'minus';
     const ptText = (isPlus ? '+' : '') + log.points + ' 오뜨';
-    const dateStr = log.created_at ? log.created_at.slice(0, 10).replace(/-/g, '.') : '';
+    const dateStr = _date(log.created_at);
     return `<div class="log-item">
       <div class="log-item-left">
         <div class="log-icon"><i class="ti ${info.icon}"></i></div>
@@ -515,6 +515,13 @@ function goPage(p) {
   if (p < 1 || p > totalPages) return;
   loadLogs(p);
   document.getElementById('logListSec').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── 날짜 변환 — DB는 UTC로 저장되므로 9시간 더해 한국시간(KST) 기준으로 표시 ── */
+function _date(d) {
+  if (!d) return '';
+  const k = new Date(new Date(d).getTime() + 9 * 60 * 60 * 1000);
+  return `${k.getFullYear()}.${String(k.getMonth() + 1).padStart(2, '0')}.${String(k.getDate()).padStart(2, '0')}`;
 }
 
 init();
