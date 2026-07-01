@@ -96,12 +96,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-meta-item b{color:#fff;font-weight:600}
 .hero-meta-sep{color:rgba(255,255,255,.2);font-size:14px}
 
-/* ── 상태 뱃지 (방영중/종영 등) ── */
-.status-chip{font-size:13px;font-weight:700;padding:3px 10px;border-radius:6px;font-family:var(--font-mono);white-space:nowrap}
-.status-chip.st-live{color:#34d399;background:rgba(52,211,153,.12);border:.5px solid rgba(52,211,153,.35)}
-.status-chip.st-upcoming{color:#f0b429;background:rgba(240,180,41,.12);border:.5px solid rgba(240,180,41,.35)}
-.status-chip.st-ended{color:rgba(255,255,255,.5);background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.16)}
-
 /* ── 키워드 태그 (클릭 가능) ── */
 .keyword-tag{font-size:12px;padding:4px 12px;border-radius:16px;border:.5px solid rgba(55,138,221,.3);
   color:rgba(255,255,255,.65);font-family:var(--font-mono);background:rgba(55,138,221,.06);
@@ -1358,13 +1352,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="hero-tags mob-hide-in-hero" id="genreTags"></div>
       <div class="hero-meta" id="metaRow"></div>
 
-      <!-- 키워드 태그 (TMDB 키워드, 클릭 시 아래에 관련 작품 표시) -->
-      <div class="hero-tags" id="keywordTags" style="margin-top:2px"></div>
-      <div id="keywordResultsWrap" class="keyword-results-wrap" style="display:none">
-        <div class="keyword-results-title" id="keywordResultsTitle"></div>
-        <div class="sim-scroll" id="keywordResultsScroll"></div>
-      </div>
-
       <p class="hero-overview" id="overview">줄거리 정보 불러오는 중…</p>
 
       <!-- 감정 표현 4버튼 -->
@@ -1615,6 +1602,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 </div>
 
+<!-- ══════════════════════════════════════
+     키워드 태그 + 클릭 시 관련 작품 (TMDB 키워드 기반)
+══════════════════════════════════════ -->
+<div class="similar-section" id="keywordSection" style="display:none">
+  <div class="plain-section-title">키워드</div>
+  <div class="hero-tags" id="keywordTags"></div>
+  <div id="keywordResultsWrap" class="keyword-results-wrap" style="display:none">
+    <div class="keyword-results-title" id="keywordResultsTitle"></div>
+    <div class="sim-scroll" id="keywordResultsScroll"></div>
+  </div>
+</div>
+
 </div><!-- /.page-wrap -->
 </div><!-- /#detailPage -->
 
@@ -1710,50 +1709,18 @@ const ETAG_EMOJI={'긴장감 넘침':'😰','몰입감 최고':'🔥','감동적
 const COUNTRY_MAP={'KR':'한국','US':'미국','JP':'일본','GB':'영국','FR':'프랑스','DE':'독일','CN':'중국','TH':'태국','IN':'인도','IT':'이탈리아','ES':'스페인','AU':'호주','CA':'캐나다','MX':'멕시코','TW':'대만'};
 const CERT_MAP={'ALL':'전체관람가','12':'12세이상','15':'15세이상','18':'청소년관람불가','G':'전체관람가','PG':'PG','PG-13':'13세이상','R':'17세이상','TV-Y':'전체','TV-G':'전체','TV-PG':'보호자지도','TV-14':'14세이상','TV-MA':'성인','NR':'등급없음'};
 
-/* == 상태 뱃지 (방영중/종영/개봉예정 등) ==
-   TMDB det 객체(장르와 동일 소스, 추가 API 호출 없음)의 status/next_episode_to_air/
-   last_episode_to_air/in_production 필드로 판정.
-   tone: 'live'(방영중·개봉) / 'upcoming'(예정·제작중) / 'ended'(종영·조기종영) */
-function getStatusLabel(det){
-  const isTv=!!det.number_of_seasons||!!det.seasons||det.status==='Returning Series'||det.status==='Ended'||det.status==='Canceled';
-  if(isTv){
-    if(det.status==='Returning Series'){
-      const next=det.next_episode_to_air,last=det.last_episode_to_air;
-      if(next){
-        const isNewSeason=last&&(next.season_number>last.season_number);
-        return isNewSeason?{label:'다음 시즌 방영 예정',tone:'upcoming'}:{label:'방영 중',tone:'live'};
-      }
-      return det.in_production?{label:'다음 시즌 방영 예정',tone:'upcoming'}:{label:'방영 중',tone:'live'};
-    }
-    const tvMap={
-      'Planned':{label:'방영 예정',tone:'upcoming'},
-      'In Production':{label:'제작 중',tone:'upcoming'},
-      'Pilot':{label:'파일럿',tone:'upcoming'},
-      'Ended':{label:'종영',tone:'ended'},
-      'Canceled':{label:'조기 종영',tone:'ended'},
-      'Rumored':{label:'루머 단계',tone:'upcoming'},
-    };
-    return tvMap[det.status]||null;
-  }
-  const movieMap={
-    'Released':{label:'개봉',tone:'live'},
-    'Planned':{label:'개봉 예정',tone:'upcoming'},
-    'In Production':{label:'제작 중',tone:'upcoming'},
-    'Post Production':{label:'후반 작업 중',tone:'upcoming'},
-    'Rumored':{label:'루머 단계',tone:'upcoming'},
-  };
-  return movieMap[det.status]||null;
-}
-
 /* == 키워드 태그 렌더링 + 클릭 시 관련 작품 인라인 조회 ==
    worksData.keywords: D1에 미리 수집해둔 콤마구분 영문 키워드 문자열
    '__NONE__' 센티널은 "시도했지만 TMDB에 키워드 자체가 없음" → 빈 배열 취급 */
 let _kwActive=null; // 현재 열려있는 키워드 (같은 거 다시 클릭하면 닫기)
 function renderKeywordTags(raw){
+  const section=document.getElementById('keywordSection');
   const wrap=document.getElementById('keywordTags');
-  if(!wrap)return;
-  if(!raw||raw==='__NONE__'){wrap.innerHTML='';return;}
+  if(!wrap||!section)return;
+  if(!raw||raw==='__NONE__'){section.style.display='none';wrap.innerHTML='';return;}
   const list=raw.split(',').map(k=>k.trim()).filter(Boolean);
+  if(!list.length){section.style.display='none';wrap.innerHTML='';return;}
+  section.style.display='block';
   wrap.innerHTML=list.map(k=>
     `<span class="keyword-tag" data-kw="${k.replace(/"/g,'&quot;')}" onclick="onKeywordTagClick(this)">${k}</span>`
   ).join('');
@@ -2355,10 +2322,7 @@ async function loadTmdb(){
     const dateRaw=det.first_air_date||det.release_date||'';
     let dateHtml='';
     if(dateRaw){const d=new Date(dateRaw);const days=['일','월','화','수','목','금','토'];dateHtml=`<span class="hero-meta-item">개봉 <b>${dateRaw.replace(/-/g,'.')} (${days[d.getDay()]})</b></span>`;}
-    // 상태 뱃지 (방영중/다음시즌 예정/종영 등) — 맨 앞에 배치
-    const statusInfo=getStatusLabel(det);
-    const statusHtml=statusInfo?`<span class="status-chip st-${statusInfo.tone}">${statusInfo.label}</span><span class="hero-meta-sep">·</span>`:'';
-    document.getElementById('metaRow').innerHTML=`${statusHtml}${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
+    document.getElementById('metaRow').innerHTML=`${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
 
     // Credits
     if(creditsRes.status==='fulfilled'){
