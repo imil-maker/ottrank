@@ -1838,7 +1838,7 @@ function parseSlug(pathname){
 }
 
 /* == WORK Init == */
-let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
+let WORK={tmdb_id:null,type:'tv',platform:null,rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
 (function initWork(){
   /* 지금 실제로 열린 URL의 tmdb_id를 먼저 파악해둔다.
      아래 sessionStorage('ottrang_work') 값이 "이 URL을 위해" 다른 페이지가
@@ -1894,7 +1894,7 @@ let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',s
   }
   WORK.tmdb_id=params.get('tmdb_id')?parseInt(params.get('tmdb_id')):null;
   WORK.type=params.get('type')||'tv';
-  WORK.platform=params.get('platform')||'netflix';
+  WORK.platform=params.get('platform')||null;
   WORK.rank=params.get('rank')||'-';
   WORK.title=params.get('title')||'작품명';
   if(!WORK.tmdb_id&&document.referrer){
@@ -3368,6 +3368,9 @@ async function loadPlatforms(){
       // 수동 카테고리 데이터일 수 있으므로 rank 리셋 + 기존 순위 칩 제거
       WORK.rank='-';
       renderRankRow([]); // chip-rank 칩만 제거 (chip-top10/chip-manual 유지)
+      // 확인 안 된 플랫폼 임시 뱃지가 남아있을 수 있으므로 포스터 위 뱃지도 안전하게 비움
+      const pc=document.getElementById('platformPills');
+      if(pc)pc.innerHTML='';
       return;
     }
     const platforms=data.data; // [{platform, rank}, ...]
