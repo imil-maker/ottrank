@@ -146,6 +146,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .btn-crawl{padding:10px 18px;border-radius:var(--r);border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.1);color:#34d399;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:all .15s}
 .btn-crawl:hover{background:rgba(52,211,153,.2)}
 .btn-crawl:disabled{opacity:.4;cursor:default}
+
+/* ── 미디어타입 채우기 카드 ── */
+.mt-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:8px;text-align:center;transition:border-color .15s}
+.mt-card.mt-decided{border-color:var(--green)}
+.mt-poster{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:6px;display:block;background:var(--bg3)}
+.mt-poster-ph{display:flex;align-items:center;justify-content:center;font-size:26px}
+.mt-title{font-size:11px;margin:6px 0;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-btns{display:flex;gap:4px}
+.mt-choice{flex:1;padding:6px 2px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:11px;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.mt-choice.on{background:var(--gold);border-color:var(--gold);color:#000;font-weight:700}
+.mt-choice:hover:not(.on){border-color:var(--border2);color:var(--text)}
+.mt-skip{width:100%;margin-top:4px;padding:4px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);font-size:10px;cursor:pointer;font-family:var(--sans)}
+.mt-skip:hover{color:var(--text);text-decoration:underline}
 .crawl-result{font-size:13px;padding:10px 14px;border-radius:var(--r);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);color:#34d399;font-family:var(--mono);margin-bottom:16px;display:none}
 
 /* ── MBTI 관리 ── */
@@ -243,6 +256,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabLang" onclick="switchPageTab('lang')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🌐 원어 정보 채우기
+        </button>
+        <button id="tabMediaType" onclick="switchPageTab('mediatype')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🎞 미디어타입 채우기
         </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
@@ -585,6 +602,44 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     </div>
 
   </div>
+
+  <!-- ══ 미디어타입 채우기 섹션 ══ -->
+  <div class="wrap" id="mediaTypeWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 <span style="color:var(--gold)">works.media_type</span>이 비어있는 작품들을 포스터로 보면서 직접 영화/TV로 판정합니다.<br>
+      TMDB 재조회 없이 우리 DB 데이터로 바로 보여주는 방식이라 빠릅니다. <span style="color:var(--gold)">포스터 클릭 시 TMDB 검색 결과가 새 탭으로 열립니다</span> (애매할 때 참고용).<br>
+      "건너뛰기"한 작품은 그냥 다음에 다시 보이니, 애매하면 편하게 건너뛰세요.
+    </div>
+
+    <!-- 상태 카드 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">이번 세션 저장</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="mtFilled">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="mtRemaining">-</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="mtLoadBtn" onclick="mtLoadBatch()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 10개 불러오기
+        </button>
+        <button class="btn-crawl" id="mtSaveBtn" onclick="mtSaveBatch()" style="display:none;padding:13px 20px;background:var(--green)">
+          💾 선택한 것 저장
+        </button>
+      </div>
+    </div>
+
+    <!-- 포스터 그리드 -->
+    <div id="mtGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"></div>
+
+  </div>
 </div>
 
 <!-- 미리보기 모달 -->
@@ -902,6 +957,7 @@ const PAGE_TABS = [
   { key: 'discover', wrapId: 'discoverWrap', btnId: 'tabDiscover', title: '🎬 작품 사전등록',  onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
   { key: 'person',   wrapId: 'personWrap',   btnId: 'tabPerson',   title: '🎭 인물 사전등록',  onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
   { key: 'lang',     wrapId: 'langWrap',     btnId: 'tabLang',     title: '🌐 원어 정보 채우기', onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
+  { key: 'mediatype', wrapId: 'mediaTypeWrap', btnId: 'tabMediaType', title: '🎞 미디어타입 채우기', onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
 ];
 let currentPageTab = 'video';
 function switchPageTab(tab) {
@@ -1718,6 +1774,125 @@ function stopLangBackfill() {
     document.getElementById('lgStopBtn').disabled = false;
     document.getElementById('lgStopBtn').textContent = '⏸ 중단';
   }, 1500);
+}
+
+/* ══════════════════════════════════════════════════════
+   미디어타입 채우기 (works.media_type 이 비어있는 작품을
+   포스터 보면서 관리자가 직접 영화/TV로 판정 — TMDB 재조회 없이
+   우리 DB 데이터만으로 그려서 빠름)
+══════════════════════════════════════════════════════ */
+let mtItems       = [];   // 현재 화면에 떠있는 배치
+let mtChoices     = {};   // { tmdb_id: 'movie' | 'tv' }
+let mtFilledTotal = 0;    // 이번 세션 누적 저장 개수
+
+async function mtLoadBatch() {
+  const grid = document.getElementById('mtGrid');
+  const loadBtn = document.getElementById('mtLoadBtn');
+  loadBtn.disabled = true;
+  grid.innerHTML = `<div style="grid-column:1/-1;padding:30px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px">불러오는 중...</div>`;
+
+  try {
+    const res = await fetch(`${API}/admin/works/missing-media-type?limit=10`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showToast(`불러오기 실패: ${data.message || res.status}`);
+      grid.innerHTML = '';
+      return;
+    }
+
+    mtItems = data.items || [];
+    mtChoices = {};
+    document.getElementById('mtRemaining').textContent = data.remaining ?? '-';
+
+    if (!mtItems.length) {
+      grid.innerHTML = `<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--green);font-family:var(--mono)">🎉 media_type이 빈 작품이 더 없어요!</div>`;
+      document.getElementById('mtSaveBtn').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('mtSaveBtn').style.display = 'inline-block';
+    grid.innerHTML = mtItems.map(it => {
+      const poster = it.poster_path ? `${IMG}${it.poster_path}` : '';
+      const searchUrl = `https://www.themoviedb.org/search?query=${encodeURIComponent(it.title_ko || '')}`;
+      const title = (it.title_ko || `#${it.tmdb_id}`).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `
+        <div class="mt-card" id="mtCard_${it.tmdb_id}">
+          <a href="${searchUrl}" target="_blank" rel="noopener" title="TMDB에서 검색해서 확인">
+            ${poster
+              ? `<img class="mt-poster" src="${poster}" alt="${title}" loading="lazy">`
+              : `<div class="mt-poster mt-poster-ph">🎬</div>`
+            }
+          </a>
+          <div class="mt-title" title="${title}">${title}</div>
+          <div class="mt-btns">
+            <button type="button" class="mt-choice" onclick="mtChoose(${it.tmdb_id},'movie',this)">🎬 영화</button>
+            <button type="button" class="mt-choice" onclick="mtChoose(${it.tmdb_id},'tv',this)">📺 TV</button>
+          </div>
+          <button type="button" class="mt-skip" onclick="mtSkip(${it.tmdb_id},this)">건너뛰기</button>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    grid.innerHTML = '';
+    showToast(`네트워크 오류: ${e.message}`);
+  } finally {
+    loadBtn.disabled = false;
+  }
+}
+
+function mtChoose(tmdbId, type, btnEl) {
+  mtChoices[tmdbId] = type;
+  const card = document.getElementById(`mtCard_${tmdbId}`);
+  if (!card) return;
+  card.querySelectorAll('.mt-choice').forEach(b => b.classList.remove('on'));
+  btnEl.classList.add('on');
+  card.classList.add('mt-decided');
+}
+
+function mtSkip(tmdbId, btnEl) {
+  delete mtChoices[tmdbId];
+  const card = document.getElementById(`mtCard_${tmdbId}`);
+  if (!card) return;
+  card.querySelectorAll('.mt-choice').forEach(b => b.classList.remove('on'));
+  card.classList.remove('mt-decided');
+}
+
+async function mtSaveBatch() {
+  const items = Object.entries(mtChoices).map(([tmdb_id, media_type]) => ({
+    tmdb_id: parseInt(tmdb_id), media_type,
+  }));
+  if (!items.length) {
+    showToast('선택된 작품이 없어요 (영화/TV 버튼을 먼저 눌러주세요)');
+    return;
+  }
+
+  const btn = document.getElementById('mtSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+
+  try {
+    const res = await fetch(`${API}/admin/works/bulk-set-media-type`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ items }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showToast(`저장 실패: ${data.message || res.status}`);
+      return;
+    }
+    mtFilledTotal += data.updated || 0;
+    document.getElementById('mtFilled').textContent = mtFilledTotal;
+    document.getElementById('mtRemaining').textContent = data.remaining ?? '-';
+    showToast(`✅ ${data.updated}개 저장 완료!`);
+    await mtLoadBatch(); // 이어서 다음 배치 자동 로드
+  } catch (e) {
+    showToast(`네트워크 오류: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 선택한 것 저장';
+  }
 }
 </script>
 
