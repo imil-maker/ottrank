@@ -251,7 +251,8 @@ async function init() {
     if (targetUid) {
       /* ── 타인 프로필 조회 — 리뷰만 가볍게 ── */
       IS_OWN = false;
-      const json = await (await fetch(`${API}/user/${targetUid}/reviews`)).json();
+      const json = await (await fetch(`${API}/user/${targetUid}/reviews`,
+        sid ? { headers: { Authorization: 'Bearer ' + sid } } : {})).json();
       if (!json.ok) { showError('유저를 찾을 수 없어요'); return; }
       ALL_REVIEWS = json.reviews || [];
       // 뒤로가기 → 해당 유저 마이페이지
@@ -342,6 +343,26 @@ function renderReviews(page) {
           + ' onclick="event.stopPropagation();delReview(' + r.tmdb_id + ',' + r.id + ')">삭제</button>'
         : '';
 
+      // 좋아요 — 우상단 (원래 있던 별점 뱃지 자리)
+      // 내 리뷰(IS_OWN)는 클릭 불가, 빈 하트+숫자만 표시
+      // 남의 리뷰는 클릭 가능한 좋아요 버튼 (색상/채움 로직은 community.html의 review-card.js와 동일)
+      var likeCount = r.likes || 0;
+      var likedByMe = !!r.liked_by_me;
+      var likeHtml;
+      if (IS_OWN) {
+        likeHtml = '<div class="rc-like-badge" style="cursor:default">'
+          + '<span class="rc-like-icon">♡</span>'
+          + '<span class="rc-like-count"' + (likeCount < 2 ? ' style="display:none"' : '') + '>' + likeCount + '</span>'
+          + '</div>';
+      } else {
+        likeHtml = '<button type="button" class="rc-like-badge' + (likedByMe ? ' liked' : '') + '"'
+          + ' id="rc_like_' + r.id + '" data-pending="0"'
+          + ' onclick="event.stopPropagation();toggleLike(' + r.tmdb_id + ',' + r.id + ',this)">'
+          + '<span class="rc-like-icon">' + (likedByMe ? '♥' : '♡') + '</span>'
+          + '<span class="rc-like-count"' + (likeCount < 2 ? ' style="display:none"' : '') + '>' + likeCount + '</span>'
+          + '</button>';
+      }
+
       return '<div class="rc-card" ' + goAttr + '>'
         + '<div class="rc-poster">'
         + (posterUrl
@@ -349,7 +370,7 @@ function renderReviews(page) {
             : '<div class="rc-poster-ph">🎬</div>')
         + '<div class="rc-poster-fade"></div>'
         + delBadge
-        + (scoreNum ? '<div class="rc-poster-score">★ ' + scoreNum + '</div>' : '')
+        + likeHtml
         + '</div>'
         + '<div class="rc-content">'
         + '<div class="rc-title">' + (r.title_ko || '작품 #' + r.tmdb_id) + '</div>'
@@ -395,6 +416,63 @@ function goTitle(el) {
     title: title_ko, season: 1, year: parseInt(y)
   }));
   location.href = url;
+}
+
+/* ── 좋아요 뱃지 화면 갱신 ── */
+function _applyLikeUI(id, liked, likes) {
+  const btn = document.getElementById('rc_like_' + id);
+  if (!btn) return;
+  btn.classList.toggle('liked', liked);
+  const icon = btn.querySelector('.rc-like-icon');
+  if (icon) icon.textContent = liked ? '♥' : '♡';
+  const count = btn.querySelector('.rc-like-count');
+  if (count) {
+    count.textContent = likes;
+    count.style.display = likes < 2 ? 'none' : '';
+  }
+}
+
+/* ── 좋아요 토글 (남의 리뷰에서만 호출됨 — 내 리뷰는 클릭 불가) ── */
+async function toggleLike(tmdbId, reviewId, btnEl) {
+  if (!reviewId || !tmdbId) return;
+
+  const sid = localStorage.getItem('ottrang_sid');
+  if (!sid) {
+    location.href = '/login.html?redirect=' + encodeURIComponent(location.pathname + location.search);
+    return;
+  }
+
+  const btn = btnEl || document.getElementById('rc_like_' + reviewId);
+  if (btn) {
+    if (btn.dataset.pending === '1') return; // 연타 방지
+    btn.dataset.pending = '1';
+  }
+
+  const wasLiked  = btn?.classList.contains('liked') || false;
+  const countEl   = btn?.querySelector('.rc-like-count');
+  const prevLikes = parseInt(countEl?.textContent || '0', 10) || 0;
+
+  // 낙관적 업데이트
+  const optimisticLiked = !wasLiked;
+  const optimisticLikes = prevLikes + (optimisticLiked ? 1 : -1);
+  _applyLikeUI(reviewId, optimisticLiked, optimisticLikes);
+
+  try {
+    const res  = await fetch(`${API}/reviews/${tmdbId}/like/${reviewId}`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + sid },
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) {
+      _applyLikeUI(reviewId, wasLiked, prevLikes); // 롤백
+      return;
+    }
+    _applyLikeUI(reviewId, !!data.liked, data.likes);
+  } catch (e) {
+    _applyLikeUI(reviewId, wasLiked, prevLikes); // 네트워크 오류 — 롤백
+  } finally {
+    if (btn) btn.dataset.pending = '0';
+  }
 }
 
 /* ── 후기 삭제 ── */
