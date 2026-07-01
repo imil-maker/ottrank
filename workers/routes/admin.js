@@ -33,6 +33,8 @@
    POST   /admin/works/discover-collect
    POST   /admin/persons/collect
    POST   /admin/works/backfill-language
+   GET    /admin/works/missing-media-type
+   POST   /admin/works/bulk-set-media-type
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
    POST   /work-ott                   ← OTT 오버라이드 추가/수정 (관리자 전용)
    DELETE /work-ott/:id               ← OTT 오버라이드 삭제/복원 (관리자 전용)
@@ -1539,6 +1541,71 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       return new Response(JSON.stringify({
         ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/works/missing-media-type ──────────────────────
+  // media_type이 비어있는 작품을 포스터와 함께 조회 (관리자가 눈으로 보고 직접 판정하는 용도)
+  // offset 없이 항상 최신 10개를 가져옴 — 채워지는 즉시 쿼리에서 빠지므로 건너뛴 항목은
+  // 자연스럽게 다음 배치들에서 계속 다시 보이게 됨 (별도 skip 추적 불필요)
+  if (path === "/admin/works/missing-media-type" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const limit = Math.min(parseInt(url.searchParams.get("limit")) || 10, 30);
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, poster_path
+        FROM works
+        WHERE media_type IS NULL OR media_type = ''
+        ORDER BY tmdb_id
+        LIMIT ?
+      `).bind(limit).all();
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE media_type IS NULL OR media_type = ''"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/bulk-set-media-type ─────────────────────
+  // 관리자가 화면에서 영화/TV로 직접 판정한 작품들을 한 번에 저장
+  if (path === "/admin/works/bulk-set-media-type" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const items = Array.isArray(body.items) ? body.items : [];
+      const valid = items.filter(it =>
+        it && it.tmdb_id && (it.media_type === "movie" || it.media_type === "tv")
+      );
+      if (!valid.length) {
+        return new Response(JSON.stringify({ ok: false, message: "유효한 항목이 없어요 (media_type은 'movie' 또는 'tv'만 허용)" }), { status: 400, headers });
+      }
+
+      const updates = valid.map(it =>
+        env.DB.prepare("UPDATE works SET media_type = ? WHERE tmdb_id = ?")
+          .bind(it.media_type, parseInt(it.tmdb_id))
+      );
+      await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE media_type IS NULL OR media_type = ''"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, updated: valid.length, remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
