@@ -200,6 +200,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ft-btn:hover { background: rgba(229,9,20,0.18); border-color: #E50914; }
 .ft-btn.prev { left: -17px; }
 .ft-btn.next { right: -17px; }
+.ft-btn:disabled{ opacity:0 !important; pointer-events:none; cursor:default; }
 /* 스켈레톤 */
 .ft-skel {
   flex: 0 0 calc(20% - 12px); min-width: 180px; border-radius: var(--r);
@@ -670,10 +671,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 @media(max-width:768px){
 
-  /* Featured 화살표 — 모바일 표시 */
-  .ft-swipe-wrap .ft-btn{ display:flex !important; opacity:1 !important; }
+  /* Featured 화살표 — 모바일: 포스터 위 오버레이 + 스크롤 끝 도달 시 자동으로 완전히 숨김 */
+  .ft-swipe-wrap .ft-btn{
+    display:flex !important;
+    opacity:1 !important;
+    background:rgba(12,12,16,.6);
+    backdrop-filter:blur(4px);
+    border:.5px solid rgba(255,255,255,.25);
+    color:#fff;
+  }
   .ft-btn.prev{ left:4px !important; }
   .ft-btn.next{ right:4px !important; }
+  .ft-swipe-wrap .ft-btn:disabled{ opacity:0 !important; pointer-events:none; }
 }
 
 
@@ -1313,6 +1322,9 @@ function renderFeatured(featuredGroups) {
     }).join('');
     // 드래그 스와이프 초기화
     ftInitSwipe(track);
+    // 화살표 초기 상태 + 스크롤 시 갱신 (끝에 도달하면 자동으로 숨김)
+    updateFtArrows(`ft-trk-${gi}`);
+    track.addEventListener('scroll', () => updateFtArrows(`ft-trk-${gi}`), { passive: true });
   });
 }
 
@@ -1328,6 +1340,18 @@ function ftGoWork(tmdbId, title) {
 function ftScrollTrack(id, dir) {
   const t = document.getElementById(id);
   if (t) t.scrollBy({ left: dir * (200 * 3), behavior: 'smooth' });
+  setTimeout(() => updateFtArrows(id), 350);
+}
+/* 화살표 활성/비활성 상태 갱신 — 스크롤 끝에 도달하면 완전히 투명해지고 클릭도 막힘 */
+function updateFtArrows(id) {
+  const track = document.getElementById(id);
+  if (!track) return;
+  const wrap = track.closest('.ft-swipe-wrap');
+  if (!wrap) return;
+  const prev = wrap.querySelector('.ft-btn.prev');
+  const next = wrap.querySelector('.ft-btn.next');
+  if (prev) prev.disabled = track.scrollLeft <= 0;
+  if (next) next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
 }
 function ftInitSwipe(track) {
   let down = false, startX = 0, sl = 0;
