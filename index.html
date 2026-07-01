@@ -523,6 +523,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .ft-swipe-track{
     padding:0 16px 8px;
     gap:10px;
+    scroll-padding-left:16px;
+    scroll-padding-right:16px;
   }
   .ft-card{
     flex:0 0 calc((100vw - 40px) / 2);             /* 1.5열: 58vw면 다음 카드 살짝 보임 */
@@ -1350,7 +1352,7 @@ function updateFtArrows(id) {
   if (!wrap) return;
   const prev = wrap.querySelector('.ft-btn.prev');
   const next = wrap.querySelector('.ft-btn.next');
-  if (prev) prev.disabled = track.scrollLeft <= 0;
+  if (prev) prev.disabled = track.scrollLeft <= 4;
   if (next) next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
 }
 function ftInitSwipe(track) {
