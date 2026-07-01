@@ -2994,7 +2994,7 @@ async function loadReviews(tmdbId){
   try{
     const sid=localStorage.getItem('ottrang_sid');
     const [reviewsRes,myRes]=await Promise.allSettled([
-      fetch(`${REVIEW_API}/reviews/${tmdbId}`).then(r=>r.json()),
+      fetch(`${REVIEW_API}/reviews/${tmdbId}`,sid?{headers:{Authorization:'Bearer '+sid}}:{}).then(r=>r.json()),
       sid?fetch(`${REVIEW_API}/reviews/${tmdbId}/me`,{headers:{Authorization:'Bearer '+sid}}).then(r=>r.json()):Promise.resolve(null),
     ]);
     if(reviewsRes.status==='fulfilled'&&reviewsRes.value?.ok){
