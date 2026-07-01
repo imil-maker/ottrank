@@ -129,7 +129,7 @@ const ReviewCard = (() => {
     <button type="button" class="rc-like-badge${likedByMe ? ' liked' : ''}"
        id="rc_like_${rv.id}" data-pending="0"
        onclick="event.stopPropagation();ReviewCard.toggleLike(${rv.id},${rv.tmdb_id},this)">
-      <i class="ti ${likedByMe ? 'ti-heart-filled' : 'ti-heart'}" style="font-size:12px"></i>
+      <i class="ti ${likedByMe ? 'ti-heart-filled' : 'ti-heart'} rc-like-icon"></i>
       <span class="rc-like-count"${likeCount < 2 ? ' style="display:none"' : ''}>${likeCount}</span>
     </button>
 
