@@ -1213,32 +1213,45 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       let processed = 0;
+      let skippedRetry = 0; // 이번 배치에서 응답 실패로 재시도 대기 상태로 남긴 개수
       const updates = [];
       for (const row of targets) {
         const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
-        let keywords = "";
+        let keywords  = "";
+        let anySuccess = false; // TMDB로부터 정상 응답을 한 번이라도 받았는지
         for (const mtype of mtypes) {
           try {
             const resp = await fetch(
               `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}/keywords?api_key=${env.TMDB_API_KEY}`
             );
-            if (!resp.ok) continue;
+            if (!resp.ok) continue; // 이 media_type 실패 — 다음 타입 시도 (anySuccess는 그대로)
+            anySuccess = true;
             const data   = await resp.json();
             const kwList = data.keywords || data.results || []; // 영화: keywords, TV: results
             if (kwList.length) {
               keywords = kwList.map(k => k.name).filter(Boolean).join(",");
               break;
             }
-          } catch (e) { /* 다음 media_type으로 계속 시도 */ }
+          } catch (e) { /* 네트워크 오류 — 다음 media_type으로 계속 시도 */ }
         }
-        // TMDB에 키워드가 아예 없는 작품도 있음 — 빈 문자열('')로 저장하면
-        // WHERE 조건(keywords='')에 계속 걸려서 다음 배치마다 같은 작품을 재시도하게 됨.
-        // '__NONE__' 센티널로 구분 저장해서 "시도했지만 결과 없음"을 표시.
-        // (프론트/검색 쪽에서 keywords==='__NONE__'이면 빈 배열로 취급하면 됨)
-        updates.push(
-          env.DB.prepare("UPDATE works SET keywords = ? WHERE tmdb_id = ?").bind(keywords || "__NONE__", row.tmdb_id)
-        );
-        if (keywords) processed++;
+
+        if (keywords) {
+          // 정상적으로 키워드를 찾음
+          updates.push(
+            env.DB.prepare("UPDATE works SET keywords = ? WHERE tmdb_id = ?").bind(keywords, row.tmdb_id)
+          );
+          processed++;
+        } else if (anySuccess) {
+          // TMDB가 정상 응답했는데 진짜로 키워드가 없는 경우만 '__NONE__' 확정
+          // (프론트/검색 쪽에서 keywords==='__NONE__'이면 빈 배열로 취급)
+          updates.push(
+            env.DB.prepare("UPDATE works SET keywords = ? WHERE tmdb_id = ?").bind("__NONE__", row.tmdb_id)
+          );
+        } else {
+          // 응답 자체를 한 번도 못 받음(네트워크 오류/TMDB 일시 오류) — __NONE__로 마킹하지 않고
+          // keywords를 그대로 둬서(NULL/'') 다음 배치에서 자동 재시도되게 함
+          skippedRetry++;
+        }
       }
       if (updates.length) await env.DB.batch(updates);
 
@@ -1247,7 +1260,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       ).first();
 
       return new Response(JSON.stringify({
-        ok: true, processed, attempted: targets.length, remaining: remainRow?.cnt || 0,
+        ok: true, processed, attempted: targets.length, skippedRetry, remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
