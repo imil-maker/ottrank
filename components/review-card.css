@@ -103,21 +103,33 @@
   border-color: var(--gold);
 }
 
-/* 우상단 별점 */
-.rc-poster-score {
+/* 우상단 좋아요 버튼 — 클릭 시 좋아요 토글 (원래 있던 별점 뱃지 자리 재사용) */
+.rc-like-badge {
   position: absolute;
   top: 8px; right: 8px;
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 700;
-  color: var(--gold);
+  color: rgba(255,255,255,.85);
   background: rgba(0,0,0,.65);
+  border: none;
   padding: 2px 7px;
   border-radius: 4px;
-  z-index: 3;
+  z-index: 4;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.rc-like-badge:hover {
+  background: rgba(0,0,0,.8);
+}
+.rc-like-badge.liked {
+  color: var(--accent);
+}
+.rc-like-count {
+  line-height: 1;
 }
 
 /* ── 콘텐츠 영역 ──
@@ -287,4 +299,7 @@
 
   /* 좌상단 닉네임 뱃지 모바일 크기 */
   .rc-nick-badge { font-size: 10px; padding: 2px 6px; max-width: 65%; }
+
+  /* 우상단 좋아요 뱃지 모바일 크기 */
+  .rc-like-badge { font-size: 10px; padding: 2px 6px; gap: 3px; }
 }
