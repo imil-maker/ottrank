@@ -182,6 +182,7 @@ def init_db() -> sqlite3.Connection:
         "ALTER TABLE works ADD COLUMN match_source TEXT DEFAULT 'admin'",
         "ALTER TABLE works ADD COLUMN confidence_score INTEGER DEFAULT 100",
         "ALTER TABLE works ADD COLUMN first_matched_date TEXT",
+        "ALTER TABLE works ADD COLUMN keywords TEXT DEFAULT ''",
     ]
     for sql in migrations:
         try:
