@@ -1683,14 +1683,32 @@ function parseSlug(pathname){
 /* == WORK Init == */
 let WORK={tmdb_id:null,type:'tv',platform:'netflix',rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
 (function initWork(){
+  /* 지금 실제로 열린 URL의 tmdb_id를 먼저 파악해둔다.
+     아래 sessionStorage('ottrang_work') 값이 "이 URL을 위해" 다른 페이지가
+     남겨둔 데이터인지, 아니면 이전 작품페이지 자신이 남긴 찌꺼기인지
+     구분하기 위한 검증용 — 버그: 작품페이지 A → B로 링크 이동 시,
+     A가 updateSEO()에서 남긴 ottrang_work(A)를 B가 그대로 주워써서
+     URL이 다시 A로 되돌아가던 문제 수정 (2026-07-01) */
+  const urlParsed=(location.pathname&&location.pathname.includes('/title/'))?parseSlug(location.pathname):null;
+
   try{
     const stored=sessionStorage.getItem('ottrang_work');
-    if(stored){const d=JSON.parse(stored);if(d&&d.tmdb_id){Object.assign(WORK,d);sessionStorage.removeItem('ottrang_work');return;}}
+    if(stored){
+      const d=JSON.parse(stored);
+      /* urlParsed가 없으면(레거시 쿼리스트링 진입 등) 기존처럼 그대로 신뢰.
+         urlParsed가 있으면 tmdb_id가 일치할 때만 신뢰 — 랭킹/리뷰카드처럼
+         "목적지를 위해" 미리 넣어둔 정상 케이스는 항상 일치하므로 그대로 동작 */
+      const matches=!urlParsed||!urlParsed.tmdb_id||(d&&d.tmdb_id===urlParsed.tmdb_id);
+      if(d&&d.tmdb_id&&matches){
+        Object.assign(WORK,d);sessionStorage.removeItem('ottrang_work');return;
+      }
+      sessionStorage.removeItem('ottrang_work'); // 불일치 — 다른 페이지가 남긴 찌꺼기이므로 폐기
+    }
   }catch(e){}
   const storedSlug=sessionStorage.getItem('ottrang_slug')||'';
   for(const p of [location.pathname,storedSlug]){
     if(!p||!p.includes('/title/'))continue;
-    const parsed=parseSlug(p);
+    const parsed=(p===location.pathname&&urlParsed)?urlParsed:parseSlug(p);
     if(parsed&&parsed.tmdb_id){
       WORK.tmdb_id=parsed.tmdb_id;WORK.season=parsed.season;WORK.year=parsed.year;
       WORK.title=decodeURIComponent(parsed.titleSlug.replace(/-/g,' '))||'작품명';
