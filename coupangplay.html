@@ -245,10 +245,10 @@ body {
   .hero { padding:32px 0 28px }
   .hero-title { font-size:38px }
   .hero-logo { font-size:120px; opacity:.5 }
-  /* 카드 + 스켈레톤 동일 크기 — 2개씩, 깜빡임 없음 */
+  /* 카드 + 스켈레톤 동일 크기 — 2.2개 보이게(다음 카드 살짝 peek), 깜빡임 없음 */
   .rk-card,
   .skel-card{
-    flex:0 0 calc(50% - 8px);
+    flex:0 0 44vw;
     min-width:0;
     max-width:none;
     scroll-snap-align:start;
@@ -262,8 +262,10 @@ body {
   .sec-live{ display:none; }  /* 모바일: 날짜 섹션헤더에서 숨김 */
   /* ── 슬라이드 화살표 — 모바일 상시 표시 ── */
   .swipe-btn{ display:flex !important; opacity:1 !important; transition:opacity .2s; }
-  .swipe-btn.prev{ left:-14px; }
-  .swipe-btn.next{ right:-14px; }
+  .swipe-btn.prev{ left:4px; }
+  .swipe-btn.next{ right:4px; }
+  /* swipe-wrap을 main-outer 좌우 패딩(14px)만큼 밖으로 빼서 카드가 화면 끝까지 붙도록 함 */
+  .swipe-wrap{ margin:0 -14px; }
   /* swipe-track 좌우 여백 — 카드 2개가 화면에 딱 맞게 */
   .swipe-track{ padding:0 0 6px; gap:12px; }
 }
