@@ -66,7 +66,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ── 작품 헤더 카드 (배경이미지 배너 방식) ── */
 .work-header{
   position:relative;overflow:hidden;
-  min-height:64px;
+  min-height:52px;
   border:.5px solid var(--border2);border-radius:var(--r-lg);
   padding:10px 14px;margin-bottom:8px;
   display:flex;align-items:flex-end;
@@ -160,7 +160,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   overflow-x:auto;
   padding-bottom:4px;scrollbar-width:none;
   -webkit-overflow-scrolling:touch;
+  cursor:grab;
 }
+.etag-slide.dragging{cursor:grabbing;user-select:none}
+.etag-arrows{display:flex;gap:4px;flex-shrink:0}
+.etag-arrow-btn{
+  width:22px;height:22px;border-radius:50%;padding:0;
+  border:.5px solid var(--border);background:var(--bg3);
+  color:var(--muted2);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;
+}
+.etag-arrow-btn:hover{background:var(--bg2);border-color:var(--border2);color:var(--text)}
+.etag-arrow-btn i{font-size:13px}
 .etag-slide::-webkit-scrollbar{display:none}
 .etag{
   display:flex;align-items:center;gap:4px;flex-shrink:0;
@@ -466,14 +477,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <div class="work-header">
     <div class="work-header-bg" id="workHeaderBg"></div>
     <div class="work-header-fade"></div>
-    <div class="work-info" style="display:flex;flex-direction:column;justify-content:flex-end">
-      <div>
-        <div class="work-title" id="workTitle">작품명</div>
-        <div class="work-sub" id="workSub"></div>
+    <div class="work-info">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div class="work-title" id="workTitle" style="margin-bottom:0">작품명</div>
+        <button class="back-btn" onclick="goBack()" style="margin-bottom:0;flex-shrink:0">
+          <i class="ti ti-arrow-left" style="font-size:14px"></i> 돌아가기
+        </button>
       </div>
-      <button class="back-btn" onclick="goBack()" style="margin-bottom:0;margin-top:6px;align-self:flex-start">
-        <i class="ti ti-arrow-left" style="font-size:14px"></i> 돌아가기
-      </button>
+      <div class="work-sub" id="workSub" style="margin-top:4px"></div>
     </div>
   </div>
 
@@ -505,9 +516,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
   <!-- 감정 태그 — 헤더 한 줄 + 가로 슬라이드 -->
   <div class="review-section">
-    <div class="review-section-title" style="margin-bottom:10px">
-      <i class="ti ti-tags" style="font-size:15px;color:var(--info)"></i>감정 태그
-      <span class="etag-counter" id="etagCount">0 / 3 선택</span>
+    <div class="review-section-title" style="margin-bottom:10px;justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:7px">
+        <i class="ti ti-tags" style="font-size:15px;color:var(--info)"></i>감정 태그
+        <span class="etag-counter" id="etagCount">0 / 3 선택</span>
+      </span>
+      <span class="etag-arrows">
+        <button type="button" class="etag-arrow-btn" onclick="scrollEtag(-1)" aria-label="이전 태그"><i class="ti ti-chevron-left"></i></button>
+        <button type="button" class="etag-arrow-btn" onclick="scrollEtag(1)" aria-label="다음 태그"><i class="ti ti-chevron-right"></i></button>
+      </span>
     </div>
     <div class="etag-slide">
       <button class="etag" onclick="toggleEtag(this)"><span class="etag-emoji">😰</span>긴장감 넘침</button>
@@ -525,22 +542,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- 한줄 감상 -->
+  <!-- 리뷰쓰기 -->
   <div class="review-section">
-    <div class="review-section-title"><i class="ti ti-message-circle" style="font-size:15px;color:var(--info)"></i>한줄 감상</div>
-    <textarea class="review-textarea" id="reviewText" placeholder="한줄 감상을 남겨보세요 (140자 이내)" maxlength="140" oninput="updateCharCount(this)"></textarea>
-    <div class="review-bottom-row">
+    <div class="review-section-title" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:7px">
+        <i class="ti ti-message-circle" style="font-size:15px;color:var(--info)"></i>리뷰쓰기
+        <span class="char-count" id="charCount">0 / 140</span>
+      </span>
       <label class="spoiler-row">
         <input type="checkbox" id="spoilerCheck"> 스포일러 포함
       </label>
-      <div class="char-count" id="charCount">0 / 140</div>
     </div>
-  </div>
-
-  <!-- 제출 -->
-  <div class="submit-row">
-    <button class="cancel-btn" id="cancelBtn" onclick="goBack()">취소</button>
-    <button class="submit-btn" id="submitBtn" onclick="submitReview()">후기 등록</button>
+    <textarea class="review-textarea" id="reviewText" placeholder="한줄 감상을 남겨보세요 (140자 이내)" maxlength="140" oninput="updateCharCount(this)"></textarea>
+    <div class="submit-row">
+      <button class="cancel-btn" id="cancelBtn" onclick="goBack()">취소</button>
+      <button class="submit-btn" id="submitBtn" onclick="submitReview()">후기 등록</button>
+    </div>
   </div>
 
   <!-- 공유하기 (등록 완료 후 노출) -->
@@ -662,6 +679,41 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
 const REVIEW_API=OTTRANK_API;
+
+/* ══ 감정 태그 슬라이드 — 화살표/휠/드래그로 가로 스크롤 (PC 마우스 대응) ══ */
+function scrollEtag(dir){
+  const el=document.querySelector('.etag-slide');
+  if(!el)return;
+  el.scrollBy({left:dir*160,behavior:'smooth'});
+}
+(function(){
+  const el=document.querySelector('.etag-slide');
+  if(!el)return;
+  // 마우스 휠(세로 스크롤)을 가로 스크롤로 변환 — 스크롤바 없이도 PC에서 슬라이딩 가능
+  el.addEventListener('wheel',(e)=>{
+    if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){
+      el.scrollLeft+=e.deltaY;
+      e.preventDefault();
+    }
+  },{passive:false});
+  // 클릭+드래그로도 슬라이딩 가능하게
+  let isDown=false,startX=0,scrollStart=0,moved=false;
+  el.addEventListener('mousedown',(e)=>{
+    isDown=true;moved=false;el.classList.add('dragging');
+    startX=e.pageX;scrollStart=el.scrollLeft;
+  });
+  window.addEventListener('mouseup',()=>{isDown=false;el.classList.remove('dragging');});
+  window.addEventListener('mousemove',(e)=>{
+    if(!isDown)return;
+    const dx=e.pageX-startX;
+    if(Math.abs(dx)>5)moved=true;
+    el.scrollLeft=scrollStart-dx;
+  });
+  // 드래그로 이동한 경우엔 마우스를 뗄 때 태그가 잘못 토글되지 않도록 그 클릭만 무시
+  el.addEventListener('click',(e)=>{
+    if(moved){e.preventDefault();e.stopPropagation();moved=false;}
+  },true);
+})();
 
 /* ══ 작품 데이터 로드 ══ */
 let RDATA=null;
