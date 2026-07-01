@@ -119,6 +119,7 @@ def init_db() -> sqlite3.Connection:
             imdb_rating    REAL    DEFAULT NULL,
             imdb_votes     TEXT    DEFAULT NULL,
             imdb_updated   TEXT    DEFAULT NULL,
+            keywords       TEXT    DEFAULT '',
             match_source   TEXT    DEFAULT 'auto_claude',
             confidence_score INTEGER DEFAULT 95,
             first_matched_date TEXT   DEFAULT (date('now','localtime')),
@@ -585,6 +586,9 @@ def _build_result(tmdb_item: dict, media_type: str) -> dict:
     # 상세 정보 조회 (genre, overview 등)
     detail = _fetch_detail(tmdb_id, media_type)
 
+    # 키워드 조회 — 신규 매칭 작품에 한해 1회만 수집 (genre와 별개 호출, TMDB API 추가 1회)
+    keywords = _fetch_keywords(tmdb_id, media_type)
+
     return {
         "tmdb_id":      tmdb_id,
         "title_ko":     detail.get("title_ko") or title_ko,
@@ -594,6 +598,7 @@ def _build_result(tmdb_item: dict, media_type: str) -> dict:
         "overview":     detail.get("overview", ""),
         "release_year": int(date_str[:4]) if date_str and len(date_str) >= 4 else None,
         "tmdb_rating":  tmdb_item.get("vote_average") or None,
+        "keywords":     keywords,
     }
 
 
@@ -608,6 +613,24 @@ def _fetch_english_title(tmdb_id: int, media_type: str) -> str:
         if resp.status_code == 200:
             data = resp.json()
             return data.get("title") or data.get("name") or ""
+    except Exception:
+        pass
+    return ""
+
+
+def _fetch_keywords(tmdb_id: int, media_type: str) -> str:
+    """TMDB 키워드 조회 — 영문, 콤마구분 문자열로 반환 (genre 컬럼과 동일 패턴)
+    키워드는 언어 파라미터 없이 항상 영어로만 제공됨"""
+    try:
+        resp = requests.get(
+            f"{TMDB_PROXY}/{media_type}/{tmdb_id}/keywords",
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            # TV는 'results', 영화는 'keywords' 키에 담겨서 옴 (TMDB API 사양)
+            kw_list = data.get("keywords") or data.get("results") or []
+            return ",".join(k.get("name", "") for k in kw_list if k.get("name"))
     except Exception:
         pass
     return ""
@@ -685,9 +708,9 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
         conn.execute("""
             INSERT INTO works
                 (tmdb_id, title_ko, title_en, poster_path, genre, overview,
-                 release_year, tmdb_rating, match_source, confidence_score,
+                 release_year, tmdb_rating, keywords, match_source, confidence_score,
                  first_matched_date, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now','localtime'), datetime('now','localtime'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now','localtime'), datetime('now','localtime'))
             ON CONFLICT(tmdb_id) DO NOTHING
         """, (
             tmdb_data["tmdb_id"],
@@ -698,6 +721,7 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
             tmdb_data.get("overview", ""),
             tmdb_data.get("release_year"),
             tmdb_data.get("tmdb_rating"),
+            tmdb_data.get("keywords", ""),
             match_source,
             confidence,
         ))
