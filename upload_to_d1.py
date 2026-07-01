@@ -306,30 +306,40 @@ def upload_works(conn: sqlite3.Connection) -> int:
         rows = conn.execute("""
             SELECT tmdb_id, title_ko, title_en, poster_path,
                    genre, overview, release_year, tmdb_rating,
-                   match_source, confidence_score
+                   match_source, confidence_score, keywords
             FROM works
             WHERE tmdb_id IS NOT NULL
             ORDER BY tmdb_id
         """).fetchall()
     except Exception:
-        rows = conn.execute("""
-            SELECT tmdb_id, title_ko, title_en, poster_path,
-                   genre, overview, release_year, tmdb_rating,
-                   'admin' as match_source, 100 as confidence_score
-            FROM works
-            WHERE tmdb_id IS NOT NULL
-            ORDER BY tmdb_id
-        """).fetchall()
+        try:
+            rows = conn.execute("""
+                SELECT tmdb_id, title_ko, title_en, poster_path,
+                       genre, overview, release_year, tmdb_rating,
+                       match_source, confidence_score, '' as keywords
+                FROM works
+                WHERE tmdb_id IS NOT NULL
+                ORDER BY tmdb_id
+            """).fetchall()
+        except Exception:
+            rows = conn.execute("""
+                SELECT tmdb_id, title_ko, title_en, poster_path,
+                       genre, overview, release_year, tmdb_rating,
+                       'admin' as match_source, 100 as confidence_score, '' as keywords
+                FROM works
+                WHERE tmdb_id IS NOT NULL
+                ORDER BY tmdb_id
+            """).fetchall()
 
     sql_list = []
     for row in rows:
         (tmdb_id, title_ko, title_en, poster_path,
          genre, overview, release_year, tmdb_rating,
-         match_source, confidence_score) = row
+         match_source, confidence_score, keywords) = row
         sql_list.append(
             f"INSERT INTO works "
             f"(tmdb_id, title_ko, title_en, poster_path, "
-            f"genre, overview, release_year, tmdb_rating, "
+            f"genre, overview, release_year, tmdb_rating, keywords, "
             f"match_source, confidence_score, updated_at) "
             f"VALUES ({tmdb_id}, {esc(title_ko)}, {esc(title_en)}, "
             f"{esc(poster_path) if poster_path else 'NULL'}, "
@@ -337,6 +347,7 @@ def upload_works(conn: sqlite3.Connection) -> int:
             f"{esc(overview) if overview else 'NULL'}, "
             f"{release_year if release_year else 'NULL'}, "
             f"{tmdb_rating if tmdb_rating else 'NULL'}, "
+            f"{esc(keywords) if keywords else 'NULL'}, "
             f"{esc(match_source or 'admin')}, "
             f"{confidence_score or 100}, "
             f"datetime('now')) "
@@ -350,6 +361,10 @@ def upload_works(conn: sqlite3.Connection) -> int:
             f"  genre = CASE"
             f"    WHEN works.genre IS NULL AND excluded.genre IS NOT NULL"
             f"    THEN excluded.genre ELSE works.genre END,"
+            # ── keywords 도 genre와 동일 원칙: 비어있을 때만 보완, 어드민이 채운 값 보호 ──
+            f"  keywords = CASE"
+            f"    WHEN (works.keywords IS NULL OR works.keywords = '') AND excluded.keywords IS NOT NULL"
+            f"    THEN excluded.keywords ELSE works.keywords END,"
             f"  updated_at = datetime('now');"
         )
 
