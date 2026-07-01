@@ -423,6 +423,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .comment-sort-row{display:flex;gap:6px;margin-bottom:16px}
 .sort-btn{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);font-size:14px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);background:transparent;transition:all .15s}
 .sort-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.write-review-btn{margin-left:auto;padding:5px 14px;border-radius:20px;border:.5px solid rgba(240,180,41,.5);font-size:14px;font-weight:700;color:var(--gold);cursor:pointer;font-family:var(--font-mono);background:rgba(240,180,41,.1);transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.write-review-btn:hover{background:rgba(240,180,41,.2);border-color:var(--gold)}
 
 /* 카드형 댓글 컨테이너 */
 .comments-section{display:flex;flex-direction:column;gap:10px}
@@ -1427,7 +1429,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div class="info-tab-wrap">
   <div class="tab-bar" role="tablist">
     <button class="tab-btn active" role="tab" onclick="switchInfoTab('rating',this)">평점</button>
-    <button class="tab-btn"        role="tab" onclick="switchInfoTab('review',this)" id="infoTabReview">리뷰·후기</button>
+    <button class="tab-btn"        role="tab" onclick="switchInfoTab('review',this)" id="infoTabReview">리뷰·후기<span id="reviewTabCount"></span></button>
     <button class="tab-btn"        role="tab" onclick="switchInfoTab('mbti',this)">MBTI 궁합</button>
   </div>
 
@@ -1521,6 +1523,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="comment-sort-row" style="margin-top:4px">
         <button class="sort-btn on" id="sortLatest" onclick="setSort('latest')">최신순</button>
         <button class="sort-btn" id="sortLikes" onclick="setSort('likes')">좋아요순</button>
+        <button class="write-review-btn" id="writeReviewBtn" onclick="goReview(0)" style="display:none">✍ 리뷰쓰기</button>
       </div>
       <div id="commentsArea"></div>
       <div id="pagination" class="pagination"></div>
@@ -3016,6 +3019,7 @@ async function loadReviews(tmdbId){
       }
     }
     renderMyReview();
+    updateReviewTabAndWriteBtn();
     curPage=1;renderComments();
     // renderMbtiSection은 loadTmdb()에서 즉시 호출하므로 여기서 제거
   }catch(e){}
@@ -3024,6 +3028,14 @@ async function loadReviews(tmdbId){
     // 항상 최신 ALL_COMMENTS 기준으로 갱신되도록 finally에서 보장
     updateUserRatingCard();
   }
+}
+
+// 리뷰·후기 탭 개수 표시 + 리뷰쓰기 버튼 노출 여부 (이미 내가 쓴 리뷰가 있으면 숨김)
+function updateReviewTabAndWriteBtn(){
+  const countEl=document.getElementById('reviewTabCount');
+  if(countEl)countEl.textContent=ALL_COMMENTS.length?` (${ALL_COMMENTS.length})`:'';
+  const writeBtn=document.getElementById('writeReviewBtn');
+  if(writeBtn)writeBtn.style.display=MY_REVIEW?'none':'inline-flex';
 }
 
 async function deleteMyReview(reviewId){
