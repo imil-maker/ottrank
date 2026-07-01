@@ -1454,13 +1454,10 @@ function renderReviews() {
   }
   const slice = ALL_REVIEWS.slice(0, PREVIEW);
   if (moreBtn) {
-    if (ALL_REVIEWS.length > PREVIEW) {
-      moreBtn.style.display = 'inline-flex';
-      const uid = new URLSearchParams(location.search).get('uid');
-      moreBtn.href = uid ? `/my_review.html?uid=${uid}` : '/my_review.html';
-    } else {
-      moreBtn.style.display = 'none';
-    }
+    // 여기 도달했다는 건 이미 위에서 0개 케이스는 걸러졌다는 뜻 — 1개 이상이면 항상 표시
+    moreBtn.style.display = 'inline-flex';
+    const uid = new URLSearchParams(location.search).get('uid');
+    moreBtn.href = uid ? `/my_review.html?uid=${uid}` : '/my_review.html';
   }
 
   // rc-card 형태로 렌더링 — goTitle() 로직 완전 유지
