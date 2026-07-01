@@ -691,6 +691,11 @@ export async function handleUser(path, request, env, ctx, headers) {
       ).bind(sessionId).first();
       if (!session) return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
 
+      // 페이지 타이틀에 닉네임을 표시하기 위해 같이 조회
+      const userRow = await env.DB.prepare(
+        "SELECT nickname FROM users WHERE id = ?"
+      ).bind(session.user_id).first();
+
       const { results: reviews } = await env.DB.prepare(`
         SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
           r.likes, r.spoiler, r.created_at,
@@ -708,7 +713,7 @@ export async function handleUser(path, request, env, ctx, headers) {
         ORDER BY r.created_at DESC
       `).bind(session.user_id).all();
 
-      return new Response(JSON.stringify({ ok: true, reviews }), { headers });
+      return new Response(JSON.stringify({ ok: true, reviews, nickname: userRow?.nickname || '나' }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
