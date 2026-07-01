@@ -15,6 +15,10 @@
 
 const ReviewCard = (() => {
 
+  /* ── API 베이스 — community.html/index.html/mypage.html의 API 상수와 동일한 값
+     (좋아요 요청은 컴포넌트 내부에서 직접 처리하므로 별도로 고정해둠) ── */
+  const LIKE_API = 'https://ottrank-api.tdidream.workers.dev';
+
   /* ── 플랫폼 색상 맵 ── */
   const PF_COLOR = {
     netflix:  '#e50914',
@@ -91,14 +95,18 @@ const ReviewCard = (() => {
       ? `<div class="rc-body">"${esc(rv.body)}"</div>`
       : `<div class="rc-body rc-body-empty">평점만 남긴 후기</div>`;
 
-    // 닉네임 클릭 시 해당 유저 마이페이지로 이동 (작품 클릭과 별개)
-    const nickUrl   = rv.user_id ? `/mypage.html?uid=${rv.user_id}` : '#';
+    // 닉네임 클릭 시 해당 유저의 리뷰 목록 페이지로 이동 (작품 클릭과 별개)
+    const nickUrl   = rv.user_id ? `/my_review.html?uid=${rv.user_id}` : '#';
     const nickLabel = `${nick} 리뷰`;
 
     // 카드 클릭 시 작품 상세로 이동
     const clickFn = rv.tmdb_id
       ? `ReviewCard.goDetail(${rv.tmdb_id},'${rv.media_type||'tv'}','${title.replace(/'/g,'')}',1,'')`
       : '';
+
+    // 좋아요 상태 (백엔드가 likes/liked_by_me를 안 내려주는 구버전 API 대비 기본값 처리)
+    const likeCount = rv.likes || 0;
+    const likedByMe = !!rv.liked_by_me;
 
     return `
 <div class="rc-card" onclick="${clickFn}">
@@ -113,12 +121,17 @@ const ReviewCard = (() => {
     <!-- 포스터 45%부터 그라디언트 -->
     <div class="rc-poster-fade"></div>
 
-    <!-- 좌상단 닉네임 뱃지 — 클릭 시 해당 유저 마이페이지 이동 -->
+    <!-- 좌상단 닉네임 뱃지 — 클릭 시 해당 유저 리뷰 목록 이동 -->
     <a class="rc-nick-badge" href="${nickUrl}"
        onclick="event.stopPropagation()">${nickLabel}</a>
 
-    <!-- 우상단 별점 -->
-    ${scoreNum ? `<div class="rc-poster-score">★ ${scoreNum}</div>` : ''}
+    <!-- 우상단 좋아요 버튼 -->
+    <button type="button" class="rc-like-badge${likedByMe ? ' liked' : ''}"
+       id="rc_like_${rv.id}" data-pending="0"
+       onclick="event.stopPropagation();ReviewCard.toggleLike(${rv.id},${rv.tmdb_id},this)">
+      <i class="ti ${likedByMe ? 'ti-heart-filled' : 'ti-heart'}" style="font-size:12px"></i>
+      <span class="rc-like-count">${likeCount}</span>
+    </button>
 
     <!-- 콘텐츠 — 포스터 50% 지점에서 시작 -->
     <div class="rc-content">
@@ -184,7 +197,64 @@ const ReviewCard = (() => {
     location.href = `/${type === 'movie' ? 'movie' : 'tv'}/${slug}#userReviews`;
   }
 
+  /* ── 좋아요 뱃지 화면 갱신 ── */
+  function _applyLikeUI(id, liked, likes) {
+    const btn = document.getElementById('rc_like_' + id);
+    if (!btn) return;
+    btn.classList.toggle('liked', liked);
+    const icon  = btn.querySelector('i');
+    if (icon) icon.className = `ti ${liked ? 'ti-heart-filled' : 'ti-heart'}`;
+    const count = btn.querySelector('.rc-like-count');
+    if (count) count.textContent = likes;
+  }
+
+  /* ── 좋아요 토글 (낙관적 업데이트 + 연타 방지 + 실패 시 롤백) ──
+     _title_detail.html의 likeComment()와 동일한 패턴 ── */
+  async function toggleLike(reviewId, tmdbId, btnEl) {
+    if (!reviewId || !tmdbId) return;
+
+    // 비로그인 시 로그인 페이지로 이동
+    const sid = localStorage.getItem('ottrang_sid');
+    if (!sid) {
+      location.href = '/login.html?redirect=' + encodeURIComponent(location.pathname + location.search);
+      return;
+    }
+
+    const btn = btnEl || document.getElementById('rc_like_' + reviewId);
+    if (btn) {
+      if (btn.dataset.pending === '1') return; // 응답 오기 전 중복 클릭 방지
+      btn.dataset.pending = '1';
+    }
+
+    const wasLiked = btn?.classList.contains('liked') || false;
+    const countEl  = btn?.querySelector('.rc-like-count');
+    const prevLikes = parseInt(countEl?.textContent || '0', 10) || 0;
+
+    // 클릭 즉시 화면부터 토글 (낙관적 업데이트)
+    const optimisticLiked = !wasLiked;
+    const optimisticLikes = prevLikes + (optimisticLiked ? 1 : -1);
+    _applyLikeUI(reviewId, optimisticLiked, optimisticLikes);
+
+    try {
+      const res  = await fetch(`${LIKE_API}/reviews/${tmdbId}/like/${reviewId}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + sid },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        _applyLikeUI(reviewId, wasLiked, prevLikes); // 롤백
+        return;
+      }
+      // 서버가 내려준 최종 값으로 동기화
+      _applyLikeUI(reviewId, !!data.liked, data.likes);
+    } catch (e) {
+      _applyLikeUI(reviewId, wasLiked, prevLikes); // 네트워크 오류 — 롤백
+    } finally {
+      if (btn) btn.dataset.pending = '0';
+    }
+  }
+
   /* ── public API ── */
-  return { render, renderGrid, skeleton, goDetail, renderStars, relTime };
+  return { render, renderGrid, skeleton, goDetail, renderStars, relTime, toggleLike };
 
 })();
