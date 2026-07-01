@@ -980,8 +980,11 @@ export async function handleAdmin(path, request, env, url, headers) {
       let overview     = body.overview     || null;
       let release_year = body.release_year || null;
       let tmdb_rating  = body.tmdb_rating  || null;
+      const media_type = (body.media_type === "tv" || body.media_type === "movie") ? body.media_type : null;
 
-      if (!title_ko || !poster_path) {
+      // works 테이블에서 부족한 필드 보완 — title_en도 title_ko/poster_path와 별개로 반드시 확인
+      // (기존엔 title_ko·poster_path가 이미 있으면 이 조회 자체를 건너뛰어서 title_en이 계속 빈 값으로 저장되던 버그)
+      if (!title_ko || !poster_path || !title_en) {
         const existing = await env.DB.prepare(
           "SELECT * FROM works WHERE tmdb_id = ?"
         ).bind(parseInt(tmdb_id)).first();
@@ -994,6 +997,26 @@ export async function handleAdmin(path, request, env, url, headers) {
           release_year = release_year || existing.release_year || null;
           tmdb_rating  = tmdb_rating  || existing.tmdb_rating  || null;
         }
+      }
+
+      // works에도 없으면 TMDB에서 영문 제목 직접 조회 (/admin/fix와 동일 패턴)
+      if (!title_en) {
+        try {
+          const mtypes = media_type ? [media_type] : ["tv", "movie"];
+          for (const mtype of mtypes) {
+            const tmdbEnResp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${tmdb_id}?language=en-US&api_key=${env.TMDB_API_KEY}`
+            );
+            if (!tmdbEnResp.ok) continue;
+            const tmdbEnData = await tmdbEnResp.json();
+            if (!tmdbEnData.name && !tmdbEnData.title) continue;
+            const originalTitle = tmdbEnData.original_title || tmdbEnData.original_name || "";
+            const enTitle       = tmdbEnData.title || tmdbEnData.name || "";
+            const isKorean      = /[\uAC00-\uD7A3]/.test(originalTitle);
+            title_en = isKorean ? enTitle : (originalTitle || enTitle);
+            break;
+          }
+        } catch (e) { /* TMDB 조회 실패 시 title_en 빈 값 유지 — 저장 자체는 계속 진행 */ }
       }
 
       await env.DB.prepare(`
@@ -1022,6 +1045,18 @@ export async function handleAdmin(path, request, env, url, headers) {
         genre, overview, release_year, tmdb_rating, memo || null,
         season !== null ? parseInt(season) : null
       ).run();
+
+      // works 테이블에도 title_en 보완 (COALESCE로 3키 원칙 보호 — 이미 값이 있으면 덮어쓰지 않음)
+      // 이걸 안 하면 다음에 또 같은 tmdb_id로 등록할 때마다 매번 TMDB를 다시 조회해야 함
+      if (title_en) {
+        await env.DB.prepare(`
+          INSERT INTO works (tmdb_id, title_ko, title_en, poster_path)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(tmdb_id) DO UPDATE SET
+            title_en   = COALESCE(NULLIF(works.title_en, ''), excluded.title_en),
+            updated_at = datetime('now')
+        `).bind(parseInt(tmdb_id), title_ko || "", title_en, poster_path).run();
+      }
 
       await env.DB.prepare(
         "INSERT INTO admin_logs (action, platform, category_slot, target_id, after_value) VALUES ('manual_ranking_add', ?, ?, ?, ?)"
