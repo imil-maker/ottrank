@@ -989,6 +989,18 @@ export async function handleUser(path, request, env, ctx, headers) {
       const page   = Math.max(1, parseInt(params.get('page') || '1'));
       const offset = (page - 1) * limit;
 
+      // 로그인 상태면 "내가 이미 좋아요 눌렀는지"도 같이 조회 (커뮤니티 좋아요 버튼용)
+      // 비로그인/세션만료 시 myUserId=-1로 둬서 review_likes.user_id(항상 양수)와 매칭 안 되게 처리
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      let myUserId = -1;
+      if (sessionId) {
+        const session = await env.DB.prepare(
+          "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+        ).bind(sessionId).first();
+        if (session) myUserId = session.user_id;
+      }
+
       // 전체 리뷰 수 (페이지네이션 UI 계산용)
       const countRow = await env.DB.prepare(
         `SELECT COUNT(*) AS total FROM reviews`
@@ -997,11 +1009,12 @@ export async function handleUser(path, request, env, ctx, headers) {
 
       const { results } = await env.DB.prepare(`
         SELECT r.id, r.user_id, r.tmdb_id, r.score, r.text AS body,
-               r.emotions, r.created_at,
+               r.emotions, r.created_at, r.likes,
                COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
                wk.media_type AS media_type,
                wk.poster_path AS poster_path,
-               u.nickname, u.profile_image, u.mbti
+               u.nickname, u.profile_image, u.mbti,
+               CASE WHEN rl.id IS NOT NULL THEN 1 ELSE 0 END AS liked_by_me
         FROM reviews r
         JOIN users u ON u.id = r.user_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
@@ -1009,9 +1022,10 @@ export async function handleUser(path, request, env, ctx, headers) {
           SELECT tmdb_id, title_ko
           FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
+        LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ? AND rl.is_active = 1
         ORDER BY r.created_at DESC
         LIMIT ? OFFSET ?
-      `).bind(limit, offset).all();
+      `).bind(myUserId, limit, offset).all();
 
       return new Response(JSON.stringify({
         ok:      true,
