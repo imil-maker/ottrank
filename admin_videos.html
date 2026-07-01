@@ -232,6 +232,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🏷 키워드 수집
         </button>
+        <button id="tabDiscover" onclick="switchPageTab('discover')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🎬 작품 사전등록
+        </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
     </div>
@@ -417,6 +421,64 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="kwLogWrap" style="display:none">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
       <div id="kwLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+  </div>
+
+  <!-- ══ 작품 사전등록 섹션 ══ -->
+  <div class="wrap" id="discoverWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 TMDB 인기순으로 <span style="color:var(--gold)">한국 영화·TV 작품</span>을 찾아 <span style="color:var(--green)">works</span> 테이블에 신규 등록합니다.<br>
+      랭킹에는 올라가지 않고, 검색·키워드 대상 풀만 넓히는 용도입니다.<br>
+      이미 등록된 작품(<span style="color:var(--green)">tmdb_id</span> 기준)은 절대 덮어쓰지 않고 건너뜁니다.<br>
+      등록 직후엔 <span style="color:var(--gold)">keywords</span>가 비어있으니, 완료 후 "🏷 키워드 수집" 탭을 한 번 더 돌려주세요.
+    </div>
+
+    <!-- 목표 개수 입력 -->
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px">
+      <label style="font-size:13px;color:var(--muted2);white-space:nowrap">목표 개수</label>
+      <input class="form-input" id="dcTargetInput" type="number" value="500" min="1" max="5000" style="max-width:140px">
+      <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">개 (영화+TV 합산 신규 등록 기준)</span>
+    </div>
+
+    <!-- 상태 카드 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:14px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="dcAttempted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">신규 등록</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="dcInserted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">중복 건너뜀</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--muted2)" id="dcSkipped">0</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:18px" id="dcPageLabel">
+        영화 페이지 1 · TV 페이지 1
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="dcStartBtn" onclick="startDiscoverCollect()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 사전등록 시작
+        </button>
+        <button class="btn-secondary" id="dcStopBtn" onclick="stopDiscoverCollect()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="dcStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <!-- 최근 배치 로그 -->
+    <div id="dcLogWrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="dcLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
     </div>
 
   </div>
@@ -731,9 +793,10 @@ function closePreview(){
 /* ══ 페이지 탭 전환 (영상관리 ↔ MBTI 관리 ↔ 키워드 수집) ══ */
 // 탭 3개 이상으로 늘어날 걸 대비해 배열 기반으로 구성 (이전엔 isVideo 불리언 하나로만 분기해서 탭 추가 시 로직이 깨지기 쉬웠음)
 const PAGE_TABS = [
-  { key: 'video',   wrapId: 'videoWrap',   btnId: 'tabVideo',   title: '🎬 영상 관리',   onColor: 'var(--accent)',        onText: '#fff'     },
-  { key: 'mbti',    wrapId: 'mbtiWrap',    btnId: 'tabMbti',    title: '✦ MBTI 관리',    onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
-  { key: 'keyword', wrapId: 'keywordWrap', btnId: 'tabKeyword', title: '🏷 키워드 수집',  onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
+  { key: 'video',    wrapId: 'videoWrap',    btnId: 'tabVideo',    title: '🎬 영상 관리',     onColor: 'var(--accent)',        onText: '#fff'     },
+  { key: 'mbti',     wrapId: 'mbtiWrap',     btnId: 'tabMbti',     title: '✦ MBTI 관리',      onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
+  { key: 'keyword',  wrapId: 'keywordWrap',  btnId: 'tabKeyword',  title: '🏷 키워드 수집',    onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
+  { key: 'discover', wrapId: 'discoverWrap', btnId: 'tabDiscover', title: '🎬 작품 사전등록',  onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
 ];
 let currentPageTab = 'video';
 function switchPageTab(tab) {
@@ -1168,6 +1231,164 @@ function stopKeywordCollect() {
   setTimeout(() => {
     document.getElementById('kwStopBtn').disabled = false;
     document.getElementById('kwStopBtn').textContent = '⏸ 중단';
+  }, 1500);
+}
+
+/* ══════════════════════════════════════════════════════
+   작품 사전등록 (TMDB discover → 인기 한국 작품 works에 신규 등록)
+   media_type(movie/tv)을 번갈아 페이지 단위로 호출, 누적 등록 개수가
+   목표(target)에 도달하거나 두 타입 모두 더 이상 페이지가 없을 때까지 반복
+══════════════════════════════════════════════════════ */
+let dcRunning        = false;
+let dcStopRequested  = false;
+let dcMoviePage      = 1;
+let dcTvPage         = 1;
+let dcMovieHasMore    = true;
+let dcTvHasMore       = true;
+let dcTotalAttempted = 0;
+let dcTotalInserted  = 0;
+let dcTotalSkipped   = 0;
+
+function dcLog(msg, isError) {
+  const logWrap = document.getElementById('dcLogWrap');
+  const logEl   = document.getElementById('dcLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function dcUpdateCounters() {
+  document.getElementById('dcAttempted').textContent = dcTotalAttempted;
+  document.getElementById('dcInserted').textContent  = dcTotalInserted;
+  document.getElementById('dcSkipped').textContent   = dcTotalSkipped;
+  document.getElementById('dcPageLabel').textContent =
+    `영화 페이지 ${dcMoviePage}${dcMovieHasMore ? '' : ' (끝)'} · TV 페이지 ${dcTvPage}${dcTvHasMore ? '' : ' (끝)'}`;
+}
+
+// media_type 한 페이지 호출 — 성공 시 true, 중단이 필요한 오류면 false 반환
+async function _dcFetchPage(mediaType, page) {
+  const res  = await fetch(`${API}/admin/works/discover-collect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+    body: JSON.stringify({ media_type: mediaType, page }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    throw new Error(data.message || `${mediaType} 페이지 ${page} 조회 실패 (${res.status})`);
+  }
+  return data;
+}
+
+async function startDiscoverCollect() {
+  if (dcRunning) return;
+
+  const target = parseInt(document.getElementById('dcTargetInput').value) || 500;
+
+  dcRunning        = true;
+  dcStopRequested  = false;
+  dcMoviePage      = 1;
+  dcTvPage         = 1;
+  dcMovieHasMore    = true;
+  dcTvHasMore       = true;
+  dcTotalAttempted = 0;
+  dcTotalInserted  = 0;
+  dcTotalSkipped   = 0;
+
+  const startBtn   = document.getElementById('dcStartBtn');
+  const stopBtn    = document.getElementById('dcStopBtn');
+  const statusLine = document.getElementById('dcStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '수집 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('dcLog').innerHTML = '';
+  dcUpdateCounters();
+  dcLog(`목표 ${target}개로 시작 (영화/TV 번갈아 진행)`);
+
+  try {
+    while (dcTotalInserted < target && (dcMovieHasMore || dcTvHasMore)) {
+      if (dcStopRequested) {
+        dcLog('사용자 요청으로 중단됨');
+        break;
+      }
+
+      // 영화 한 페이지
+      if (dcMovieHasMore) {
+        statusLine.textContent = `영화 페이지 ${dcMoviePage} 처리 중...`;
+        try {
+          const data = await _dcFetchPage('movie', dcMoviePage);
+          dcTotalAttempted += data.attempted || 0;
+          dcTotalInserted  += data.inserted  || 0;
+          dcTotalSkipped   += data.skipped   || 0;
+          dcMovieHasMore    = !!data.hasNextPage;
+          dcMoviePage       = data.nextPage;
+          dcLog(`영화 p.${dcMoviePage - 1}: 시도 ${data.attempted} · 신규 ${data.inserted} · 중복 ${data.skipped}`);
+        } catch (e) {
+          dcLog(`영화 페이지 오류: ${e.message}`, true);
+          statusLine.textContent = '오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+          break;
+        }
+        dcUpdateCounters();
+      }
+
+      if (dcTotalInserted >= target || dcStopRequested) break;
+
+      // TV 한 페이지
+      if (dcTvHasMore) {
+        statusLine.textContent = `TV 페이지 ${dcTvPage} 처리 중...`;
+        try {
+          const data = await _dcFetchPage('tv', dcTvPage);
+          dcTotalAttempted += data.attempted || 0;
+          dcTotalInserted  += data.inserted  || 0;
+          dcTotalSkipped   += data.skipped   || 0;
+          dcTvHasMore       = !!data.hasNextPage;
+          dcTvPage          = data.nextPage;
+          dcLog(`TV p.${dcTvPage - 1}: 시도 ${data.attempted} · 신규 ${data.inserted} · 중복 ${data.skipped}`);
+        } catch (e) {
+          dcLog(`TV 페이지 오류: ${e.message}`, true);
+          statusLine.textContent = '오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+          break;
+        }
+        dcUpdateCounters();
+      }
+
+      if (dcTotalInserted >= target) {
+        statusLine.textContent = `✅ 목표 달성! 신규 ${dcTotalInserted}개 등록됨 (시도 ${dcTotalAttempted}개)`;
+        dcLog('목표 개수 도달 — 종료');
+        showToast('✅ 작품 사전등록 완료!');
+        break;
+      }
+      if (!dcMovieHasMore && !dcTvHasMore) {
+        statusLine.textContent = `✅ 더 이상 가져올 작품이 없어 종료. 신규 ${dcTotalInserted}개 등록됨`;
+        dcLog('영화·TV 모두 마지막 페이지 도달 — 종료');
+        showToast('✅ 작품 사전등록 완료 (더 이상 결과 없음)');
+        break;
+      }
+
+      // 다음 배치 전 짧은 대기 (Workers/TMDB 부하 방지)
+      await _sleep(500);
+    }
+  } finally {
+    dcRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 사전등록 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopDiscoverCollect() {
+  if (!dcRunning) return;
+  dcStopRequested = true;
+  document.getElementById('dcStopBtn').disabled = true;
+  document.getElementById('dcStopBtn').textContent = '중단 중...';
+  setTimeout(() => {
+    document.getElementById('dcStopBtn').disabled = false;
+    document.getElementById('dcStopBtn').textContent = '⏸ 중단';
   }, 1500);
 }
 </script>
