@@ -29,6 +29,8 @@
    POST   /admin/grade-settings/assign
    GET    /admin/users
    POST   /admin/ott-points/adjust
+   POST   /admin/works/collect-keywords
+   POST   /admin/works/discover-collect
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
    POST   /work-ott                   ← OTT 오버라이드 추가/수정 (관리자 전용)
    DELETE /work-ott/:id               ← OTT 오버라이드 삭제/복원 (관리자 전용)
@@ -1244,6 +1246,124 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       return new Response(JSON.stringify({
         ok: true, processed, attempted: targets.length, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/discover-collect ─────────────────────
+  // TMDB discover API로 인기순 한국 작품을 조회해 works 테이블에 신규 등록
+  // (랭킹에는 올리지 않음 — 검색/키워드 매칭 대상 풀만 넓히는 용도)
+  // 이미 works에 있는 tmdb_id는 절대 덮어쓰지 않고 건너뜀 (기존 데이터 보호)
+  // 어드민 화면에서 media_type을 번갈아가며 page를 1씩 증가시켜 반복 호출하는 방식으로 사용
+  if (path === "/admin/works/discover-collect" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const mediaType = body.media_type;
+      const page = Math.max(parseInt(body.page) || 1, 1);
+
+      if (!["movie", "tv"].includes(mediaType)) {
+        return new Response(JSON.stringify({
+          ok: false, message: "media_type은 'movie' 또는 'tv'만 허용"
+        }), { status: 400, headers });
+      }
+
+      // ① TMDB discover — 인기순 한국 작품 목록 조회
+      const discoverUrl = mediaType === "movie"
+        ? `https://api.themoviedb.org/3/discover/movie?api_key=${env.TMDB_API_KEY}&language=ko-KR&region=KR&with_original_language=ko&sort_by=popularity.desc&page=${page}`
+        : `https://api.themoviedb.org/3/discover/tv?api_key=${env.TMDB_API_KEY}&language=ko-KR&with_origin_country=KR&sort_by=popularity.desc&page=${page}`;
+
+      const discoverResp = await fetch(discoverUrl);
+      if (!discoverResp.ok) {
+        return new Response(JSON.stringify({
+          ok: false, message: `TMDB discover 조회 실패 (status ${discoverResp.status})`
+        }), { status: 502, headers });
+      }
+      const discoverData = await discoverResp.json();
+      const results     = discoverData.results || [];
+      const totalPages  = discoverData.total_pages || 1;
+
+      if (!results.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, inserted: 0, skipped: 0,
+          hasNextPage: false, nextPage: page + 1, totalPages,
+        }), { headers });
+      }
+
+      // ② 이미 works에 있는 tmdb_id는 제외 (기존 데이터 보호 — 절대 덮어쓰지 않음)
+      const ids = results.map(r => r.id);
+      const placeholders = ids.map(() => "?").join(",");
+      const { results: existingRows } = await env.DB.prepare(
+        `SELECT tmdb_id FROM works WHERE tmdb_id IN (${placeholders})`
+      ).bind(...ids).all();
+      const existingSet = new Set((existingRows || []).map(r => r.tmdb_id));
+      const newItems = results.filter(r => !existingSet.has(r.id));
+
+      // ③ 신규 작품만 상세정보 조회 후 works INSERT (기존 랭킹 등록 로직과 동일한 TMDB 조회 패턴)
+      const updates = [];
+      let inserted = 0;
+      for (const item of newItems) {
+        let titleKo = null, titleEn = null, poster = null, genre = null,
+            rating  = null, year = null, overview = "";
+
+        try {
+          const koResp = await fetch(
+            `https://api.themoviedb.org/3/${mediaType}/${item.id}?language=ko-KR&api_key=${env.TMDB_API_KEY}`
+          );
+          if (koResp.ok) {
+            const ko = await koResp.json();
+            titleKo  = ko.name || ko.title || item.name || item.title || null;
+            poster   = ko.poster_path || item.poster_path || null;
+            genre    = (ko.genres || []).map(g => g.name).join(", ") || null;
+            rating   = ko.vote_average ? parseFloat(ko.vote_average.toFixed(1)) : null;
+            year     = parseInt((ko.first_air_date || ko.release_date || "").slice(0, 4)) || null;
+            overview = ko.overview || item.overview || "";
+          }
+        } catch (e) { /* ko 상세조회 실패 시 discover 목록값으로 폴백 */ }
+
+        if (!titleKo) continue; // 제목조차 못 가져오면 등록 스킵 (불완전 데이터 방지)
+
+        try {
+          const enResp = await fetch(
+            `https://api.themoviedb.org/3/${mediaType}/${item.id}?language=en-US&api_key=${env.TMDB_API_KEY}`
+          );
+          if (enResp.ok) {
+            const en    = await enResp.json();
+            const orig  = en.original_title || en.original_name || "";
+            const enTxt = en.title || en.name || "";
+            // 원어 제목이 한글이면(즉 영문 없으면) en 언어 응답값으로 대체
+            titleEn = /[\uAC00-\uD7A3]/.test(orig) ? enTxt : (orig || enTxt);
+          }
+        } catch (e) { /* en 상세조회 실패해도 title_en 없이 진행 (나중에 보완 가능) */ }
+
+        updates.push(
+          env.DB.prepare(`
+            INSERT INTO works
+              (tmdb_id, title_ko, title_en, overview, genre, release_year,
+               tmdb_rating, poster_path, media_type, match_source, confidence_score, first_matched_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto_discover', 90, date('now'))
+            ON CONFLICT(tmdb_id) DO NOTHING
+          `).bind(
+            item.id, titleKo, titleEn || "", overview || "", genre || "",
+            year, rating, poster, mediaType
+          )
+        );
+        inserted++;
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      return new Response(JSON.stringify({
+        ok: true,
+        attempted: results.length,
+        inserted,
+        skipped: results.length - newItems.length,
+        hasNextPage: page < totalPages,
+        nextPage: page + 1,
+        totalPages,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
