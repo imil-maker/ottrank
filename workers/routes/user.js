@@ -729,22 +729,36 @@ export async function handleUser(path, request, env, ctx, headers) {
       ).bind(targetUid).first();
       if (!userRow) return new Response(JSON.stringify({ ok: false, message: "유저를 찾을 수 없어요" }), { status: 404, headers });
 
+      // 좋아요 버튼 초기 상태용 — 조회하는 사람(뷰어)이 이미 좋아요 눌렀는지 같이 확인
+      // 비로그인/세션만료면 viewerUserId=-1로 둬서 review_likes.user_id(항상 양수)와 매칭 안 되게 처리
+      const auth      = request.headers.get("Authorization") || "";
+      const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+      let viewerUserId = -1;
+      if (sessionId) {
+        const viewerSession = await env.DB.prepare(
+          "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+        ).bind(sessionId).first();
+        if (viewerSession) viewerUserId = viewerSession.user_id;
+      }
+
       const { results: reviews } = await env.DB.prepare(`
         SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.custom_tags,
           r.likes, r.spoiler, r.created_at,
           COALESCE(rk.title_ko,  wk.title_ko)    as title_ko,
           COALESCE(rk.poster_path, wk.poster_path) as poster_path,
           COALESCE(rk.category,  wk.media_type)  as category,
-          rk.release_year
+          rk.release_year,
+          CASE WHEN rl.id IS NOT NULL THEN 1 ELSE 0 END AS liked_by_me
         FROM reviews r
         LEFT JOIN (
           SELECT tmdb_id, title_ko, poster_path, category, release_year
           FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
+        LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ? AND rl.is_active = 1
         WHERE r.user_id = ?
         ORDER BY r.created_at DESC
-      `).bind(targetUid).all();
+      `).bind(viewerUserId, targetUid).all();
 
       return new Response(JSON.stringify({ ok: true, reviews, nickname: userRow.nickname || '유저' }), { headers });
     } catch (e) {
