@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>영상 관리 | 오뜨랑 Admin</title>
+<title>관련 영상 관리 | 오뜨랑 Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -203,7 +203,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <!-- ── 로그인 화면 ── -->
 <div class="login-wrap" id="loginWrap">
   <div class="login-box">
-    <h2>🎬 영상 관리</h2>
+    <h2>🎬 관련 영상 관리</h2>
     <p>관리자 인증이 필요합니다</p>
     <input class="login-input" id="secretInput" type="password" placeholder="관리자 비밀번호"
       onkeydown="if(event.key==='Enter')doLogin()">
@@ -216,13 +216,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <div id="mainWrap" style="display:none">
 
   <div class="admin-header">
-    <h1 id="adminHeaderTitle">🎬 영상 관리</h1>
+    <h1 id="adminHeaderTitle">🎬 관련 영상 관리</h1>
     <div style="display:flex;gap:8px;align-items:center">
       <!-- 페이지 탭 -->
       <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px">
         <button id="tabVideo" onclick="switchPageTab('video')"
           style="padding:5px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
-          🎬 영상 관리
+          🎬 관련 영상 관리
         </button>
         <button id="tabMbti" onclick="switchPageTab('mbti')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
