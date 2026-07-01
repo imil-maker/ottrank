@@ -317,25 +317,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .review-cta-btn{width:100%;justify-content:center}
 }
 
-/* ══ 모바일 전용 — 타이틀 밑 '평점 남기기' 바 (오뜨랑 평점 0건일 때만) ══ */
-.mob-rate-bar{
-  align-items:center;justify-content:center;gap:8px;
-  margin:0 16px 14px;padding:11px 16px;border-radius:var(--r);
-  background:rgba(240,180,41,.08);border:.5px solid rgba(240,180,41,.3);
-  cursor:pointer;position:relative;z-index:3;
-}
-.mob-rate-bar-stars{display:flex;gap:2px}
-.mob-rate-bar-stars span{
-  font-size:15px;color:var(--border2);
-  animation:starPulse 2s ease-in-out infinite;
-}
-.mob-rate-bar-stars span:nth-child(1){animation-delay:.0s}
-.mob-rate-bar-stars span:nth-child(2){animation-delay:.15s}
-.mob-rate-bar-stars span:nth-child(3){animation-delay:.30s}
-.mob-rate-bar-stars span:nth-child(4){animation-delay:.45s}
-.mob-rate-bar-stars span:nth-child(5){animation-delay:.60s}
-.mob-rate-bar-label{font-size:14px;font-weight:700;color:var(--gold);font-family:var(--font-sans)}
-
 /* ══ 평점 4블록 ══ */
 .ratings-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
 .r-card{background:var(--bg2);border-radius:var(--r);padding:16px 12px;text-align:center;border:.5px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;transition:border-color .15s}
@@ -345,6 +326,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .r-score-wrap{display:flex;align-items:baseline;gap:3px}
 .r-out-of{font-size:15px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
 .r-sub{font-size:13px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
+
+/* 오뜨랑 카드 빈 상태 — 기본(PC)은 안내문구, 모바일은 별 애니메이션+바 (아래 640px 미디어쿼리에서 스왑) */
+.uremp-mobile{display:none;flex-direction:column;align-items:center;gap:6px;width:100%}
+.uremp-stars{display:flex;gap:1px}
+.uremp-stars span{font-size:14px;color:var(--border2);animation:starPulse 2s ease-in-out infinite}
+.uremp-stars span:nth-child(1){animation-delay:.0s}
+.uremp-stars span:nth-child(2){animation-delay:.15s}
+.uremp-stars span:nth-child(3){animation-delay:.30s}
+.uremp-stars span:nth-child(4){animation-delay:.45s}
+.uremp-stars span:nth-child(5){animation-delay:.60s}
+.uremp-bar{
+  display:inline-block;font-size:11px;font-weight:700;color:var(--gold);
+  padding:4px 10px;border-radius:20px;white-space:nowrap;
+  background:rgba(240,180,41,.1);border:.5px solid rgba(240,180,41,.35);
+  font-family:var(--font-sans);
+}
 
 /* ══ 섹션 공통 ══ */
 .sec-title{font-size:16px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -749,6 +746,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .ratings-row{ grid-template-columns:repeat(3,1fr); gap:8px; }
   .r-card:nth-child(4){ display:none; } /* '내 평점' 카드 — 모바일에서 숨김, 나머지 3개를 한 줄로 노출 */
   .r-card{ padding:12px 4px; }
+  .uremp-desktop{ display:none; }
+  .uremp-mobile{ display:flex; }
   .r-score{ font-size:13px; }
   .yt-grid{ grid-template-columns:repeat(2,1fr); gap:8px; }
   .cast-card{ width:72px; }.cast-photo{ width:72px;height:72px; }
@@ -1317,14 +1316,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
-  <!-- 모바일 전용 — 오뜨랑 평점이 아직 없을 때 타이틀 바로 밑에 노출되는 바 형태 CTA -->
-  <div class="mob-rate-bar" id="mobRateBar" onclick="goReview(0)" style="display:none">
-    <div class="mob-rate-bar-stars">
-      <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
-    </div>
-    <span class="mob-rate-bar-label">평점 남기기</span>
-  </div>
-
   <div class="hero-content" id="heroContent">
 
     <!-- 포스터 -->
@@ -1438,7 +1429,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="r-card" style="position:relative">
         <div class="r-logo" style="color:var(--gold)">오뜨랑</div>
         <div id="userRatingEmpty" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px 4px;width:100%" onclick="goReview(0)">
-          <span style="font-size:13px;color:var(--muted);font-family:var(--font-mono);text-align:center;line-height:1.5">이 작품의 첫번째<br>평점을 남겨보세요</span>
+          <span class="uremp-desktop" style="font-size:13px;color:var(--muted);font-family:var(--font-mono);text-align:center;line-height:1.5">이 작품의 첫번째<br>평점을 남겨보세요</span>
+          <div class="uremp-mobile">
+            <div class="uremp-stars">
+              <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+            </div>
+            <span class="uremp-bar">평점 남기기</span>
+          </div>
         </div>
         <div id="userRatingFilled" style="display:none;flex-direction:column;align-items:center;width:100%">
           <div class="r-score-wrap"><div class="r-score" id="userScore" style="color:var(--gold)">—</div><span class="r-out-of">/10</span></div>
@@ -2936,11 +2933,9 @@ function formatTime(isoStr){
 }
 
 function updateUserRatingCard(){
-  const mobBar=document.getElementById('mobRateBar');
   if(!ALL_COMMENTS.length){
     document.getElementById('userRatingEmpty').style.display='flex';
     document.getElementById('userRatingFilled').style.display='none';
-    if(mobBar)mobBar.style.display=window.innerWidth<=640?'flex':'none';
     return;
   }
   const avg5=ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
@@ -2951,7 +2946,6 @@ function updateUserRatingCard(){
   document.getElementById('userStarDisplay').innerHTML=renderHalfStars(avg5);
   document.getElementById('userRatingEmpty').style.display='none';
   document.getElementById('userRatingFilled').style.display='flex';
-  if(mobBar)mobBar.style.display='none';
 }
 
 /* == Wishlist == */
