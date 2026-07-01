@@ -129,7 +129,7 @@ const ReviewCard = (() => {
     <button type="button" class="rc-like-badge${likedByMe ? ' liked' : ''}"
        id="rc_like_${rv.id}" data-pending="0"
        onclick="event.stopPropagation();ReviewCard.toggleLike(${rv.id},${rv.tmdb_id},this)">
-      <i class="ti ${likedByMe ? 'ti-heart-filled' : 'ti-heart'} rc-like-icon"></i>
+      <span class="rc-like-icon">${likedByMe ? '♥' : '♡'}</span>
       <span class="rc-like-count"${likeCount < 2 ? ' style="display:none"' : ''}>${likeCount}</span>
     </button>
 
@@ -202,8 +202,8 @@ const ReviewCard = (() => {
     const btn = document.getElementById('rc_like_' + id);
     if (!btn) return;
     btn.classList.toggle('liked', liked);
-    const icon  = btn.querySelector('i');
-    if (icon) icon.className = `ti ${liked ? 'ti-heart-filled' : 'ti-heart'}`;
+    const icon  = btn.querySelector('.rc-like-icon');
+    if (icon) icon.textContent = liked ? '♥' : '♡';
     const count = btn.querySelector('.rc-like-count');
     if (count) {
       count.textContent = likes;
