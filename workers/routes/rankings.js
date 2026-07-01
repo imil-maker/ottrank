@@ -554,6 +554,11 @@ export async function handleRankings(path, request, env, url, headers) {
         "SELECT tmdb_id FROM works WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id"
       ).all();
 
+      // persons 전체 인물 목록 (배우/감독 검색 SEO 유입용 — /person/{tmdb_id})
+      const { results: persons } = await env.DB.prepare(
+        "SELECT tmdb_id FROM persons WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id"
+      ).all();
+
       const urls = [];
 
       // 정적 페이지 URL 생성
@@ -575,6 +580,18 @@ export async function handleRankings(path, request, env, url, headers) {
           `    <loc>${loc}</loc>\n` +
           `    <changefreq>weekly</changefreq>\n` +
           `    <priority>0.7</priority>\n` +
+          `  </url>`
+        );
+      }
+
+      // 인물 상세 페이지 URL 생성 (배우/감독 이름 검색 유입용)
+      for (const p of persons) {
+        const loc = `${baseUrl}/person/${p.tmdb_id}`;
+        urls.push(
+          `  <url>\n` +
+          `    <loc>${loc}</loc>\n` +
+          `    <changefreq>monthly</changefreq>\n` +
+          `    <priority>0.5</priority>\n` +
           `  </url>`
         );
       }
