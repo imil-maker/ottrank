@@ -201,6 +201,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ft-btn.prev { left: -17px; }
 .ft-btn.next { right: -17px; }
 .ft-btn:disabled{ opacity:0 !important; pointer-events:none; cursor:default; }
+/* TV시리즈/영화 TOP10 화살표 — 데스크톱은 grid라 스크롤 자체가 없으므로 항상 숨김(모바일 전용) */
+@media(min-width:769px){
+  .ott-arrow-btn{ display:none !important; }
+}
 /* 스켈레톤 */
 .ft-skel {
   flex: 0 0 calc(20% - 12px); min-width: 180px; border-radius: var(--r);
@@ -546,6 +550,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     margin-bottom:0;
     grid-template-columns:unset; /* grid 해제 */
     -webkit-overflow-scrolling:touch;
+    scroll-padding-left:16px;
+    scroll-padding-right:16px;
   }
   .ott-grid::-webkit-scrollbar{ display:none; }
 
@@ -769,7 +775,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <span id="updateTxt">업데이트 중...</span>
     </div>
   </div>
-  <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
+  <div class="ft-swipe-wrap">
+    <button class="ft-btn prev ott-arrow-btn" onclick="ftScrollTrack('tvGrid',-1)" aria-label="이전">‹</button>
+    <div class="ott-grid" id="tvGrid"><div class="grid-loading" style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">랭킹 데이터 불러오는 중…</div></div>
+    <button class="ft-btn next ott-arrow-btn" onclick="ftScrollTrack('tvGrid',1)" aria-label="다음">›</button>
+  </div>
 <!-- /AI 추천 비활성화 끝 -->
 
   <!-- 오늘의 신작 & 예정작 -->
@@ -801,7 +811,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <span id="updateTxt2"></span>
     </div>
   </div>
-  <div class="ott-grid" id="movieGrid"></div>
+  <div class="ft-swipe-wrap">
+    <button class="ft-btn prev ott-arrow-btn" onclick="ftScrollTrack('movieGrid',-1)" aria-label="이전">‹</button>
+    <div class="ott-grid" id="movieGrid"></div>
+    <button class="ft-btn next ott-arrow-btn" onclick="ftScrollTrack('movieGrid',1)" aria-label="다음">›</button>
+  </div>
 
   <!-- ══ 최근 평점 후기 ══ -->
   <div class="sec-hd" id="reviewSecHd">
@@ -1164,7 +1178,11 @@ function renderCard(p,items){
 }
 
 const curCat='tv';
-function renderGrids(){document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
+function renderGrids(){
+  document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');
+  document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
+  updateFtArrows('tvGrid');
+  updateFtArrows('movieGrid');
 }
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
@@ -1542,6 +1560,12 @@ async function init(){
   document.getElementById('updateTxt').textContent=dateStr;
   if(document.getElementById('updateTxt2')) document.getElementById('updateTxt2').textContent=dateStr;
   if(document.getElementById('updateTxt3')) document.getElementById('updateTxt3').textContent=dateStr;
+
+  // TV시리즈/영화 TOP10 화살표 — 스크롤 이벤트는 최초 1회만 연결 (renderGrids는 여러 번 재실행되므로 여기서 분리)
+  ['tvGrid','movieGrid'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.addEventListener('scroll',()=>updateFtArrows(id),{passive:true});
+  });
 
   // API 실제 데이터 로드
   await loadRankings('daily');
