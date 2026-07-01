@@ -724,6 +724,7 @@ function scrollEtag(dir){
 /* ══ 작품 데이터 로드 ══ */
 let RDATA=null;
 let myStars=0,hoverVal=0,selectedEval='',MY_REVIEW=null;
+let _etagSeq=0; // 감정 태그 클릭 순서 기록용 (DOM 순서가 아니라 실제 클릭 순서를 저장하기 위함)
 let LAST_REVIEW=null; // 공유 카드용 — 제출 성공 시 채워짐
 
 (function init(){
@@ -863,7 +864,14 @@ function updateEtagCount(){
   document.getElementById('etagCount').textContent=`${cnt} / 3 태그 선택`;
   document.querySelectorAll('.etag').forEach(b=>{if(!b.classList.contains('on'))b.classList.toggle('disabled',cnt>=3);});
 }
-function toggleEtag(b){if(b.classList.contains('disabled'))return;b.classList.toggle('on');updateEtagCount();}
+function toggleEtag(b){
+  if(b.classList.contains('disabled'))return;
+  const turningOn=!b.classList.contains('on');
+  b.classList.toggle('on');
+  if(turningOn){ b.dataset.order=++_etagSeq; } // 켤 때: 클릭 순서 기록
+  else{ delete b.dataset.order; }               // 끌 때: 순서 기록 제거
+  updateEtagCount();
+}
 
 /* ══ 글자수 ══ */
 function updateCharCount(el){
@@ -884,7 +892,10 @@ async function submitReview(){
   const spoiler=document.getElementById('spoilerCheck').checked;
   const emotions=[];
   if(selectedEval)emotions.push(selectedEval);
-  document.querySelectorAll('.etag.on').forEach(e=>{
+  // DOM 순서가 아니라 실제 클릭한 순서(dataset.order) 기준으로 정렬
+  // — 안 그러면 태그 목록에 먼저 나열된 태그(예: 긴장감 넘침)가 항상 리뷰카드에 노출되는 문제가 생김
+  const onTags=[...document.querySelectorAll('.etag.on')].sort((a,b)=>(+a.dataset.order||0)-(+b.dataset.order||0));
+  onTags.forEach(e=>{
     const label=e.textContent.replace(/[\u{1F000}-\u{1FFFF}]|[\u2600-\u27FF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/gu,'').trim();
     emotions.push(label);
   });
