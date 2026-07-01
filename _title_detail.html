@@ -525,7 +525,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ══ 유튜브 ══ */
 .yt-section{margin-bottom:24px}
 .yt-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.yt-featured{grid-column:1/-1;margin-bottom:4px}
 .yt-card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:border-color .15s}
 .yt-card:hover{border-color:var(--border2)}
 .yt-thumb{position:relative;aspect-ratio:16/9;background:var(--bg3);overflow:hidden}
@@ -720,7 +719,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   /* 기타 */
   .ratings-row{ grid-template-columns:1fr 1fr; }
   .r-score{ font-size:13px; }
-  .yt-grid{ grid-template-columns:1fr; }
+  .yt-grid{ grid-template-columns:repeat(2,1fr); gap:8px; }
   .cast-card{ width:72px; }.cast-photo{ width:72px;height:72px; }
   .gallery-grid{ grid-template-columns:repeat(2,1fr); }
   .sim-card{ width:104px; }.sim-poster{ width:104px; }
@@ -1211,6 +1210,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .gallery-section{
   margin-bottom: 28px;
 }
+/* 관련이미지 페이지네이션 — yt-pagination과 동일한 시각 언어 */
+.gallery-pagination{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px}
+.gallery-pg-btn{width:28px;height:28px;border-radius:50%;border:.5px solid var(--border);background:transparent;font-size:14px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.gallery-pg-btn:hover{background:var(--bg3);color:var(--text)}
+.gallery-pg-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
 
 /* ══ 비슷한 취향/장르의 작품 — recommendations 우선, 없으면 similar 폴백 ══ */
 .similar-section{margin-bottom:28px}
@@ -1309,7 +1313,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <!-- 저장하기 드롭다운 -->
         <div class="save-dropdown-wrap" id="saveDropdownWrap">
           <button class="save-main-btn" id="saveMainBtn" onclick="toggleSaveDropdown(event)">
-            <span id="saveMainIcon">♡</span> 찜하기 <span class="save-chevron">▾</span>
+            <span id="saveMainIcon">♡</span> 저장하기 <span class="save-chevron">▾</span>
           </button>
           <div class="save-dropdown" id="saveDropdown">
             <!-- ♡ 찜하기 -->
@@ -1521,6 +1525,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div class="gallery-section" id="gallerySection">
   <div class="plain-section-title">관련이미지</div>
   <div class="gallery-grid" id="galleryGrid"></div>
+  <div class="gallery-pagination" id="galleryPagination" style="display:none"></div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -1735,7 +1740,7 @@ let selectedEval='';
 const REVIEW_API=OTTRANK_API;
 let ALL_COMMENTS=[],MY_REVIEW=null;
 let allYtVideos=[],ytPage=0;
-const YT_PER_PAGE=3;
+const YT_PER_PAGE=2; // 2개씩 좌우 표시 + 2개씩 페이지네이션
 let _wishlisted=false;
 let _lifeSaved=false;        // 인생작품 저장 여부
 let _saveDropdownOpen=false; // 드롭다운 열림 여부
@@ -1854,19 +1859,37 @@ async function loadManualBadges(){
 }
 
 /* == Gallery == */
+let allGalleryImages=[],galleryPage=0;
+const GALLERY_PER_PAGE=2; // 2개씩 좌우 표시 + 2개씩 페이지네이션
 async function loadGallery(){
   if(!WORK.tmdb_id)return;
   try{
     const res=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/images`);
     const data=await res.json();
-    const backdrops=(data.backdrops||[]).slice(0,4);
-    if(!backdrops.length)return;
-    // 탭 패널이 show/hide 담당 — gallerySection display 조작 불필요
-    document.getElementById('galleryGrid').innerHTML=backdrops.map(img=>`
+    allGalleryImages=(data.backdrops||[]).slice(0,10); // 최대 10장(5페이지)까지 확보
+    if(!allGalleryImages.length)return;
+    renderGalleryPage(0);
+  }catch(e){}
+}
+function renderGalleryPage(page){
+  galleryPage=page;
+  const total=allGalleryImages.length;
+  if(!total)return;
+  const start=page*GALLERY_PER_PAGE;
+  const end=start+GALLERY_PER_PAGE;
+  const slice=allGalleryImages.slice(start,end);
+
+  // 탭 패널이 show/hide 담당 — gallerySection display 조작 불필요
+  document.getElementById('galleryGrid').innerHTML=slice.map(img=>`
       <div class="gallery-item" onclick="window.open('${IMG_STILL}${img.file_path}','_blank')">
         <img src="${IMG_STILL}${img.file_path}" alt="작품 이미지" loading="lazy">
       </div>`).join('');
-  }catch(e){}
+
+  const totalPages=Math.ceil(total/GALLERY_PER_PAGE);
+  const pgEl=document.getElementById('galleryPagination');
+  if(totalPages<=1){pgEl.style.display='none';return;}
+  pgEl.style.display='flex';
+  pgEl.innerHTML=Array.from({length:totalPages},(_,i)=>`<button class="gallery-pg-btn${i===page?' on':''}" onclick="renderGalleryPage(${i})">${i+1}</button>`).join('');
 }
 
 /* == 비슷한 취향/장르의 작품 ==
@@ -1898,8 +1921,9 @@ async function loadSimilarWorks(){
       const year=(it.first_air_date||it.release_date||'').slice(0,4)||new Date().getFullYear();
       const pct=it.vote_average?Math.round(it.vote_average*10):null;
       const matchBadge=pct?`<span class="sim-match${pct>=70?' hi':''}">${pct}%</span>`:'';
+      const url=`/title/1-${year}${it.id}`;
       return `
-        <a class="sim-card" href="/title/1-${year}${it.id}">
+        <a class="sim-card" href="${url}" onclick="location.href='${url}';return false;">
           <div class="sim-poster">
             <img src="${IMG}${it.poster_path}" alt="${title}" loading="lazy">
             ${matchBadge}
@@ -2290,9 +2314,7 @@ async function loadTitleVideos(){
 }
 
 /* == YouTube Render == */
-// 1페이지: featured 1개 + 일반 2개 = 3개 (YT_PER_PAGE)
-// 2페이지~: 4개씩 (YT_PER_PAGE_REST)
-const YT_PER_PAGE_REST=4;
+// 2개씩 좌우 표시 + 2개씩 페이지네이션 (모바일/PC 동일)
 function renderYtPage(page){
   ytPage=page;
   const total=allYtVideos.length;
@@ -2300,25 +2322,17 @@ function renderYtPage(page){
   if(!total){
     document.getElementById('ytArea').innerHTML='';
     if(subtitleEl) subtitleEl.textContent='';
+    const pgElEmpty=document.getElementById('ytPagination');
+    if(pgElEmpty)pgElEmpty.style.display='none';
     return;
   }
   if(subtitleEl) subtitleEl.textContent=`${total}개 영상`;
 
-  // 페이지별 시작/끝 인덱스 계산
-  // 0페이지: 0 ~ YT_PER_PAGE(3)
-  // 1페이지~: YT_PER_PAGE + (page-1)*YT_PER_PAGE_REST ~ +YT_PER_PAGE_REST
-  let start,end;
-  if(page===0){
-    start=0; end=YT_PER_PAGE;
-  }else{
-    start=YT_PER_PAGE+(page-1)*YT_PER_PAGE_REST;
-    end=start+YT_PER_PAGE_REST;
-  }
+  // 페이지별 시작/끝 인덱스 — 항상 2개씩 균등 분할
+  const start=page*YT_PER_PAGE;
+  const end=start+YT_PER_PAGE;
   const slice=allYtVideos.slice(start,end);
-
-  // 전체 페이지 수 계산
-  const restCount=Math.max(0,total-YT_PER_PAGE);
-  const totalPages=1+Math.ceil(restCount/YT_PER_PAGE_REST);
+  const totalPages=Math.ceil(total/YT_PER_PAGE);
 
   document.getElementById('ytArea').innerHTML=`
     <div id="ytModal2" class="modal-wrap">
@@ -2326,7 +2340,7 @@ function renderYtPage(page){
       <div class="yt-player-wrap"><iframe id="ytFrame2" src="" allowfullscreen allow="autoplay;encrypted-media"></iframe></div>
     </div>
     <div class="yt-grid">${slice.map(v=>`
-      <div class="yt-card${allYtVideos.indexOf(v)===0?' yt-featured':''}" onclick="openPlayer2('${v.key}','${(v.name||'').replace(/'/g,"\\'")}')">
+      <div class="yt-card" onclick="openPlayer2('${v.key}','${(v.name||'').replace(/'/g,"\\'")}')">
         <div class="yt-thumb">
           <img src="https://img.youtube.com/vi/${v.key}/mqdefault.jpg" alt="${v.name||''}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="yt-thumb-ph" style="display:none"><i class="ti ti-brand-youtube" style="font-size:26px"></i></div>
