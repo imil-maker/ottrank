@@ -3,20 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>웨이브 순위 오늘 TOP10 — 드라마·예능·영화 랭킹 | 오뜨랑</title>
+<title>웨이브 순위 오늘 TOP10 — 드라마·예능·영화 순위 | 오뜨랑</title>
 <meta name="description" content="오늘 웨이브 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요. 웨이브 오리지널, 독점 콘텐츠 인기 순위를 오뜨랑에서 매일 업데이트합니다.">
-<meta name="keywords" content="웨이브 순위, 웨이브 랭킹, 웨이브 TOP10, 웨이브 드라마 순위, 웨이브 예능 순위, 웨이브 오리지널, 오늘 웨이브 추천, wavve 순위">
+<meta name="keywords" content="웨이브 순위, 웨이브 순위, 웨이브 TOP10, 웨이브 드라마 순위, 웨이브 예능 순위, 웨이브 오리지널, 오늘 웨이브 추천, wavve 순위">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://ottrank.kr/wavve">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="오뜨랑">
-<meta property="og:title" content="웨이브 순위 오늘 TOP10 — 드라마·예능·영화 랭킹 | 오뜨랑">
+<meta property="og:title" content="웨이브 순위 오늘 TOP10 — 드라마·예능·영화 순위 | 오뜨랑">
 <meta property="og:description" content="오늘 웨이브 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요. 웨이브 오리지널 인기 순위를 매일 업데이트합니다.">
 <meta property="og:url" content="https://ottrank.kr/wavve">
 <meta property="og:image" content="https://ottrank.kr/img/og-image.png">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="웨이브 순위 오늘 TOP10 — 드라마·예능·영화 랭킹 | 오뜨랑">
+<meta name="twitter:title" content="웨이브 순위 오늘 TOP10 — 드라마·예능·영화 순위 | 오뜨랑">
 <meta name="twitter:description" content="오늘 웨이브 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요.">
 <meta name="twitter:image" content="https://ottrank.kr/img/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -119,7 +119,7 @@ body {
 .swipe-track::-webkit-scrollbar { display:none }
 .swipe-track.dragging { cursor:grabbing; user-select:none }
 
-/* ── 랭킹 카드 ── */
+/* ── 순위 카드 ── */
 .rk-card {
   flex:0 0 calc(20% - 13px); min-width:200px; max-width:230px;
   background:var(--card); border:1px solid var(--border); border-radius:var(--r);
@@ -316,8 +316,8 @@ fetch('/header.html')
   <!-- ── 히어로 배너 ── -->
   <div class="hero">
     <div class="hero-eyebrow">OTT RANKING</div>
-    <div class="hero-title"><span class="wv">WAVVE</span> 랭킹</div>
-    <div class="hero-sub">웨이브 오늘의 TOP 랭킹 · 오뜨랑 집계</div>
+    <div class="hero-title"><span class="wv">WAVVE</span> 순위</div>
+    <div class="hero-sub">웨이브 오늘의 TOP 순위 · 오뜨랑 집계</div>
     <div class="hero-logo">W</div>
   </div>
 
@@ -337,7 +337,7 @@ fetch('/footer.html')
 
 <script>
 /* ════════════════════════════════════════════════════
-   웨이브 랭킹 페이지
+   웨이브 순위 페이지
    - /rankings/platform?platform=wavve 단일 API 호출
    - ott_categories의 platform_section/platform_order/platform_limit 반영
    - 어드민에서 노출/순서/개수 변경 시 자동 반영 (하드코딩 없음)
@@ -358,7 +358,7 @@ function goWork(tmdbId, title) {
   location.href = url;
 }
 
-/* ── 랭킹 카드 HTML 생성 ── */
+/* ── 순위 카드 HTML 생성 ── */
 function makeCard(item, idx) {
   const rank    = item.rank || (idx + 1);
   const isTop3  = rank <= 3;
@@ -494,7 +494,7 @@ async function loadAll() {
   } catch (e) {
     wrap.innerHTML = `
       <div class="sec-empty">
-        랭킹 데이터를 불러오지 못했습니다.<br>
+        순위 데이터를 불러오지 못했습니다.<br>
         <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">${e.message}</span>
       </div>`;
     return;
@@ -504,7 +504,7 @@ async function loadAll() {
   if (!groups.length) {
     wrap.innerHTML = `
       <div class="sec-empty">
-        아직 등록된 랭킹이 없습니다.<br>
+        아직 등록된 순위이 없습니다.<br>
         <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">
           어드민 OTT 페이지 설정에서 카테고리를 노출로 설정해주세요.
         </span>
@@ -546,7 +546,7 @@ async function loadAll() {
     const items = group.items || [];
 
     if (!items.length) {
-      track.innerHTML = `<div class="sec-empty">아직 등록된 랭킹이 없습니다.</div>`;
+      track.innerHTML = `<div class="sec-empty">아직 등록된 순위이 없습니다.</div>`;
       return;
     }
 
