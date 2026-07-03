@@ -2198,8 +2198,13 @@ async function loadSimilarWorks(){
         usedSimilar=true;
       }
 
-      // 한국 작품을 다른 나라 작품보다 앞쪽으로 — 그룹 내부 순서(추천 관련도)는 유지한 채 그룹만 재배치
-      extra=[...extra.filter(it=>it.original_language==='ko'), ...extra.filter(it=>it.original_language!=='ko')];
+      // 한국 작품을 다른 나라 작품보다 앞쪽으로 그룹핑 + 각 그룹 내부는 %(vote_average 기반) 내림차순 정렬
+      // (기존엔 그룹만 나누고 TMDB가 내려준 "관련도" 순서를 그대로 썼는데, 화면에 %가 보이는 이상
+      //  그 %와 실제 노출 순서가 일치해야 사용자가 납득할 수 있어서 정렬 기준을 명시적으로 추가함)
+      const _pctOf=it=>it.vote_average?Math.round(it.vote_average*10):0;
+      const koGroup  =extra.filter(it=>it.original_language==='ko').sort((a,b)=>_pctOf(b)-_pctOf(a));
+      const restGroup=extra.filter(it=>it.original_language!=='ko').sort((a,b)=>_pctOf(b)-_pctOf(a));
+      extra=[...koGroup, ...restGroup];
 
       list=[...list, ...extra];
     }
