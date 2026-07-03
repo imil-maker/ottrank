@@ -1614,7 +1614,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <div class="hero-tags" id="keywordTags"></div>
   <div id="keywordResultsWrap" class="keyword-results-wrap" style="display:none">
     <div class="keyword-results-title" id="keywordResultsTitle"></div>
-    <div class="sim-scroll" id="keywordResultsScroll"></div>
+    <div class="sim-scroll-wrap">
+      <div class="sim-scroll" id="keywordResultsScroll"></div>
+      <button class="sim-arrow sim-arrow-left" id="keywordResultsArrowLeft" onclick="scrollKeywordResults(-1)" aria-label="이전">‹</button>
+      <button class="sim-arrow sim-arrow-right" id="keywordResultsArrowRight" onclick="scrollKeywordResults(1)" aria-label="다음">›</button>
+    </div>
   </div>
 </div>
 
@@ -1718,6 +1722,8 @@ const CERT_MAP={'ALL':'전체관람가','12':'12세이상','15':'15세이상','1
    '__NONE__' 센티널은 "시도했지만 TMDB에 키워드 자체가 없음" → 빈 배열 취급 */
 let _kwActive=null;    // 현재 열려있는 키워드 (같은 거 다시 클릭하면 닫기)
 let _kwFullList=[];    // 노출 대상 키워드 (최대 10개로 이미 잘라둔 상태)
+let _kwPreviewCache=null; // 서버(works.keyword_preview)가 미리 계산해둔 {keyword, items} — 재클릭 시 재요청 없이 재사용
+let _kwScrollListenerAttached=false; // 화살표 scroll 리스너 중복 부착 방지
 const KW_MAX_TOTAL=10;      // 전체 노출 상한 — 10개 이후는 조합이 이상해서 작품 연결이 잘 안 됨
 const KW_MOBILE_VISIBLE=5;  // 모바일 기본 노출 개수 (더보기로 KW_MAX_TOTAL까지 확장)
 
@@ -1746,13 +1752,61 @@ function renderKeywordTagList(expanded){
     html+=`<span class="keyword-tag keyword-tag-more" onclick="renderKeywordTagList(true)">+${list.length-KW_MOBILE_VISIBLE}개 더보기</span>`;
   }
   wrap.innerHTML=html;
+  // 태그를 다시 그렸으므로, 이미 활성화돼 있던 키워드가 있으면 active 클래스 복원
+  if(_kwActive){
+    const activeTag=wrap.querySelector(`.keyword-tag[data-kw="${_kwActive.replace(/"/g,'&quot;')}"]`);
+    if(activeTag)activeTag.classList.add('active');
+  }
+}
+
+/**
+ * /search/keyword 호출 + 현재 작품 자신 제외 필터링만 담당
+ * (클릭 핸들러와 자동 미리보기 캐시 미스 상황 둘 다에서 재사용)
+ */
+async function fetchKeywordItems(kw){
+  const res=await fetch(`${OTTRANK_API}/search/keyword?keyword=${encodeURIComponent(kw)}&limit=20`);
+  const data=await res.json();
+  return (data?.data||[]).filter(w=>String(w.tmdb_id)!==String(WORK.tmdb_id));
+}
+
+/**
+ * 결과 카드 렌더링 + PC 화살표 상태 갱신만 담당 (fetch/캐시 판단과 분리)
+ */
+function renderKeywordResultItems(kw, items){
+  const resultsWrap=document.getElementById('keywordResultsWrap');
+  const titleEl=document.getElementById('keywordResultsTitle');
+  const scrollEl=document.getElementById('keywordResultsScroll');
+  if(!resultsWrap||!titleEl||!scrollEl)return;
+
+  titleEl.textContent=`관련 "${kw}" 작품 보기`;
+  if(!items.length){
+    scrollEl.innerHTML=`<div class="keyword-results-empty">관련 작품이 아직 없어요.</div>`;
+  }else{
+    const year=new Date().getFullYear();
+    scrollEl.innerHTML=items.map(w=>{
+      const poster=w.poster_path?`<img src="${IMG+w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`:`<div class="sim-poster-ph">🎬</div>`;
+      const href=`/title/1-${year}${w.tmdb_id}`;
+      return `<a class="sim-card" href="${href}">
+        <div class="sim-poster">${poster}</div>
+        <div class="sim-title">${w.title_ko||w.title_en||''}</div>
+      </a>`;
+    }).join('');
+  }
+  resultsWrap.style.display='block';
+
+  // PC 좌우 화살표 — "비슷한 취향의 작품"(scrollSimilar)과 동일 패턴
+  setTimeout(()=>{
+    updateKeywordResultsArrows();
+    if(!_kwScrollListenerAttached){
+      scrollEl.addEventListener('scroll',updateKeywordResultsArrows,{passive:true});
+      _kwScrollListenerAttached=true;
+    }
+  },100);
 }
 
 async function onKeywordTagClick(el){
   const kw=el.dataset.kw;
   const resultsWrap=document.getElementById('keywordResultsWrap');
-  const titleEl=document.getElementById('keywordResultsTitle');
-  const scrollEl=document.getElementById('keywordResultsScroll');
 
   // 같은 키워드 다시 클릭 → 닫기
   if(_kwActive===kw){
@@ -1765,32 +1819,55 @@ async function onKeywordTagClick(el){
   document.querySelectorAll('#keywordTags .keyword-tag.active').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   _kwActive=kw;
-
-  titleEl.textContent=`관련 "${kw}" 작품 보기`;
-  scrollEl.innerHTML=`<div class="keyword-results-empty">불러오는 중...</div>`;
   resultsWrap.style.display='block';
   resultsWrap.scrollIntoView({behavior:'smooth',block:'nearest'});
 
-  try{
-    const res=await fetch(`${OTTRANK_API}/search/keyword?keyword=${encodeURIComponent(kw)}&limit=20`);
-    const data=await res.json();
-    const items=(data?.data||[]).filter(w=>String(w.tmdb_id)!==String(WORK.tmdb_id)); // 현재 작품 자신은 제외
-    if(!items.length){
-      scrollEl.innerHTML=`<div class="keyword-results-empty">관련 작품이 아직 없어요.</div>`;
-      return;
-    }
-    const year=new Date().getFullYear();
-    scrollEl.innerHTML=items.map(w=>{
-      const poster=w.poster_path?`<img src="${IMG+w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`:`<div class="sim-poster-ph">🎬</div>`;
-      const href=`/title/1-${year}${w.tmdb_id}`;
-      return `<a class="sim-card" href="${href}">
-        <div class="sim-poster">${poster}</div>
-        <div class="sim-title">${w.title_ko||w.title_en||''}</div>
-      </a>`;
-    }).join('');
-  }catch(e){
-    scrollEl.innerHTML=`<div class="keyword-results-empty">불러오지 못했습니다. 잠시 후 다시 시도해주세요.</div>`;
+  // 자동 미리보기로 서버가 이미 계산해둔 키워드와 같으면 재요청 없이 그대로 재사용
+  if(_kwPreviewCache&&_kwPreviewCache.keyword===kw){
+    renderKeywordResultItems(kw,_kwPreviewCache.items);
+    return;
   }
+
+  document.getElementById('keywordResultsTitle').textContent=`관련 "${kw}" 작품 보기`;
+  document.getElementById('keywordResultsScroll').innerHTML=`<div class="keyword-results-empty">불러오는 중...</div>`;
+  try{
+    const items=await fetchKeywordItems(kw);
+    renderKeywordResultItems(kw,items);
+  }catch(e){
+    document.getElementById('keywordResultsScroll').innerHTML=`<div class="keyword-results-empty">불러오지 못했습니다. 잠시 후 다시 시도해주세요.</div>`;
+  }
+}
+
+/**
+ * works.keyword_preview(서버가 30일 TTL로 캐싱해둔 결과)를 받아
+ * 클릭 없이도 첫 번째로 조건(2개 이상) 맞는 키워드를 기본 펼침 상태로 보여줌
+ * — 추가 API 호출 없음 (이미 loadTmdb()가 받아온 /works/{id} 응답을 그대로 사용)
+ */
+function applyKeywordPreview(rawPreview){
+  if(!rawPreview)return;
+  let parsed;
+  try{ parsed=JSON.parse(rawPreview); }catch(e){ return; }
+  if(!parsed||!parsed.keyword||!parsed.items||parsed.items.length<2)return;
+
+  _kwPreviewCache={keyword:parsed.keyword,items:parsed.items};
+
+  // 모바일에서 6~10번째 키워드가 걸리면, 태그 목록 자체를 "더보기" 펼친 상태로 전환
+  // (안 그러면 결과는 열렸는데 어떤 태그가 활성화됐는지 화면에 안 보임)
+  const idx=_kwFullList.indexOf(parsed.keyword);
+  if(idx>=KW_MOBILE_VISIBLE){
+    renderKeywordTagList(true);
+  }
+
+  const wrap=document.getElementById('keywordTags');
+  const tagEl=wrap?wrap.querySelector(`.keyword-tag[data-kw="${parsed.keyword.replace(/"/g,'&quot;')}"]`):null;
+  if(!tagEl)return;
+
+  document.querySelectorAll('#keywordTags .keyword-tag.active').forEach(t=>t.classList.remove('active'));
+  tagEl.classList.add('active');
+  _kwActive=parsed.keyword;
+
+  renderKeywordResultItems(parsed.keyword,parsed.items);
+  // 자동 노출 시엔 클릭과 달리 scrollIntoView 안 함 — 로드하자마자 화면이 움직이면 사용자가 당황할 수 있음
 }
 
 
@@ -2284,6 +2361,9 @@ async function loadTmdb(){
     // 키워드 태그 — worksData.keywords는 D1에 미리 수집해둔 콤마구분 영문 키워드
     // '__NONE__'은 "TMDB에 키워드 자체가 없어서 시도했지만 결과 없음" 센티널 → 빈 배열로 취급
     renderKeywordTags(worksData?.keywords);
+    // worksData.keyword_preview: Workers가 30일 TTL로 미리 계산해둔 결과
+    // → 클릭 없이도 조건(2개 이상) 맞는 첫 키워드를 기본 펼침 상태로 보여줌 (추가 API 호출 없음)
+    applyKeywordPreview(worksData?.keyword_preview);
 
     // TMDB rating
     const tmdbRating=det.tmdb_rating||det.vote_average||0;
@@ -2596,6 +2676,23 @@ function updateSimilarArrows(){
   const el=document.getElementById('simScroll');if(!el)return;
   const left=document.getElementById('simArrowLeft');
   const right=document.getElementById('simArrowRight');
+  if(left)left.disabled=el.scrollLeft<=0;
+  if(right)right.disabled=el.scrollLeft+el.clientWidth>=el.scrollWidth-4;
+}
+
+/* == 관련 키워드 작품 화살표 스크롤 (비슷한 취향의 작품과 동일 패턴) ==
+   기존엔 이 결과 영역에 .sim-scroll-wrap + 화살표가 아예 없어서
+   PC에서 마우스로는 뒤쪽 작품을 볼 방법이 없었던 버그를 이 함수로 해결 */
+function scrollKeywordResults(dir){
+  const el=document.getElementById('keywordResultsScroll');if(!el)return;
+  const scrollAmt=el.clientWidth*0.7;
+  el.scrollBy({left:dir*scrollAmt,behavior:'smooth'});
+  setTimeout(()=>updateKeywordResultsArrows(),350);
+}
+function updateKeywordResultsArrows(){
+  const el=document.getElementById('keywordResultsScroll');if(!el)return;
+  const left=document.getElementById('keywordResultsArrowLeft');
+  const right=document.getElementById('keywordResultsArrowRight');
   if(left)left.disabled=el.scrollLeft<=0;
   if(right)right.disabled=el.scrollLeft+el.clientWidth>=el.scrollWidth-4;
 }
