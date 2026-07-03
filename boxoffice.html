@@ -19,6 +19,8 @@
 <meta name="twitter:title" content="박스오피스 순위 이번 주 TOP10 — 극장 영화 흥행 순위 | 오뜨랑">
 <meta name="twitter:description" content="이번 주 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요.">
 <meta name="twitter:image" content="https://ottrank.kr/img/og-image.png">
+<!-- 구조화 데이터 (구글 리치 결과) — TOP10 목록용 ItemList(Movie), JS(updateItemListSEO)가 데이터 로드 후 채움 -->
+<script id="ldJsonList" type="application/ld+json">{}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
@@ -288,6 +290,7 @@ fetch('/footer.html')
 const API      = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 const PLATFORM = 'boxoffice';
+const PLATFORM_LABEL = '박스오피스'; // ItemList JSON-LD의 name에 사용
 
 /* ── 작품 상세 페이지 이동 ── */
 function goWork(tmdbId, title) {
@@ -421,6 +424,44 @@ async function loadAll() {
         <div class="rank-grid">${cardsHtml}</div>
       </div>`;
   }).join('');
+
+  // 렌더링에 사용한 데이터 그대로 JSON-LD ItemList 생성 (화면에 보이는 것과 마크업 내용 일치)
+  updateItemListSEO(groups);
+}
+
+/* ── 구조화 데이터 (JSON-LD) — TOP10 목록 페이지용 ItemList ──
+   구글 캐러셀(ItemList) 리치 결과는 Course/Movie/Recipe/Restaurant 4개 타입만 지원하며
+   TVSeries는 지원 대상이 아니다 (netflix.html 등에서 실제 테스트로 확인된 제약).
+   boxoffice.html은 카테고리 전부가 극장 개봉 영화라 별도 media_type 판별 없이
+   그룹 전체를 Movie로 마크업한다. */
+function updateItemListSEO(groups) {
+  const y = new Date().getFullYear();
+  const graph = [];
+
+  (groups || []).forEach(group => {
+    // 상세페이지 링크가 없는(tmdb_id 없는) 항목은 목록에서 제외 — 클릭해도 갈 곳 없는 항목을 마크업하면 안 됨
+    const items = (group.items || []).filter(it => it.tmdb_id);
+    if (!items.length) return;
+
+    graph.push({
+      '@type': 'ItemList',
+      'name' : `${PLATFORM_LABEL} ${group.display_name || 'TOP10'} 순위 — 오뜨랑`,
+      'itemListElement': items.map((it, idx) => {
+        const entry = {
+          '@type': 'Movie',
+          'name' : it.title_ko || it.title_en || '',
+          'url'  : `https://ottrank.kr/title/1-${y}${it.tmdb_id}`,
+        };
+        // 평점(aggregateRating)은 이 API에 투표수(vote_count)가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
+        if (it.poster_path) entry.image = `${TMDB_IMG}${it.poster_path}`;
+        return { '@type': 'ListItem', 'position': idx + 1, 'item': entry };
+      }),
+    });
+  });
+
+  const ld   = { '@context': 'https://schema.org', '@graph': graph };
+  const ldEl = document.getElementById('ldJsonList');
+  if (ldEl) ldEl.textContent = JSON.stringify(ld);
 }
 
 /* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
