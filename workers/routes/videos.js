@@ -409,6 +409,64 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       }
     }
 
+    // ── 관련 키워드 작품 미리보기 캐싱 (30일 TTL) ──────────────
+    // 작품페이지 "관련 키워드 작품 검색" 섹션에서 첫 번째로 보여줄 기본 결과를
+    // 매 방문마다 재계산하지 않고 works.keyword_preview에 캐싱해서 재사용한다.
+    // mbti_tags와 동일한 "지연 계산 + 캐싱" 패턴:
+    //   - 캐시 없거나 30일 지났으면 → 즉시 재계산해서 응답에 바로 반영
+    //   - DB 저장은 ctx.waitUntil()로 응답을 막지 않고 백그라운드 처리
+    // "조건(2개 이상) 맞는 키워드가 하나도 없음"도 { keyword:null, items:[] }로 캐싱해서
+    // 매 방문마다 헛수고로 재계산하지 않도록 함.
+    const KEYWORD_PREVIEW_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일
+    const kwStale = !work.keyword_preview_updated_at ||
+      (Date.now() - new Date(work.keyword_preview_updated_at).getTime()) > KEYWORD_PREVIEW_TTL_MS;
+
+    if (kwStale) {
+      let preview = { keyword: null, items: [] };
+
+      // '__NONE__'은 "TMDB에 키워드 자체가 없어서 시도했지만 결과 없음" 센티널
+      // → collect-keywords 배치작업에서 겪었던 것과 동일한 실수(__NONE__을 글자 그대로 검색)를
+      //   반복하지 않도록 여기서도 명시적으로 걸러냄
+      if (work.keywords && work.keywords !== '__NONE__') {
+        const kwList = work.keywords.split(',').map(k => k.trim()).filter(Boolean).slice(0, 10);
+        if (kwList.length) {
+          try {
+            // 키워드 최대 10개를 env.DB.batch()로 한 번에 조회 (Workers 호출 1건, D1 트랜잭션 1번)
+            // — /search/keyword와 동일한 LIKE 매칭 규칙(LOWER 통일) + 자기 자신 제외를 SQL에서 직접 처리
+            const statements = kwList.map(kw =>
+              env.DB.prepare(`
+                SELECT tmdb_id, title_ko, title_en, poster_path
+                FROM works
+                WHERE (',' || LOWER(keywords) || ',') LIKE ('%,' || ? || ',%')
+                  AND tmdb_id != ?
+                LIMIT 20
+              `).bind(kw.toLowerCase(), parseInt(tmdb_id))
+            );
+            const batchResults = await env.DB.batch(statements);
+            for (let i = 0; i < kwList.length; i++) {
+              const rows = batchResults[i]?.results || [];
+              if (rows.length >= 2) {           // 관련 작품이 2개 이상인 첫 키워드를 채택
+                preview = { keyword: kwList[i], items: rows };
+                break;
+              }
+            }
+          } catch (e) {
+            // 조회 실패해도 no-result로 캐싱해서 무한 재시도(매 방문마다 재계산) 방지
+          }
+        }
+      }
+
+      const kwNowIso = new Date().toISOString();
+      work.keyword_preview = JSON.stringify(preview);
+      work.keyword_preview_updated_at = kwNowIso;
+
+      ctx.waitUntil(
+        env.DB.prepare(
+          "UPDATE works SET keyword_preview = ?, keyword_preview_updated_at = ? WHERE tmdb_id = ?"
+        ).bind(work.keyword_preview, kwNowIso, parseInt(tmdb_id)).run()
+      );
+    }
+
     return new Response(JSON.stringify({ ok: true, data: work }), { headers });
   }
 
