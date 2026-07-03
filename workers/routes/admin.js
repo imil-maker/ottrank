@@ -40,6 +40,7 @@
    DELETE /admin/works/pinned-similar
    POST   /admin/persons/collect
    POST   /admin/works/backfill-language
+   POST   /admin/works/backfill-release-year
    GET    /admin/works/missing-media-type
    POST   /admin/works/bulk-set-media-type
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
@@ -1876,6 +1877,78 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const remainRow = await env.DB.prepare(
         "SELECT COUNT(*) as cnt FROM works WHERE original_language IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/backfill-release-year ───────────────────
+  // release_year가 비어있는 작품에 TMDB 원어 정보를 채워넣음 (backfill-language와 동일 패턴)
+  // 계기: variety-similar 정렬에서 release_year가 NULL인 작품이 "0년(||0)"으로 취급되어
+  //       오히려 가장 오래된 작품으로 오판되던 버그 발견 → 근본 해결은 데이터를 채우는 것
+  if (path === "/admin/works/backfill-release-year" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 30, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE release_year IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: 0, message: "채울 작품 없음"
+        }), { headers });
+      }
+
+      const updates = [];
+      let filled = 0;
+      for (const row of targets) {
+        const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
+        let year = null;
+        for (const mtype of mtypes) {
+          try {
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
+            );
+            if (!resp.ok) continue;
+            const data = await resp.json();
+            const dateStr = data.release_date || data.first_air_date || "";
+            const y = parseInt(dateStr.slice(0, 4));
+            if (y) { year = y; break; }
+          } catch (e) { /* 다음 media_type으로 계속 시도 */ }
+        }
+        if (year) {
+          updates.push(
+            env.DB.prepare("UPDATE works SET release_year = ? WHERE tmdb_id = ?")
+              .bind(year, row.tmdb_id)
+          );
+          filled++;
+        } else {
+          // TMDB에서도 못 찾으면 무한 재시도 방지를 위해 0(=조회 시도했지만 실패) 센티널로 마킹
+          // NULL로 남기면 매 배치마다 계속 대상에 걸림 — original_language의 'unknown'과 동일 원칙
+          // (release_year는 정수 컬럼이라 'unknown' 대신 0을 사용, 정렬 로직에서도 0=가장 오래됨으로
+          //  자연스럽게 처리되어 별도 예외 분기 불필요)
+          updates.push(
+            env.DB.prepare("UPDATE works SET release_year = 0 WHERE tmdb_id = ?")
+              .bind(row.tmdb_id)
+          );
+        }
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE release_year IS NULL"
       ).first();
 
       return new Response(JSON.stringify({
