@@ -388,9 +388,13 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   // TMDB엔 없는 국내 예능 세부장르(works.variety_genre, 관리자 큐레이션)가 겹치는 작품을 찾아
   // 매칭 % 까지 서버에서 계산해서 내려줌 — 프론트는 받은 숫자를 뱃지에 그대로 사용
   //
-  // % 티어 (고정값, 랜덤 아님 — 방문할 때마다 % 흔들리는 걸 방지):
-  //   내 태그 2개 중 2개 일치 → 95%   |   내 태그 2개 중 1개 일치 → 85%
-  //   내 태그 1개 중 1개 일치 → 90%   |   일치 0개 → 후보에서 제외
+  // % 계산 (고정 티어 + 오늘 랭킹 가산점, 랜덤 아님 — 방문할 때마다 % 흔들리는 걸 방지):
+  //   기본 티어: 태그 2개 중 2개 일치 → 92%   |   태그 2개 중 1개 일치 → 82%
+  //             태그 1개 중 1개 일치 → 87%   |   일치 0개 → 후보에서 제외
+  //   + 오늘(date != 'manual') 랭킹에 걸린 플랫폼 개수만큼 1%p씩 가산
+  //     예) "나는 솔로"가 오늘 넷플릭스·웨이브·티빙 3곳에 랭킹 → 92%+3 = 98%
+  //   상한선 99% (100%는 "완전히 동일한 작품"이라는 오해를 줄 수 있어 안 씀)
+  //   랭킹 가산점 계산이 실패해도 기본 % 매칭 자체는 죽지 않도록 별도 try/catch로 분리
   // 동점(같은 %)은 tmdb_rating 높은 순으로 2차 정렬
   if (path.startsWith("/works/variety-similar/") && request.method === "GET") {
     const tmdb_id = parseInt(path.split("/works/variety-similar/")[1]);
@@ -416,19 +420,41 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         WHERE variety_genre IS NOT NULL AND variety_genre != '' AND tmdb_id != ?
       `).bind(tmdb_id).all();
 
+      // 오늘 랭킹에 걸린 플랫폼 개수 맵 — 후보마다 개별 조회하지 않고 쿼리 2번으로 전체를 한 번에 가져옴
+      // (date='manual' 수동고정 제외 — 크롤러가 실제로 잡아낸 "진짜 지금 핫함"만 가산점 대상)
+      // 실패해도 기본 % 매칭은 계속 동작해야 하므로 별도 try/catch
+      const rankBonusMap = new Map();
+      try {
+        const latestRow = await env.DB.prepare(
+          "SELECT MAX(date) as d FROM rankings WHERE date != 'manual'"
+        ).first();
+        if (latestRow?.d) {
+          const { results: rankRows } = await env.DB.prepare(`
+            SELECT tmdb_id, COUNT(DISTINCT platform) as cnt
+            FROM rankings
+            WHERE date = ?
+            GROUP BY tmdb_id
+          `).bind(latestRow.d).all();
+          for (const r of rankRows) rankBonusMap.set(r.tmdb_id, r.cnt);
+        }
+      } catch (e) { /* 가산점 계산 실패 — rankBonusMap 빈 상태로 계속 진행 (기본 %만 적용됨) */ }
+
       const scored = [];
       for (const c of candidates) {
         const candTags = (c.variety_genre || "").split(",").map(s => s.trim()).filter(Boolean);
         const matched  = myTags.filter(t => candTags.includes(t)).length;
         if (!matched) continue; // 겹치는 태그 없으면 후보 아님
 
-        let pct = null;
+        let basePct = null;
         if (myTags.length === 2) {
-          pct = matched === 2 ? 95 : 85;
+          basePct = matched === 2 ? 92 : 82;
         } else if (myTags.length === 1) {
-          pct = matched === 1 ? 90 : null;
+          basePct = matched === 1 ? 87 : null;
         }
-        if (!pct) continue;
+        if (!basePct) continue;
+
+        const bonus = rankBonusMap.get(c.tmdb_id) || 0;
+        const pct = Math.min(basePct + bonus, 99); // 99% 상한선
 
         scored.push({
           tmdb_id: c.tmdb_id, title_ko: c.title_ko, title_en: c.title_en,
@@ -528,6 +554,24 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           "UPDATE works SET keyword_preview = ?, keyword_preview_updated_at = ? WHERE tmdb_id = ?"
         ).bind(work.keyword_preview, kwNowIso, parseInt(tmdb_id)).run()
       );
+    }
+
+    // ── 관리자 수동 연결(pinned_similar) 조인 ──────────────────
+    // "비슷한 취향의 작품" 최우선(Priority -1) 후보 — 예능 태그·TMDB 추천과 무관하게
+    // 관리자가 "이 둘은 항상 연결"이라고 지정한 작품 (예: 나는 SOLO ↔ 나는 SOLO 그 이후)
+    // 실패해도 works 단건 조회 자체는 죽지 않도록 별도 try/catch로 분리
+    try {
+      const { results: pinned } = await env.DB.prepare(`
+        SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.release_year, p.pinned_pct
+        FROM work_pinned_similar p
+        JOIN works w ON w.tmdb_id = p.related_tmdb_id
+        WHERE p.tmdb_id = ?
+        ORDER BY p.pinned_pct DESC
+      `).bind(parseInt(tmdb_id)).all();
+      work.pinned_similar = pinned || [];
+    } catch (e) {
+      // work_pinned_similar 테이블이 아직 없거나(마이그레이션 전) 조회 실패 시 빈 배열로 안전하게 진행
+      work.pinned_similar = [];
     }
 
     return new Response(JSON.stringify({ ok: true, data: work }), { headers });
