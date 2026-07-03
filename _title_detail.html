@@ -2006,9 +2006,18 @@ let _saveDropdownOpen=false; // 드롭다운 열림 여부
 
 /* == SEO == */
 function updateSEO(title,overview,posterUrl,platform,rank){
-  const t=title||WORK.title,pName=PC[platform]||platform||'OTT';
-  const seoT=`${t} 평점·후기·해외반응 | ${pName} ${rank}위 | 오뜨랑`;
-  const seoD=`${t} ${pName} ${rank}위. 사용자 평점, 한줄 후기, 해외반응을 오뜨랑에서 확인하세요.`;
+  const t=title||WORK.title;
+  // 미디어 타입 라벨 — 영화/드라마 2분류 (세부 장르는 화면 태그에서 별도 노출)
+  const typeLabel=WORK.type==='movie'?'영화':'드라마';
+  // 순위 정보가 있을 때만 "N위" 문구 포함 — 랭킹 미진입작/직접 진입 시(플랫폼·순위 미확정) "OTT -위" 노출 방지
+  const hasRank=rank&&rank!=='-'&&rank!=='0';
+  const pName=hasRank?(PC[platform]||platform||'OTT'):'';
+  const seoT=hasRank
+    ? `${t} 평점·순위·추천 | ${typeLabel} ${pName} ${rank}위 | 오뜨랑`
+    : `${t} 평점·후기·추천 | ${typeLabel} 오뜨랑`;
+  const seoD=hasRank
+    ? `${t} 평점, ${pName} ${rank}위, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
+    : `${t} 평점, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`;
   const s=WORK.season||1,y=WORK.year||(new Date().getFullYear()),tid=WORK.tmdb_id||'';
   const slug=`${s}-${y}${tid}`;
   const canonical=`https://ottrank.kr/title/${slug}`;
@@ -2957,12 +2966,8 @@ function renderComments(){
   // 후기 있음 — CTA 숨기고 댓글 섹션 표시
   if(cta) cta.style.display='none';
   if(commentSection) commentSection.style.display='block';
-  // 리뷰가 있으면 상단 리뷰 탭으로 자동 전환 (최초 1회)
-  if(!renderComments._tabSwitched){
-    renderComments._tabSwitched = true;
-    const reviewTabBtn = document.getElementById('infoTabReview');
-    if(reviewTabBtn) switchInfoTab('review', reviewTabBtn);
-  }
+  // "평점" 검색으로 들어온 사용자가 평점을 바로 볼 수 있도록,
+  // 리뷰 존재 여부와 무관하게 기본 탭은 항상 "평점"(HTML 기본값) 유지 — 자동 전환 없음
   updateCommentWatchLayout();
   const start=(curPage-1)*PER_PAGE,slice=sorted.slice(start,start+PER_PAGE);
   el.innerHTML=`<div class="comments-section">${slice.map(c=>`
@@ -3530,6 +3535,8 @@ async function loadPlatforms(){
       // 확인 안 된 플랫폼 임시 뱃지가 남아있을 수 있으므로 포스터 위 뱃지도 안전하게 비움
       const pc=document.getElementById('platformPills');
       if(pc)pc.innerHTML='';
+      // 순위 없음이 확정된 시점에 SEO 메타 재갱신 — "OTT -위" 같은 깨진 타이틀 방지
+      updateSEO(WORK.title,'',WORK.poster_path||null,WORK.platform,WORK.rank);
       return;
     }
     const platforms=data.data; // [{platform, rank}, ...]
@@ -3565,6 +3572,9 @@ async function loadPlatforms(){
     }else{
       renderRankRow(platforms);
     }
+
+    // 실제 순위/플랫폼이 확정된 시점에 SEO 메타 재갱신
+    updateSEO(WORK.title,'',WORK.poster_path||null,WORK.platform,WORK.rank);
 
   }catch(e){}
 }
