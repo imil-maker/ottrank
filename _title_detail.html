@@ -3676,16 +3676,30 @@ async function loadWatchProviders(){
     const json = res.ok ? await res.json() : null;
     const kr   = json?.results?.KR;
 
-    /* Priority 2: 쿠팡플레이 Network 보완 */
-    const coupangInNetwork = (WORK.networks || []).some(n => n.id === 5169);
-    if(!seen.has('쿠팡플레이') && !forceRemove.has('coupang') && coupangInNetwork){
-      seen.add('쿠팡플레이');
+    /* Priority 2: TMDB Networks 보완
+       Watch Providers(JustWatch)는 신작 반영이 며칠~몇 주 지연되거나
+       국내 OTT(쿠팡플레이 등)를 아예 등록 안 하는 경우가 많음.
+       반면 "방송사"(networks) 필드는 작품 등록 시점부터 채워지는 경우가 많아
+       더 빠르고 안정적으로 참조 가능 — 오리지널/방영 플랫폼이 확실한 경우만 매핑.
+       (넷플릭스=213, 디즈니+=2739, 쿠팡플레이=5169 — TMDB 표준 network_id 기준) */
+    const NETWORK_ID_MAP = {
+      213  : 'netflix',
+      2739 : 'disney',
+      5169 : 'coupang',
+    };
+    const workNetworkIds = (WORK.networks || []).map(n => n.id);
+    for(const nid of workNetworkIds){
+      const ottKey = NETWORK_ID_MAP[nid];
+      if(!ottKey) continue;
+      const meta = PLATFORM_META[ottKey];
+      if(!meta || seen.has(meta.name) || forceRemove.has(ottKey)) continue;
+      seen.add(meta.name);
       finalList.push({
-        name      : '쿠팡플레이',
-        url       : OTT_HOME_URL['쿠팡플레이'],
-        logo_path : null,
-        color     : '#1ac44d',
-        text      : 'CP',
+        name      : meta.name,
+        url       : meta.url,
+        logo_path : meta.logo_path,
+        color     : meta.color,
+        text      : meta.text,
       });
     }
 
