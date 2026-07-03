@@ -42,6 +42,8 @@
   }
 }
 </script>
+<!-- 구조화 데이터 (구글 리치 결과) — 플랫폼별 TOP10 목록용 ItemList, JS(updateHomeItemListSEO)가 데이터 로드 후 채움 -->
+<script id="ldJsonHomeList" type="application/ld+json">{}</script>
 <!-- 폰트: preconnect + print→all swap 방식 — 렌더링 블록 없음 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1181,7 +1183,50 @@ function renderGrids(){
   document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
   updateFtArrows('tvGrid');
   updateFtArrows('movieGrid');
+  // 렌더링에 사용한 RANKINGS 그대로 JSON-LD ItemList 생성 (화면에 보이는 것과 마크업 내용 일치)
+  updateHomeItemListSEO();
 }
+
+/* ── 구조화 데이터 (JSON-LD) — 홈페이지 플랫폼별 TOP10 목록용 ItemList ──
+   구글이 실제로 지원하는 "영화/시리즈 목록" 리치 결과 패턴(ItemList)에 맞춰 작성한다.
+   PLATFORMS(TV)와 MOVIE_PLATFORMS(영화) 각각, 데이터가 있는 플랫폼만 하나씩
+   ItemList로 만들어 @graph 배열에 담는다. 헤더의 정적 WebSite JSON-LD와는 별도 스크립트. */
+function updateHomeItemListSEO(){
+  const graph=[];
+
+  // platformArr: PLATFORMS 또는 MOVIE_PLATFORMS, dataMap: RANKINGS.tv 또는 RANKINGS.movie
+  const buildList=(platformArr,dataMap,itemType,labelSuffix)=>{
+    platformArr.forEach(p=>{
+      // 상세페이지 링크가 없는(tmdb_id 없는) 항목은 목록에서 제외
+      const items=(dataMap[p.id]||[]).filter(it=>it.tmdb_id);
+      if(!items.length)return;
+      graph.push({
+        '@type':'ItemList',
+        'name':`${p.name} ${labelSuffix} 순위 — 오뜨랑`,
+        'itemListElement':items.map((it,idx)=>{
+          const y=it._year||new Date().getFullYear();
+          const s=it._season||1;
+          const entry={
+            '@type':itemType,
+            'name':it._ko||it.t||'',
+            'url':`https://ottrank.kr/title/${s}-${y}${it.tmdb_id}`,
+          };
+          // 평점(aggregateRating)은 투표수(vote_count) 데이터가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
+          if(it._poster)entry.image=it._poster;
+          return{'@type':'ListItem','position':idx+1,'item':entry};
+        }),
+      });
+    });
+  };
+
+  buildList(PLATFORMS,RANKINGS.tv,'TVSeries','TV 시리즈');
+  buildList(MOVIE_PLATFORMS,RANKINGS.movie,'Movie','영화');
+
+  const ld={'@context':'https://schema.org','@graph':graph};
+  const ldEl=document.getElementById('ldJsonHomeList');
+  if(ldEl)ldEl.textContent=JSON.stringify(ld);
+}
+
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
 
 /* AI 추천 — 실제 랭킹 기반 규칙 필터링 */
