@@ -9,9 +9,9 @@
    POST   /imdb/save                IMDb ID 저장
    GET    /youtube/trending         YouTube 한국 급상승 TOP50
    GET    /works/search             작품 검색 (공개)
+   GET    /works/variety-similar/:tmdb_id  예능 태그 기반 비슷한 작품 (공개, % 계산 포함)
    GET    /works/:tmdb_id           작품 단건 조회
    GET    /search/keyword           키워드로 작품 검색 (공개, 한국작품 우선)
-   GET    /works/variety-similar/:tmdb_id  예능 태그 기반 비슷한 작품 (공개, % 계산 포함)
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
@@ -383,6 +383,68 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     }
   }
 
+  // ── GET /works/variety-similar/:tmdb_id ───────────────────
+  // 공개 API — 작품 상세페이지 "비슷한 취향의 작품" 섹션에서 최우선 후보로 사용
+  // TMDB엔 없는 국내 예능 세부장르(works.variety_genre, 관리자 큐레이션)가 겹치는 작품을 찾아
+  // 매칭 % 까지 서버에서 계산해서 내려줌 — 프론트는 받은 숫자를 뱃지에 그대로 사용
+  //
+  // % 티어 (고정값, 랜덤 아님 — 방문할 때마다 % 흔들리는 걸 방지):
+  //   내 태그 2개 중 2개 일치 → 95%   |   내 태그 2개 중 1개 일치 → 85%
+  //   내 태그 1개 중 1개 일치 → 90%   |   일치 0개 → 후보에서 제외
+  // 동점(같은 %)은 tmdb_rating 높은 순으로 2차 정렬
+  if (path.startsWith("/works/variety-similar/") && request.method === "GET") {
+    const tmdb_id = parseInt(path.split("/works/variety-similar/")[1]);
+    if (!tmdb_id) {
+      return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+    }
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "10"), 20);
+
+    try {
+      const current = await env.DB.prepare(
+        "SELECT variety_genre FROM works WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+
+      const myTags = (current?.variety_genre || "").split(",").map(s => s.trim()).filter(Boolean);
+      if (!myTags.length) {
+        // 예능 태그가 없는(일반 드라마/영화) 작품은 후보 조회 자체를 스킵 — 불필요한 풀스캔 방지
+        return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
+      }
+
+      const { results: candidates } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, poster_path, tmdb_rating, release_year, variety_genre
+        FROM works
+        WHERE variety_genre IS NOT NULL AND variety_genre != '' AND tmdb_id != ?
+      `).bind(tmdb_id).all();
+
+      const scored = [];
+      for (const c of candidates) {
+        const candTags = (c.variety_genre || "").split(",").map(s => s.trim()).filter(Boolean);
+        const matched  = myTags.filter(t => candTags.includes(t)).length;
+        if (!matched) continue; // 겹치는 태그 없으면 후보 아님
+
+        let pct = null;
+        if (myTags.length === 2) {
+          pct = matched === 2 ? 95 : 85;
+        } else if (myTags.length === 1) {
+          pct = matched === 1 ? 90 : null;
+        }
+        if (!pct) continue;
+
+        scored.push({
+          tmdb_id: c.tmdb_id, title_ko: c.title_ko, title_en: c.title_en,
+          poster_path: c.poster_path, tmdb_rating: c.tmdb_rating,
+          release_year: c.release_year, match_pct: pct,
+        });
+      }
+
+      scored.sort((a, b) => b.match_pct - a.match_pct || (b.tmdb_rating || 0) - (a.tmdb_rating || 0));
+
+      return new Response(JSON.stringify({ ok: true, data: scored.slice(0, limit) }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /works/:tmdb_id ───────────────────────────────────
   if (path.startsWith("/works/") && request.method === "GET") {
     const tmdb_id = path.split("/works/")[1];
@@ -499,67 +561,6 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     }
   }
 
-  // ── GET /works/variety-similar/:tmdb_id ───────────────────
-  // 공개 API — 작품 상세페이지 "비슷한 취향의 작품" 섹션에서 최우선 후보로 사용
-  // TMDB엔 없는 국내 예능 세부장르(works.variety_genre, 관리자 큐레이션)가 겹치는 작품을 찾아
-  // 매칭 % 까지 서버에서 계산해서 내려줌 — 프론트는 받은 숫자를 뱃지에 그대로 사용
-  //
-  // % 티어 (고정값, 랜덤 아님 — 방문할 때마다 % 흔들리는 걸 방지):
-  //   내 태그 2개 중 2개 일치 → 95%   |   내 태그 2개 중 1개 일치 → 85%
-  //   내 태그 1개 중 1개 일치 → 90%   |   일치 0개 → 후보에서 제외
-  // 동점(같은 %)은 tmdb_rating 높은 순으로 2차 정렬
-  if (path.startsWith("/works/variety-similar/") && request.method === "GET") {
-    const tmdb_id = parseInt(path.split("/works/variety-similar/")[1]);
-    if (!tmdb_id) {
-      return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
-    }
-    const limit = Math.min(parseInt(url.searchParams.get("limit") || "10"), 20);
-
-    try {
-      const current = await env.DB.prepare(
-        "SELECT variety_genre FROM works WHERE tmdb_id = ?"
-      ).bind(tmdb_id).first();
-
-      const myTags = (current?.variety_genre || "").split(",").map(s => s.trim()).filter(Boolean);
-      if (!myTags.length) {
-        // 예능 태그가 없는(일반 드라마/영화) 작품은 후보 조회 자체를 스킵 — 불필요한 풀스캔 방지
-        return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
-      }
-
-      const { results: candidates } = await env.DB.prepare(`
-        SELECT tmdb_id, title_ko, title_en, poster_path, tmdb_rating, release_year, variety_genre
-        FROM works
-        WHERE variety_genre IS NOT NULL AND variety_genre != '' AND tmdb_id != ?
-      `).bind(tmdb_id).all();
-
-      const scored = [];
-      for (const c of candidates) {
-        const candTags = (c.variety_genre || "").split(",").map(s => s.trim()).filter(Boolean);
-        const matched  = myTags.filter(t => candTags.includes(t)).length;
-        if (!matched) continue; // 겹치는 태그 없으면 후보 아님
-
-        let pct = null;
-        if (myTags.length === 2) {
-          pct = matched === 2 ? 95 : 85;
-        } else if (myTags.length === 1) {
-          pct = matched === 1 ? 90 : null;
-        }
-        if (!pct) continue;
-
-        scored.push({
-          tmdb_id: c.tmdb_id, title_ko: c.title_ko, title_en: c.title_en,
-          poster_path: c.poster_path, tmdb_rating: c.tmdb_rating,
-          release_year: c.release_year, match_pct: pct,
-        });
-      }
-
-      scored.sort((a, b) => b.match_pct - a.match_pct || (b.tmdb_rating || 0) - (a.tmdb_rating || 0));
-
-      return new Response(JSON.stringify({ ok: true, data: scored.slice(0, limit) }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
 
   return null;
 }
