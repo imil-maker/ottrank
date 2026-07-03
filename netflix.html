@@ -586,10 +586,15 @@ function updateItemListSEO(groups) {
   // 구글이 "여러 ListItem 요소가 정의됨" 오류로 판정한다. 그룹이 바뀌어도 리셋하지 않는 전역 카운터 사용.
   // 영화 카테고리가 몇 개든(현재 개수와 무관하게, 어드민이 나중에 추가해도) 자동으로 이어짐.
   let globalPos = 0;
+  // 구글 캐러셀은 모든 ListItem이 "고유한 URL"을 가리켜야 함 — 같은 작품이 "오늘의 영화"와
+  // "역대 영화" 등 여러 카테고리에 동시에 있으면 URL(/title/1-{연도}{tmdb_id})이 똑같아져서
+  // "여러 ListItem 요소가 정의됨" 오류가 남 (실제 테스트로 확인됨). 페이지 전체에서 이미 나온
+  // tmdb_id는 뒤 카테고리에서 또 나와도 건너뛴다 — 먼저 등장한(더 앞 순서) 카테고리 것만 유지.
+  const seenTmdbIds = new Set();
 
   (groups || []).forEach(group => {
-    // 상세페이지 링크가 없는(tmdb_id 없는) 항목은 목록에서 제외 — 클릭해도 갈 곳 없는 항목을 마크업하면 안 됨
-    const items = (group.items || []).filter(it => it.tmdb_id);
+    // 상세페이지 링크가 없는(tmdb_id 없는) 항목 + 이미 다른 카테고리에서 마크업된 항목(중복 URL) 제외
+    const items = (group.items || []).filter(it => it.tmdb_id && !seenTmdbIds.has(it.tmdb_id));
     if (!items.length) return;
 
     // media_type 판별 — API가 media_type을 직접 안 내려주므로, 카테고리명(display_name)에
@@ -603,6 +608,7 @@ function updateItemListSEO(groups) {
       '@type': 'ItemList',
       'name' : `${PLATFORM_LABEL} ${group.display_name || 'TOP10'} 순위 — 오뜨랑`,
       'itemListElement': items.map((it) => {
+        seenTmdbIds.add(it.tmdb_id); // 이 작품은 이제부터 "이미 마크업됨"으로 기록
         globalPos += 1;
         const entry = {
           '@type': 'Movie',
