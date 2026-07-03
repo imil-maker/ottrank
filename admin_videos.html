@@ -648,6 +648,56 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <!-- ══ 예능 태그 섹션 ══ -->
   <div class="wrap" id="varietyWrap" style="display:none">
 
+    <!-- 0단계: 특정 작품 검색 → 태그 직접 추가/수정/삭제 -->
+    <div style="background:var(--bg2);border:1px solid rgba(236,72,153,.3);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px">① 🔍 특정 작품 검색해서 태그 수정</div>
+
+      <!-- 작품 검색 (영상관리와 동일 UI) -->
+      <div class="search-tabs">
+        <button class="search-tab" id="vsTabId" onclick="vsSwitchTab('id')">TMDB ID</button>
+        <button class="search-tab on" id="vsTabName" onclick="vsSwitchTab('name')">작품명 검색</button>
+      </div>
+      <div class="search-row">
+        <input class="search-input" id="vsTmdbInput" type="number" placeholder="tmdb_id 입력 (예: 259837)"
+          onkeydown="if(event.key==='Enter')vsHandleSearch()" style="display:none">
+        <div class="search-dropdown" id="vsNameSearchWrap" style="display:block;flex:1">
+          <input class="search-input" id="vsNameInput" type="text"
+            placeholder="한글 또는 영어 작품명 입력"
+            oninput="vsOnNameInput(this.value)"
+            onkeydown="if(event.key==='Enter')vsSearchByName()"
+            autocomplete="off" style="width:100%">
+          <div class="search-results" id="vsSearchResults"></div>
+        </div>
+        <button class="btn-primary" onclick="vsHandleSearch()">작품 조회</button>
+      </div>
+
+      <!-- 작품 정보 -->
+      <div class="work-info-box" id="vsWorkInfoBox" style="display:none;margin-top:16px">
+        <div class="work-poster" id="vsWorkPoster"></div>
+        <div style="flex:1">
+          <div class="work-title" id="vsWorkTitle"></div>
+          <div class="work-sub" id="vsWorkSub"></div>
+          <div style="margin-top:6px" id="vsSourceBadge"></div>
+        </div>
+      </div>
+
+      <!-- 태그 편집 영역 -->
+      <div id="vsTagEditArea" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+        <div style="font-size:13px;color:var(--muted2);font-family:var(--mono);margin-bottom:10px">
+          태그 클릭으로 추가/제거 (최대 2개) · 아무것도 선택 안 하고 저장하면 "태그 없음"으로 확정됩니다
+        </div>
+        <div id="vsChipArea" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:16px"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-primary" id="vsSaveBtn" onclick="vsSaveTags()" style="flex:1;padding:11px">
+            💾 저장
+          </button>
+          <button class="btn-secondary" onclick="vsClearTags()" style="padding:11px 18px">
+            🗑 태그 전체 삭제
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 안내 메시지 -->
     <div style="background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
       💡 TMDB엔 "연애 예능/여행 예능" 같은 국내 예능 세부 장르가 없어서, <span style="color:#f472b6">Claude가 먼저 태그 초안을 자동으로 붙이고</span>,
@@ -657,7 +707,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <!-- 1단계: 자동분류 실행 -->
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
-      <div style="font-size:14px;font-weight:600;margin-bottom:14px">① 🤖 자동분류 실행 (Claude API)</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px">② 🤖 자동분류 실행 (Claude API)</div>
       <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
         <div>
           <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
@@ -695,7 +745,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <!-- 2단계: 검토 그리드 -->
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div style="font-size:14px;font-weight:600">② ✅ 검토 대기 목록 <span style="font-size:12px;color:var(--muted);font-weight:400">(AI 초안 → 확정 전)</span></div>
+        <div style="font-size:14px;font-weight:600">③ ✅ 검토 대기 목록 <span style="font-size:12px;color:var(--muted);font-weight:400">(AI 초안 → 확정 전)</span></div>
         <span style="font-size:12px;color:var(--muted);font-family:var(--mono)" id="vrRemainingLabel">- 개 대기중</span>
       </div>
       <div style="font-size:12px;color:var(--muted2);font-family:var(--mono);margin-bottom:14px;line-height:1.7">
@@ -770,11 +820,13 @@ async function verifySecret(){
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('mainWrap').style.display = 'block';
   }
-  // 드롭다운 외부 클릭 시 닫기 (영상관리 + MBTI관리 공통)
+  // 드롭다운 외부 클릭 시 닫기 (영상관리 + MBTI관리 + 예능태그 공통)
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.search-dropdown')) {
       document.getElementById('searchResults').classList.remove('show');
       document.getElementById('mSearchResults').classList.remove('show');
+      const vsResults = document.getElementById('vsSearchResults');
+      if (vsResults) vsResults.classList.remove('show');
     }
   });
 })();
@@ -1968,13 +2020,199 @@ async function mtSaveBatch() {
 }
 
 /* ══════════════════════════════════════════════════════
-   예능 태그 — ① 자동분류 (Claude API) + ② 검토 그리드
-   ① /admin/works/classify-variety 를 remaining이 0 될 때까지 반복 호출 (kw수집과 동일 패턴)
-   ② /admin/works/variety-review 로 AI 초안(source='auto')을 불러와
+   예능 태그 — ① 개별 작품 검색/수정 + ② 자동분류(Claude API) + ③ 검토 그리드
+   ① 작품 하나를 검색해서 현재 태그를 바로 추가/수정/삭제 (자동분류 여부와 무관하게 항상 가능)
+   ② /admin/works/classify-variety 를 remaining이 0 될 때까지 반복 호출 (kw수집과 동일 패턴)
+   ③ /admin/works/variety-review 로 AI 초안(source='auto')을 불러와
       칩(최대 2개 다중선택)으로 확인/수정 후 /admin/works/variety-review POST로 확정 저장
+   ※ ①과 ③은 저장 시 동일한 POST /admin/works/variety-review 엔드포인트를 공유함
+     (그 엔드포인트는 source 필터 없이 tmdb_id만으로 UPDATE하므로 단건 저장에도 그대로 재사용 가능)
 ══════════════════════════════════════════════════════ */
 
-/* ── ① 자동분류 실행 ── */
+/* ── ① 개별 작품 검색 → 태그 추가/수정/삭제 ── */
+let vsSearchTab      = 'name'; // 기본 탭: 작품명 검색
+let vsNameSearchTimer = null;
+let vsCurrentTmdbId  = null;
+let vsCurrentTags    = []; // 현재 편집 중인 태그 (최대 2개)
+
+function vsSwitchTab(tab) {
+  vsSearchTab = tab;
+  document.getElementById('vsTabId').classList.toggle('on', tab === 'id');
+  document.getElementById('vsTabName').classList.toggle('on', tab === 'name');
+  document.getElementById('vsTmdbInput').style.display      = tab === 'id'   ? 'block' : 'none';
+  document.getElementById('vsNameSearchWrap').style.display = tab === 'name' ? 'block' : 'none';
+  document.getElementById('vsSearchResults').classList.remove('show');
+}
+
+function vsHandleSearch() {
+  if (vsSearchTab === 'id') {
+    const tmdbId = parseInt(document.getElementById('vsTmdbInput').value.trim());
+    if (!tmdbId) { showToast('tmdb_id를 입력해주세요'); return; }
+    vsLoadWorkById(tmdbId);
+  } else {
+    vsSearchByName();
+  }
+}
+
+function vsOnNameInput(val) {
+  clearTimeout(vsNameSearchTimer);
+  const results = document.getElementById('vsSearchResults');
+  if (!val.trim()) { results.classList.remove('show'); return; }
+  vsNameSearchTimer = setTimeout(() => vsSearchByName(val), 400);
+}
+
+async function vsSearchByName(query) {
+  const val = query || document.getElementById('vsNameInput').value.trim();
+  if (!val) { showToast('작품명을 입력해주세요'); return; }
+  const results = document.getElementById('vsSearchResults');
+  results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 중...</div>';
+  results.classList.add('show');
+  try {
+    const res = await fetch(`${API}/works/search?q=${encodeURIComponent(val)}&limit=8`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (!data.ok || !data.data?.length) {
+      results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과가 없습니다</div>';
+      return;
+    }
+    results.innerHTML = data.data.map(w => `
+      <div class="search-result-item" onclick="vsSelectWork(${w.tmdb_id})">
+        <div class="sri-poster">
+          ${w.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`}
+        </div>
+        <div>
+          <div class="sri-title">${w.title_ko || ''}</div>
+          <div class="sri-sub">${[w.title_en, `tmdb: ${w.tmdb_id}`].filter(Boolean).join(' · ')}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--accent)">검색 오류</div>';
+  }
+}
+
+function vsSelectWork(tmdbId) {
+  document.getElementById('vsSearchResults').classList.remove('show');
+  vsLoadWorkById(tmdbId);
+}
+
+async function vsLoadWorkById(tmdbId) {
+  vsCurrentTmdbId = tmdbId;
+  await _vtLoadOptionsIfNeeded();
+  if (!vgOptions.length) {
+    showToast('태그 목록을 불러오지 못했어요 (variety_genre_options 확인 필요)');
+    return;
+  }
+
+  try {
+    // works 단건 조회 — variety_genre/variety_genre_source도 SELECT * 로 이미 같이 내려옴
+    const [worksRes, tmdbRes] = await Promise.allSettled([
+      fetch(`${API}/works/${tmdbId}`).then(r => r.json()),
+      fetch(`${TMDB_PROXY}/tv/${tmdbId}?language=ko-KR`).then(r => r.json()).catch(() =>
+        fetch(`${TMDB_PROXY}/movie/${tmdbId}?language=ko-KR`).then(r => r.json())
+      ),
+    ]);
+    const works = worksRes.status === 'fulfilled' && worksRes.value?.ok ? worksRes.value.data : null;
+    const tmdb  = tmdbRes.status === 'fulfilled' ? tmdbRes.value : null;
+
+    if (!works) {
+      showToast('works 테이블에 없는 작품이에요 (먼저 작품 등록이 필요합니다)');
+      document.getElementById('vsWorkInfoBox').style.display = 'none';
+      document.getElementById('vsTagEditArea').style.display = 'none';
+      return;
+    }
+
+    const title   = works.title_ko || tmdb?.name || tmdb?.title || `tmdb_id: ${tmdbId}`;
+    const titleEn = works.title_en || tmdb?.original_name || tmdb?.original_title || '';
+    const poster  = tmdb?.poster_path ? `${IMG}${tmdb.poster_path}` : null;
+
+    document.getElementById('vsWorkPoster').innerHTML = poster
+      ? `<img src="${poster}" alt="${title}">`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🎬</div>`;
+    document.getElementById('vsWorkTitle').textContent = title;
+    document.getElementById('vsWorkSub').textContent   = [titleEn, `tmdb_id: ${tmdbId}`].filter(Boolean).join(' · ');
+
+    // 현재 소스 상태 뱃지 (미분류/AI초안/관리자확정)
+    const badgeEl = document.getElementById('vsSourceBadge');
+    if (works.variety_genre_source === 'admin') {
+      badgeEl.innerHTML = `<span class="badge-main" style="background:rgba(52,211,153,.15);color:var(--green)">✔ 관리자 확정</span>`;
+    } else if (works.variety_genre_source === 'auto') {
+      badgeEl.innerHTML = `<span class="badge-main">🤖 AI 초안 (미검토)</span>`;
+    } else {
+      badgeEl.innerHTML = `<span class="badge-main" style="background:rgba(122,122,150,.15);color:var(--muted)">– 미분류</span>`;
+    }
+
+    document.getElementById('vsWorkInfoBox').style.display = 'flex';
+    document.getElementById('vsTagEditArea').style.display = 'block';
+
+    vsCurrentTags = (works.variety_genre || '').split(',').map(s => s.trim()).filter(Boolean);
+    vsRenderChips();
+  } catch (e) {
+    showToast('작품 조회 실패');
+  }
+}
+
+function vsRenderChips() {
+  const area = document.getElementById('vsChipArea');
+  area.innerHTML = vgOptions.map(o => {
+    const isOn = vsCurrentTags.includes(o.label);
+    return `<button type="button" class="mt-choice${isOn ? ' on' : ''}"
+      onclick="vsToggleTag('${o.label.replace(/'/g, "\\'")}',this)"
+      style="margin:2px">${o.label}</button>`;
+  }).join('');
+}
+
+function vsToggleTag(label, btnEl) {
+  const idx = vsCurrentTags.indexOf(label);
+  if (idx >= 0) {
+    vsCurrentTags.splice(idx, 1);
+    btnEl.classList.remove('on');
+  } else {
+    if (vsCurrentTags.length >= 2) {
+      showToast('태그는 최대 2개까지만 선택할 수 있어요');
+      return;
+    }
+    vsCurrentTags.push(label);
+    btnEl.classList.add('on');
+  }
+}
+
+async function vsSaveTags() {
+  if (!vsCurrentTmdbId) { showToast('작품을 먼저 선택해주세요'); return; }
+  const btn = document.getElementById('vsSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    // POST /admin/works/variety-review는 source 조건 없이 tmdb_id로 바로 UPDATE하므로
+    // 검토 그리드(③)의 일괄저장과 동일한 엔드포인트를 단건 저장에도 그대로 재사용
+    const res = await fetch(`${API}/admin/works/variety-review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ items: [{ tmdb_id: vsCurrentTmdbId, tags: vsCurrentTags }] }),
+    });
+    const data = await res.json();
+    if (!data.ok) { showToast(`저장 실패: ${data.message || res.status}`); return; }
+    showToast(vsCurrentTags.length ? '✅ 태그 저장 완료!' : '✅ 태그 삭제(없음으로 확정) 완료!');
+    await vsLoadWorkById(vsCurrentTmdbId); // 뱃지(관리자 확정으로 전환) 갱신 위해 재조회
+  } catch (e) {
+    showToast(`네트워크 오류: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 저장';
+  }
+}
+
+function vsClearTags() {
+  if (!vsCurrentTmdbId) { showToast('작품을 먼저 선택해주세요'); return; }
+  if (!confirm('이 작품의 예능 태그를 전부 삭제할까요?')) return;
+  vsCurrentTags = [];
+  vsRenderChips();
+  vsSaveTags();
+}
+
+/* ── ② 자동분류 실행 ── */
 let vtRunning        = false;
 let vtStopRequested  = false;
 let vtTotalAttempted = 0;
@@ -2082,7 +2320,7 @@ function stopVarietyClassify() {
   }, 1500);
 }
 
-/* ── ② 검토 그리드 ── */
+/* ── ③ 검토 그리드 ── */
 let vgOptions  = [];  // [{id, label, sort_order}] — 태그 마스터 목록 (칩 버튼용)
 let vrItems    = [];  // 현재 화면에 떠있는 검토 배치
 let vrChoices  = {};  // { tmdb_id: ['여행 예능', ...] } — 카드마다 현재 선택된 태그 (건너뛰면 키 삭제)
