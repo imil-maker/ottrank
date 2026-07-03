@@ -437,6 +437,11 @@ async function loadAll() {
 function updateItemListSEO(groups) {
   const y = new Date().getFullYear();
   const graph = [];
+  // 캐러셀 position은 "이 그룹 안에서 몇 번째"가 아니라 "페이지 전체에서 몇 번째"여야 함 —
+  // 그룹(카테고리)마다 1부터 다시 세면 서로 다른 그룹의 항목이 같은 position(예: 1)을 갖게 되어
+  // 구글이 "여러 ListItem 요소가 정의됨" 오류로 판정한다 (실제 테스트로 확인됨).
+  // 그룹이 바뀌어도 리셋하지 않는 전역 카운터 사용 — 카테고리가 몇 개든 자동으로 이어짐.
+  let globalPos = 0;
 
   (groups || []).forEach(group => {
     // 상세페이지 링크가 없는(tmdb_id 없는) 항목은 목록에서 제외 — 클릭해도 갈 곳 없는 항목을 마크업하면 안 됨
@@ -446,7 +451,8 @@ function updateItemListSEO(groups) {
     graph.push({
       '@type': 'ItemList',
       'name' : `${PLATFORM_LABEL} ${group.display_name || 'TOP10'} 순위 — 오뜨랑`,
-      'itemListElement': items.map((it, idx) => {
+      'itemListElement': items.map((it) => {
+        globalPos += 1;
         const entry = {
           '@type': 'Movie',
           'name' : it.title_ko || it.title_en || '',
@@ -454,7 +460,7 @@ function updateItemListSEO(groups) {
         };
         // 평점(aggregateRating)은 이 API에 투표수(vote_count)가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
         if (it.poster_path) entry.image = `${TMDB_IMG}${it.poster_path}`;
-        return { '@type': 'ListItem', 'position': idx + 1, 'item': entry };
+        return { '@type': 'ListItem', 'position': globalPos, 'item': entry };
       }),
     });
   });
