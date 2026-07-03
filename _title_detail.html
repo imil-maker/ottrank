@@ -104,6 +104,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .keyword-tag.active{background:rgba(240,180,41,.18);color:var(--gold);border-color:var(--gold)}
 .keyword-tag-more{border-style:dashed;color:rgba(255,255,255,.45);background:rgba(255,255,255,.03)}
 .keyword-tag-more:hover{background:rgba(255,255,255,.08);color:#fff}
+.kw-title-hl{color:var(--info);font-weight:700}
+.kw-result-hl{color:var(--gold);font-weight:700}
 
 /* ── 키워드 관련 작품 (인라인) ── */
 .keyword-results-wrap{margin-top:16px;animation:kwFadeIn .25s ease}
@@ -1736,7 +1738,7 @@ function renderKeywordTags(raw){
   if(!list.length){section.style.display='none';wrap.innerHTML='';_kwFullList=[];return;}
   section.style.display='block';
   const titleEl=document.getElementById('keywordSectionTitle');
-  if(titleEl)titleEl.textContent=`${WORK.title||''} 관련 키워드`;
+  if(titleEl)titleEl.innerHTML=`<span class="kw-title-hl">${_hesc(WORK.title||'')}</span> 관련 키워드`;
   _kwFullList=list;
   const isMobile=window.matchMedia('(max-width:640px)').matches;
   renderKeywordTagList(!isMobile); // PC는 바로 전체(최대10) 노출, 모바일은 접힌 상태로 시작
@@ -1780,7 +1782,7 @@ function renderKeywordResultItems(kw, items){
   const scrollEl=document.getElementById('keywordResultsScroll');
   if(!resultsWrap||!titleEl||!scrollEl)return;
 
-  titleEl.textContent=`관련 "${kw}" 작품 보기`;
+  titleEl.innerHTML=`관련 <span class="kw-result-hl">${_hesc(kw)}</span> 작품 보기`;
   if(!items.length){
     scrollEl.innerHTML=`<div class="keyword-results-empty">관련 작품이 아직 없어요.</div>`;
   }else{
@@ -1830,7 +1832,7 @@ async function onKeywordTagClick(el){
     return;
   }
 
-  document.getElementById('keywordResultsTitle').textContent=`관련 "${kw}" 작품 보기`;
+  document.getElementById('keywordResultsTitle').innerHTML=`관련 <span class="kw-result-hl">${_hesc(kw)}</span> 작품 보기`;
   document.getElementById('keywordResultsScroll').innerHTML=`<div class="keyword-results-empty">불러오는 중...</div>`;
   try{
     const items=await fetchKeywordItems(kw);
