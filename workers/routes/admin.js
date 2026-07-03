@@ -35,6 +35,9 @@
    GET    /admin/variety-genre-options
    GET    /admin/works/variety-review
    POST   /admin/works/variety-review
+   POST   /admin/works/pinned-similar
+   GET    /admin/works/pinned-similar/:tmdb_id
+   DELETE /admin/works/pinned-similar
    POST   /admin/persons/collect
    POST   /admin/works/backfill-language
    GET    /admin/works/missing-media-type
@@ -1622,6 +1625,102 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, updated: valid.length, remaining: remainRow?.cnt || 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/pinned-similar ──────────────────────────
+  // "🔗 작품 연결" — 관리자가 지정한 두 작품을 "비슷한 취향의 작품" 최우선(Priority -1)으로 고정
+  // 양방향 저장(A→B, B→A) — 어느 작품 페이지에서 봐도 서로 뜨게 하기 위함
+  // 이미 연결돼있으면(UNIQUE 제약) 덮어쓰기(% 갱신)로 처리
+  if (path === "/admin/works/pinned-similar" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbA = parseInt(body.tmdb_id);
+      const tmdbB = parseInt(body.related_tmdb_id);
+      let pct = parseInt(body.pinned_pct);
+      if (!pct || pct < 1 || pct > 99) pct = 99; // 범위 밖이거나 미입력 시 기본값 99
+
+      if (!tmdbA || !tmdbB) {
+        return new Response(JSON.stringify({ ok: false, message: "두 작품의 tmdb_id가 모두 필요합니다" }), { status: 400, headers });
+      }
+      if (tmdbA === tmdbB) {
+        return new Response(JSON.stringify({ ok: false, message: "같은 작품끼리는 연결할 수 없어요" }), { status: 400, headers });
+      }
+
+      // 두 작품 다 works 테이블에 존재하는지 먼저 확인 (없는 작품끼리 연결되는 것 방지)
+      const { results: existCheck } = await env.DB.prepare(
+        "SELECT tmdb_id FROM works WHERE tmdb_id IN (?, ?)"
+      ).bind(tmdbA, tmdbB).all();
+      if (existCheck.length < 2) {
+        return new Response(JSON.stringify({ ok: false, message: "works 테이블에 없는 작품이 포함되어 있어요" }), { status: 400, headers });
+      }
+
+      await env.DB.batch([
+        env.DB.prepare(`
+          INSERT INTO work_pinned_similar (tmdb_id, related_tmdb_id, pinned_pct)
+          VALUES (?, ?, ?)
+          ON CONFLICT(tmdb_id, related_tmdb_id) DO UPDATE SET pinned_pct = excluded.pinned_pct
+        `).bind(tmdbA, tmdbB, pct),
+        env.DB.prepare(`
+          INSERT INTO work_pinned_similar (tmdb_id, related_tmdb_id, pinned_pct)
+          VALUES (?, ?, ?)
+          ON CONFLICT(tmdb_id, related_tmdb_id) DO UPDATE SET pinned_pct = excluded.pinned_pct
+        `).bind(tmdbB, tmdbA, pct),
+      ]);
+
+      return new Response(JSON.stringify({ ok: true, pinned_pct: pct }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/works/pinned-similar/:tmdb_id ──────────────────
+  // 특정 작품의 현재 연결 목록 조회 — 어드민 "🔗 작품 연결" 섹션에서 작품 A 선택 시 표시
+  if (path.startsWith("/admin/works/pinned-similar/") && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(path.split("/admin/works/pinned-similar/")[1]);
+      if (!tmdb_id) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+      }
+      const { results } = await env.DB.prepare(`
+        SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, p.pinned_pct
+        FROM work_pinned_similar p
+        JOIN works w ON w.tmdb_id = p.related_tmdb_id
+        WHERE p.tmdb_id = ?
+        ORDER BY p.pinned_pct DESC
+      `).bind(tmdb_id).all();
+      return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/works/pinned-similar ─────────────────────────
+  // 연결 해제 — 별도 id 추적 없이 (tmdb_id, related_tmdb_id) 쌍으로 양방향을 한 번에 삭제
+  if (path === "/admin/works/pinned-similar" && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const tmdbA = parseInt(body.tmdb_id);
+      const tmdbB = parseInt(body.related_tmdb_id);
+      if (!tmdbA || !tmdbB) {
+        return new Response(JSON.stringify({ ok: false, message: "두 작품의 tmdb_id가 모두 필요합니다" }), { status: 400, headers });
+      }
+      await env.DB.prepare(`
+        DELETE FROM work_pinned_similar
+        WHERE (tmdb_id = ? AND related_tmdb_id = ?) OR (tmdb_id = ? AND related_tmdb_id = ?)
+      `).bind(tmdbA, tmdbB, tmdbB, tmdbA).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
