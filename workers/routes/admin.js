@@ -31,6 +31,7 @@
    POST   /admin/ott-points/adjust
    POST   /admin/works/collect-keywords
    POST   /admin/works/discover-collect
+   POST   /admin/works/classify-variety
    POST   /admin/persons/collect
    POST   /admin/works/backfill-language
    GET    /admin/works/missing-media-type
@@ -1381,6 +1382,155 @@ export async function handleAdmin(path, request, env, url, headers) {
         hasNextPage: page < totalPages,
         nextPage: page + 1,
         totalPages,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/classify-variety ───────────────────────
+  // 예능(Reality/Talk 등) 한국 작품 중 아직 예능 태그가 없는 작품을
+  // Claude API로 일괄 분류해 variety_genre에 초안 저장(source='auto')
+  // 관리자가 admin_videos.html 검토 그리드에서 확인/수정 후 source='admin'으로
+  // 확정하면 이후 이 배치의 재처리 대상에서 영구 제외됨
+  // (genre/keywords 컬럼과 동일한 "관리자 확정값 보호" 원칙)
+  if (path === "/admin/works/classify-variety" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    if (!env.ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({
+        ok: false, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다"
+      }), { status: 500, headers });
+    }
+
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 10, 15); // 프롬프트 길이 관리를 위해 최대 15개로 제한
+
+      // ① 태그 마스터 목록 조회 — 하드코딩 아님, DB가 최신 소스 (어드민에서 태그 추가 시 바로 반영)
+      const { results: options } = await env.DB.prepare(
+        "SELECT label FROM variety_genre_options ORDER BY sort_order ASC"
+      ).all();
+      if (!options.length) {
+        return new Response(JSON.stringify({
+          ok: false, message: "variety_genre_options에 태그가 하나도 없습니다. 먼저 태그를 등록해주세요."
+        }), { status: 400, headers });
+      }
+      const labelList = options.map(o => o.label);
+
+      // ② 분류 대상 조회 — Reality/Talk류 장르 + 한국작품 + 아직 미분류(source IS NULL)인 것만
+      //    (관리자가 이미 확정(source='admin')했거나, 이전 배치에서 이미 처리(source='auto')한 것은 재처리 안 함)
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, overview, genre
+        FROM works
+        WHERE original_language = 'ko'
+          AND variety_genre_source IS NULL
+          AND (
+            genre LIKE '%Reality%' OR genre LIKE '%Talk%' OR
+            genre LIKE '%다큐멘터리%' OR genre LIKE '%리얼리티%' OR genre LIKE '%토크%'
+          )
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, classified: 0, remaining: 0, message: "분류할 작품 없음"
+        }), { headers });
+      }
+
+      // ③ Claude API 프롬프트 구성 — JSON만 출력하도록 강하게 명시 (파싱 실패 방지)
+      const workListText = targets.map(t =>
+        `- tmdb_id:${t.tmdb_id} / 제목:"${t.title_ko || ""}" / 줄거리:"${(t.overview || "").slice(0, 200)}"`
+      ).join("\n");
+
+      const systemPrompt =
+        "너는 한국 예능 프로그램을 분류하는 도우미다. " +
+        "아래 태그 목록 중에서만 골라야 하며, 목록에 없는 태그는 절대 만들어내지 마라. " +
+        "각 작품마다 가장 어울리는 태그를 최대 2개까지 고르고, 애매하면 1개만 고르거나 \"일반 예능\"을 선택해라. " +
+        "예능이 아니라고 판단되면(드라마/영화/다큐 등) tags를 빈 배열로 남겨라. " +
+        "반드시 JSON 배열만 출력하고, 다른 설명이나 코드블록(```)은 절대 포함하지 마라. " +
+        "출력 형식: [{\"tmdb_id\":123,\"tags\":[\"여행 예능\"]}, ...]";
+
+      const userPrompt = `태그 목록: ${labelList.join(", ")}\n\n작품 목록:\n${workListText}`;
+
+      const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001", // 단순 분류 작업이라 가벼운 모델로 충분 (비용 절감)
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        }),
+      });
+
+      if (!claudeResp.ok) {
+        // API 호출 자체가 실패 — 아무것도 업데이트하지 않고 다음 배치에서 재시도되게 둠
+        const errText = await claudeResp.text().catch(() => "");
+        return new Response(JSON.stringify({
+          ok: false, message: `Claude API 오류 (status ${claudeResp.status})`, detail: errText.slice(0, 300),
+        }), { status: 502, headers });
+      }
+
+      const claudeData = await claudeResp.json();
+      const rawText = (claudeData.content || [])
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("");
+
+      // ④ JSON 파싱 — 코드펜스(```json ... ```)가 섞여 나올 경우 대비해 방어적으로 추출
+      let parsed;
+      try {
+        const cleaned = rawText.replace(/```json|```/g, "").trim();
+        parsed = JSON.parse(cleaned);
+      } catch (e) {
+        // 파싱 실패 — 이번 배치는 전부 재시도 대상으로 남김 (source 건드리지 않음)
+        return new Response(JSON.stringify({
+          ok: false, message: "Claude 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300),
+        }), { status: 502, headers });
+      }
+      if (!Array.isArray(parsed)) parsed = [];
+
+      // ⑤ 결과를 tmdb_id 기준 맵으로 정리 + 목록에 없는 태그(할루시네이션) 방어적 필터링
+      const labelSet  = new Set(labelList);
+      const resultMap = new Map();
+      for (const item of parsed) {
+        const tid = parseInt(item.tmdb_id);
+        if (!tid) continue;
+        const tags = Array.isArray(item.tags)
+          ? item.tags.filter(t => labelSet.has(t)).slice(0, 2)
+          : [];
+        resultMap.set(tid, tags);
+      }
+
+      // ⑥ D1 batch UPDATE — 응답에 포함된 작품만 처리, 응답에서 누락된 작품은 다음 배치 재시도 대상으로 남김
+      const updates = [];
+      let classified = 0;
+      for (const t of targets) {
+        if (!resultMap.has(t.tmdb_id)) continue; // Claude 응답에 없음 — 다음 배치에서 재시도
+        const tags = resultMap.get(t.tmdb_id);
+        updates.push(
+          env.DB.prepare(
+            "UPDATE works SET variety_genre = ?, variety_genre_source = 'auto' WHERE tmdb_id = ?"
+          ).bind(tags.length ? tags.join(",") : null, t.tmdb_id)
+        );
+        classified++;
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM works
+        WHERE original_language = 'ko' AND variety_genre_source IS NULL
+          AND (genre LIKE '%Reality%' OR genre LIKE '%Talk%' OR genre LIKE '%다큐멘터리%' OR genre LIKE '%리얼리티%' OR genre LIKE '%토크%')
+      `).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, classified, remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
