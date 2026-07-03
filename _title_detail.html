@@ -91,6 +91,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-orig-title{font-size:15px;color:rgba(255,255,255,.5);margin-top:2px;font-family:var(--font-mono)}
 .hero-tags{display:flex;flex-wrap:wrap;gap:6px}
 .hero-tag{font-size:13px;padding:3px 11px;border-radius:20px;border:.5px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);font-family:var(--font-mono);backdrop-filter:blur(4px);background:rgba(255,255,255,.05)}
+.hero-tag-variety{border-color:rgba(236,72,153,.5);color:#f9a8d4;background:rgba(236,72,153,.12);font-weight:700}
 .hero-meta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .hero-meta-item{font-size:15px;color:rgba(255,255,255,.6)}
 .hero-meta-item b{color:#fff;font-weight:600}
@@ -2360,7 +2361,12 @@ async function loadTmdb(){
 
     const genreStr=det.genre||'';
     const genres=det.genres||(genreStr?genreStr.split(',').map(g=>({name:g.trim()})):[]);
-    document.getElementById('genreTags').innerHTML=genres.map(g=>`<span class="hero-tag">${g.name||g}</span>`).join('');
+    // 예능 태그(works.variety_genre) — TMDB엔 없는 국내 예능 세부장르, 관리자가 직접 큐레이션한 값
+    // 항상 장르 목록 맨 앞에 표시 (일반 장르와 구분되게 hero-tag-variety 스타일 적용)
+    const varietyTags=(worksData?.variety_genre||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const varietyHtml=varietyTags.map(t=>`<span class="hero-tag hero-tag-variety">${_hesc(t)}</span>`).join('');
+    const genreHtml=genres.map(g=>`<span class="hero-tag">${_hesc(g.name||g)}</span>`).join('');
+    document.getElementById('genreTags').innerHTML=varietyHtml+genreHtml;
 
     // 키워드 태그 — worksData.keywords는 D1에 미리 수집해둔 콤마구분 영문 키워드
     // '__NONE__'은 "TMDB에 키워드 자체가 없어서 시도했지만 결과 없음" 센티널 → 빈 배열로 취급
