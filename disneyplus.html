@@ -19,6 +19,8 @@
 <meta name="twitter:title" content="디즈니플러스 순위 오늘 TOP10 — 드라마·영화 순위 | 오뜨랑">
 <meta name="twitter:description" content="오늘 디즈니+ 드라마·영화 TOP10 순위를 한눈에 확인하세요.">
 <meta name="twitter:image" content="https://ottrank.kr/img/og-image.png">
+<!-- 구조화 데이터 (구글 리치 결과) — TOP10 목록용 ItemList, JS(updateItemListSEO)가 데이터 로드 후 채움 -->
+<script id="ldJsonList" type="application/ld+json">{}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
@@ -346,6 +348,7 @@ fetch('/footer.html')
 const API      = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 const PLATFORM = 'disney';
+const PLATFORM_LABEL = '디즈니플러스'; // ItemList JSON-LD의 name에 사용
 
 /* ── 작품 상세 페이지 이동 ── */
 function goWork(tmdbId, title) {
@@ -565,6 +568,49 @@ async function loadAll() {
 
   // 전체 트랙 scroll 이벤트 등록
   setTimeout(initSwipeBtns, 100);
+
+  // 렌더링에 사용한 데이터 그대로 JSON-LD ItemList 생성 (화면에 보이는 것과 마크업 내용 일치)
+  updateItemListSEO(groups);
+}
+
+/* ── 구조화 데이터 (JSON-LD) — TOP10 목록 페이지용 ItemList ──
+   개별 작품 상세페이지의 Movie/TVSeries 단독 마크업과 달리, 구글이 실제로
+   지원하는 "영화/시리즈 목록" 리치 결과 패턴(ItemList)에 맞춰 작성한다.
+   여러 카테고리 섹션(예: "TV 시리즈", "영화")이 있으므로, 섹션마다
+   ItemList를 하나씩 만들어 @graph 배열로 한 번에 담는다. */
+function updateItemListSEO(groups) {
+  const y = new Date().getFullYear();
+  const graph = [];
+
+  (groups || []).forEach(group => {
+    // 상세페이지 링크가 없는(tmdb_id 없는) 항목은 목록에서 제외 — 클릭해도 갈 곳 없는 항목을 마크업하면 안 됨
+    const items = (group.items || []).filter(it => it.tmdb_id);
+    if (!items.length) return;
+
+    // media_type 판별 — API가 media_type을 직접 안 내려주므로, 카테고리명(display_name)에
+    // "영화"가 포함되는지로 추정한다. (어드민이 카테고리명에서 "영화"를 빼면 오분류될 수 있음 — 알려진 한계)
+    const isMovie  = (group.display_name || '').includes('영화');
+    const itemType = isMovie ? 'Movie' : 'TVSeries';
+
+    graph.push({
+      '@type': 'ItemList',
+      'name' : `${PLATFORM_LABEL} ${group.display_name || 'TOP10'} 순위 — 오뜨랑`,
+      'itemListElement': items.map((it, idx) => {
+        const entry = {
+          '@type': itemType,
+          'name' : it.title_ko || it.title_en || '',
+          'url'  : `https://ottrank.kr/title/1-${y}${it.tmdb_id}`,
+        };
+        // 평점(aggregateRating)은 이 API에 투표수(vote_count)가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
+        if (it.poster_path) entry.image = `${TMDB_IMG}${it.poster_path}`;
+        return { '@type': 'ListItem', 'position': it.rank || (idx + 1), 'item': entry };
+      }),
+    });
+  });
+
+  const ld   = { '@context': 'https://schema.org', '@graph': graph };
+  const ldEl = document.getElementById('ldJsonList');
+  if (ldEl) ldEl.textContent = JSON.stringify(ld);
 }
 
 /* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
