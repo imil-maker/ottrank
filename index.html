@@ -1193,6 +1193,11 @@ function renderGrids(){
    ItemList로 만들어 @graph 배열에 담는다. 헤더의 정적 WebSite JSON-LD와는 별도 스크립트. */
 function updateHomeItemListSEO(){
   const graph=[];
+  // 캐러셀 position은 "이 플랫폼 리스트 안에서 몇 번째"가 아니라 "페이지 전체에서 몇 번째"여야 함 —
+  // 플랫폼(넷플릭스/디즈니+/쿠팡플레이 등)마다 1부터 다시 세면 서로 다른 리스트의 항목이 같은
+  // position(예: 1)을 갖게 되어 구글이 "여러 ListItem 요소가 정의됨" 오류로 판정한다 (실제 테스트로 확인됨).
+  // 플랫폼이 바뀌어도 리셋하지 않는 전역 카운터 사용 — 플랫폼/카테고리가 몇 개든 자동으로 이어짐.
+  let globalPos=0;
 
   // platformArr: PLATFORMS 또는 MOVIE_PLATFORMS, dataMap: RANKINGS.tv 또는 RANKINGS.movie
   const buildList=(platformArr,dataMap,itemType,labelSuffix)=>{
@@ -1203,7 +1208,8 @@ function updateHomeItemListSEO(){
       graph.push({
         '@type':'ItemList',
         'name':`${p.name} ${labelSuffix} 순위 — 오뜨랑`,
-        'itemListElement':items.map((it,idx)=>{
+        'itemListElement':items.map((it)=>{
+          globalPos+=1;
           const y=it._year||new Date().getFullYear();
           const s=it._season||1;
           const entry={
@@ -1213,7 +1219,7 @@ function updateHomeItemListSEO(){
           };
           // 평점(aggregateRating)은 투표수(vote_count) 데이터가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
           if(it._poster)entry.image=it._poster;
-          return{'@type':'ListItem','position':idx+1,'item':entry};
+          return{'@type':'ListItem','position':globalPos,'item':entry};
         }),
       });
     });
