@@ -3996,6 +3996,21 @@ function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
   }
 
   document.getElementById('editOverlay').classList.add('show');
+
+  // OTT 오버라이드 섹션 — works관리 탭도 랭킹관리와 동일하게 tmdb_id 있으면 표시
+  // (기존엔 이 블록이 없어서 works관리에서 강제추가/제거를 눌러도
+  //  window._currentOttTmdbId가 세팅 안 돼 저장이 안 되거나 엉뚱한 작품에 저장되는 버그가 있었음)
+  const ottSec = document.getElementById('ottOverrideSection');
+  if(ottSec){
+    if(tmdbId){
+      ottSec.style.display = 'block';
+      window._currentOttTmdbId = tmdbId;
+      loadOttOverrides(tmdbId);
+    } else {
+      ottSec.style.display = 'none';
+      window._currentOttTmdbId = null;
+    }
+  }
 }
 
 /* ── works 모달에서 저장 ── */
@@ -4067,6 +4082,9 @@ function closeWorksModal() {
     saveBtn.textContent = '저장 (수동고정)';
     saveBtn.onclick = saveEdit;
   }
+  // OTT 오버라이드 상태 정리 — 다음에 랭킹관리 모달을 열 때 이전 값이 남아
+  // 엉뚱한 작품에 저장되는 것을 방지
+  window._currentOttTmdbId = null;
   closeModal();
 }
 
