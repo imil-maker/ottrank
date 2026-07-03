@@ -32,6 +32,9 @@
    POST   /admin/works/collect-keywords
    POST   /admin/works/discover-collect
    POST   /admin/works/classify-variety
+   GET    /admin/variety-genre-options
+   GET    /admin/works/variety-review
+   POST   /admin/works/variety-review
    POST   /admin/persons/collect
    POST   /admin/works/backfill-language
    GET    /admin/works/missing-media-type
@@ -1531,6 +1534,93 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       return new Response(JSON.stringify({
         ok: true, attempted: targets.length, classified, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/variety-genre-options ──────────────────────────
+  // admin_videos.html "🎭 예능 태그" 탭에서 태그 칩 버튼을 그리기 위한 목록 조회
+  // (classify-variety 내부에서도 동일 테이블을 참조하므로, 여기서 태그를 추가/삭제하면
+  //  자동분류 결과에도 곧바로 반영됨)
+  if (path === "/admin/variety-genre-options" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(
+        "SELECT id, label, sort_order FROM variety_genre_options ORDER BY sort_order ASC"
+      ).all();
+      return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/works/variety-review ───────────────────────────
+  // Claude가 자동분류(variety_genre_source='auto')했지만 아직 관리자 확정 전인 작품 조회
+  // missing-media-type과 동일한 방식: offset 없이 항상 최신 N개 — 확정되는 즉시 쿼리에서
+  // 빠지므로 건너뛴 항목은 자연스럽게 다음 배치들에서 다시 보임
+  if (path === "/admin/works/variety-review" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const limit = Math.min(parseInt(url.searchParams.get("limit")) || 12, 30);
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, poster_path, variety_genre
+        FROM works
+        WHERE variety_genre_source = 'auto'
+        ORDER BY tmdb_id
+        LIMIT ?
+      `).bind(limit).all();
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE variety_genre_source = 'auto'"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/variety-review ──────────────────────────
+  // 관리자가 검토 그리드에서 확인/수정한 태그를 최종 확정 저장
+  // variety_genre_source를 'admin'으로 바꿔서 이후 classify-variety 배치가
+  // 이 작품을 절대 다시 건드리지 않도록 함 (genre/keywords와 동일한 보호 원칙)
+  // tags를 빈 배열로 보내면 "이 작품은 예능 아님/태그 없음"으로 확정 저장됨
+  if (path === "/admin/works/variety-review" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const items = Array.isArray(body.items) ? body.items : [];
+      const valid = items.filter(it => it && it.tmdb_id && Array.isArray(it.tags));
+
+      if (!valid.length) {
+        return new Response(JSON.stringify({ ok: false, message: "유효한 항목이 없어요" }), { status: 400, headers });
+      }
+
+      const updates = valid.map(it => {
+        const tags = it.tags.filter(Boolean).slice(0, 2); // 최대 2개로 방어적 제한
+        return env.DB.prepare(
+          "UPDATE works SET variety_genre = ?, variety_genre_source = 'admin' WHERE tmdb_id = ?"
+        ).bind(tags.length ? tags.join(",") : null, parseInt(it.tmdb_id));
+      });
+      await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE variety_genre_source = 'auto'"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, updated: valid.length, remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
