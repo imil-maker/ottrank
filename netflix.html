@@ -589,15 +589,17 @@ function updateItemListSEO(groups) {
 
     // media_type 판별 — API가 media_type을 직접 안 내려주므로, 카테고리명(display_name)에
     // "영화"가 포함되는지로 추정한다. (어드민이 카테고리명에서 "영화"를 빼면 오분류될 수 있음 — 알려진 한계)
-    const isMovie  = (group.display_name || '').includes('영화');
-    const itemType = isMovie ? 'Movie' : 'TVSeries';
+    const isMovie = (group.display_name || '').includes('영화');
+    // 구글 캐러셀(ItemList) 리치 결과는 Course/Movie/Recipe/Restaurant 4개 타입만 지원 —
+    // TVSeries는 지원 대상이 아니라서 마크업해봐야 Search Console에 오류로만 잡힘. 영화 카테고리만 생성.
+    if (!isMovie) return;
 
     graph.push({
       '@type': 'ItemList',
       'name' : `${PLATFORM_LABEL} ${group.display_name || 'TOP10'} 순위 — 오뜨랑`,
       'itemListElement': items.map((it, idx) => {
         const entry = {
-          '@type': itemType,
+          '@type': 'Movie',
           'name' : it.title_ko || it.title_en || '',
           'url'  : `https://ottrank.kr/title/1-${y}${it.tmdb_id}`,
         };
