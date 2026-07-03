@@ -261,6 +261,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎞 미디어타입 채우기
         </button>
+        <button id="tabVariety" onclick="switchPageTab('variety')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🎭 예능 태그
+        </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
     </div>
@@ -640,6 +644,73 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="mtGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"></div>
 
   </div>
+
+  <!-- ══ 예능 태그 섹션 ══ -->
+  <div class="wrap" id="varietyWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 TMDB엔 "연애 예능/여행 예능" 같은 국내 예능 세부 장르가 없어서, <span style="color:#f472b6">Claude가 먼저 태그 초안을 자동으로 붙이고</span>,
+      아래 검토 그리드에서 관리자가 확인/수정 후 확정합니다.<br>
+      확정(저장)된 작품은 <span style="color:#f472b6">variety_genre_source='admin'</span>으로 보호되어 이후 자동분류가 다시 건드리지 않습니다.
+    </div>
+
+    <!-- 1단계: 자동분류 실행 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px">① 🤖 자동분류 실행 (Claude API)</div>
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="vtAttempted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">분류 완료</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="vtClassified">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남음 (미분류)</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:#f472b6" id="vtRemaining">-</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="vtStartBtn" onclick="startVarietyClassify()"
+          style="flex:1;padding:13px;font-size:15px;border-color:rgba(236,72,153,.4);background:rgba(236,72,153,.1);color:#f472b6">
+          ▶ 자동분류 시작
+        </button>
+        <button class="btn-secondary" id="vtStopBtn" onclick="stopVarietyClassify()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="vtStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <!-- 자동분류 로그 -->
+    <div id="vtLogWrap" style="display:none;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="vtLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:200px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+    <!-- 2단계: 검토 그리드 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:14px;font-weight:600">② ✅ 검토 대기 목록 <span style="font-size:12px;color:var(--muted);font-weight:400">(AI 초안 → 확정 전)</span></div>
+        <span style="font-size:12px;color:var(--muted);font-family:var(--mono)" id="vrRemainingLabel">- 개 대기중</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted2);font-family:var(--mono);margin-bottom:14px;line-height:1.7">
+        태그가 맞으면 그대로 두고 저장, 틀리면 칩을 클릭해서 바꾸세요 (최대 2개). "건너뛰기"는 이번엔 판단 보류 — 다음에 다시 나타납니다.
+      </div>
+      <button class="btn-crawl" id="vrLoadBtn" onclick="vrLoadBatch()" style="width:100%;padding:13px;font-size:15px;margin-bottom:16px">
+        ▶ 12개 불러오기
+      </button>
+      <div id="vrGrid"></div>
+      <button class="btn-primary" id="vrSaveBtn" onclick="vrSaveBatch()" style="display:none;width:100%;padding:13px;margin-top:16px;background:var(--green)">
+        💾 확인한 내용 저장
+      </button>
+    </div>
+
+  </div>
 </div>
 
 <!-- 미리보기 모달 -->
@@ -958,6 +1029,7 @@ const PAGE_TABS = [
   { key: 'person',   wrapId: 'personWrap',   btnId: 'tabPerson',   title: '🎭 인물 사전등록',  onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
   { key: 'lang',     wrapId: 'langWrap',     btnId: 'tabLang',     title: '🌐 원어 정보 채우기', onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
   { key: 'mediatype', wrapId: 'mediaTypeWrap', btnId: 'tabMediaType', title: '🎞 미디어타입 채우기', onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
+  { key: 'variety',   wrapId: 'varietyWrap',   btnId: 'tabVariety',   title: '🎭 예능 태그',       onColor: 'rgba(236,72,153,.2)',  onText: '#f472b6' },
 ];
 let currentPageTab = 'video';
 function switchPageTab(tab) {
@@ -1892,6 +1964,272 @@ async function mtSaveBatch() {
   } finally {
     btn.disabled = false;
     btn.textContent = '💾 선택한 것 저장';
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   예능 태그 — ① 자동분류 (Claude API) + ② 검토 그리드
+   ① /admin/works/classify-variety 를 remaining이 0 될 때까지 반복 호출 (kw수집과 동일 패턴)
+   ② /admin/works/variety-review 로 AI 초안(source='auto')을 불러와
+      칩(최대 2개 다중선택)으로 확인/수정 후 /admin/works/variety-review POST로 확정 저장
+══════════════════════════════════════════════════════ */
+
+/* ── ① 자동분류 실행 ── */
+let vtRunning        = false;
+let vtStopRequested  = false;
+let vtTotalAttempted = 0;
+let vtTotalClassified = 0;
+
+function vtLog(msg, isError) {
+  const logWrap = document.getElementById('vtLogWrap');
+  const logEl   = document.getElementById('vtLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function vtUpdateCounters(remaining) {
+  document.getElementById('vtAttempted').textContent  = vtTotalAttempted;
+  document.getElementById('vtClassified').textContent = vtTotalClassified;
+  document.getElementById('vtRemaining').textContent  = remaining === null ? '-' : remaining;
+}
+
+async function startVarietyClassify() {
+  if (vtRunning) return;
+  vtRunning         = true;
+  vtStopRequested   = false;
+  vtTotalAttempted  = 0;
+  vtTotalClassified = 0;
+
+  const startBtn   = document.getElementById('vtStartBtn');
+  const stopBtn    = document.getElementById('vtStopBtn');
+  const statusLine = document.getElementById('vtStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '분류 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('vtLog').innerHTML = '';
+  vtUpdateCounters(null);
+  vtLog('자동분류 시작');
+
+  let batchNum = 0;
+
+  try {
+    while (true) {
+      if (vtStopRequested) {
+        vtLog('사용자 요청으로 중단됨');
+        break;
+      }
+      batchNum++;
+      statusLine.textContent = `${batchNum}번째 배치 처리 중...`;
+
+      let res, data;
+      try {
+        res = await fetch(`${API}/admin/works/classify-variety`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+          body: JSON.stringify({ limit: 10 }),
+        });
+        data = await res.json();
+      } catch (e) {
+        vtLog(`네트워크 오류 — 배치 ${batchNum} 실패: ${e.message}`, true);
+        statusLine.textContent = '네트워크 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        vtLog(`API 오류 — 배치 ${batchNum}: ${data.message || res.status}`, true);
+        statusLine.textContent = 'API 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      vtTotalAttempted  += data.attempted  || 0;
+      vtTotalClassified += data.classified || 0;
+      vtUpdateCounters(data.remaining);
+      vtLog(`배치 ${batchNum}: 시도 ${data.attempted}개 · 분류 ${data.classified}개 · 남음 ${data.remaining}개`);
+
+      if (!data.attempted || data.remaining === 0) {
+        statusLine.textContent = `✅ 완료! 총 ${vtTotalAttempted}개 시도, ${vtTotalClassified}개 분류됨`;
+        vtLog('모든 작품 처리 완료 — 아래 ②검토 대기 목록에서 확인해주세요');
+        showToast('✅ 자동분류 완료! 검토 대기 목록을 확인해주세요');
+        break;
+      }
+
+      // 다음 배치 전 짧은 대기 (Workers/Claude API 부하 방지)
+      await _sleep(500);
+    }
+  } finally {
+    vtRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 자동분류 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopVarietyClassify() {
+  if (!vtRunning) return;
+  vtStopRequested = true;
+  document.getElementById('vtStopBtn').disabled = true;
+  document.getElementById('vtStopBtn').textContent = '중단 중...';
+  setTimeout(() => {
+    document.getElementById('vtStopBtn').disabled = false;
+    document.getElementById('vtStopBtn').textContent = '⏸ 중단';
+  }, 1500);
+}
+
+/* ── ② 검토 그리드 ── */
+let vgOptions  = [];  // [{id, label, sort_order}] — 태그 마스터 목록 (칩 버튼용)
+let vrItems    = [];  // 현재 화면에 떠있는 검토 배치
+let vrChoices  = {};  // { tmdb_id: ['여행 예능', ...] } — 카드마다 현재 선택된 태그 (건너뛰면 키 삭제)
+
+async function _vtLoadOptionsIfNeeded() {
+  if (vgOptions.length) return; // 이미 불러왔으면 재요청 안 함
+  try {
+    const res  = await fetch(`${API}/admin/variety-genre-options`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (data.ok) vgOptions = data.data || [];
+  } catch (e) { /* 그리드 렌더링 시 vgOptions가 비어있으면 칩이 안 그려질 뿐, 별도 에러 처리 불필요 */ }
+}
+
+async function vrLoadBatch() {
+  await _vtLoadOptionsIfNeeded();
+  if (!vgOptions.length) {
+    showToast('태그 목록을 불러오지 못했어요 (variety_genre_options 확인 필요)');
+    return;
+  }
+
+  const grid = document.getElementById('vrGrid');
+  const loadBtn = document.getElementById('vrLoadBtn');
+  loadBtn.disabled = true;
+  grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px">불러오는 중...</div>`;
+
+  try {
+    const res = await fetch(`${API}/admin/works/variety-review?limit=12`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showToast(`불러오기 실패: ${data.message || res.status}`);
+      grid.innerHTML = '';
+      return;
+    }
+
+    vrItems = data.items || [];
+    vrChoices = {};
+    document.getElementById('vrRemainingLabel').textContent = `${data.remaining ?? '-'} 개 대기중`;
+
+    if (!vrItems.length) {
+      grid.innerHTML = `<div style="padding:40px;text-align:center;color:var(--green);font-family:var(--mono)">🎉 검토할 항목이 없어요! (① 자동분류를 먼저 실행해주세요)</div>`;
+      document.getElementById('vrSaveBtn').style.display = 'none';
+      return;
+    }
+
+    // AI가 이미 골라준 태그를 기본 선택 상태로 미리 채워둠 — "맞으면 그대로 두고 저장"이 가능하도록
+    vrItems.forEach(it => {
+      vrChoices[it.tmdb_id] = (it.variety_genre || '').split(',').map(s => s.trim()).filter(Boolean);
+    });
+
+    document.getElementById('vrSaveBtn').style.display = 'block';
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(150px,1fr))';
+    grid.style.gap = '14px';
+
+    grid.innerHTML = vrItems.map(it => {
+      const poster = it.poster_path ? `${IMG}${it.poster_path}` : '';
+      const title  = (it.title_ko || `#${it.tmdb_id}`).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const chips  = vgOptions.map(o => {
+        const isOn = (vrChoices[it.tmdb_id] || []).includes(o.label);
+        return `<button type="button" class="mt-choice${isOn ? ' on' : ''}"
+          id="vrChip_${it.tmdb_id}_${o.id}"
+          onclick="vrToggleTag(${it.tmdb_id},'${o.label.replace(/'/g, "\\'")}',this)"
+          style="margin:2px">${o.label}</button>`;
+      }).join('');
+      return `
+        <div class="mt-card" id="vrCard_${it.tmdb_id}">
+          ${poster
+            ? `<img class="mt-poster" src="${poster}" alt="${title}" loading="lazy">`
+            : `<div class="mt-poster mt-poster-ph">🎬</div>`}
+          <div class="mt-title" title="${title}">${title}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;margin:6px 0">${chips}</div>
+          <button type="button" class="mt-skip" onclick="vrSkip(${it.tmdb_id},this)">건너뛰기</button>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    grid.innerHTML = '';
+    showToast(`네트워크 오류: ${e.message}`);
+  } finally {
+    loadBtn.disabled = false;
+  }
+}
+
+// 칩 클릭 — 다중선택(최대 2개) 토글. MBTI 추가나 미디어타입처럼 하나만 고르는 게 아니라
+// 여러 개(최대 2개) 동시에 켤 수 있어야 해서 mt-choice의 "형제 끄기" 방식은 안 씀
+function vrToggleTag(tmdbId, label, btnEl) {
+  const current = vrChoices[tmdbId] || [];
+  const idx = current.indexOf(label);
+  if (idx >= 0) {
+    // 이미 선택돼있으면 해제
+    current.splice(idx, 1);
+    btnEl.classList.remove('on');
+  } else {
+    if (current.length >= 2) {
+      showToast('태그는 최대 2개까지만 선택할 수 있어요');
+      return;
+    }
+    current.push(label);
+    btnEl.classList.add('on');
+  }
+  vrChoices[tmdbId] = current;
+}
+
+// 건너뛰기 — 이번 저장에서 제외 (vrChoices에서 키 자체를 삭제), 다음 배치에서 다시 나타남
+function vrSkip(tmdbId, btnEl) {
+  delete vrChoices[tmdbId];
+  const card = document.getElementById(`vrCard_${tmdbId}`);
+  if (card) {
+    card.style.opacity = '.35';
+    card.style.pointerEvents = 'none';
+  }
+}
+
+async function vrSaveBatch() {
+  const items = Object.entries(vrChoices).map(([tmdb_id, tags]) => ({
+    tmdb_id: parseInt(tmdb_id), tags,
+  }));
+  if (!items.length) {
+    showToast('저장할 항목이 없어요 (전부 건너뛰기 하셨네요)');
+    return;
+  }
+
+  const btn = document.getElementById('vrSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+
+  try {
+    const res = await fetch(`${API}/admin/works/variety-review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ items }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showToast(`저장 실패: ${data.message || res.status}`);
+      return;
+    }
+    showToast(`✅ ${data.updated}개 확정 저장 완료!`);
+    await vrLoadBatch(); // 이어서 다음 배치 자동 로드
+  } catch (e) {
+    showToast(`네트워크 오류: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 확인한 내용 저장';
   }
 }
 </script>
