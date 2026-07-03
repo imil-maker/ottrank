@@ -97,11 +97,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-meta-sep{color:rgba(255,255,255,.2);font-size:14px}
 
 /* ── 키워드 태그 (클릭 가능) ── */
-.keyword-tag{font-size:12px;padding:4px 12px;border-radius:16px;border:.5px solid rgba(55,138,221,.3);
-  color:rgba(255,255,255,.65);font-family:var(--font-mono);background:rgba(55,138,221,.06);
+.keyword-tag{font-size:12px;padding:4px 12px;border-radius:16px;border:.5px solid #378ADD;
+  color:#fff;font-family:var(--font-mono);background:rgba(55,138,221,.28);
   cursor:pointer;transition:all .15s;user-select:none}
-.keyword-tag:hover{background:rgba(55,138,221,.16);color:#fff;border-color:rgba(55,138,221,.5)}
-.keyword-tag.active{background:rgba(55,138,221,.28);color:#fff;border-color:#378ADD}
+.keyword-tag:hover{background:rgba(55,138,221,.42);border-color:#4a9aeb}
+.keyword-tag.active{background:rgba(240,180,41,.18);color:var(--gold);border-color:var(--gold)}
 .keyword-tag-more{border-style:dashed;color:rgba(255,255,255,.45);background:rgba(255,255,255,.03)}
 .keyword-tag-more:hover{background:rgba(255,255,255,.08);color:#fff}
 
@@ -1610,7 +1610,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
      키워드 태그 + 클릭 시 관련 작품 (TMDB 키워드 기반)
 ══════════════════════════════════════ -->
 <div class="similar-section" id="keywordSection" style="display:none">
-  <div class="plain-section-title">관련 키워드 작품 검색</div>
+  <div class="plain-section-title" id="keywordSectionTitle">관련 키워드</div>
   <div class="hero-tags" id="keywordTags"></div>
   <div id="keywordResultsWrap" class="keyword-results-wrap" style="display:none">
     <div class="keyword-results-title" id="keywordResultsTitle"></div>
@@ -1735,6 +1735,8 @@ function renderKeywordTags(raw){
   const list=raw.split(',').map(k=>k.trim()).filter(Boolean).slice(0,KW_MAX_TOTAL);
   if(!list.length){section.style.display='none';wrap.innerHTML='';_kwFullList=[];return;}
   section.style.display='block';
+  const titleEl=document.getElementById('keywordSectionTitle');
+  if(titleEl)titleEl.textContent=`${WORK.title||''} 관련 키워드`;
   _kwFullList=list;
   const isMobile=window.matchMedia('(max-width:640px)').matches;
   renderKeywordTagList(!isMobile); // PC는 바로 전체(최대10) 노출, 모바일은 접힌 상태로 시작
