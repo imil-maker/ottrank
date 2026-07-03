@@ -463,7 +463,13 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         });
       }
 
-      scored.sort((a, b) => b.match_pct - a.match_pct || (b.tmdb_rating || 0) - (a.tmdb_rating || 0));
+      // 동점(같은 %)이면 최신 연도 우선, 그래도 동점이면 tmdb_rating 순
+      // (예능은 장수 프로/시즌제가 많아 같은 % 후보가 몰리기 쉬움 — 최신순으로 "요즘 핫한 것"이 앞에 오게)
+      scored.sort((a, b) =>
+        b.match_pct - a.match_pct ||
+        (b.release_year || 0) - (a.release_year || 0) ||
+        (b.tmdb_rating || 0) - (a.tmdb_rating || 0)
+      );
 
       return new Response(JSON.stringify({ ok: true, data: scored.slice(0, limit) }), { headers });
     } catch (e) {
