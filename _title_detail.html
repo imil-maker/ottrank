@@ -2033,8 +2033,23 @@ function updateSEO(title,overview,posterUrl,platform,rank){
     sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year,poster_path:WORK.poster_path||''}));
   }
   if(posterUrl){const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;setMeta('seoOgImg','content',ogImg);setMeta('seoTwImg','content',ogImg);}
-  const ld={'@context':'https://schema.org','@type':'TVSeries','name':t,'description':overview||seoD,'url':canonical};
+  // 미디어타입 분기 — works 테이블의 media_type을 기준으로 이미 정리된 WORK.type 사용
+  const ldType=WORK.type==='movie'?'Movie':'TVSeries';
+  const ld={'@context':'https://schema.org','@type':ldType,'name':t,'description':overview||seoD,'url':canonical};
   if(posterUrl)ld.image=`https://image.tmdb.org/t/p/w780${posterUrl}`;
+  if(WORK.genreNames&&WORK.genreNames.length)ld.genre=WORK.genreNames;
+  if(WORK.releaseDate)ld.datePublished=WORK.releaseDate;
+  // 평점 개수(ratingCount) 0인 채로 aggregateRating을 넣으면 구조화 데이터 오류로 잡힐 수 있어
+  // 투표수가 실제로 있을 때만 포함 (평점 소스는 TMDB — 오뜨랑 자체 평점은 리뷰 로딩 이후에나 확정되어 이 시점엔 부정확)
+  if(WORK.tmdbRating&&WORK.tmdbVotes){
+    ld.aggregateRating={
+      '@type':'AggregateRating',
+      'ratingValue':WORK.tmdbRating,
+      'ratingCount':WORK.tmdbVotes,
+      'bestRating':10,
+      'worstRating':0,
+    };
+  }
   const ldEl=document.getElementById('ldJson');if(ldEl)ldEl.textContent=JSON.stringify(ld);
 }
 function setMeta(id,attr,val){const el=document.getElementById(id);if(!el)return;if(attr==='textContent')el.textContent=val;else el.setAttribute(attr,val);}
@@ -2324,6 +2339,8 @@ async function loadTmdb(){
     WORK.year=year||WORK.year||new Date().getFullYear();
     WORK.type=WORK.type||(det.number_of_seasons?'tv':'movie');
     WORK.poster_path=det.poster_path||'';
+    // JSON-LD datePublished용 원본 날짜(YYYY-MM-DD) — 화면 표시용 year(4자리)와 별도 보관
+    WORK.releaseDate=det.first_air_date||det.release_date||'';
 
     // works 테이블 미등록 작품 또는 title_en 교정 필요한 경우 → 백그라운드 자동 등록/업데이트
     // - worksData 없음: 신규 등록
@@ -2417,6 +2434,8 @@ async function loadTmdb(){
     const varietyHtml=varietyTags.map(t=>`<span class="hero-tag hero-tag-variety">${_hesc(t)}</span>`).join('');
     const genreHtml=genres.map(g=>`<span class="hero-tag">${_hesc(g.name||g)}</span>`).join('');
     document.getElementById('genreTags').innerHTML=varietyHtml+genreHtml;
+    // JSON-LD genre용 — 장르 이름만 뽑은 배열 (예능 태그는 schema.org genre 취지와 안 맞아 제외)
+    WORK.genreNames=genres.map(g=>g.name||g).filter(Boolean);
 
     // 키워드 태그 — worksData.keywords는 D1에 미리 수집해둔 콤마구분 영문 키워드
     // '__NONE__'은 "TMDB에 키워드 자체가 없어서 시도했지만 결과 없음" 센티널 → 빈 배열로 취급
@@ -2430,6 +2449,9 @@ async function loadTmdb(){
     const tmdbVotes=det.vote_count||0;
     document.getElementById('tmdbScore').textContent=tmdbRating?fmtScore(tmdbRating):'-';
     document.getElementById('tmdbVotes').textContent=tmdbVotes?`${tmdbVotes.toLocaleString()}명`:'-';
+    // JSON-LD aggregateRating용 — 투표수 0이면 updateSEO에서 자체적으로 aggregateRating 생략
+    WORK.tmdbRating=tmdbRating;
+    WORK.tmdbVotes=tmdbVotes;
 
     // overview
     document.getElementById('overview').textContent=det.overview||'줄거리 정보가 없습니다.';
