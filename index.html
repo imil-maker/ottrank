@@ -1219,7 +1219,9 @@ function updateHomeItemListSEO(){
     });
   };
 
-  buildList(PLATFORMS,RANKINGS.tv,'TVSeries','TV 시리즈');
+  // 구글 캐러셀(ItemList) 리치 결과는 Course/Movie/Recipe/Restaurant 4개 타입만 지원 —
+  // TVSeries는 지원 대상이 아니라서 마크업해봐야 Search Console에 오류로만 잡힘 (실제 테스트로 확인됨).
+  // 그래서 TV 시리즈(PLATFORMS/RANKINGS.tv)는 ItemList로 만들지 않고, 영화만 생성한다.
   buildList(MOVIE_PLATFORMS,RANKINGS.movie,'Movie','영화');
 
   const ld={'@context':'https://schema.org','@graph':graph};
