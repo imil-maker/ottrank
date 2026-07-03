@@ -2159,23 +2159,35 @@ const SIM_COUNT=8;
 async function loadSimilarWorks(){
   if(!WORK.tmdb_id)return;
   try{
+    // ── Priority -1: 관리자 수동 연결(pinned_similar) — 예능 태그·TMDB 추천보다 최우선 ──
+    // WORK.pinnedSimilar는 loadTmdb()에서 이미 세팅해둔 값 (이미 받아온 /works/{id} 응답에 포함, 추가 fetch 없음)
+    // poster_path 없는 항목은 카드 레이아웃이 깨지므로 필터링 (TMDB 폴백은 이미 필터링하고 있었는데 이 목록엔 빠져있던 버그 보강)
+    const pinnedList=(WORK.pinnedSimilar||[]).filter(it=>it.poster_path).map(it=>({
+      id:it.tmdb_id,
+      name:it.title_ko||it.title_en||'',
+      poster_path:it.poster_path,
+      first_air_date:it.release_year?String(it.release_year):'',
+      _pct:it.pinned_pct, // 관리자가 직접 입력한 값 — 예능 매칭보다도 우선 사용
+    }));
+    const seenIds=new Set(pinnedList.map(it=>it.id));
+
     // ── Priority 0: 예능 태그(variety_genre) 일치 작품 — 우리 DB, 서버가 계산한 고정 % ──
-    // WORK.varietyGenreList는 loadTmdb()에서 이미 세팅해둔 값 (없으면 API 호출 자체 스킵)
+    // WORK.varietyGenreList는 loadTmdb()에서 이미 세팅해둔 값 (없으면, 혹은 수동연결로 이미 다 찼으면 API 호출 자체 스킵)
     let varietyList=[];
-    if(WORK.varietyGenreList && WORK.varietyGenreList.length){
+    if(pinnedList.length<SIM_COUNT && WORK.varietyGenreList && WORK.varietyGenreList.length){
       const vRes=await fetch(`${OTTRANK_API}/works/variety-similar/${WORK.tmdb_id}?limit=${SIM_COUNT}`).then(r=>r.json()).catch(()=>null);
-      varietyList=(vRes?.data||[]).map(it=>({
+      varietyList=(vRes?.data||[]).filter(it=>it.poster_path&&!seenIds.has(it.tmdb_id)).map(it=>({
         id:it.tmdb_id,
         name:it.title_ko||it.title_en||'',
         poster_path:it.poster_path,
         first_air_date:it.release_year?String(it.release_year):'',
-        _pct:it.match_pct, // 서버가 이미 95/90/85로 계산해둔 고정값 — 아래서 vote_average 계산 대신 이 값 우선 사용
+        _pct:it.match_pct, // 서버가 이미 92~99로 계산해둔 고정값(랭킹 가산점 포함) — 아래서 vote_average 계산 대신 이 값 우선 사용
       }));
+      varietyList.forEach(it=>seenIds.add(it.id));
     }
-    const seenIds=new Set(varietyList.map(it=>it.id));
 
-    // ── Priority 1/2: 기존 TMDB recommendations → similar 폴백 (예능 매칭으로 이미 채운 건 제외) ──
-    let list=[...varietyList],usedSimilar=false;
+    // ── Priority 1/2: 기존 TMDB recommendations → similar 폴백 (앞에서 이미 채운 건 제외) ──
+    let list=[...pinnedList,...varietyList],usedSimilar=false;
     if(list.length<SIM_COUNT){
       const recRes=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/recommendations?language=ko-KR`).then(r=>r.json()).catch(()=>null);
       let extra=(recRes?.results||[]).filter(it=>it.poster_path&&it.id!==WORK.tmdb_id&&!seenIds.has(it.id));
@@ -2191,12 +2203,12 @@ async function loadSimilarWorks(){
 
       list=[...list, ...extra];
     }
-    if(!list.length)return; // 셋 다 없으면 섹션 숨김 유지 (기본 display:none)
+    if(!list.length)return; // 넷 다 없으면 섹션 숨김 유지 (기본 display:none)
 
     list=list.slice(0,SIM_COUNT);
 
     const titleEl=document.getElementById('similarSectionTitle');
-    if(titleEl)titleEl.textContent=(varietyList.length||!usedSimilar)?'비슷한 취향의 작품':'비슷한 장르의 작품';
+    if(titleEl)titleEl.textContent=(pinnedList.length||varietyList.length||!usedSimilar)?'비슷한 취향의 작품':'비슷한 장르의 작품';
 
     document.getElementById('simScroll').innerHTML=list.map(it=>{
       const title=_hesc(it.name||it.title||'');
@@ -2386,6 +2398,8 @@ async function loadTmdb(){
     // 항상 장르 목록 맨 앞에 표시 (일반 장르와 구분되게 hero-tag-variety 스타일 적용)
     const varietyTags=(worksData?.variety_genre||'').split(',').map(s=>s.trim()).filter(Boolean);
     WORK.varietyGenreList=varietyTags; // loadSimilarWorks()에서 재사용 (예능 태그 없으면 API 호출 자체 스킵)
+    // 관리자 수동 연결(work_pinned_similar) — 이미 받아온 /works/{id} 응답에 딸려옴, 추가 fetch 없음
+    WORK.pinnedSimilar=worksData?.pinned_similar||[];
     const varietyHtml=varietyTags.map(t=>`<span class="hero-tag hero-tag-variety">${_hesc(t)}</span>`).join('');
     const genreHtml=genres.map(g=>`<span class="hero-tag">${_hesc(g.name||g)}</span>`).join('');
     document.getElementById('genreTags').innerHTML=varietyHtml+genreHtml;
