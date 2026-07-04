@@ -320,11 +320,19 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   // - 미등록 작품: 전체 INSERT
   // - 이미 등록된 작품: title_en이 비어있거나 한글일 때만 업데이트
   //   (flixpatrol 기준 영어 제목이 있으면 절대 건드리지 않음)
+  // - tmdb_rating/release_date: title_en과 달리 "비어있을 때만"이 아니라 항상 최신값으로 덮어씀
+  //   (tmdb_rating은 크롤러 대상이든 아니든 항상 최신화해야 하는 "보호되지 않는 필드" 원칙)
+  //   0점(투표수 부족)도 유효한 값이므로 COALESCE로 처리 — 0을 NULL로 오인하는 버그 방지
+  // - rating_updated_at: 이 API가 호출되는 시점(=방문 시 TMDB를 이미 조회한 시점)의 서버 시각으로
+  //   항상 기록 → _title_detail.html의 "N일 지나면 자동 새로고침" 로직이 이 값을 기준으로 판단함
   // 인증 없음 (공개 API, 조건부 업데이트로 안전)
   if (path === "/works/register" && request.method === "POST") {
     try {
       const body = await request.json();
-      const { tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language } = body;
+      const {
+        tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
+        tmdb_rating, release_date,
+      } = body;
 
       // 필수값 검증
       if (!tmdb_id || !title_ko) {
@@ -338,9 +346,17 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // 영어가 있고 한글이 없을 때만 유효한 title_en으로 사용
       const validTitle_en = (hasLatin && !hasKorean) ? title_en : null;
 
+      // tmdb_rating은 0도 유효한 값이므로 ?? 사용 (|| 사용 시 0이 null로 사라지는 버그 재발 방지)
+      const ratingVal      = tmdb_rating ?? null;
+      const releaseDateVal = release_date || null;
+      const nowIso         = new Date().toISOString(); // rating_updated_at은 서버 시각 기준(클라이언트 시각 신뢰 안 함)
+
       await env.DB.prepare(`
-        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO works (
+          tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
+          tmdb_rating, release_date, rating_updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- title_en 업데이트 조건:
           --   1) 현재 title_en이 비어있을 때
@@ -366,7 +382,15 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             WHEN works.original_language IS NULL OR works.original_language = ''
               THEN excluded.original_language
             ELSE works.original_language
-          END
+          END,
+          -- tmdb_rating / release_date: title_en과 달리 "보호 대상 아님" — 값이 오면 항상 최신화
+          -- COALESCE(excluded.값, works.기존값): 프론트가 값을 못 보냈을 때만 기존 값 보존,
+          -- 0은 NULL이 아니므로 COALESCE가 정상값으로 그대로 반영함
+          tmdb_rating = COALESCE(excluded.tmdb_rating, works.tmdb_rating),
+          release_date = COALESCE(excluded.release_date, works.release_date),
+          -- rating_updated_at: 이 등록 요청이 들어온 시점 = 방문자가 TMDB를 조회해온 시점이므로
+          -- 매 호출마다 무조건 최신 시각으로 갱신 (신작 1일 / 구작 5일 주기 판단의 기준값)
+          rating_updated_at = excluded.rating_updated_at
       `).bind(
         parseInt(tmdb_id),
         title_ko       || null,
@@ -374,7 +398,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         poster_path    || null,
         media_type     || 'tv',
         genre          || null,
-        original_language || null
+        original_language || null,
+        ratingVal,
+        releaseDateVal,
+        nowIso
       ).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
