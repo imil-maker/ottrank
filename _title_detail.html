@@ -2342,14 +2342,28 @@ async function loadTmdb(){
     // JSON-LD datePublished용 원본 날짜(YYYY-MM-DD) — 화면 표시용 year(4자리)와 별도 보관
     WORK.releaseDate=det.first_air_date||det.release_date||'';
 
-    // works 테이블 미등록 작품 또는 title_en 교정 필요한 경우 → 백그라운드 자동 등록/업데이트
+    // 평점(tmdb_rating) 자동 새로고침 여부 판단
+    // - 개봉/방영일(WORK.releaseDate) 기준 6개월 이내 신작 → 1일마다 새로고침
+    // - 그 외(구작, 또는 개봉일 정보 없음) → 5일마다 새로고침
+    // - 마지막 갱신 시각(worksData.rating_updated_at)이 그 기준보다 오래됐으면 갱신 필요
+    const RECENT_WINDOW_MS = 1000*60*60*24*180; // 6개월 ≈ 180일
+    const releaseTime = WORK.releaseDate ? new Date(WORK.releaseDate).getTime() : NaN;
+    const isRecentRelease = !isNaN(releaseTime) && (Date.now()-releaseTime) <= RECENT_WINDOW_MS;
+    const ratingRefreshDays = isRecentRelease ? 1 : 5;
+    const ratingUpdatedAt = worksData?.rating_updated_at ? new Date(worksData.rating_updated_at).getTime() : NaN;
+    const ratingStale = !worksData || !worksData.rating_updated_at || isNaN(ratingUpdatedAt) ||
+      (Date.now()-ratingUpdatedAt) > (1000*60*60*24*ratingRefreshDays);
+
+    // works 테이블 미등록 작품 또는 title_en 교정 필요한 경우, 혹은 평점이 오래된 경우 → 백그라운드 자동 등록/업데이트
     // - worksData 없음: 신규 등록
     // - worksData 있지만 title_en이 비어있거나 한글: 영어 원제로 교정
     // - worksData 있고 title_en이 영어: 아무것도 안 함 (flixpatrol 기준 보호)
+    // - ratingStale: 평점만 새로고침 (제목/장르는 이미 정상이어도 트리거됨)
     const needRegister = !worksData || !worksData.title_en ||
       /[\uAC00-\uD7A3]/.test(worksData.title_en) ||
       worksData.title_en === worksData.title_ko ||
-      !worksData.genre;  // genre 없으면 저장 필요
+      !worksData.genre ||  // genre 없으면 저장 필요
+      ratingStale;
     if(needRegister && WORK.tmdb_id){
       // original_name이 영어(라틴 문자)를 포함할 때만 title_en으로 사용
       const origName   = det.original_name||det.original_title||'';
@@ -2358,17 +2372,21 @@ async function loadTmdb(){
       const title_en   = (hasLatin && !hasKorean) ? origName : '';
       // TMDB 장르 배열 → 한글/영문 이름 콤마 구분 문자열로 변환
       const genreStr = (det.genres||[]).map(g=>g.name).filter(Boolean).join(',');
+      // TMDB 평점: 0점(투표수 부족)도 유효한 값이므로 ?? 로 처리 (|| 사용 시 0이 null로 사라지는 버그 방지)
+      const ratingVal = (det.vote_average ?? null);
 
       fetch(`${OTTRANK_API}/works/register`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body   : JSON.stringify({
-          tmdb_id    : WORK.tmdb_id,
-          title_ko   : title,
+          tmdb_id     : WORK.tmdb_id,
+          title_ko    : title,
           title_en,
-          poster_path: det.poster_path || '',
-          media_type : WORK.type,
-          genre      : genreStr || null,
+          poster_path : det.poster_path || '',
+          media_type  : WORK.type,
+          genre       : genreStr || null,
+          tmdb_rating : ratingVal,
+          release_date: WORK.releaseDate || null,
         }),
       }).catch(()=>{});  // 실패해도 UI에 영향 없음
     }
