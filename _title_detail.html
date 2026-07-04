@@ -2498,7 +2498,7 @@ async function loadTmdb(){
     const [creditsRes, videosRes, ratingsRes, extIdsRes] = await Promise.allSettled([
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${creditsEndpoint}?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/videos?language=ko-KR`).then(r=>r.json()),
-      fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${det.number_of_seasons?'content_ratings':'release_dates'}?language=ko-KR`).then(r=>r.json()),
+      fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${WORK.type==='tv'?'content_ratings':'release_dates'}?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/external_ids`).then(r=>r.json()),
     ]);
 
@@ -2506,7 +2506,7 @@ async function loadTmdb(){
     let ratingHtml='';
     if(ratingsRes.status==='fulfilled'){
       const rData=ratingsRes.value;let cert='';
-      if(det.number_of_seasons){
+      if(WORK.type==='tv'){
         const results=rData.results||[];
         const kr=results.find(r=>r.iso_3166_1==='KR');const us=results.find(r=>r.iso_3166_1==='US');
         cert=kr?.rating||us?.rating||'';
@@ -2517,13 +2517,17 @@ async function loadTmdb(){
       }
       if(cert)ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
     }
-    const seasHtml=det.number_of_seasons?`<span class="hero-meta-item">시즌 <b>${det.number_of_seasons}</b></span><span class="hero-meta-sep">·</span>`:'';
+    // 시즌 표시 여부는 media_type(WORK.type) 기준 — 값 자체는 TMDB의 number_of_seasons를 그대로 사용
+    const seasHtml=WORK.type==='tv'&&det.number_of_seasons?`<span class="hero-meta-item">시즌 <b>${det.number_of_seasons}</b></span><span class="hero-meta-sep">·</span>`:'';
     let episodeHtml='';
     if(det.number_of_episodes)episodeHtml=`<span class="hero-meta-item">총 <b>${det.number_of_episodes}부작</b></span><span class="hero-meta-sep">·</span>`;
     else if(det.runtime)episodeHtml=`<span class="hero-meta-item"><b>${det.runtime}분</b></span><span class="hero-meta-sep">·</span>`;
     const dateRaw=det.first_air_date||det.release_date||'';
     let dateHtml='';
-    if(dateRaw){const d=new Date(dateRaw);const days=['일','월','화','수','목','금','토'];dateHtml=`<span class="hero-meta-item">개봉 <b>${dateRaw.replace(/-/g,'.')} (${days[d.getDay()]})</b></span>`;}
+    // media_type(WORK.type) 기준으로 라벨 분기: TV는 "공개일", 영화는 "개봉"
+    // (works.media_type이 100% 확정된 값이므로 이걸 유일한 기준으로 사용 — det.number_of_seasons 같은
+    //  TMDB 응답 필드로 다시 판단하던 옛 방식은 폐기)
+    if(dateRaw){const d=new Date(dateRaw);const days=['일','월','화','수','목','금','토'];const dateLabel=WORK.type==='tv'?'공개일':'개봉';dateHtml=`<span class="hero-meta-item">${dateLabel} <b>${dateRaw.replace(/-/g,'.')} (${days[d.getDay()]})</b></span>`;}
     document.getElementById('metaRow').innerHTML=`${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
 
     // Credits
