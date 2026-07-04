@@ -1570,7 +1570,7 @@ function searchManualWork(q) {
             tmdb_id: r.id, title_ko: r.name || r.original_name || '',
             title_en: r.original_name || '', poster_path: r.poster_path || '',
             release_year: (r.first_air_date || '').slice(0, 4) || null,
-            genre: '', tmdb_rating: r.vote_average || null, _fromTmdb: true, _type: 'TV'
+            genre: '', tmdb_rating: r.vote_average ?? null, _fromTmdb: true, _type: 'TV'
           }));
       }
 
@@ -1585,7 +1585,7 @@ function searchManualWork(q) {
             tmdb_id: r.id, title_ko: r.title || r.original_title || '',
             title_en: r.original_title || '', poster_path: r.poster_path || '',
             release_year: (r.release_date || '').slice(0, 4) || null,
-            genre: '', tmdb_rating: r.vote_average || null, _fromTmdb: true, _type: '영화'
+            genre: '', tmdb_rating: r.vote_average ?? null, _fromTmdb: true, _type: '영화'
           }));
       }
 
@@ -1818,7 +1818,7 @@ async function addManualRanking() {
             td.poster_path || '',
             parseInt((td.release_date || td.first_air_date || '').slice(0,4)) || null,
             (td.genres || []).map(g => g.name).join(','),
-            td.vote_average || null
+            td.vote_average ?? null
           );
           found = true;
           break;
