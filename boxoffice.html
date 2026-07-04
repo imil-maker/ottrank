@@ -177,6 +177,11 @@ body {
   font-size:13px; font-weight:500; color:var(--text);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px;
 }
+/* 영어제목 — 다른 OTT 페이지(index.html의 .ft-en)와 동일한 스타일로 통일 */
+.pk-en {
+  font-family:var(--mono); font-size:11px; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:4px;
+}
 .pk-year {
   font-family:var(--mono); font-size:11px; color:var(--muted);
   display:flex; align-items:center; gap:6px; flex-wrap:wrap;
@@ -316,6 +321,9 @@ function makeCard(item, rank) {
     ? `<div class="pk-rating">★ ${parseFloat(item.tmdb_rating).toFixed(1)}</div>` : '';
   const memo   = item.memo
     ? `<span class="pk-memo">${escHtml(item.memo)}</span>` : '';
+  // 영어제목 — title_en이 없거나 한글제목과 동일하면(데이터 미보완 상태) 중복 노출 방지
+  const enHtml = (item.title_en && item.title_en !== item.title_ko)
+    ? `<div class="pk-en">${escHtml(item.title_en)}</div>` : '';
 
   return `
     <div class="pk-card" onclick="goWork(${item.tmdb_id},'${escAttr(item.title_ko || '')}')">
@@ -330,6 +338,7 @@ function makeCard(item, rank) {
       </div>
       <div class="pk-info">
         <div class="pk-title">${escHtml(item.title_ko || item.title_en || '')}</div>
+        ${enHtml}
         <div class="pk-year">
           ${item.release_year || '-'}
           ${memo}
