@@ -994,7 +994,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       let genre        = body.genre        || null;
       let overview     = body.overview     || null;
       let release_year = body.release_year || null;
-      let tmdb_rating  = body.tmdb_rating  || null;
+      // tmdb_rating은 0점(투표수 부족)도 유효한 값이므로 ?? 사용
+      // (|| 사용 시 0이 null로 사라지는 버그 — admin.html 프론트에서 이미 한 번 고쳤는데
+      //  백엔드에서 다시 걸러지고 있던 것을 여기서 함께 수정)
+      let tmdb_rating  = body.tmdb_rating  ?? null;
       const media_type = (body.media_type === "tv" || body.media_type === "movie") ? body.media_type : null;
 
       // works 테이블에서 부족한 필드 보완 — title_en도 title_ko/poster_path와 별개로 반드시 확인
@@ -1010,7 +1013,8 @@ export async function handleAdmin(path, request, env, url, headers) {
           genre        = genre        || existing.genre        || null;
           overview     = overview     || existing.overview     || null;
           release_year = release_year || existing.release_year || null;
-          tmdb_rating  = tmdb_rating  || existing.tmdb_rating  || null;
+          // tmdb_rating도 동일하게 ?? — 요청에 값이 없을 때만(undefined/null) works 기존값으로 보완
+          tmdb_rating  = tmdb_rating  ?? existing.tmdb_rating  ?? null;
         }
       }
 
@@ -1061,17 +1065,32 @@ export async function handleAdmin(path, request, env, url, headers) {
         season !== null ? parseInt(season) : null
       ).run();
 
-      // works 테이블에도 title_en 보완 (COALESCE로 3키 원칙 보호 — 이미 값이 있으면 덮어쓰지 않음)
+      // works 테이블에도 title_en·평점 보완 (COALESCE로 3키 원칙 보호 — 이미 값이 있으면 덮어쓰지 않음)
       // 이걸 안 하면 다음에 또 같은 tmdb_id로 등록할 때마다 매번 TMDB를 다시 조회해야 함
-      if (title_en) {
-        await env.DB.prepare(`
-          INSERT INTO works (tmdb_id, title_ko, title_en, poster_path)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT(tmdb_id) DO UPDATE SET
-            title_en   = COALESCE(NULLIF(works.title_en, ''), excluded.title_en),
-            updated_at = datetime('now')
-        `).bind(parseInt(tmdb_id), title_ko || "", title_en, poster_path).run();
-      }
+      //
+      // tmdb_rating: title_en과 달리 "보호 대상 아님" 원칙에 따라 항상 최신값으로 덮어씀
+      //   (COALESCE(excluded.값, works.기존값) — 0점도 유효한 값이라 그대로 반영됨)
+      // rating_updated_at: 이 저장 시점에 이미 관리자가 TMDB에서 최신 평점을 확인해온 것이므로
+      //   현재 시각으로 기록 → 방문 시 자동 새로고침 로직이 "최근에 확인함"으로 인식해
+      //   불필요한 재조회를 하지 않게 됨
+      // title_en이 비어있어도(TMDB 조회 실패 등) 평점 동기화는 별도로 계속 진행되도록,
+      // 기존의 `if (title_en)` 조건 밖으로 빼서 tmdb_id만 있으면 항상 실행되게 함
+      const nowIsoManual = new Date().toISOString();
+      await env.DB.prepare(`
+        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, tmdb_rating, rating_updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(tmdb_id) DO UPDATE SET
+          title_en          = CASE
+            WHEN excluded.title_en IS NULL OR excluded.title_en = '' THEN works.title_en
+            ELSE COALESCE(NULLIF(works.title_en, ''), excluded.title_en)
+          END,
+          tmdb_rating       = COALESCE(excluded.tmdb_rating, works.tmdb_rating),
+          rating_updated_at = excluded.rating_updated_at,
+          updated_at        = datetime('now')
+      `).bind(
+        parseInt(tmdb_id), title_ko || "", title_en || "", poster_path,
+        tmdb_rating, nowIsoManual
+      ).run();
 
       await env.DB.prepare(
         "INSERT INTO admin_logs (action, platform, category_slot, target_id, after_value) VALUES ('manual_ranking_add', ?, ?, ?, ?)"
