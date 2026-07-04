@@ -41,6 +41,7 @@
    POST   /admin/persons/collect
    POST   /admin/works/backfill-language
    POST   /admin/works/backfill-release-year
+   POST   /admin/works/backfill-rating
    GET    /admin/works/missing-media-type
    POST   /admin/works/bulk-set-media-type
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
@@ -1949,6 +1950,99 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const remainRow = await env.DB.prepare(
         "SELECT COUNT(*) as cnt FROM works WHERE release_year IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/backfill-rating ───────────────────────
+  // tmdb_rating이 비어있는 작품에 TMDB 평점(vote_average)과 개봉/방영일(release_date)을
+  // 한 번에 채워넣음 (backfill-language / backfill-release-year와 동일한 배치+반복 패턴)
+  // 계기: 메인 슬라이더(수동 고정 랭킹, rankings 테이블)는 정규 크롤러 대상이 아니라
+  //       works.tmdb_rating이 영구 결번되는 문제 발견 → 일회성 배치로 과거분을 채움
+  //       (release_date는 "6개월 이내 신작 여부" 판별용으로 방문 시 자동 새로고침 로직에서 사용)
+  //
+  // 센티널 값을 쓰지 않는 이유: tmdb_rating은 화면에서 "값이 있으면 표시"하는 방식으로
+  // 여러 곳(index.html, _title_detail.html)에서 체크하고 있어서, 예를 들어 release_year처럼
+  // 0을 센티널로 쓰면 0점(투표수 부족)인 정상 데이터와 구분이 안 됨. 그래서 여기서는
+  // "시도했는지" 여부를 rating_updated_at 컬럼으로 별도 추적하고, tmdb_rating은 진짜 값이
+  // 있을 때만 채우고 없으면 NULL을 그대로 유지함 (화면 표시 로직을 안 건드려도 안전).
+  if (path === "/admin/works/backfill-rating" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 30, 50);
+
+      // "한 번도 시도 안 한" 작품만 대상 (rating_updated_at IS NULL)
+      // → 시도했지만 TMDB에 값이 없었던 작품은 rating_updated_at이 찍혀 있어 여기서 자동 제외됨
+      //   (무한 재시도 방지. 이후 재시도는 방문 시 자동 새로고침 로직이 담당)
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE tmdb_rating IS NULL AND rating_updated_at IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: 0, message: "채울 작품 없음"
+        }), { headers });
+      }
+
+      const updates = [];
+      let filled = 0;
+      const nowIso = new Date().toISOString();
+
+      for (const row of targets) {
+        const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
+        let rating      = null;
+        let releaseDate = null;
+        let matched     = false; // TMDB로부터 정상 응답을 한 번이라도 받았는지
+
+        for (const mtype of mtypes) {
+          try {
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
+            );
+            if (!resp.ok) continue;
+            const data = await resp.json();
+            matched = true;
+            // 0점(투표수 부족)도 유효한 값이므로 ?? 사용 — || 사용 시 0이 사라지는 버그 재발 방지
+            rating      = data.vote_average ?? null;
+            releaseDate = data.release_date || data.first_air_date || null;
+            break;
+          } catch (e) { /* 다음 media_type으로 계속 시도 */ }
+        }
+
+        if (matched) {
+          // TMDB가 정상 응답을 줬으므로, 평점이 실제로 없더라도(신작 투표수 0 등) 시도 시각은 기록
+          updates.push(
+            env.DB.prepare(
+              "UPDATE works SET tmdb_rating = ?, release_date = ?, rating_updated_at = ? WHERE tmdb_id = ?"
+            ).bind(rating, releaseDate, nowIso, row.tmdb_id)
+          );
+          if (rating !== null) filled++;
+        } else {
+          // 네트워크 오류 등으로 TMDB 응답 자체를 못 받음 — 그래도 rating_updated_at은 찍어서
+          // 이번 배치 루프에서 같은 행을 무한 반복 조회하지 않게 함 (미래 재시도는 방문 시 자동
+          // 새로고침 로직이 담당하므로 완전히 누락되지는 않음)
+          updates.push(
+            env.DB.prepare(
+              "UPDATE works SET rating_updated_at = ? WHERE tmdb_id = ?"
+            ).bind(nowIso, row.tmdb_id)
+          );
+        }
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE tmdb_rating IS NULL AND rating_updated_at IS NULL"
       ).first();
 
       return new Response(JSON.stringify({
