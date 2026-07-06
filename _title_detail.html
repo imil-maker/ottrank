@@ -1791,9 +1791,12 @@ function renderKeywordResultItems(kw, items){
     scrollEl.innerHTML=items.map(w=>{
       const poster=w.poster_path?`<img src="${IMG+w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`:`<div class="sim-poster-ph">🎬</div>`;
       const href=`/title/1-${year}${w.tmdb_id}`;
-      return `<a class="sim-card" href="${href}">
+      const title=w.title_ko||w.title_en||'';
+      // w.media_type은 /search/keyword 응답에 원래부터 포함돼 있던 필드 — 그동안 여기서만 안 쓰고 버려지고 있었음
+      const mt=w.media_type||'tv';
+      return `<a class="sim-card" href="${href}" onclick="goToTitle(${w.tmdb_id},'${mt}',${year});return false;">
         <div class="sim-poster">${poster}</div>
-        <div class="sim-title">${w.title_ko||w.title_en||''}</div>
+        <div class="sim-title">${title}</div>
       </a>`;
     }).join('');
   }
@@ -1919,6 +1922,34 @@ function parseSlug(pathname){
     }
   }
   return{tmdb_id,season,year,titleSlug};
+}
+
+/* == 작품 카드 클릭 시 다른 작품페이지로 이동하는 공통 헬퍼 ==
+   [버그 배경] "비슷한 취향의 작품" / "관련 키워드 작품" 카드는 URL 슬러그(/title/1-{year}{tmdb_id})에
+   media_type(movie/tv) 정보를 전혀 담지 않았음. 목적지 페이지는 media_type을 모르면
+   기본값 'tv'로 가정하고 TMDB에 tv부터 조회해서, 우연히 그 번호가 TMDB tv 카탈로그에도
+   존재하면 그대로 tv로 확정돼버림 — 원본이 영화인 카드의 절반 가까이가 엉뚱한 타입으로 연결되던 원인.
+   [해결] 페이지 이동 직전에 sessionStorage('ottrang_work')로 정확한 media_type을 같이 넘겨서
+   목적지 페이지의 initWork()가 추측 없이 그 값을 바로 신뢰하도록 함 (기존에 랭킹/리뷰카드 이동 시
+   이미 쓰이던 것과 동일한 패턴 재사용 — updateSEO(), goReview() 참고).
+   ⚠️ 알려진 한계: sessionStorage는 새 탭으로는 전달되지 않으므로, 마우스 휠클릭/우클릭으로
+   "새 탭에서 열기"를 하면 목적지 페이지가 다시 기존 추측 로직을 타게 됨(기존 다른 링크들과 동일한 한계). */
+function goToTitle(tmdbId,mediaType,year){
+  if(!tmdbId)return;
+  const y=year||new Date().getFullYear();
+  const slug=`1-${y}${tmdbId}`;
+  try{
+    sessionStorage.setItem('ottrang_slug',`/title/${slug}`);
+    // title/poster_path는 안 넣음 — 목적지 페이지가 어차피 loadTmdb()에서 works/TMDB로 다시 채우고,
+    // onclick 속성 문자열 안에 제목(따옴표 포함 가능)을 그대로 넣으면 HTML 속성이 깨지는 위험이 있어 제외
+    sessionStorage.setItem('ottrang_work',JSON.stringify({
+      tmdb_id:tmdbId,
+      type:mediaType||'tv', // media_type을 끝내 못 받은 경우에만 기존과 동일하게 'tv' 폴백
+      season:1,
+      year:y,
+    }));
+  }catch(e){/* sessionStorage 접근 실패(프라이빗 모드 등)해도 페이지 이동 자체는 계속 진행 */}
+  location.href=`/title/${slug}`;
 }
 
 /* == WORK Init == */
@@ -2192,6 +2223,7 @@ async function loadSimilarWorks(){
       poster_path:it.poster_path,
       first_air_date:it.release_year?String(it.release_year):'',
       _pct:it.pinned_pct, // 관리자가 직접 입력한 값 — 예능 매칭보다도 우선 사용
+      media_type:it.media_type||null, // 2026-07-06 백엔드 수정으로 새로 내려오는 필드 — 없으면(레거시/NULL) null 그대로 둠
     }));
     const seenIds=new Set(pinnedList.map(it=>it.id));
 
@@ -2206,6 +2238,7 @@ async function loadSimilarWorks(){
         poster_path:it.poster_path,
         first_air_date:it.release_year?String(it.release_year):'',
         _pct:it.match_pct, // 서버가 이미 92~99로 계산해둔 고정값(랭킹 가산점 포함) — 아래서 vote_average 계산 대신 이 값 우선 사용
+        media_type:it.media_type||null, // 2026-07-06 백엔드 수정으로 새로 내려오는 필드 — 예능은 거의 tv지만 명시적으로 신뢰
       }));
       varietyList.forEach(it=>seenIds.add(it.id));
     }
@@ -2221,6 +2254,10 @@ async function loadSimilarWorks(){
         extra=(simRes?.results||[]).filter(it=>it.poster_path&&it.id!==WORK.tmdb_id&&!seenIds.has(it.id));
         usedSimilar=true;
       }
+
+      // TMDB recommendations/similar는 호출한 media_type(WORK.type)과 항상 같은 타입만 돌려주므로
+      // 여기서 확정적으로 media_type을 부여해둔다 (목적지 페이지가 다시 추측할 필요 없게)
+      extra=extra.map(it=>({...it,media_type:WORK.type}));
 
       // 한국 작품을 다른 나라 작품보다 앞쪽으로 그룹핑 + 각 그룹 내부는 %(vote_average 기반) 내림차순 정렬
       // (기존엔 그룹만 나누고 TMDB가 내려준 "관련도" 순서를 그대로 썼는데, 화면에 %가 보이는 이상
@@ -2246,8 +2283,11 @@ async function loadSimilarWorks(){
       const pct=it._pct!=null?it._pct:(it.vote_average?Math.round(it.vote_average*10):null);
       const matchBadge=pct?`<span class="sim-match${pct>=70?' hi':''}">${pct}%</span>`:'';
       const url=`/title/1-${year}${it.id}`;
+      // media_type이 끝내 없으면(레거시 데이터) 현재 페이지 타입으로라도 폴백 — 완전 미상보다는 낫고,
+      // 실제로 pinned/variety 항목은 대부분 현재 작품과 같은 카테고리(예능↔예능 등)라 폴백 적중률이 높음
+      const mt=it.media_type||WORK.type;
       return `
-        <a class="sim-card" href="${url}" onclick="location.href='${url}';return false;">
+        <a class="sim-card" href="${url}" onclick="goToTitle(${it.id},'${mt}',${year});return false;">
           <div class="sim-poster">
             <img src="${IMG}${it.poster_path}" alt="${title}" loading="lazy">
             ${matchBadge}
