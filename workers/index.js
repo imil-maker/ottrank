@@ -107,6 +107,8 @@ export default {
     }
 
     // 6. 유저 활동 (찜/후기/마이페이지/등급/인생작품/추천작품)
+    //    /admin/reviews도 여기 포함 — 관리자 캐치올(handleAdmin)보다 앞에서 가로채야
+    //    reviews 스키마를 이미 알고 있는 handleUser로 정확히 라우팅됨
     if (!res && (
       path.startsWith("/wishlist") ||
       path.startsWith("/reviews") ||
@@ -114,7 +116,8 @@ export default {
       path.startsWith("/user/") ||
       path === "/grade-settings" ||
       path.startsWith("/life-works") ||
-      path.startsWith("/pick-lists")
+      path.startsWith("/pick-lists") ||
+      path.startsWith("/admin/reviews")
     )) {
       res = await handleUser(path, request, env, ctx, headers);
     }
