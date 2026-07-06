@@ -839,9 +839,12 @@ export async function handleAdmin(path, request, env, url, headers) {
       const offset = (page - 1) * limit;
 
       // 정렬 기준 컬럼 — created_at이 없는(마이그레이션 전) 초기 상태를 대비해 COALESCE로 안전하게 폴백
+      // 2차 정렬 기준(id DESC): 기존 데이터는 마이그레이션 시점 일괄 백필로 created_at이 전부 동점이라,
+      // 이 경우 실제 PK(id, AUTOINCREMENT)가 큰(=테이블에 더 나중에 INSERT된) 행을 우선 노출
+      // ⚠️ id는 tmdb_id와 무관한 별도 PK 컬럼 — sqlite_master 스키마 확인으로 검증됨
       const orderBy = sort === "updated"
-        ? "updated_at DESC"
-        : "COALESCE(created_at, updated_at) DESC";
+        ? "updated_at DESC, id DESC"
+        : "COALESCE(created_at, updated_at) DESC, id DESC";
 
       let query, params;
       if (filter === "new_match" && date) {
