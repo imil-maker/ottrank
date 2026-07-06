@@ -87,29 +87,15 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
     <button class="tab" onclick="switchTab('calc', this)">🔄 수동 핫100</button>
   </div>
 
-  <!-- ══ ① 핫100 (수동부스트) ══ -->
+  <!-- ══ ① 핫100 (수동부스트 검색) ══ -->
   <div id="section-boost" class="section on">
     <div class="card">
       <h3>작품 검색 후 수동 부스트 부여</h3>
-      <div class="hint">💡 특정 작품의 HOT100 점수에 ±점수를 직접 더하고 뺄 수 있습니다. 작품명 또는 TMDB ID로 검색하세요.</div>
+      <div class="hint">💡 특정 작품의 HOT100 점수에 ±점수를 직접 더하고 뺄 수 있습니다. 작품명 또는 TMDB ID로 검색하세요. 현재 부스트가 걸린 작품과 실제 순위 반영 결과는 "수동 핫100" 탭 미리보기에서 확인·조정할 수 있습니다.</div>
       <div class="search-row">
         <input class="inp" id="boostSearchInp" placeholder="작품명 또는 TMDB ID 검색" oninput="searchBoostTimer()" style="margin-bottom:0">
       </div>
       <div id="boostSearchResult"></div>
-    </div>
-
-    <div class="card">
-      <h3>현재 설정된 수동 부스트 목록</h3>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>포스터</th><th>TMDB ID</th><th>작품명</th><th>부스트값</th><th>사유</th><th>수정일</th><th></th></tr>
-          </thead>
-          <tbody id="boostListBody">
-            <tr><td colspan="7" class="loading">불러오는 중...</td></tr>
-          </tbody>
-        </table>
-      </div>
     </div>
   </div>
 
@@ -162,14 +148,15 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
     </div>
 
     <div class="card">
-      <h3>결과 미리보기 (상위 30개)</h3>
+      <h3>결과 미리보기 (상위 30개) — 여기서 바로 부스트 조정 가능</h3>
+      <div class="hint">💡 부스트 저장은 즉시 반영되지 않습니다. 값을 바꾼 뒤 위 "지금 바로 HOT100 재계산" 버튼을 다시 눌러야 순위에 반영됩니다.</div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>순위</th><th>포스터</th><th>작품명</th><th>플랫폼</th><th>점수</th><th>평점</th></tr>
+            <tr><th>순위</th><th>포스터</th><th>작품명</th><th>플랫폼</th><th>점수</th><th>평점</th><th>부스트</th><th></th></tr>
           </thead>
           <tbody id="previewTableBody">
-            <tr><td colspan="6" class="empty">아직 계산 결과가 없습니다. 위 버튼을 눌러 재계산하세요.</td></tr>
+            <tr><td colspan="8" class="empty">아직 계산 결과가 없습니다. 위 버튼을 눌러 재계산하세요.</td></tr>
           </tbody>
         </table>
       </div>
@@ -198,7 +185,6 @@ function login() {
   localStorage.setItem('admin_token', t);
   document.getElementById('loginSection').style.display = 'none';
   document.getElementById('mainSection').style.display = 'block';
-  loadBoostList();
   loadCategoryCheck();
   loadWeightCategories();
 }
@@ -282,30 +268,7 @@ async function saveBoost(tmdbId) {
     const json = await res.json();
     if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
     showToast('✅ 부스트 저장 완료', 'ok');
-    loadBoostList();
   } catch(e) { showToast(e.message, 'err'); }
-}
-
-async function loadBoostList() {
-  const body = document.getElementById('boostListBody');
-  body.innerHTML = '<tr><td colspan="7" class="loading">불러오는 중...</td></tr>';
-  try {
-    const res  = await fetch(`${API}/admin/hot100/boosts`, { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    const rows = json.data || [];
-    if (!rows.length) { body.innerHTML = '<tr><td colspan="7" class="empty">설정된 부스트 없음</td></tr>'; return; }
-    body.innerHTML = rows.map(r => `
-      <tr>
-        <td>${r.poster_path ? `<img class="poster-thumb" src="${IMG}${r.poster_path}">` : `<div class="poster-ph">🎬</div>`}</td>
-        <td><span class="tmdb-id">${r.tmdb_id}</span></td>
-        <td><span class="title-ko">${_esc(r.title_ko || '(제목없음)')}</span></td>
-        <td><span style="color:${r.boost_value >= 0 ? 'var(--green)' : 'var(--red)'};font-family:var(--mono)">${r.boost_value > 0 ? '+' : ''}${r.boost_value}</span></td>
-        <td><span style="font-size:12px;color:var(--muted2)">${_esc(r.reason || '')}</span></td>
-        <td><span style="font-size:11px;color:var(--muted2);font-family:var(--mono)">${r.updated_at || ''}</span></td>
-        <td><button class="btn-del" onclick="deleteBoost(${r.tmdb_id})">삭제</button></td>
-      </tr>
-    `).join('');
-  } catch(e) { body.innerHTML = `<tr><td colspan="7" class="empty">오류: ${e.message}</td></tr>`; }
 }
 
 async function deleteBoost(tmdbId) {
@@ -318,7 +281,7 @@ async function deleteBoost(tmdbId) {
     const json = await res.json();
     if (!json.ok) { showToast(json.error || '삭제 실패', 'err'); return; }
     showToast('🗑️ 삭제 완료', 'ok');
-    loadBoostList();
+    loadPreview();
   } catch(e) { showToast(e.message, 'err'); }
 }
 
@@ -472,23 +435,45 @@ async function runCalcHot100() {
 
 async function loadPreview() {
   const body = document.getElementById('previewTableBody');
-  body.innerHTML = '<tr><td colspan="6" class="loading">불러오는 중...</td></tr>';
+  body.innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
   try {
     const res  = await fetch(`${API}/hot100?limit=30`);
     const json = await res.json();
     const rows = json.data || [];
-    if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">데이터 없음</td></tr>'; return; }
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>'; return; }
     body.innerHTML = rows.map(r => `
       <tr>
         <td><span class="rank-num">${r.hot_rank}</span></td>
         <td>${r.poster_path ? `<img class="poster-thumb" src="${IMG}${r.poster_path}">` : `<div class="poster-ph">🎬</div>`}</td>
-        <td><span class="title-ko">${_esc(r.title_ko || '')}</span></td>
+        <td>
+          <span class="title-ko">${_esc(r.title_ko || '')}</span>
+          <div class="tmdb-id">ID ${r.tmdb_id}</div>
+        </td>
         <td><span class="platform-badge" style="background:${PC[r.best_platform]||'#666'}">${PLATFORM_KO[r.best_platform]||r.best_platform}</span></td>
         <td><span style="font-family:var(--mono);font-size:13px">${r.total_score}</span></td>
         <td><span style="font-family:var(--mono);font-size:13px;color:var(--muted2)">${r.tmdb_rating ?? '-'}</span></td>
+        <td><input class="boost-inp" type="number" id="pv-boost-${r.tmdb_id}" value="${r.admin_boost || 0}"></td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-fix" onclick="savePreviewBoost(${r.tmdb_id})">저장</button>
+          <button class="btn-del" onclick="deleteBoost(${r.tmdb_id})">삭제</button>
+        </td>
       </tr>
     `).join('');
-  } catch(e) { body.innerHTML = `<tr><td colspan="6" class="empty">오류: ${e.message}</td></tr>`; }
+  } catch(e) { body.innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`; }
+}
+
+async function savePreviewBoost(tmdbId) {
+  const boost_value = parseFloat(document.getElementById(`pv-boost-${tmdbId}`).value) || 0;
+  try {
+    const res  = await fetch(`${API}/admin/hot100/boosts`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id: tmdbId, boost_value, reason: '수동 핫100 탭에서 조정' })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
+    showToast('✅ 부스트 저장 완료 — 재계산 버튼을 눌러 반영하세요', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
 }
 
 // 계산 탭 진입 시 기존 결과 있으면 자동으로 미리보기 로드
