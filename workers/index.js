@@ -14,6 +14,7 @@
    admin.js     : /admin/* (reactions, videos, contents 제외)
    contents.js  : /contents/*, /admin/contents*
    blog.js      : /blog-gen/*
+   inquiry.js   : /inquiry, /admin/inquiry*  (광고문의/오류신고 게시판)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -25,6 +26,7 @@ import { handlePosts     } from "./routes/posts.js";
 import { handleAdmin     } from "./routes/admin.js";
 import { handleContents  } from "./routes/contents.js";
 import { handleBlog      } from "./routes/blog.js";
+import { handleInquiry   } from "./routes/inquiry.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -132,12 +134,21 @@ export default {
       res = await handleAdmin(path, request, env, url, headers);
     }
 
-    // 10. 관리자 (reactions, videos, contents 제외한 나머지)
+    // 10. 문의/신고 게시판 (광고문의/오류신고) — /admin/inquiry는 10번 뒤 관리자 캐치올보다
+    //     반드시 앞에 있어야 함 (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남)
+    if (!res && (
+      path === "/inquiry" ||
+      path.startsWith("/admin/inquiry")
+    )) {
+      res = await handleInquiry(path, request, env, ctx, url, headers);
+    }
+
+    // 11. 관리자 (reactions, videos, contents, inquiry 제외한 나머지)
     if (!res && path.startsWith("/admin/")) {
       res = await handleAdmin(path, request, env, url, headers);
     }
 
-    // 11. 404
+    // 12. 404
     if (!res) {
       res = new Response(
         JSON.stringify({ ok: false, message: "Not found" }),
