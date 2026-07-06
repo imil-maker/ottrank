@@ -536,7 +536,8 @@ export async function handleAdmin(path, request, env, url, headers) {
       const body = await request.json();
       const { display_name, crawl_limit, main_limit, platform_limit,
               is_active, main_section, main_order,
-              platform_section, platform_order, memo_label } = body;
+              platform_section, platform_order, memo_label,
+              hot100_eligible } = body;
 
       await env.DB.prepare(`
         UPDATE ott_categories SET
@@ -550,6 +551,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           platform_section = CASE WHEN ? = '__SKIP__' THEN platform_section ELSE ? END,
           platform_order   = CASE WHEN ? = '__SKIP__' THEN platform_order   ELSE ? END,
           memo_label       = CASE WHEN ? = '__SKIP__' THEN memo_label       ELSE ? END,
+          hot100_eligible  = CASE WHEN ? = '__SKIP__' THEN hot100_eligible  ELSE ? END,
           updated_at       = datetime('now')
         WHERE id = ?
       `).bind(
@@ -560,6 +562,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         platform_section === undefined ? "__SKIP__" : "__SET__", platform_section === undefined ? null : (platform_section || null),
         platform_order === undefined ? "__SKIP__" : "__SET__", platform_order === undefined ? null : (platform_order ?? 0),
         memo_label     === undefined ? "__SKIP__" : "__SET__", memo_label     === undefined ? null : (memo_label     || null),
+        hot100_eligible === undefined ? "__SKIP__" : "__SET__", hot100_eligible === undefined ? null : (hot100_eligible ?? 0),
         id
       ).run();
 
