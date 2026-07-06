@@ -15,6 +15,7 @@
    contents.js  : /contents/*, /admin/contents*
    blog.js      : /blog-gen/*
    inquiry.js   : /inquiry, /admin/inquiry*  (광고문의/오류신고 게시판)
+   hot100.js    : /hot100, /admin/calc-hot100  (HOT100 통합 랭킹)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -27,6 +28,7 @@ import { handleAdmin     } from "./routes/admin.js";
 import { handleContents  } from "./routes/contents.js";
 import { handleBlog      } from "./routes/blog.js";
 import { handleInquiry   } from "./routes/inquiry.js";
+import { calcHot100, getHot100 } from "./routes/hot100.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -146,12 +148,22 @@ export default {
       res = await handleInquiry(path, request, env, ctx, url, headers);
     }
 
-    // 11. 관리자 (reactions, videos, contents, inquiry 제외한 나머지)
+    // 11. HOT100 통합 랭킹 (계산은 관리자 전용, 조회는 공개)
+    //     /admin/calc-hot100은 12번 관리자 캐치올보다 반드시 앞에 있어야 함
+    //     (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남)
+    if (!res && path === "/admin/calc-hot100") {
+      res = await calcHot100(request, env, headers);
+    }
+    if (!res && path === "/hot100") {
+      res = await getHot100(request, env, headers);
+    }
+
+    // 12. 관리자 (reactions, videos, contents, inquiry, hot100 제외한 나머지)
     if (!res && path.startsWith("/admin/")) {
       res = await handleAdmin(path, request, env, url, headers);
     }
 
-    // 12. 404
+    // 13. 404
     if (!res) {
       res = new Response(
         JSON.stringify({ ok: false, message: "Not found" }),
