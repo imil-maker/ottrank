@@ -24,6 +24,8 @@
    POST   /pick-lists/:id/works        컬렉션에 작품 추가/제거 토글
    GET    /pick-lists/check/:tmdb_id   작품이 담긴 컬렉션 목록 확인
    POST   /reviews/share               리뷰 카드 공유 오뜨 +10 (1일 1회)
+   GET    /admin/reviews               관리자 — 평점·후기 검색/목록 (작품명 또는 닉네임)
+   DELETE /admin/reviews/:id           관리자 — 평점·후기 강제 삭제 (소유자 무관)
 ══════════════════════════════════════════════════════════════ */
 
 import { _getSessionCookie, _recalcGrade, _addOttPoints } from "../utils/authUtils.js";
@@ -1097,6 +1099,81 @@ export async function handleUser(path, request, env, ctx, headers) {
 
       await _addOttPoints(session.user_id, 10, 'share', env);
       return new Response(JSON.stringify({ ok: true, already: false, points: 10 }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/reviews — 관리자 평점·후기 검색/목록 ─────────
+  // 인증: admin_videos.html/videos.js에서 실제로 쓰이는 인라인 패턴과 동일하게
+  //       Authorization: Bearer {ADMIN_SECRET} 헤더를 직접 비교 (_checkAuth 미사용)
+  // q 파라미터가 없으면 전체 최신순, 있으면 작품명(title_ko) 또는 작성자 닉네임으로 검색
+  if (path === "/admin/reviews" && request.method === "GET") {
+    if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const url    = new URL(request.url);
+      const q      = (url.searchParams.get("q") || "").trim();
+      const page   = Math.max(1, parseInt(url.searchParams.get("page")  || "1"));
+      const limit  = Math.min(parseInt(url.searchParams.get("limit") || "20"), 50);
+      const offset = (page - 1) * limit;
+
+      const whereClause = q ? "WHERE u.nickname LIKE ? OR w.title_ko LIKE ?" : "";
+      const binds        = q ? [`%${q}%`, `%${q}%`] : [];
+
+      // 목록 + 전체 개수를 env.DB.batch()로 한 번에 — D1 네트워크 왕복 1회로 최적화
+      const [listRes, cntRes] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT r.id, r.tmdb_id, r.score, r.text, r.emotions, r.likes, r.created_at,
+                 u.nickname, w.title_ko, w.poster_path
+          FROM reviews r
+          JOIN users u ON r.user_id = u.id
+          LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+          ${whereClause}
+          ORDER BY r.created_at DESC
+          LIMIT ? OFFSET ?
+        `).bind(...binds, limit, offset),
+        env.DB.prepare(`
+          SELECT COUNT(*) as cnt
+          FROM reviews r
+          JOIN users u ON r.user_id = u.id
+          LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+          ${whereClause}
+        `).bind(...binds),
+      ]);
+
+      const results = listRes.results || [];
+      const total   = cntRes.results?.[0]?.cnt || 0;
+
+      return new Response(JSON.stringify({ ok: true, data: results, total, page, limit }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/reviews/:id — 관리자 강제 삭제 ─────────────
+  // 유저 본인삭제(DELETE /reviews/:tmdb_id)와 다르게 소유자 확인 없이 review.id로 바로 삭제.
+  // 삭제 후 작성자 등급 재계산까지 호출하되, 이미 지급된 오뜨 포인트는 회수하지 않음
+  // (본인삭제 때도 포인트를 회수하지 않는 기존 정책과 일관성 유지).
+  const delReviewMatch = path.match(/^\/admin\/reviews\/(\d+)$/);
+  if (request.method === "DELETE" && delReviewMatch) {
+    if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const reviewId = delReviewMatch[1];
+      const review = await env.DB.prepare(
+        "SELECT id, user_id FROM reviews WHERE id = ?"
+      ).bind(reviewId).first();
+      if (!review) {
+        return new Response(JSON.stringify({ ok: false, message: "찾을 수 없습니다" }), { status: 404, headers });
+      }
+
+      await env.DB.prepare("DELETE FROM reviews WHERE id = ?").bind(reviewId).run();
+      if (review.user_id) ctx.waitUntil(_recalcGrade(review.user_id, env));
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
