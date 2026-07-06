@@ -132,23 +132,21 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
     </div>
   </div>
 
-  <!-- ══ ③ OTT 가중치 설정 ══ -->
+  <!-- ══ ③ 카테고리별 가중치 설정 ══ -->
   <div id="section-weight" class="section">
     <div class="card">
-      <h3>플랫폼별 가중치</h3>
-      <div class="hint">💡 플랫폼 체급 차이를 반영하는 배율입니다. 넷플릭스 1위와 다른 플랫폼 1위가 동점이 아니게 만드는 값입니다.</div>
+      <h3>HOT100 포함 카테고리별 가중치</h3>
+      <div class="hint">💡 "카테고리 체크"에서 HOT100 포함으로 체크된 카테고리만 여기 표시됩니다. 같은 플랫폼이어도 카테고리(드라마/영화 등)마다 다른 가중치를 줄 수 있습니다. 값이 클수록 화제성 반영 비중이 커집니다 (0~1 권장).</div>
+      <div class="filter-tabs" id="weightPlatformTabs"></div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>플랫폼</th><th>가중치</th><th>수정일</th><th></th></tr>
+            <tr><th>슬롯</th><th>크롤링 원본명</th><th>프론트 표시명</th><th>가중치</th><th></th></tr>
           </thead>
           <tbody id="weightTableBody">
-            <tr><td colspan="4" class="loading">불러오는 중...</td></tr>
+            <tr><td colspan="5" class="loading">불러오는 중...</td></tr>
           </tbody>
         </table>
-      </div>
-      <div style="margin-top:14px">
-        <button class="btn-save" onclick="saveAllWeights()">💾 전체 가중치 저장</button>
       </div>
     </div>
   </div>
@@ -188,8 +186,8 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
 // ════════════════════════════════════════════════════
 const API = 'https://ottrank-api.tdidream.workers.dev';
 const IMG = 'https://image.tmdb.org/t/p/w92';
-const PLATFORM_KO = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브' };
-const PC = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3' };
+const PLATFORM_KO = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스' };
+const PC = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429' };
 
 let token = '';
 
@@ -202,7 +200,7 @@ function login() {
   document.getElementById('mainSection').style.display = 'block';
   loadBoostList();
   loadCategoryCheck();
-  loadWeights();
+  loadWeightCategories();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -329,7 +327,7 @@ async function deleteBoost(tmdbId) {
 // ════════════════════════════════════════════════════
 let allCatCheckData = [];
 let curCatCheckPlatform = 'netflix';
-const HOT100_PLATFORMS = ['netflix','tving','disney','coupang','wavve'];
+const HOT100_PLATFORMS = ['netflix','tving','disney','coupang','wavve','boxoffice'];
 
 async function loadCategoryCheck() {
   // 플랫폼 탭 렌더링 (최초 1회)
@@ -383,69 +381,66 @@ async function saveCatCheck(id) {
     if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
     const item = allCatCheckData.find(r => r.id === id);
     if (item) item.hot100_eligible = checked ? 1 : 0;
+    renderWeightCategories();
     showToast(`✅ ${checked ? 'HOT100 포함' : 'HOT100 제외'} 저장 완료`, 'ok');
   } catch(e) { showToast(e.message, 'err'); }
 }
 
 // ════════════════════════════════════════════════════
-// ③ OTT 가중치 설정
+// ③ 카테고리별 가중치 설정 (HOT100 포함 카테고리만 대상)
 // ════════════════════════════════════════════════════
-let allWeightData = [];
+let curWeightPlatform = 'netflix';
 
-async function loadWeights() {
-  const body = document.getElementById('weightTableBody');
-  body.innerHTML = '<tr><td colspan="4" class="loading">불러오는 중...</td></tr>';
-  try {
-    const res  = await fetch(`${API}/admin/hot100/weights`, { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    allWeightData = json.data || [];
-    renderWeights();
-  } catch(e) { body.innerHTML = `<tr><td colspan="4" class="empty">오류: ${e.message}</td></tr>`; }
+function loadWeightCategories() {
+  // 별도 API 호출 없이 "카테고리 체크" 탭에서 이미 로드한 allCatCheckData 재사용
+  const tabBox = document.getElementById('weightPlatformTabs');
+  if (!tabBox.children.length) {
+    tabBox.innerHTML = HOT100_PLATFORMS.map((p, i) =>
+      `<button class="ftab ${i===0?'on':''}" onclick="setWeightPlatform('${p}', this)">${PLATFORM_KO[p]}</button>`
+    ).join('');
+  }
+  renderWeightCategories();
 }
 
-function renderWeights() {
+function setWeightPlatform(platform, btn) {
+  curWeightPlatform = platform;
+  document.querySelectorAll('#weightPlatformTabs .ftab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderWeightCategories();
+}
+
+function renderWeightCategories() {
+  const rows = allCatCheckData.filter(r => r.platform === curWeightPlatform && r.hot100_eligible);
   const body = document.getElementById('weightTableBody');
-  if (!allWeightData.length) { body.innerHTML = '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'; return; }
-  body.innerHTML = allWeightData.map(r => `
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="5" class="empty">HOT100 포함으로 체크된 카테고리가 없습니다. "카테고리 체크" 탭에서 먼저 체크하세요.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => `
     <tr>
-      <td><span class="platform-badge" style="background:${PC[r.platform]||'#666'}">${PLATFORM_KO[r.platform]||r.platform}</span></td>
-      <td><input class="weight-inp" type="number" step="0.05" min="0" max="1" id="w-${r.platform}" value="${r.weight}"></td>
-      <td><span style="font-size:11px;color:var(--muted2);font-family:var(--mono)">${r.updated_at || ''}</span></td>
-      <td><button class="btn-sm btn-fix" onclick="saveWeight('${r.platform}')">개별 저장</button></td>
+      <td><span class="tmdb-id">${r.category_slot}</span></td>
+      <td><span style="font-size:11px;color:var(--muted2)">${_esc(r.source_name)}</span></td>
+      <td><span style="font-size:13px">${_esc(r.display_name || '')}</span></td>
+      <td><input class="weight-inp" type="number" step="0.05" min="0" max="1" id="wc-${r.id}" value="${r.hot100_weight ?? 0.5}"></td>
+      <td><button class="btn-sm btn-fix" onclick="saveWeightCat(${r.id})">저장</button></td>
     </tr>
   `).join('');
 }
 
-async function saveWeight(platform) {
-  const weight = parseFloat(document.getElementById(`w-${platform}`).value);
+async function saveWeightCat(id) {
+  const weight = parseFloat(document.getElementById(`wc-${id}`).value);
   if (isNaN(weight)) { showToast('올바른 숫자를 입력하세요', 'err'); return; }
   try {
-    const res  = await fetch(`${API}/admin/hot100/weights`, {
-      method: 'PUT',
+    const res  = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weights: [{ platform, weight }] })
+      body: JSON.stringify({ hot100_weight: weight })
     });
     const json = await res.json();
-    if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
-    showToast(`✅ ${PLATFORM_KO[platform]} 가중치 저장 완료`, 'ok');
-  } catch(e) { showToast(e.message, 'err'); }
-}
-
-async function saveAllWeights() {
-  const weights = HOT100_PLATFORMS.map(p => ({
-    platform: p,
-    weight: parseFloat(document.getElementById(`w-${p}`)?.value) || 0.5
-  }));
-  try {
-    const res  = await fetch(`${API}/admin/hot100/weights`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weights })
-    });
-    const json = await res.json();
-    if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
-    showToast('✅ 전체 가중치 저장 완료', 'ok');
-    loadWeights();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    const item = allCatCheckData.find(r => r.id === id);
+    if (item) item.hot100_weight = weight;
+    showToast('✅ 가중치 저장 완료', 'ok');
   } catch(e) { showToast(e.message, 'err'); }
 }
 
