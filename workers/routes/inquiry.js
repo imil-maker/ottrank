@@ -17,7 +17,8 @@ import { _getSessionCookie } from "../utils/authUtils.js";
 
 const VALID_TYPES   = ["ad", "bug"];
 const VALID_STATUS  = ["pending", "answered", "resolved"];
-const COOLDOWN_SECONDS = 60; // 동일 IP 연속 제출 방지 쿨다운(초) — 상수이며 사용자 입력 아님(SQL 인젝션 무관)
+const FREE_QUOTA_PER_HOUR = 5;  // 이 건수까지는 IP당 아무 제한 없이 통과 (정상적인 재문의/오타수정 보호)
+const COOLDOWN_SECONDS    = 30; // 시간당 건수를 초과한 IP에게만 적용되는 최소 간격(초)
 
 export async function handleInquiry(path, request, env, ctx, url, headers) {
 
@@ -89,19 +90,31 @@ export async function handleInquiry(path, request, env, ctx, url, headers) {
         // 세션 조회 실패해도 비로그인 제출로 계속 진행 — 로그인 확인은 부가 기능일 뿐, 핵심 흐름을 막으면 안 됨
       }
 
-      // ── 동일 IP 연속 제출 쿨다운 체크 (스팸 방지) ───────────────
-      // COOLDOWN_SECONDS는 코드 상수(고정값)이며 사용자 입력이 아니므로 문자열 삽입해도 인젝션 위험 없음
+      // ── 스팸 방지: 2단계 제한 (봇은 막고, 정상적인 재문의는 안 막도록) ──────
+      // 1단계: 최근 1시간 동안 이 IP가 몇 건 제출했는지 확인
+      //   → FREE_QUOTA_PER_HOUR(5건) 미만이면 쿨다운 검사 자체를 건너뛰고 바로 통과
+      //     (오타 수정 후 재제출처럼 정상적인 반복 제출을 막지 않기 위함)
+      // 2단계: 5건 이상 쌓인 IP에 한해서만 "마지막 제출 후 30초 지났는지"를 체크
+      //   → 이 시점부터는 봇이 짧은 간격으로 계속 찔러도 30초마다 1건으로 속도가 제한됨
       if (ipAddress) {
-        const recent = await env.DB.prepare(
-          `SELECT id FROM inquiries
-           WHERE ip_address = ? AND created_at > datetime('now', '-${COOLDOWN_SECONDS} seconds')
-           LIMIT 1`
+        const hourly = await env.DB.prepare(
+          `SELECT COUNT(*) as cnt FROM inquiries
+           WHERE ip_address = ? AND created_at > datetime('now', '-1 hour')`
         ).bind(ipAddress).first();
-        if (recent) {
-          return new Response(JSON.stringify({
-            ok: false,
-            message: `너무 빠른 연속 제출이에요. ${COOLDOWN_SECONDS}초 후 다시 시도해주세요.`,
-          }), { status: 429, headers });
+
+        if ((hourly?.cnt || 0) >= FREE_QUOTA_PER_HOUR) {
+          // COOLDOWN_SECONDS는 코드 상수(고정값)이며 사용자 입력이 아니므로 문자열 삽입해도 인젝션 위험 없음
+          const recent = await env.DB.prepare(
+            `SELECT id FROM inquiries
+             WHERE ip_address = ? AND created_at > datetime('now', '-${COOLDOWN_SECONDS} seconds')
+             LIMIT 1`
+          ).bind(ipAddress).first();
+          if (recent) {
+            return new Response(JSON.stringify({
+              ok: false,
+              message: `짧은 시간에 너무 많이 제출됐어요. ${COOLDOWN_SECONDS}초 후 다시 시도해주세요.`,
+            }), { status: 429, headers });
+          }
         }
       }
 
