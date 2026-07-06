@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>문의/신고 관리 | 오뜨랑 Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;--red:#e63946;
+  --sans:'Noto Sans KR',sans-serif;--mono:'DM Mono',monospace;
+  --r:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh}
+
+/* ── 로그인 화면 (admin_videos.html과 동일 패턴) ── */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:40px;width:360px;text-align:center}
+.login-box h2{font-size:20px;font-weight:700;margin-bottom:8px}
+.login-box p{font-size:13px;color:var(--muted);margin-bottom:24px}
+.login-input{width:100%;padding:10px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;margin-bottom:12px}
+.login-input:focus{border-color:var(--border2)}
+.login-btn{width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.login-btn:hover{background:#ff4d58}
+.login-err{font-size:13px;color:var(--accent);margin-top:10px;display:none}
+
+/* ── 메인 레이아웃 ── */
+.admin-header{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.admin-header h1{font-size:17px;font-weight:700;display:flex;align-items:center;gap:10px}
+.back-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r);
+  border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;
+  text-decoration:none;transition:background .15s;
+}
+.back-btn:hover{background:var(--bg3);color:var(--text)}
+
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+
+/* ── 필터 탭 ── */
+.filter-row{display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.filter-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.ftab{padding:6px 16px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)}
+.ftab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+
+/* ── 목록 카드 ── */
+.inq-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:16px 18px;margin-bottom:10px;cursor:pointer;transition:border-color .15s;
+}
+.inq-card:hover{border-color:var(--border2)}
+.inq-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.inq-type-badge{font-size:11px;padding:2px 10px;border-radius:10px;font-family:var(--mono);font-weight:600}
+.inq-type-badge.ad{background:rgba(240,180,41,.15);color:var(--gold)}
+.inq-type-badge.bug{background:rgba(230,57,70,.15);color:var(--red)}
+.inq-status-badge{font-size:11px;padding:2px 10px;border-radius:10px;font-family:var(--mono)}
+.inq-status-badge.pending{background:rgba(160,160,188,.15);color:var(--muted2)}
+.inq-status-badge.answered{background:rgba(52,211,153,.15);color:var(--green)}
+.inq-status-badge.resolved{background:rgba(52,211,153,.3);color:var(--green)}
+.inq-card-title{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inq-card-time{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap;margin-left:auto}
+.inq-card-meta{font-size:12px;color:var(--muted)}
+.inq-empty{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px}
+
+/* ── 상세 모달 ── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+  align-items:center;justify-content:center;z-index:200;padding:20px;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:14px;
+  width:100%;max-width:560px;max-height:85vh;overflow-y:auto;padding:24px;
+}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:4px}
+.modal-sub{font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:18px}
+.modal-field{margin-bottom:14px}
+.modal-field-label{font-size:12px;color:var(--muted2);margin-bottom:4px;font-weight:500}
+.modal-field-value{font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.modal-field-value a{color:var(--gold)}
+.modal-textarea{
+  width:100%;padding:10px 14px;border-radius:var(--r);border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:13px;font-family:var(--sans);
+  outline:none;resize:vertical;min-height:80px;
+}
+.modal-textarea:focus{border-color:var(--border2)}
+.modal-actions{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.btn-primary{padding:10px 18px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+.btn-primary:hover{background:#ff4d58}
+.btn-secondary{padding:10px 16px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)}
+.btn-secondary:hover{background:var(--bg3);color:var(--text)}
+.btn-delete{padding:10px 16px;border-radius:var(--r);border:1px solid rgba(230,57,70,.3);background:rgba(230,57,70,.1);color:var(--red);font-size:13px;cursor:pointer;font-family:var(--sans);margin-left:auto}
+.btn-delete:hover{background:rgba(230,57,70,.2)}
+.status-select{
+  padding:9px 12px;border-radius:var(--r);border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:13px;font-family:var(--sans);outline:none;
+}
+
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--bg3);border:1px solid var(--border2);border-radius:10px;
+  padding:12px 20px;font-size:13px;opacity:0;pointer-events:none;transition:all .2s;z-index:300;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:600px){
+  .wrap{padding:20px 14px 60px}
+  .admin-header{padding:0 16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── 로그인 화면 ── -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <h2>📮 문의/신고 관리</h2>
+    <p>관리자 인증이 필요합니다</p>
+    <input class="login-input" id="secretInput" type="password" placeholder="관리자 비밀번호"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">확인</button>
+    <div class="login-err" id="loginErr">비밀번호가 올바르지 않습니다</div>
+  </div>
+</div>
+
+<!-- ── 메인 페이지 ── -->
+<div id="mainWrap" style="display:none">
+  <div class="admin-header">
+    <h1>📮 문의/신고 관리</h1>
+    <a class="back-btn" href="/admin.html">← 어드민 홈</a>
+  </div>
+
+  <div class="wrap">
+    <div class="filter-row">
+      <div class="filter-tabs" id="typeTabs">
+        <button class="ftab on" onclick="setTypeFilter('all',this)">전체</button>
+        <button class="ftab" onclick="setTypeFilter('ad',this)">📮 광고문의</button>
+        <button class="ftab" onclick="setTypeFilter('bug',this)">🐛 오류신고</button>
+      </div>
+      <div class="filter-tabs" id="statusTabs">
+        <button class="ftab on" onclick="setStatusFilter('all',this)">전체 상태</button>
+        <button class="ftab" onclick="setStatusFilter('pending',this)">대기</button>
+        <button class="ftab" onclick="setStatusFilter('answered',this)">답변완료</button>
+        <button class="ftab" onclick="setStatusFilter('resolved',this)">해결</button>
+      </div>
+    </div>
+
+    <div id="listWrap">
+      <div class="inq-empty">불러오는 중...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 상세/답변 모달 ── -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+let ADMIN_SECRET = '';
+let curType = 'all';
+let curStatus = 'all';
+let curItems = [];
+
+/* ══ 로그인 (admin_videos.html과 동일 패턴) ══ */
+function doLogin(){
+  const val = document.getElementById('secretInput').value.trim();
+  if(!val) return;
+  ADMIN_SECRET = val;
+  verifySecret();
+}
+async function verifySecret(){
+  try{
+    const res = await fetch(`${API}/admin/inquiry?limit=1`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    if(res.ok){
+      localStorage.setItem('admin_token', ADMIN_SECRET);
+      document.getElementById('loginWrap').style.display = 'none';
+      document.getElementById('mainWrap').style.display = 'block';
+      loadList();
+    } else {
+      document.getElementById('loginErr').style.display = 'block';
+      ADMIN_SECRET = '';
+    }
+  }catch(e){
+    document.getElementById('loginErr').style.display = 'block';
+  }
+}
+
+/* ══ 필터 ══ */
+function setTypeFilter(type, btn){
+  curType = type;
+  document.querySelectorAll('#typeTabs .ftab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  loadList();
+}
+function setStatusFilter(status, btn){
+  curStatus = status;
+  document.querySelectorAll('#statusTabs .ftab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  loadList();
+}
+
+/* ══ 목록 로드 ══ */
+async function loadList(){
+  const listWrap = document.getElementById('listWrap');
+  listWrap.innerHTML = '<div class="inq-empty">불러오는 중...</div>';
+  try{
+    const params = new URLSearchParams({ type: curType, status: curStatus, limit: '100' });
+    const res = await fetch(`${API}/admin/inquiry?${params}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!data.ok){ listWrap.innerHTML = `<div class="inq-empty">불러오기 실패: ${data.message||''}</div>`; return; }
+
+    curItems = data.data || [];
+    if(!curItems.length){
+      listWrap.innerHTML = '<div class="inq-empty">해당 조건의 문의/신고가 없어요</div>';
+      return;
+    }
+
+    const typeLabel = { ad:'광고문의', bug:'오류신고' };
+    const statusLabel = { pending:'대기', answered:'답변완료', resolved:'해결' };
+
+    listWrap.innerHTML = curItems.map(it => `
+      <div class="inq-card" onclick="openModal(${it.id})">
+        <div class="inq-card-top">
+          <span class="inq-type-badge ${it.type}">${typeLabel[it.type]||it.type}</span>
+          <span class="inq-status-badge ${it.status}">${statusLabel[it.status]||it.status}</span>
+          <span class="inq-card-title">${_hesc(it.title)}</span>
+          <span class="inq-card-time">${relTime(it.created_at)}</span>
+        </div>
+        <div class="inq-card-meta">${_hesc(it.name || it.email || '익명')}${it.email ? ' · '+_hesc(it.email) : ''}</div>
+      </div>
+    `).join('');
+  }catch(e){
+    listWrap.innerHTML = `<div class="inq-empty">네트워크 오류: ${e.message}</div>`;
+  }
+}
+
+/* ══ 상세 모달 ══ */
+function openModal(id){
+  const it = curItems.find(x => x.id === id);
+  if(!it) return;
+
+  const typeLabel = { ad:'광고문의', bug:'오류신고' };
+  const isAd = it.type === 'ad';
+
+  const pageUrlRow = it.page_url
+    ? `<div class="modal-field"><div class="modal-field-label">문제 페이지</div>
+         <div class="modal-field-value"><a href="${_hesc(it.page_url)}" target="_blank" rel="noopener">${_hesc(it.page_url)}</a></div></div>`
+    : '';
+  const phoneRow = it.phone
+    ? `<div class="modal-field"><div class="modal-field-label">연락처</div><div class="modal-field-value">${_hesc(it.phone)}</div></div>`
+    : '';
+  const nameRow = it.name
+    ? `<div class="modal-field"><div class="modal-field-label">담당자명/업체명</div><div class="modal-field-value">${_hesc(it.name)}</div></div>`
+    : '';
+
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-title">${typeLabel[it.type]||it.type} — ${_hesc(it.title)}</div>
+    <div class="modal-sub">#${it.id} · ${relTime(it.created_at)}${it.ip_address ? ' · '+_hesc(it.ip_address) : ''}</div>
+
+    ${nameRow}
+    <div class="modal-field"><div class="modal-field-label">이메일</div><div class="modal-field-value">${it.email ? _hesc(it.email) : '(미입력)'}</div></div>
+    ${phoneRow}
+    ${pageUrlRow}
+    <div class="modal-field"><div class="modal-field-label">${isAd?'문의내용':'오류 설명'}</div><div class="modal-field-value">${_hesc(it.content)}</div></div>
+
+    <div class="modal-field">
+      <div class="modal-field-label">상태</div>
+      <select class="status-select" id="modalStatus">
+        <option value="pending"${it.status==='pending'?' selected':''}>대기</option>
+        <option value="answered"${it.status==='answered'?' selected':''}>답변완료</option>
+        <option value="resolved"${it.status==='resolved'?' selected':''}>해결</option>
+      </select>
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-field-label">관리자 메모 / 답변 (내부용, 이메일 자동발송 없음)</div>
+      <textarea class="modal-textarea" id="modalReply" placeholder="메모나 답변 내용을 남겨두세요">${it.admin_reply ? _hesc(it.admin_reply) : ''}</textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="saveModal(${it.id})">저장</button>
+      <button class="btn-secondary" onclick="closeModal()">닫기</button>
+      <button class="btn-delete" onclick="deleteInquiry(${it.id})">삭제</button>
+    </div>
+  `;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+/* ══ 저장 (상태변경 + 답변) ══ */
+async function saveModal(id){
+  const status = document.getElementById('modalStatus').value;
+  const reply  = document.getElementById('modalReply').value;
+  try{
+    const res = await fetch(`${API}/admin/inquiry/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ status, admin_reply: reply }),
+    });
+    const data = await res.json();
+    if(data.ok){
+      showToast('✅ 저장했어요');
+      closeModal();
+      loadList();
+    } else {
+      showToast(`저장 실패: ${data.message||''}`);
+    }
+  }catch(e){
+    showToast(`네트워크 오류: ${e.message}`);
+  }
+}
+
+/* ══ 삭제 ══ */
+async function deleteInquiry(id){
+  if(!confirm('이 문의/신고를 삭제할까요? 되돌릴 수 없어요.')) return;
+  try{
+    const res = await fetch(`${API}/admin/inquiry/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if(data.ok){
+      showToast('✅ 삭제했어요');
+      closeModal();
+      loadList();
+    } else {
+      showToast(`삭제 실패: ${data.message||''}`);
+    }
+  }catch(e){
+    showToast(`네트워크 오류: ${e.message}`);
+  }
+}
+
+/* ══ 유틸 ══ */
+function _hesc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function relTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso.includes('T')?iso:iso.replace(' ','T')+'Z');
+  const diffMin = Math.floor((Date.now()-d.getTime())/60000);
+  if(diffMin < 1) return '방금';
+  if(diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin/60);
+  if(diffHour < 24) return `${diffHour}시간 전`;
+  const diffDay = Math.floor(diffHour/24);
+  if(diffDay < 30) return `${diffDay}일 전`;
+  return d.toLocaleDateString('ko-KR');
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ══ 초기화 ══ */
+(function init(){
+  const stored = localStorage.getItem('admin_token');
+  if(stored){
+    ADMIN_SECRET = stored;
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('mainWrap').style.display = 'block';
+    loadList();
+  }
+})();
+</script>
+
+</body>
+</html>
