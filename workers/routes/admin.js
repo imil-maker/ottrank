@@ -12,7 +12,7 @@
    POST   /admin/review-queue/:id/resolve
    POST   /admin/rank-override
    DELETE /admin/rank-override
-   GET    /admin/works
+   GET    /admin/works                (?sort=recent 기본값=created_at DESC, ?sort=updated=updated_at DESC)
    PATCH  /admin/works/:tmdb_id
    DELETE /admin/works/:tmdb_id
    GET    /admin/new-match-count
@@ -833,19 +833,25 @@ export async function handleAdmin(path, request, env, url, headers) {
       const q      = url.searchParams.get("q") || "";
       const filter = url.searchParams.get("filter") || "";
       const date   = url.searchParams.get("date") || "";
+      const sort   = url.searchParams.get("sort") || "recent"; // 'recent'=최근 등록순(기본) | 'updated'=최근 수정순
       const page   = parseInt(url.searchParams.get("page") || "1");
       const limit  = 50;
       const offset = (page - 1) * limit;
 
+      // 정렬 기준 컬럼 — created_at이 없는(마이그레이션 전) 초기 상태를 대비해 COALESCE로 안전하게 폴백
+      const orderBy = sort === "updated"
+        ? "updated_at DESC"
+        : "COALESCE(created_at, updated_at) DESC";
+
       let query, params;
       if (filter === "new_match" && date) {
-        query  = `SELECT * FROM works WHERE first_matched_date = ? AND match_source IN ('auto_claude', 'auto_tmdb') ORDER BY updated_at DESC LIMIT ? OFFSET ?`;
+        query  = `SELECT * FROM works WHERE first_matched_date = ? AND match_source IN ('auto_claude', 'auto_tmdb') ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
         params = [date, limit, offset];
       } else if (q) {
-        query  = "SELECT * FROM works WHERE title_ko LIKE ? OR title_en LIKE ? ORDER BY updated_at DESC LIMIT ? OFFSET ?";
+        query  = `SELECT * FROM works WHERE title_ko LIKE ? OR title_en LIKE ? ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
         params = [`%${q}%`, `%${q}%`, limit, offset];
       } else {
-        query  = "SELECT * FROM works ORDER BY updated_at DESC LIMIT ? OFFSET ?";
+        query  = `SELECT * FROM works ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
         params = [limit, offset];
       }
       const { results } = await env.DB.prepare(query).bind(...params).all();
