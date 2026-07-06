@@ -1038,10 +1038,14 @@ ${y.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
         WHERE id = ?
       `).bind(a||null,i??null,d[1]).run(),new Response(JSON.stringify({ok:!0}),{headers:o})):new Response(JSON.stringify({ok:!1,message:"\uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4"}),{status:404,headers:o})}catch(e){return new Response(JSON.stringify({ok:!1,message:e.message}),{status:500,headers:o})}}if(l==="/admin/inquiry"&&r.method==="GET"){if(r.headers.get("Authorization")!==`Bearer ${t.ADMIN_SECRET}`)return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:o});try{let e=s.searchParams.get("type")||"all",a=s.searchParams.get("status")||"all",i=Math.min(parseInt(s.searchParams.get("limit")||"50"),100),c=Math.max(parseInt(s.searchParams.get("offset")||"0"),0),m=[],p=[];e!=="all"&&(m.push("type = ?"),p.push(e)),a!=="all"&&(m.push("status = ?"),p.push(a));let g=m.length?`WHERE ${m.join(" AND ")}`:"",[_,f]=await t.DB.batch([t.DB.prepare(`SELECT * FROM inquiries ${g} ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...p,i,c),t.DB.prepare(`SELECT COUNT(*) as cnt FROM inquiries ${g}`).bind(...p)]),k=_.results||[],E=f.results?.[0]?.cnt||0;return new Response(JSON.stringify({ok:!0,data:k,total:E}),{headers:o})}catch(e){return new Response(JSON.stringify({ok:!1,message:e.message}),{status:500,headers:o})}}return null}async function pt(l,r,t){if(!await N(l,r))return new Response(JSON.stringify({ok:!1,error:"\uAD00\uB9AC\uC790 \uC778\uC99D\uC774 \uD544\uC694\uD569\uB2C8\uB2E4."}),{status:401,headers:t});try{let s=await r.DB.prepare("SELECT MAX(date) AS latest_date FROM rankings WHERE date != 'manual'").first();if(!s||!s.latest_date)return new Response(JSON.stringify({ok:!1,error:"rankings \uD14C\uC774\uBE14\uC5D0 \uC720\uD6A8\uD55C \uD06C\uB864\uB9C1 \uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."}),{status:404,headers:t});let o=s.latest_date,n=`
       WITH target_rankings AS (
-        SELECT tmdb_id, platform, rank, title_ko
-        FROM rankings
-        WHERE tmdb_id IS NOT NULL
-          AND (date = ? OR date = 'manual')
+        SELECT r.tmdb_id, r.platform, r.rank, r.title_ko
+        FROM rankings r
+        JOIN ott_categories oc
+          ON oc.platform = r.platform
+         AND oc.category_slot = r.category_slot
+        WHERE r.tmdb_id IS NOT NULL
+          AND r.date = ?
+          AND oc.hot100_eligible = 1
       ),
       weighted AS (
         SELECT
