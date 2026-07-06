@@ -170,6 +170,238 @@ export async function calcHot100(request, env, headers) {
 }
 
 /**
+ * GET /admin/hot100/weights
+ * platform_weights 전체 목록 조회
+ */
+export async function getPlatformWeights(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT platform, weight, updated_at FROM platform_weights ORDER BY weight DESC`
+    ).all();
+    return new Response(
+      JSON.stringify({ ok: true, data: results || [] }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * PUT /admin/hot100/weights
+ * body: { weights: [{ platform, weight }, ...] }
+ * 여러 플랫폼 가중치를 한 번에 갱신
+ */
+export async function updatePlatformWeights(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const body = await request.json();
+    const weights = body.weights;
+
+    if (!Array.isArray(weights) || weights.length === 0) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "weights 배열이 필요합니다." }),
+        { status: 400, headers }
+      );
+    }
+
+    const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+
+    const statements = weights.map((w) =>
+      env.DB.prepare(
+        `UPDATE platform_weights SET weight = ?, updated_at = ? WHERE platform = ?`
+      ).bind(w.weight, nowKst, w.platform)
+    );
+
+    await env.DB.batch(statements);
+
+    return new Response(
+      JSON.stringify({ ok: true, updated: weights.length }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * GET /admin/hot100/boosts
+ * 현재 설정된 admin_boosts 전체 목록 (작품 정보 조인)
+ */
+export async function listAdminBoosts(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT ab.tmdb_id, ab.boost_value, ab.reason, ab.updated_at,
+              w.title_ko, w.poster_path
+       FROM admin_boosts ab
+       LEFT JOIN works w ON w.tmdb_id = ab.tmdb_id
+       ORDER BY ab.updated_at DESC`
+    ).all();
+    return new Response(
+      JSON.stringify({ ok: true, data: results || [] }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * GET /admin/hot100/boosts/search?q=검색어
+ * works에서 제목으로 작품 검색 (부스트 설정 대상 찾기용)
+ */
+export async function searchWorksForBoost(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const url = new URL(request.url);
+    const q = (url.searchParams.get("q") || "").trim();
+
+    if (!q) {
+      return new Response(
+        JSON.stringify({ ok: true, data: [] }),
+        { status: 200, headers }
+      );
+    }
+
+    const { results } = await env.DB.prepare(
+      `SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path,
+              COALESCE(ab.boost_value, 0) AS boost_value
+       FROM works w
+       LEFT JOIN admin_boosts ab ON ab.tmdb_id = w.tmdb_id
+       WHERE w.title_ko LIKE ? OR w.title_en LIKE ? OR w.tmdb_id = ?
+       ORDER BY w.tmdb_id DESC
+       LIMIT 20`
+    ).bind(`%${q}%`, `%${q}%`, parseInt(q, 10) || 0).all();
+
+    return new Response(
+      JSON.stringify({ ok: true, data: results || [] }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * POST /admin/hot100/boosts
+ * body: { tmdb_id, boost_value, reason }
+ * 특정 작품의 수동 부스트 값을 등록/갱신 (있으면 UPDATE, 없으면 INSERT)
+ */
+export async function upsertAdminBoost(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const body = await request.json();
+    const { tmdb_id, boost_value, reason } = body;
+
+    if (!tmdb_id) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "tmdb_id가 필요합니다." }),
+        { status: 400, headers }
+      );
+    }
+
+    const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+
+    await env.DB.prepare(
+      `INSERT INTO admin_boosts (tmdb_id, boost_value, reason, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(tmdb_id) DO UPDATE SET
+         boost_value = excluded.boost_value,
+         reason = excluded.reason,
+         updated_at = excluded.updated_at`
+    ).bind(tmdb_id, boost_value || 0, reason || null, nowKst).run();
+
+    return new Response(
+      JSON.stringify({ ok: true }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * DELETE /admin/hot100/boosts/:tmdb_id
+ * 수동 부스트 삭제 (0으로 리셋하는 대신 행 자체를 제거)
+ */
+export async function deleteAdminBoost(tmdbId, request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    await env.DB.prepare(`DELETE FROM admin_boosts WHERE tmdb_id = ?`)
+      .bind(tmdbId)
+      .run();
+    return new Response(
+      JSON.stringify({ ok: true }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
  * GET /hot100
  * ─────────────────────────────────────────────
  * 공개 조회 API — 계산된 HOT100 점수를 순위대로 반환.
