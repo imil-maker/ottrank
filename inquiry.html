@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>문의/신고 | 오뜨랑</title>
+<meta name="robots" content="noindex"><!-- 문의 폼은 검색결과에 노출될 필요 없음 -->
+<style>
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--green:#34d399;
+  --sans:'Noto Sans KR',sans-serif;--max-w:720px;--r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh}
+
+.inq-wrap{max-width:var(--max-w);margin:0 auto;padding:40px 20px 100px}
+.inq-title{font-size:22px;font-weight:700;margin-bottom:6px}
+.inq-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+
+/* 타입 전환 탭 */
+.inq-tabs{display:flex;gap:8px;margin-bottom:28px;border-bottom:1px solid var(--border)}
+.inq-tab{
+  padding:10px 18px;font-size:14px;color:var(--muted2);cursor:pointer;
+  border:none;background:none;border-bottom:2px solid transparent;font-family:var(--sans);
+}
+.inq-tab.on{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+
+/* 폼 */
+.inq-form{display:flex;flex-direction:column;gap:16px}
+.inq-field{display:flex;flex-direction:column;gap:6px}
+.inq-label{font-size:13px;color:var(--muted2);font-weight:500}
+.inq-label .opt{color:var(--muted);font-weight:400;font-size:12px;margin-left:4px}
+.inq-input,.inq-textarea{
+  padding:12px 14px;border-radius:var(--r);border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;
+  width:100%;
+}
+.inq-input:focus,.inq-textarea:focus{border-color:var(--border2)}
+.inq-textarea{resize:vertical;min-height:140px;line-height:1.6}
+
+/* 허니팟 — 화면에서 완전히 숨김(스크린리더도 접근 안 하도록 aria-hidden) */
+.inq-honeypot{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden}
+
+.inq-submit{
+  margin-top:6px;padding:14px;border-radius:var(--r);border:none;
+  background:var(--accent);color:#fff;font-size:15px;font-weight:700;
+  cursor:pointer;font-family:var(--sans);
+}
+.inq-submit:hover{background:#ff4d58}
+.inq-submit:disabled{opacity:.5;cursor:not-allowed}
+
+.inq-msg{font-size:13px;padding:10px 14px;border-radius:8px;display:none}
+.inq-msg.err{display:block;background:rgba(230,57,70,.1);color:var(--accent)}
+.inq-msg.ok{display:block;background:rgba(52,211,153,.1);color:var(--green)}
+
+/* 완료 화면 */
+.inq-done{display:none;text-align:center;padding:60px 20px}
+.inq-done h2{font-size:20px;margin-bottom:10px}
+.inq-done p{font-size:14px;color:var(--muted);margin-bottom:24px}
+.inq-done a{color:var(--accent);text-decoration:none;font-size:14px;font-weight:600}
+
+@media (max-width:600px){
+  .inq-wrap{padding:28px 16px 80px}
+  .inq-title{font-size:19px}
+}
+</style>
+</head>
+<body>
+
+<div id="ottrang-header"></div>
+
+<div class="inq-wrap" id="inqWrap">
+  <div class="inq-title" id="inqTitle">📮 광고문의</div>
+  <div class="inq-sub" id="inqSub">오뜨랑 광고·제휴 문의를 남겨주시면 빠르게 답변드릴게요.</div>
+
+  <div class="inq-tabs">
+    <button class="inq-tab" id="tabAd" onclick="switchType('ad')">📮 광고문의</button>
+    <button class="inq-tab" id="tabBug" onclick="switchType('bug')">🐛 오류신고</button>
+  </div>
+
+  <form class="inq-form" id="inqForm" onsubmit="submitInquiry(event)">
+
+    <!-- 허니팟 — 사람 눈엔 안 보이는 필드, 봇이 채우면 서버에서 조용히 걸러냄 -->
+    <div class="inq-honeypot" aria-hidden="true">
+      <label for="website">웹사이트(비워두세요)</label>
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+    </div>
+
+    <!-- 광고문의 전용 필드 -->
+    <div class="inq-field" id="fieldName">
+      <label class="inq-label" for="name">담당자명 / 업체명</label>
+      <input class="inq-input" type="text" id="name" maxlength="100">
+    </div>
+
+    <div class="inq-field" id="fieldEmail">
+      <label class="inq-label" for="email">이메일 <span class="opt" id="emailOptLabel"></span></label>
+      <input class="inq-input" type="email" id="email" maxlength="200">
+    </div>
+
+    <div class="inq-field" id="fieldPhone">
+      <label class="inq-label" for="phone">연락처 <span class="opt">(선택)</span></label>
+      <input class="inq-input" type="tel" id="phone" maxlength="30" placeholder="010-0000-0000">
+    </div>
+
+    <!-- 오류신고 전용 필드 -->
+    <div class="inq-field" id="fieldPageUrl" style="display:none">
+      <label class="inq-label" for="pageUrl">문제가 발생한 페이지 <span class="opt">(선택)</span></label>
+      <input class="inq-input" type="text" id="pageUrl" maxlength="500" placeholder="https://ottrank.kr/...">
+    </div>
+
+    <div class="inq-field">
+      <label class="inq-label" for="title">제목</label>
+      <input class="inq-input" type="text" id="title" maxlength="200">
+    </div>
+
+    <div class="inq-field">
+      <label class="inq-label" for="content" id="contentLabel">문의내용</label>
+      <textarea class="inq-textarea" id="content" maxlength="5000"></textarea>
+    </div>
+
+    <div class="inq-msg" id="inqMsg"></div>
+
+    <button class="inq-submit" id="inqSubmitBtn" type="submit">보내기</button>
+  </form>
+
+  <div class="inq-done" id="inqDone">
+    <h2>✅ 접수됐어요</h2>
+    <p id="inqDoneMsg">소중한 의견 감사합니다. 확인 후 빠르게 처리할게요.</p>
+    <a href="/">홈으로 돌아가기</a>
+  </div>
+</div>
+
+<div id="ottrang-footer"></div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+let currentType = 'ad'; // 기본값 — URL의 ?type= 파라미터로 초기화됨
+
+/* == 타입 전환 (광고문의 ↔ 오류신고) == */
+function switchType(type){
+  currentType = type;
+  document.getElementById('tabAd').classList.toggle('on', type==='ad');
+  document.getElementById('tabBug').classList.toggle('on', type==='bug');
+
+  const isAd = type === 'ad';
+  document.getElementById('inqTitle').textContent = isAd ? '📮 광고문의' : '🐛 오류신고';
+  document.getElementById('inqSub').textContent = isAd
+    ? '오뜨랑 광고·제휴 문의를 남겨주시면 빠르게 답변드릴게요.'
+    : '사이트 이용 중 발견한 오류를 알려주시면 빠르게 확인할게요.';
+
+  // 광고문의 전용 필드는 오류신고에서 숨김
+  document.getElementById('fieldName').style.display  = isAd ? '' : 'none';
+  document.getElementById('fieldPhone').style.display  = isAd ? '' : 'none';
+  // 오류신고 전용 필드
+  document.getElementById('fieldPageUrl').style.display = isAd ? 'none' : '';
+
+  // 이메일: 광고문의는 필수, 오류신고는 선택
+  document.getElementById('emailOptLabel').textContent = isAd ? '' : '(선택)';
+  document.getElementById('contentLabel').textContent  = isAd ? '문의내용' : '오류 설명 (재현 방법 위주로 적어주시면 좋아요)';
+
+  // 오류신고: 문제 페이지 필드에 이전 페이지(리퍼러) 자동 채움 — 같은 사이트에서 온 경우만
+  if(!isAd){
+    const pageUrlInput = document.getElementById('pageUrl');
+    if(!pageUrlInput.value && document.referrer && document.referrer.includes('ottrank.kr')){
+      pageUrlInput.value = document.referrer;
+    }
+  }
+
+  // 메시지/제출버튼 초기화
+  const msg = document.getElementById('inqMsg');
+  msg.style.display='none';msg.className='inq-msg';
+  document.getElementById('inqSubmitBtn').disabled = false;
+}
+
+/* == 제출 == */
+async function submitInquiry(e){
+  e.preventDefault();
+  const msg = document.getElementById('inqMsg');
+  const btn = document.getElementById('inqSubmitBtn');
+  msg.style.display='none';msg.className='inq-msg';
+
+  const isAd    = currentType === 'ad';
+  const name    = document.getElementById('name').value.trim();
+  const email   = document.getElementById('email').value.trim();
+  const phone   = document.getElementById('phone').value.trim();
+  const pageUrl = document.getElementById('pageUrl').value.trim();
+  const title   = document.getElementById('title').value.trim();
+  const content = document.getElementById('content').value.trim();
+  const website = document.getElementById('website').value; // 허니팟
+
+  // ── 클라이언트 측 1차 검증 (서버에서도 동일하게 재검증됨) ──
+  if(!title){ return showErr('제목을 입력해주세요.'); }
+  if(!content){ return showErr(isAd ? '문의내용을 입력해주세요.' : '오류 설명을 입력해주세요.'); }
+  if(isAd && !name){ return showErr('담당자명 또는 업체명을 입력해주세요.'); }
+  if(isAd && !email){ return showErr('이메일을 입력해주세요.'); }
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ return showErr('이메일 형식을 확인해주세요.'); }
+
+  btn.disabled = true;
+  btn.textContent = '전송 중...';
+
+  try{
+    // 로그인 상태면 같이 전달 — 비로그인이어도 전송 자체는 그대로 진행
+    const sid = localStorage.getItem('ottrang_sid');
+    const headers = { 'Content-Type': 'application/json' };
+    if(sid) headers['Authorization'] = `Bearer ${sid}`;
+
+    const res = await fetch(`${API}/inquiry`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({
+        type: currentType,
+        name: isAd ? name : null,
+        email: email || null,
+        phone: isAd ? (phone || null) : null,
+        title, content,
+        page_url: !isAd ? (pageUrl || null) : null,
+        website, // 허니팟 — 정상 사용자는 항상 빈 값
+      }),
+    });
+    const data = await res.json();
+
+    if(data.ok){
+      document.getElementById('inqForm').style.display='none';
+      document.querySelector('.inq-tabs').style.display='none';
+      document.getElementById('inqDoneMsg').textContent = isAd
+        ? '문의 감사합니다. 남겨주신 이메일로 빠르게 답변드릴게요.'
+        : '신고 감사합니다. 확인 후 빠르게 수정할게요.';
+      document.getElementById('inqDone').style.display='block';
+    } else {
+      showErr(data.message || '전송에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+  }catch(e){
+    showErr('네트워크 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '보내기';
+  }
+
+  function showErr(text){
+    msg.textContent = text;
+    msg.className = 'inq-msg err';
+    msg.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '보내기';
+  }
+}
+
+/* == 초기화 == */
+(function init(){
+  // URL ?type=ad 또는 ?type=bug — 없으면 기본 광고문의
+  const params = new URLSearchParams(location.search);
+  const t = params.get('type');
+  switchType(t === 'bug' ? 'bug' : 'ad');
+
+  // 공용 헤더/푸터 로드 (사이트 전체 공통 패턴)
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      document.getElementById('ottrang-header').innerHTML = h;
+      document.getElementById('ottrang-header').querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');ns.textContent=s.textContent;document.body.appendChild(ns);
+      });
+      if(typeof initHeader === 'function') initHeader();
+    })
+    .catch(()=>{});
+
+  fetch('/footer.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{ document.getElementById('ottrang-footer').innerHTML = h; })
+    .catch(()=>{});
+})();
+</script>
+
+</body>
+</html>
