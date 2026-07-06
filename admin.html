@@ -212,8 +212,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="page-tab"     onclick="switchPage('categories',this)">⚙️ 카테고리 관리</button>
     <button class="page-tab"     onclick="switchPage('manual',this)">✏️ 수동 랭킹 관리</button>
     <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
-    <button class="page-tab"     onclick="switchPage('reaction',this)">🌍 해외반응 관리</button>
-    <button class="page-tab"     onclick="switchPage('grade',this)">🏅 회원등급 설정</button>
+    <button class="page-tab"     onclick="switchPage('reaction',this)">📋 게시물 관리</button>
     <button class="page-tab"     onclick="switchPage('users',this)">👥 회원 관리</button>
     <button class="page-tab"     onclick="location.href='/admin_videos.html'">🎬 영상 관리</button>
     <button class="page-tab"     onclick="switchPage('contents',this)">🎞️ 예고편/신작 관리</button>
@@ -269,8 +268,17 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
-<!-- ══ 해외반응 관리 ══ -->
+<!-- ══ 게시물 관리 (해외반응 관리 + 평점·후기 관리 서브탭 통합) ══ -->
 <div id="reactionSection" class="main" style="display:none">
+
+  <!-- 서브탭 바 -->
+  <div class="filter-tabs" id="postsSubTabs" style="margin-bottom:18px">
+    <button class="ftab on" onclick="switchPostsSubTab('reaction',this)">🌍 해외반응 관리</button>
+    <button class="ftab"    onclick="switchPostsSubTab('reviews',this)">⭐ 평점·후기 관리</button>
+  </div>
+
+  <!-- 서브패널 1: 해외반응 관리 (기존 내용 그대로) -->
+  <div id="reactionPanel">
   <div class="reaction-toolbar">
     <div class="yt-input-wrap">
       <input class="yt-input" id="ytUrlInp" type="text"
@@ -313,6 +321,34 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="reaction-list" id="reactionList">
     <div class="loading">불러오는 중...</div>
   </div>
+  </div>
+
+  <!-- 서브패널 2: 평점·후기 관리 (신규) -->
+  <div id="reviewsAdminPanel" style="display:none">
+    <div class="user-search-bar">
+      <div style="font-size:15px;font-weight:600">⭐ 평점·후기 관리</div>
+      <input class="user-search-inp" id="reviewSearchInp" type="text"
+        placeholder="작품명 또는 작성자 닉네임 검색..."
+        oninput="onReviewSearchInput(this.value)">
+      <button class="btn-load" onclick="loadReviewsAdmin(1)">새로고침</button>
+      <span class="stat" id="reviewAdminStat"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>작품명</th><th>작성자</th><th>별점</th><th>한줄평</th>
+            <th>좋아요</th><th>작성일</th><th>삭제</th>
+          </tr>
+        </thead>
+        <tbody id="reviewsAdminTableBody">
+          <tr><td colspan="7" class="loading">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="filter-tabs" id="reviewAdminPagination" style="margin-top:14px"></div>
+  </div>
+
 </div>
 
 
@@ -803,59 +839,69 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
-<!-- ══ 회원등급 설정 ══ -->
-<div id="gradeSection" class="main" style="display:none">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
-    <div style="font-size:15px;font-weight:600">🏅 회원등급 설정</div>
-    <div style="font-size:12px;color:var(--muted2);flex:1">각 등급의 이름, 이모지 이미지 URL, 승급 조건을 설정하세요.<br>이모지 이미지는 GitHub 레포(<code style="color:var(--info);font-family:var(--mono)">grade-emojis/</code> 폴더)에 올리고 Raw URL을 입력해 주세요.</div>
-    <button class="btn-load" onclick="loadGrades()">새로고침</button>
-  </div>
-
-  <!-- GitHub Raw URL 예시 안내 -->
-  <div style="background:var(--info-bg);border:1px solid var(--info-border);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:12px;color:var(--muted2);font-family:var(--mono);line-height:1.8">
-    📌 GitHub Raw URL 형식:<br>
-    <span style="color:var(--info)">https://raw.githubusercontent.com/imil-maker/ottrank/main/grade-emojis/파일명.png</span>
-  </div>
-
-  <div class="grade-grid" id="gradeGrid">
-    <div class="loading">불러오는 중...</div>
-  </div>
-
-  <!-- 저장 바 -->
-  <div class="grade-save-all-bar">
-    <p>변경사항은 아래 버튼을 눌러야 저장됩니다.</p>
-    <button class="btn-save" onclick="saveAllGrades()">💾 전체 저장</button>
-  </div>
-</div>
-
-<!-- ══ 회원 관리 ══ -->
+<!-- ══ 회원 관리 (회원 목록 + 등급 설정 서브탭 통합) ══ -->
 <div id="usersSection" class="main" style="display:none">
-  <div class="user-search-bar">
-    <div style="font-size:15px;font-weight:600">👥 회원 관리</div>
-    <input class="user-search-inp" id="userSearchInp" type="text"
-      placeholder="닉네임 검색..."
-      oninput="searchUsers(this.value)">
-    <button class="btn-load" onclick="loadUsers()">새로고침</button>
-    <span class="stat" id="userStat"></span>
+
+  <!-- 서브탭 바 -->
+  <div class="filter-tabs" id="userSubTabs" style="margin-bottom:18px">
+    <button class="ftab on" onclick="switchUserSubTab('list',this)">회원 목록</button>
+    <button class="ftab"    onclick="switchUserSubTab('grade',this)">🏅 등급 설정</button>
   </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th><th>닉네임</th><th>등급</th><th>소셜</th>
-          <th>후기</th><th>찜</th><th>게시글</th><th>받은♥</th>
-          <th style="color:var(--gold)">오뜨</th>
-          <th>가입일</th><th>등급지정</th>
-        </tr>
-      </thead>
-      <tbody id="usersTableBody">
-        <tr><td colspan="11" class="loading">불러오는 중...</td></tr>
-      </tbody>
-    </table>
+
+  <!-- 서브패널 1: 회원 목록 (기존 usersSection 내용 그대로) -->
+  <div id="userListPanel">
+    <div class="user-search-bar">
+      <div style="font-size:15px;font-weight:600">👥 회원 관리</div>
+      <input class="user-search-inp" id="userSearchInp" type="text"
+        placeholder="닉네임 검색..."
+        oninput="searchUsers(this.value)">
+      <button class="btn-load" onclick="loadUsers()">새로고침</button>
+      <span class="stat" id="userStat"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>닉네임</th><th>등급</th><th>소셜</th>
+            <th>후기</th><th>찜</th><th>게시글</th><th>받은♥</th>
+            <th style="color:var(--gold)">오뜨</th>
+            <th>가입일</th><th>등급지정</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody">
+          <tr><td colspan="11" class="loading">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
+
+  <!-- 서브패널 2: 등급 설정 (기존 gradeSection 내용을 그대로 이동) -->
+  <div id="userGradePanel" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+      <div style="font-size:15px;font-weight:600">🏅 회원등급 설정</div>
+      <div style="font-size:12px;color:var(--muted2);flex:1">각 등급의 이름, 이모지 이미지 URL, 승급 조건을 설정하세요.<br>이모지 이미지는 GitHub 레포(<code style="color:var(--info);font-family:var(--mono)">grade-emojis/</code> 폴더)에 올리고 Raw URL을 입력해 주세요.</div>
+      <button class="btn-load" onclick="loadGrades()">새로고침</button>
+    </div>
+
+    <!-- GitHub Raw URL 예시 안내 -->
+    <div style="background:var(--info-bg);border:1px solid var(--info-border);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:12px;color:var(--muted2);font-family:var(--mono);line-height:1.8">
+      📌 GitHub Raw URL 형식:<br>
+      <span style="color:var(--info)">https://raw.githubusercontent.com/imil-maker/ottrank/main/grade-emojis/파일명.png</span>
+    </div>
+
+    <div class="grade-grid" id="gradeGrid">
+      <div class="loading">불러오는 중...</div>
+    </div>
+
+    <!-- 저장 바 -->
+    <div class="grade-save-all-bar">
+      <p>변경사항은 아래 버튼을 눌러야 저장됩니다.</p>
+      <button class="btn-save" onclick="saveAllGrades()">💾 전체 저장</button>
+    </div>
+  </div>
+
 </div>
 
-<!-- 랭킹 수정 모달 -->
 <div class="overlay" id="editOverlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" onclick="event.stopPropagation()">
     <h3>✏️ 수동 수정 <span class="sub" id="modalSub"></span></h3>
@@ -1199,7 +1245,6 @@ function switchPage(page, btn) {
   document.getElementById('manualSection').style.display     = page === 'manual'     ? 'block' : 'none';
   document.getElementById('worksSection').style.display      = page === 'works'      ? 'block' : 'none';
   document.getElementById('reactionSection').style.display   = page === 'reaction'   ? 'block' : 'none';
-  document.getElementById('gradeSection').style.display      = page === 'grade'      ? 'block' : 'none';
   document.getElementById('usersSection').style.display      = page === 'users'      ? 'block' : 'none';
   document.getElementById('contentsSection').style.display   = page === 'contents'   ? 'block' : 'none';
   if (page === 'users')      loadUsers();
@@ -1207,6 +1252,110 @@ function switchPage(page, btn) {
   if (page === 'categories') loadCategories();
   if (page === 'works')      loadWorks();
   if (page === 'contents')   loadContentsAdmin();
+}
+
+// ── 회원 관리 서브탭 전환 (회원 목록 ↔ 등급 설정) ──
+// gradeSettings 데이터는 로그인 시 loadGrades()로 이미 한 번 불러와져 있으므로
+// 여기서는 화면 전환만 담당하고 별도 재조회는 하지 않음 (새로고침 버튼으로 수동 갱신 가능)
+function switchUserSubTab(tab, btn) {
+  document.querySelectorAll('#userSubTabs .ftab').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  document.getElementById('userListPanel').style.display  = tab === 'list'  ? 'block' : 'none';
+  document.getElementById('userGradePanel').style.display  = tab === 'grade' ? 'block' : 'none';
+}
+
+// ── 게시물 관리 서브탭 전환 (해외반응 관리 ↔ 평점·후기 관리) ──
+let _reviewAdminLoaded = false; // 평점·후기 탭을 처음 열 때만 최초 로드 (불필요한 선제 조회 방지)
+function switchPostsSubTab(tab, btn) {
+  document.querySelectorAll('#postsSubTabs .ftab').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  document.getElementById('reactionPanel').style.display     = tab === 'reaction' ? 'block' : 'none';
+  document.getElementById('reviewsAdminPanel').style.display  = tab === 'reviews'  ? 'block' : 'none';
+  if (tab === 'reviews' && !_reviewAdminLoaded) {
+    _reviewAdminLoaded = true;
+    loadReviewsAdmin(1);
+  }
+}
+
+// 사용자 입력(닉네임/한줄평)은 반드시 이스케이프 후 innerHTML에 삽입 — XSS 방지
+function _hescAdmin(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let _reviewSearchTimer = null;
+let _reviewAdminQuery  = '';
+function onReviewSearchInput(val) {
+  _reviewAdminQuery = val.trim();
+  clearTimeout(_reviewSearchTimer);
+  _reviewSearchTimer = setTimeout(() => loadReviewsAdmin(1), 400);
+}
+
+const REVIEW_ADMIN_LIMIT = 20;
+async function loadReviewsAdmin(page = 1) {
+  const tbody = document.getElementById('reviewsAdminTableBody');
+  tbody.innerHTML = '<tr><td colspan="7" class="loading">불러오는 중...</td></tr>';
+  try {
+    const params = new URLSearchParams({ page, limit: REVIEW_ADMIN_LIMIT });
+    if (_reviewAdminQuery) params.set('q', _reviewAdminQuery);
+    const res  = await fetch(`${API}/admin/reviews?${params}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    if (!json.ok) { tbody.innerHTML = `<tr><td colspan="7" class="loading">불러오기 실패: ${json.message||''}</td></tr>`; return; }
+
+    const data = json.data || [];
+    document.getElementById('reviewAdminStat').textContent = `총 ${json.total ?? data.length}개`;
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">검색 결과가 없습니다</td></tr>';
+      document.getElementById('reviewAdminPagination').innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = data.map(r => `
+      <tr>
+        <td>${_hescAdmin(r.title_ko || `tmdb:${r.tmdb_id}`)}</td>
+        <td>${_hescAdmin(r.nickname || '탈퇴회원')}</td>
+        <td style="font-family:var(--mono)">${r.score ?? '-'}</td>
+        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_hescAdmin(r.text || '')}</td>
+        <td style="font-family:var(--mono)">${r.likes ?? 0}</td>
+        <td style="font-family:var(--mono);font-size:12px">${(r.created_at||'').slice(0,10)}</td>
+        <td><button class="btn-sm" style="background:rgba(230,57,70,.1);color:var(--accent);border:1px solid rgba(230,57,70,.3)" onclick="deleteReviewAdmin(${r.id})">삭제</button></td>
+      </tr>
+    `).join('');
+
+    renderReviewAdminPagination(page, json.total || 0);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="loading">네트워크 오류: ${e.message}</td></tr>`;
+  }
+}
+
+function renderReviewAdminPagination(curPage, total) {
+  const el = document.getElementById('reviewAdminPagination');
+  const totalPages = Math.ceil(total / REVIEW_ADMIN_LIMIT);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = Array.from({ length: totalPages }, (_, i) => i + 1)
+    .map(p => `<button class="ftab${p === curPage ? ' on' : ''}" onclick="loadReviewsAdmin(${p})">${p}</button>`)
+    .join('');
+}
+
+async function deleteReviewAdmin(id) {
+  if (!confirm('이 후기를 삭제할까요? 되돌릴 수 없어요.')) return;
+  try {
+    const res  = await fetch(`${API}/admin/reviews/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('✅ 삭제했어요', 'ok');
+      loadReviewsAdmin(1);
+    } else {
+      showToast('삭제 실패: ' + (json.message || ''), 'err');
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'err');
+  }
 }
 
 // ════════════════════════════════════════════════════
