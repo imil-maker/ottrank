@@ -52,10 +52,14 @@ export async function calcHot100(request, env, headers) {
     //   "가중치 적용 후 점수"가 가장 높은 행 1개만 채택
     const weightedQuery = `
       WITH target_rankings AS (
-        SELECT tmdb_id, platform, rank, title_ko
-        FROM rankings
-        WHERE tmdb_id IS NOT NULL
-          AND (date = ? OR date = 'manual')
+        SELECT r.tmdb_id, r.platform, r.rank, r.title_ko
+        FROM rankings r
+        JOIN ott_categories oc
+          ON oc.platform = r.platform
+         AND oc.category_slot = r.category_slot
+        WHERE r.tmdb_id IS NOT NULL
+          AND r.date = ?
+          AND oc.hot100_eligible = 1
       ),
       weighted AS (
         SELECT
