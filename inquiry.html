@@ -11,12 +11,20 @@
   --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
   --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
   --accent:#e63946;--green:#34d399;
-  --sans:'Noto Sans KR',sans-serif;--max-w:720px;--r:10px;
+  --sans:'Noto Sans KR',sans-serif;--r:10px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh}
 
-.inq-wrap{max-width:var(--max-w);margin:0 auto;padding:40px 20px 100px}
+.inq-wrap{max-width:460px;margin:0 auto;padding:40px 20px 100px}
+
+/* ── PC 전용 배경 처리 (ott_intro.html과 동일 패턴) ──
+   모바일/PC 어디서나 폼 폭을 460px로 고정해서 레이아웃이 동일하게 보이도록 하고,
+   PC에서만 배경을 더 어둡게 + 그림자를 줘서 "가운데 떠 있는 카드"처럼 보이게 함 */
+@media (min-width:461px){
+  body{background:#080810}
+  .inq-wrap{box-shadow:0 0 60px rgba(0,0,0,.6)}
+}
 .inq-title{font-size:22px;font-weight:700;margin-bottom:6px}
 .inq-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
 
