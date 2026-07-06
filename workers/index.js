@@ -15,7 +15,7 @@
    contents.js  : /contents/*, /admin/contents*
    blog.js      : /blog-gen/*
    inquiry.js   : /inquiry, /admin/inquiry*  (광고문의/오류신고 게시판)
-   hot100.js    : /hot100, /admin/calc-hot100  (HOT100 통합 랭킹)
+   hot100.js    : /hot100, /admin/calc-hot100, /admin/hot100/weights, /admin/hot100/boosts*  (HOT100 통합 랭킹)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -28,7 +28,12 @@ import { handleAdmin     } from "./routes/admin.js";
 import { handleContents  } from "./routes/contents.js";
 import { handleBlog      } from "./routes/blog.js";
 import { handleInquiry   } from "./routes/inquiry.js";
-import { calcHot100, getHot100 } from "./routes/hot100.js";
+import {
+  calcHot100, getHot100,
+  getPlatformWeights, updatePlatformWeights,
+  listAdminBoosts, searchWorksForBoost,
+  upsertAdminBoost, deleteAdminBoost,
+} from "./routes/hot100.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -156,6 +161,29 @@ export default {
     }
     if (!res && path === "/hot100") {
       res = await getHot100(request, env, headers);
+    }
+
+    // 11-1. HOT100 플랫폼 가중치 관리
+    if (!res && path === "/admin/hot100/weights" && request.method === "GET") {
+      res = await getPlatformWeights(request, env, headers);
+    }
+    if (!res && path === "/admin/hot100/weights" && request.method === "PUT") {
+      res = await updatePlatformWeights(request, env, headers);
+    }
+
+    // 11-2. HOT100 수동 부스트 관리 (search가 :tmdb_id 패턴보다 앞에 있어야 함)
+    if (!res && path === "/admin/hot100/boosts/search" && request.method === "GET") {
+      res = await searchWorksForBoost(request, env, headers);
+    }
+    if (!res && path === "/admin/hot100/boosts" && request.method === "GET") {
+      res = await listAdminBoosts(request, env, headers);
+    }
+    if (!res && path === "/admin/hot100/boosts" && request.method === "POST") {
+      res = await upsertAdminBoost(request, env, headers);
+    }
+    const boostDeleteMatch = path.match(/^\/admin\/hot100\/boosts\/(\d+)$/);
+    if (!res && boostDeleteMatch && request.method === "DELETE") {
+      res = await deleteAdminBoost(parseInt(boostDeleteMatch[1], 10), request, env, headers);
     }
 
     // 12. 관리자 (reactions, videos, contents, inquiry, hot100 제외한 나머지)
