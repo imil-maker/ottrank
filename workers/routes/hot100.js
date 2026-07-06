@@ -52,7 +52,8 @@ export async function calcHot100(request, env, headers) {
     //   "가중치 적용 후 점수"가 가장 높은 행 1개만 채택
     const weightedQuery = `
       WITH target_rankings AS (
-        SELECT r.tmdb_id, r.platform, r.rank, r.title_ko
+        SELECT r.tmdb_id, r.platform, r.rank, r.title_ko,
+               COALESCE(oc.hot100_weight, 0.5) AS category_weight
         FROM rankings r
         JOIN ott_categories oc
           ON oc.platform = r.platform
@@ -68,17 +69,16 @@ export async function calcHot100(request, env, headers) {
           tr.rank,
           tr.title_ko,
           CASE WHEN tr.rank <= 20 THEN (100 - (tr.rank - 1) * 5) ELSE 0 END AS rank_score,
-          COALESCE(pw.weight, 0.5) AS platform_weight,
+          tr.category_weight AS platform_weight,
           CASE WHEN tr.rank <= 20 THEN (100 - (tr.rank - 1) * 5) ELSE 0 END
-            * COALESCE(pw.weight, 0.5) AS weighted_score,
+            * tr.category_weight AS weighted_score,
           ROW_NUMBER() OVER (
             PARTITION BY tr.tmdb_id
             ORDER BY
               (CASE WHEN tr.rank <= 20 THEN (100 - (tr.rank - 1) * 5) ELSE 0 END)
-              * COALESCE(pw.weight, 0.5) DESC
+              * tr.category_weight DESC
           ) AS rn
         FROM target_rankings tr
-        LEFT JOIN platform_weights pw ON pw.platform = tr.platform
       )
       SELECT
         w.tmdb_id,
@@ -164,83 +164,6 @@ export async function calcHot100(request, env, headers) {
         error: "HOT100 계산 중 오류가 발생했습니다.",
         detail: err.message,
       }),
-      { status: 500, headers }
-    );
-  }
-}
-
-/**
- * GET /admin/hot100/weights
- * platform_weights 전체 목록 조회
- */
-export async function getPlatformWeights(request, env, headers) {
-  const isAuthed = await _checkAuth(request, env);
-  if (!isAuthed) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
-      { status: 401, headers }
-    );
-  }
-  try {
-    const { results } = await env.DB.prepare(
-      `SELECT platform, weight, updated_at FROM platform_weights ORDER BY weight DESC`
-    ).all();
-    return new Response(
-      JSON.stringify({ ok: true, data: results || [] }),
-      { status: 200, headers }
-    );
-  } catch (err) {
-    return new Response(
-      JSON.stringify({ ok: false, error: err.message }),
-      { status: 500, headers }
-    );
-  }
-}
-
-/**
- * PUT /admin/hot100/weights
- * body: { weights: [{ platform, weight }, ...] }
- * 여러 플랫폼 가중치를 한 번에 갱신
- */
-export async function updatePlatformWeights(request, env, headers) {
-  const isAuthed = await _checkAuth(request, env);
-  if (!isAuthed) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
-      { status: 401, headers }
-    );
-  }
-  try {
-    const body = await request.json();
-    const weights = body.weights;
-
-    if (!Array.isArray(weights) || weights.length === 0) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "weights 배열이 필요합니다." }),
-        { status: 400, headers }
-      );
-    }
-
-    const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 19)
-      .replace("T", " ");
-
-    const statements = weights.map((w) =>
-      env.DB.prepare(
-        `UPDATE platform_weights SET weight = ?, updated_at = ? WHERE platform = ?`
-      ).bind(w.weight, nowKst, w.platform)
-    );
-
-    await env.DB.batch(statements);
-
-    return new Response(
-      JSON.stringify({ ok: true, updated: weights.length }),
-      { status: 200, headers }
-    );
-  } catch (err) {
-    return new Response(
-      JSON.stringify({ ok: false, error: err.message }),
       { status: 500, headers }
     );
   }
