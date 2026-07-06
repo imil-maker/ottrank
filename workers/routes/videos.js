@@ -442,7 +442,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       }
 
       const { results: candidates } = await env.DB.prepare(`
-        SELECT tmdb_id, title_ko, title_en, poster_path, tmdb_rating, release_year, variety_genre
+        SELECT tmdb_id, title_ko, title_en, poster_path, tmdb_rating, release_year, variety_genre, media_type
         FROM works
         WHERE variety_genre IS NOT NULL AND variety_genre != '' AND tmdb_id != ?
       `).bind(tmdb_id).all();
@@ -487,6 +487,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           tmdb_id: c.tmdb_id, title_ko: c.title_ko, title_en: c.title_en,
           poster_path: c.poster_path, tmdb_rating: c.tmdb_rating,
           release_year: c.release_year, match_pct: pct,
+          media_type: c.media_type || null, // 프론트에서 클릭 시 movie/tv 오판 방지용 — 없으면 null 그대로 전달
         });
       }
 
@@ -595,7 +596,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     // 실패해도 works 단건 조회 자체는 죽지 않도록 별도 try/catch로 분리
     try {
       const { results: pinned } = await env.DB.prepare(`
-        SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.release_year, p.pinned_pct
+        SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.release_year, w.media_type, p.pinned_pct
         FROM work_pinned_similar p
         JOIN works w ON w.tmdb_id = p.related_tmdb_id
         WHERE p.tmdb_id = ?
