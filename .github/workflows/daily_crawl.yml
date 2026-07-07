@@ -69,7 +69,25 @@ jobs:
           python upload_to_d1.py
           echo "=== D1 업로드 완료 ==="
 
-      # ── 7. rankings.db 커밋 ──────────────────────────────────
+      # ── 7. YouTube 영상 배치 크롤링 (신설) ──────────────────
+      # daily_crawl.yml 랭킹 갱신 직후 실행 → "오늘 랭킹 존재 작품"
+      # 우선순위가 최신 데이터를 반영하게 됨.
+      # 실패해도(할당량 소진 등) 워크플로우 전체를 중단시키지 않도록
+      # continue-on-error: true 적용 — rankings.db 커밋 단계는 계속 진행되어야 함.
+      - name: Batch crawl YouTube supplementary videos
+        continue-on-error: true
+        env:
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        run: |
+          echo "=== YouTube 배치 크롤링 시작 ==="
+          curl -s -X POST "https://ottrank-api.tdidream.workers.dev/admin/videos/batch-crawl" \
+            -H "Authorization: Bearer ${ADMIN_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit": 20}'
+          echo ""
+          echo "=== YouTube 배치 크롤링 완료 ==="
+
+      # ── 8. rankings.db 커밋 ──────────────────────────────────
       - name: Commit rankings.db
         run: |
           git config user.name "github-actions[bot]"
