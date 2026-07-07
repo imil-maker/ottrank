@@ -43,6 +43,7 @@
    POST   /admin/works/backfill-language
    POST   /admin/works/backfill-release-year
    POST   /admin/works/backfill-rating
+   POST   /admin/works/batch-imdb-search   ← IMDb 매칭 배치 (OMDB 제목검색)
    GET    /admin/works/missing-media-type
    POST   /admin/works/bulk-set-media-type
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
@@ -2114,6 +2115,138 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       return new Response(JSON.stringify({
         ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/batch-imdb-search ───────────────────────
+  // [2026-07-08 신설] IMDb 매칭률 개선 — 관리자 수동 배치(반복 호출) 방식.
+  //   배경: TMDB external_ids에 imdb_id가 없는 작품(한국 드라마 다수)은
+  //         지금까지 IMDb 카드가 영원히 "—"로 남았음. OMDB 제목검색
+  //         (?t=&y=&type=)으로 imdb_id를 직접 찾아 보완.
+  //   ⚠️ 방문 트리거 방식은 절대 사용하지 않음 — 2026-07-08 YouTube
+  //      quota 소진 사고(실패를 기록 안 하는 무한 재시도)의 재발을 막기
+  //      위해, 반드시 관리자가 수동으로 실행하는 배치로만 동작하고
+  //      성공/실패 관계없이 imdb_search_attempted_at을 기록해 재시도를
+  //      7일 쿨다운으로 제한함.
+  //   대상: imdb_id 없음 AND (attempted_at NULL 또는 7일 경과)
+  //   우선순위: 오늘 rankings에 있는 작품(인기작) → created_at 최신순
+  //   예산: body.limit (기본 30)
+  if (path === "/admin/works/batch-imdb-search" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      let limit = 30;
+      try {
+        const body = await request.json();
+        if (body?.limit && Number.isInteger(body.limit) && body.limit > 0) {
+          limit = body.limit;
+        }
+      } catch (e) {
+        // body 없이 호출된 경우 기본값(30) 사용 — 정상 케이스이므로 무시
+      }
+
+      const omdbKey = env.OMDB_API_KEY;
+      if (!omdbKey) {
+        return new Response(JSON.stringify({ ok: false, message: "OMDB key not configured" }), { status: 500, headers });
+      }
+
+      // 오늘 기준 최신 크롤링 날짜 조회 (batch-crawl과 동일 패턴)
+      const latestDateRow = await env.DB.prepare(
+        "SELECT MAX(date) AS latest_date FROM rankings WHERE date != 'manual'"
+      ).first();
+      const latestDate = latestDateRow?.latest_date || null;
+
+      const { results: candidates } = await env.DB.prepare(`
+        SELECT w.tmdb_id, w.title_en, w.release_year, w.media_type
+        FROM works w
+        WHERE (w.imdb_id IS NULL OR w.imdb_id = '')
+        AND (
+          w.imdb_search_attempted_at IS NULL
+          OR w.imdb_search_attempted_at < datetime('now', '-7 days')
+        )
+        ORDER BY
+          (
+            EXISTS (
+              SELECT 1 FROM rankings r
+              WHERE r.tmdb_id = w.tmdb_id AND r.date = ?
+            )
+          ) DESC,
+          w.created_at DESC
+        LIMIT ?
+      `).bind(latestDate, limit).all();
+
+      if (!candidates.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: 0,
+          message: "대상 작품 없음 (모두 매칭 완료됐거나 쿨다운 중)"
+        }), { headers });
+      }
+
+      let filled = 0;
+      const now = new Date().toISOString();
+
+      // 순차 처리 (레이트리밋 회피 목적, 병렬 처리 안 함 — batch-crawl과 동일 원칙)
+      for (const c of candidates) {
+        try {
+          if (!c.title_en) {
+            // 영문 제목이 없으면 OMDB 제목검색 자체가 불가능 — 시도 기록만 남기고 스킵
+            await env.DB.prepare(
+              "UPDATE works SET imdb_search_attempted_at = ? WHERE tmdb_id = ?"
+            ).bind(now, c.tmdb_id).run();
+            continue;
+          }
+
+          const omdbType = c.media_type === "movie" ? "movie" : "series";
+          const params = new URLSearchParams({ t: c.title_en, type: omdbType, apikey: omdbKey });
+          if (c.release_year) params.set("y", String(c.release_year));
+
+          const omdbRes  = await fetch(`https://www.omdbapi.com/?${params.toString()}`);
+          const omdbData = await omdbRes.json();
+
+          if (omdbData.Response !== "False" && /^tt\d+$/.test(omdbData.imdbID || "")) {
+            const r = parseFloat(omdbData.imdbRating);
+            if (!isNaN(r)) {
+              const v = omdbData.imdbVotes || "";
+              await env.DB.prepare(
+                "UPDATE works SET imdb_id = ?, imdb_rating = ?, imdb_votes = ?, imdb_updated = ?, imdb_search_attempted_at = ? WHERE tmdb_id = ?"
+              ).bind(omdbData.imdbID, r, v, now, now, c.tmdb_id).run();
+            } else {
+              // imdb_id는 찾았지만 평점이 아직 없는 경우 — id만 저장, 평점은 기존 /imdb/:id 실시간 캐시 로직이 이후 채움
+              await env.DB.prepare(
+                "UPDATE works SET imdb_id = ?, imdb_search_attempted_at = ? WHERE tmdb_id = ?"
+              ).bind(omdbData.imdbID, now, c.tmdb_id).run();
+            }
+            filled++;
+          } else {
+            // 매칭 실패 — 반드시 attempted_at 기록 (무한 재시도 방지, 오늘 확립한 핵심 원칙)
+            await env.DB.prepare(
+              "UPDATE works SET imdb_search_attempted_at = ? WHERE tmdb_id = ?"
+            ).bind(now, c.tmdb_id).run();
+          }
+        } catch (e) {
+          // 개별 작품 네트워크/예외 오류는 attempted_at 기록 없이 스킵
+          // → 다음 배치에서 자동 재시도됨 (진짜 "실패"와 "일시적 오류"를 구분)
+          console.error(`[IMDB_BATCH_SEARCH] tmdb_id=${c.tmdb_id} 오류:`, e.message);
+        }
+      }
+
+      // 남은 대상 개수 재조회
+      const remainRow = await env.DB.prepare(`
+        SELECT COUNT(*) AS cnt FROM works w
+        WHERE (w.imdb_id IS NULL OR w.imdb_id = '')
+        AND (
+          w.imdb_search_attempted_at IS NULL
+          OR w.imdb_search_attempted_at < datetime('now', '-7 days')
+        )
+      `).first();
+
+      console.log(`[IMDB_BATCH_SEARCH] ✅ 완료: 시도 ${candidates.length}건, 매칭 ${filled}개`);
+      return new Response(JSON.stringify({
+        ok: true, attempted: candidates.length, filled, remaining: remainRow?.cnt || 0
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
