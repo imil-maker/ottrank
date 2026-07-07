@@ -1,7 +1,8 @@
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
-   POST   /admin/videos/crawl       관리자 YouTube 크롤링
+   POST   /admin/videos/crawl       관리자 YouTube 크롤링 (단건, 수동)
+   POST   /admin/videos/batch-crawl 관리자 YouTube 크롤링 (배치, daily_crawl.yml 연동)
    POST   /admin/videos             관리자 영상 수동 추가
    PATCH  /admin/videos/:id/main    메인 영상 지정
    DELETE /admin/videos/:id         영상 삭제
@@ -15,7 +16,7 @@
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
-import { _crawlYoutubeVideos, _saveTmdbVideos } from "../utils/youtube.js";
+import { _crawlYoutubeVideos, _batchCrawlYoutubeVideos, _saveTmdbVideos } from "../utils/youtube.js";
 
 export async function handleVideos(path, request, env, ctx, url, headers) {
 
@@ -69,6 +70,89 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       }
       const saved = await _crawlYoutubeVideos(parseInt(tmdb_id), env);
       return new Response(JSON.stringify({ ok: true, saved }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/videos/batch-crawl ───────────────────────────
+  // [2026-07-08 신설] daily_crawl.yml 배치 연동용.
+  //   대상: title_videos 개수 0~1개 AND (yt_crawl_attempted_at NULL 또는 3일 경과)
+  //   우선순위: 오늘 rankings에 존재하는 작품 → works.created_at 최신순
+  //   예산: body.limit (기본 20, 쿼리 2개 기준 최대 40회 search.list 소모)
+  //   개별 작품 실패가 배치 전체를 중단시키지 않도록 각 건마다 try/catch
+  if (path === "/admin/videos/batch-crawl" && request.method === "POST") {
+    if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      let limit = 20;
+      try {
+        const body = await request.json();
+        if (body?.limit && Number.isInteger(body.limit) && body.limit > 0) {
+          limit = body.limit;
+        }
+      } catch (e) {
+        // body 없이 호출된 경우 기본값(20) 사용 — 정상 케이스이므로 무시
+      }
+
+      // 오늘 기준 최신 크롤링 날짜 조회 (rankings.date != 'manual' 중 최댓값)
+      const latestDateRow = await env.DB.prepare(
+        "SELECT MAX(date) AS latest_date FROM rankings WHERE date != 'manual'"
+      ).first();
+      const latestDate = latestDateRow?.latest_date || null;
+
+      // 대상 작품 조회
+      //   - title_videos 개수는 상관관계 서브쿼리로 계산 (works 규모가
+      //     수천 건 수준이고 하루 4회만 실행되는 배치라 성능 여유 있음)
+      //   - latestDate가 없으면(신규 DB 등) 우선순위 없이 최신 등록순만 적용
+      const { results: candidates } = await env.DB.prepare(`
+        SELECT w.tmdb_id
+        FROM works w
+        WHERE (
+          SELECT COUNT(*) FROM title_videos tv WHERE tv.tmdb_id = w.tmdb_id
+        ) <= 1
+        AND (
+          w.yt_crawl_attempted_at IS NULL
+          OR w.yt_crawl_attempted_at < datetime('now', '-3 days')
+        )
+        ORDER BY
+          (
+            EXISTS (
+              SELECT 1 FROM rankings r
+              WHERE r.tmdb_id = w.tmdb_id AND r.date = ?
+            )
+          ) DESC,
+          w.created_at DESC
+        LIMIT ?
+      `).bind(latestDate, limit).all();
+
+      if (!candidates.length) {
+        return new Response(JSON.stringify({
+          ok: true, processed: 0, totalSaved: 0, results: [],
+          message: "대상 작품 없음 (모두 쿨다운 중이거나 영상이 이미 충분함)"
+        }), { headers });
+      }
+
+      // 순차 처리 (레이트리밋 위험 회피 목적, 병렬 처리 안 함)
+      const results = [];
+      let totalSaved = 0;
+      for (const c of candidates) {
+        try {
+          const saved = await _batchCrawlYoutubeVideos(c.tmdb_id, env);
+          totalSaved += saved;
+          results.push({ tmdb_id: c.tmdb_id, saved, ok: true });
+        } catch (e) {
+          // 개별 작품 실패는 로그만 남기고 다음 작품으로 계속 진행
+          console.error(`[BATCH_CRAWL] tmdb_id=${c.tmdb_id} 오류:`, e.message);
+          results.push({ tmdb_id: c.tmdb_id, saved: 0, ok: false, error: e.message });
+        }
+      }
+
+      console.log(`[BATCH_CRAWL] ✅ 완료: 대상 ${candidates.length}건, 저장 ${totalSaved}개`);
+      return new Response(JSON.stringify({
+        ok: true, processed: candidates.length, totalSaved, results
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
