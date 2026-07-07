@@ -1961,7 +1961,7 @@ function goToTitle(tmdbId,mediaType,year){
 }
 
 /* == WORK Init == */
-let WORK={tmdb_id:null,type:'tv',platform:null,rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
+let WORK={tmdb_id:null,type:'tv',typeConfirmed:false,platform:null,rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
 (function initWork(){
   /* 지금 실제로 열린 URL의 tmdb_id를 먼저 파악해둔다.
      아래 sessionStorage('ottrang_work') 값이 "이 URL을 위해" 다른 페이지가
@@ -1980,7 +1980,9 @@ let WORK={tmdb_id:null,type:'tv',platform:null,rank:'-',title:'작품명',season
          "목적지를 위해" 미리 넣어둔 정상 케이스는 항상 일치하므로 그대로 동작 */
       const matches=!urlParsed||!urlParsed.tmdb_id||(d&&d.tmdb_id===urlParsed.tmdb_id);
       if(d&&d.tmdb_id&&matches){
-        Object.assign(WORK,d);sessionStorage.removeItem('ottrang_work');return;
+        Object.assign(WORK,d);
+        if(d.type)WORK.typeConfirmed=true; // sessionStorage로 넘어온 type은 카드가 이미 확정한 값이므로 신뢰
+        sessionStorage.removeItem('ottrang_work');return;
       }
       sessionStorage.removeItem('ottrang_work'); // 불일치 — 다른 페이지가 남긴 찌꺼기이므로 폐기
     }
@@ -2016,7 +2018,9 @@ let WORK={tmdb_id:null,type:'tv',platform:null,rank:'-',title:'작품명',season
     }
   }
   WORK.tmdb_id=params.get('tmdb_id')?parseInt(params.get('tmdb_id')):null;
-  WORK.type=params.get('type')||'tv';
+  const typeParam=params.get('type');
+  WORK.type=typeParam||'tv';
+  WORK.typeConfirmed=!!typeParam; // URL에 명시적으로 ?type=이 있을 때만 확정으로 간주
   WORK.platform=params.get('platform')||null;
   WORK.rank=params.get('rank')||'-';
   WORK.title=params.get('title')||'작품명';
@@ -2352,26 +2356,26 @@ async function loadTmdb(){
       if(worksData?.media_type){
         WORK.type=worksData.media_type;
         WORK.media_type=worksData.media_type; // works DB 기준 media_type 별도 보존
+        WORK.typeConfirmed=true; // DB에 media_type이 있으면 100% 확정으로 간주
       }
       // mbti_tags 저장 (renderMbtiSection에서 사용)
       WORK.mbti_tags=worksData?.mbti_tags||null;
     }
 
     // Select valid TV/Movie
-    // works DB media_type이 이미 확정된 경우(mediaTypeConfirmed), TMDB 응답 성공/실패로
-    // 다시 타입을 재추측하지 않는다 — movie/tv tmdb_id가 우연히 서로 겹치는 경우,
-    // 정확한 DB 값을 TMDB 호출 결과로 뒤집어버리던 버그 재발 방지 (2026-07-07)
+    // WORK.typeConfirmed(=works DB media_type 또는 카드가 넘겨준 sessionStorage 값으로 이미 확정된 상태)면
+    // TMDB 응답 성공/실패로 타입을 다시 재추측하지 않는다 — movie/tv tmdb_id가 우연히 겹치는 경우,
+    // 확정된 값이 TMDB 호출 결과로 뒤집혀 works 테이블까지 오염되던 버그 재발 방지 (2026-07-07)
     let det=null;
     const tvData=detTv.status==='fulfilled'?detTv.value:null;
     const movieData=detMovie.status==='fulfilled'?detMovie.value:null;
-    const mediaTypeConfirmed=!!worksData?.media_type; // works DB에 media_type이 있으면 100% 신뢰
 
-    if(mediaTypeConfirmed){
-      // DB 값 그대로 신뢰 — 해당 타입의 TMDB 응답만 사용, 실패해도 다른 타입으로 바꾸지 않음
+    if(WORK.typeConfirmed){
+      // 확정된 값 그대로 신뢰 — 해당 타입의 TMDB 응답만 사용, 실패해도 다른 타입으로 바꾸지 않음
       det=WORK.type==='movie'?movieData:tvData;
       if(!det?.id)det=null;
     }else{
-      // media_type이 없는 레거시 데이터만 기존 추측 로직 유지
+      // 확정 정보가 전혀 없는 경우(직접 URL 진입 등)만 기존 추측 로직 유지
       if(WORK.type==='movie'){
         det=movieData?.id?movieData:(tvData?.id?tvData:null);
         if(det&&det===tvData)WORK.type='tv';
@@ -2442,7 +2446,7 @@ async function loadTmdb(){
           title_ko    : title,
           title_en,
           poster_path : det.poster_path || '',
-          media_type  : WORK.type,
+          media_type  : WORK.typeConfirmed?WORK.type:null, // 확신 없는 추측값은 DB에 등록하지 않음(오염 방지)
           genre       : genreStr || null,
           tmdb_rating : ratingVal,
           release_date: WORK.releaseDate || null,
