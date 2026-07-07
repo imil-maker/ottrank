@@ -2055,12 +2055,17 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   // 순위 정보가 있을 때만 "N위" 문구 포함 — 랭킹 미진입작/직접 진입 시(플랫폼·순위 미확정) "OTT -위" 노출 방지
   const hasRank=rank&&rank!=='-'&&rank!=='0';
   const pName=hasRank?(PC[platform]||platform||'OTT'):'';
+  // [2026-07-08 추가] IMDb 평점 — extIdsRes 처리(§IMDb 블록) 이후 WORK.imdbRating이 채워지면
+  //   updateSEO()가 재호출되어 여기 반영됨. 최초 호출 시점엔 아직 없을 수 있어 없으면 생략.
+  const hasImdb=!!WORK.imdbRating;
+  const titleMid=['평점',hasImdb?`IMDb ${WORK.imdbRating}`:null,hasRank?'순위':'후기','추천'].filter(Boolean).join('·');
+  const imdbDescPart=hasImdb?`, IMDb 평점 ${WORK.imdbRating}점`:'';
   const seoT=hasRank
-    ? `${t} 평점·순위·추천 | ${typeLabel} ${pName} ${rank}위 | 오뜨랑`
-    : `${t} 평점·후기·추천 | ${typeLabel} 오뜨랑`;
+    ? `${t} ${titleMid} | ${typeLabel} ${pName} ${rank}위 | 오뜨랑`
+    : `${t} ${titleMid} | ${typeLabel} 오뜨랑`;
   const seoD=hasRank
-    ? `${t} 평점, ${pName} ${rank}위, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
-    : `${t} 평점, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`;
+    ? `${t} 평점, ${pName} ${rank}위${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
+    : `${t} 평점${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`;
   const s=WORK.season||1,y=WORK.year||(new Date().getFullYear()),tid=WORK.tmdb_id||'';
   const slug=`${s}-${y}${tid}`;
   const canonical=`https://ottrank.kr/title/${slug}`;
@@ -2092,6 +2097,17 @@ function updateSEO(title,overview,posterUrl,platform,rank){
       'bestRating':10,
       'worstRating':0,
     };
+  }
+  // [2026-07-08 추가] IMDb 평점 — 개별 작품페이지는 리치 결과(별점 노출) 대상이 아니라는 걸
+  //   이미 확인했지만(Movie/TVSeries는 캐러셀 목록 페이지에서만 리치 결과 지원), 구글의
+  //   콘텐츠 이해도(색인 품질)에는 기여하고 화면에 실제로 보이는 IMDb 카드와도 일치시켜야 하므로
+  //   review 배열에 추가 (aggregateRating은 소스 1개만 표현 가능해 review로 별도 표현)
+  if(hasImdb){
+    ld.review=[{
+      '@type':'Review',
+      'author':{'@type':'Organization','name':'IMDb'},
+      'reviewRating':{'@type':'Rating','ratingValue':parseFloat(WORK.imdbRating),'bestRating':10,'worstRating':0},
+    }];
   }
   const ldEl=document.getElementById('ldJson');if(ldEl)ldEl.textContent=JSON.stringify(ld);
 }
@@ -2679,8 +2695,12 @@ async function loadTmdb(){
 
       // 1순위: 우리 DB(worksData)에 imdb_rating이 있으면 바로 표시
       if(worksData?.imdb_rating){
-        document.getElementById('imdbScore').textContent=fmtScore(worksData.imdb_rating);
+        const scoreText=fmtScore(worksData.imdb_rating);
+        document.getElementById('imdbScore').textContent=scoreText;
         document.getElementById('imdbVotes').textContent=worksData.imdb_votes?worksData.imdb_votes.replace(/,/g,'')+' 명':'';
+        // [2026-07-08 추가] SEO 타이틀/설명/JSON-LD에 IMDb 평점 반영
+        WORK.imdbRating=scoreText;
+        updateSEO(WORK.title,'',WORK.poster_path||null,WORK.platform,WORK.rank);
       }else{
         // 2순위: OMDB API 호출 (결과는 DB에 저장되어 다음 접속부터 1순위로 표시)
         try{
@@ -2688,6 +2708,9 @@ async function loadTmdb(){
           if(omdbData.ok&&omdbData.rating){
             document.getElementById('imdbScore').textContent=omdbData.rating;
             document.getElementById('imdbVotes').textContent=omdbData.votes?omdbData.votes.replace(/,/g,'')+' 명':'';
+            // [2026-07-08 추가] SEO 타이틀/설명/JSON-LD에 IMDb 평점 반영
+            WORK.imdbRating=omdbData.rating;
+            updateSEO(WORK.title,'',WORK.poster_path||null,WORK.platform,WORK.rank);
           }else{
             document.getElementById('imdbScore').innerHTML='<span style="font-size:20px">↗</span>';
             document.getElementById('imdbVotes').innerHTML='<span style="font-size:10px;color:#F5C518">IMDb 보기</span>';
