@@ -354,6 +354,14 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
+          -- media_type: title_en과 달리 "보호 대상 아님" — 확신 있는 값(NULL 아님)이 오면 항상 최신화.
+          -- movie/tv tmdb_id가 우연히 겹쳐 한 번 잘못 저장돼도, 이후 신뢰 가능한 값이 들어오면
+          -- 자동으로 스스로 고쳐지는 자가치유(self-healing) 구조 (2026-07-07)
+          media_type = CASE
+            WHEN excluded.media_type IS NOT NULL AND excluded.media_type != ''
+              THEN excluded.media_type
+            ELSE works.media_type
+          END,
           -- title_en 업데이트 조건:
           --   1) 현재 title_en이 비어있을 때
           --   2) 현재 title_en이 한글일 때 (잘못 입력된 경우)
@@ -392,7 +400,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         title_ko       || null,
         validTitle_en  || null,
         poster_path    || null,
-        media_type     || 'tv',
+        media_type     || null,
         genre          || null,
         original_language || null,
         ratingVal,
