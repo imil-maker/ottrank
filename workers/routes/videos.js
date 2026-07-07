@@ -20,9 +20,19 @@ import { _crawlYoutubeVideos, _saveTmdbVideos } from "../utils/youtube.js";
 export async function handleVideos(path, request, env, ctx, url, headers) {
 
   // ── GET /videos/:tmdb_id ─────────────────────────────────────
-  // DB 0개: TMDB 저장 + YouTube 크롤링 동시 실행
-  // DB 1개: YouTube 보충 크롤링 (메인 영상 유무는 더 이상 따지지 않음)
-  // DB 2개 이상: 크롤링 완전 스킵, DB 영상만 표시
+  // [2026-07-08 구조 변경] YouTube 실시간 방문 트리거 완전 제거.
+  //   과거: 방문자가 접속할 때마다 DB 영상 개수를 보고 YouTube Data API
+  //         search.list를 호출해 보충 크롤링을 시도했음.
+  //   문제: search.list는 2026-06-01부로 하루 약 100회 전용 버킷으로
+  //         분리됐는데, 실패(관련 영상 못 찾음)해도 DB에 기록을 안 남겨서
+  //         같은 작품을 재방문/새로고침할 때마다 무한 재시도가 발생 →
+  //         트래픽이 적어도 하루 100회 버킷이 순식간에 소진되어
+  //         quotaExceeded(403)로 전체 크롤링이 마비되는 사고가 반복됨.
+  //   변경: YouTube 보충 크롤링은 이 엔드포인트에서 완전히 분리하고,
+  //         daily_crawl.yml 배치(POST /admin/videos/batch-crawl, 추후 작업)
+  //         에서 일일 예산 상한 + 쿨다운을 두고 실행하도록 이전.
+  //   유지: TMDB 트레일러 저장(_saveTmdbVideos)은 TMDB API라
+  //         YouTube 할당량과 무관하므로 그대로 최초 방문 시 실행.
   if (path.startsWith("/videos/") && !path.includes("/admin") && request.method === "GET") {
     const tmdb_id = parseInt(path.split("/videos/")[1]);
     if (!tmdb_id) {
@@ -34,14 +44,11 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       ).bind(tmdb_id).all();
 
       if (results.length === 0) {
-        // 영상 없음 → TMDB 저장 + YouTube 크롤링 동시 실행
+        // 영상 없음 → TMDB 트레일러만 저장 (YouTube 보충 크롤링은 배치로 이전)
         ctx.waitUntil(_saveTmdbVideos(tmdb_id, env));
-        ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
-      } else if (results.length === 1) {
-        // 영상 1개 → YouTube 보충 크롤링
-        ctx.waitUntil(_crawlYoutubeVideos(tmdb_id, env));
       }
-      // 영상 2개 이상 → 크롤링 완전 스킵 (매 접속마다 크롤링 방지)
+      // 영상 1개 이상 → 방문 트리거로는 아무것도 하지 않음
+      //   (YouTube 보충 크롤링은 daily_crawl.yml 배치가 전담)
 
       return new Response(JSON.stringify({ ok: true, data: results }), { headers });
     } catch (e) {
