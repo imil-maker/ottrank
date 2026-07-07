@@ -35,6 +35,7 @@
    GET    /admin/variety-genre-options
    GET    /admin/works/variety-review
    POST   /admin/works/variety-review
+   POST   /admin/works/variety-review/skip
    POST   /admin/works/pinned-similar
    GET    /admin/works/pinned-similar/:tmdb_id
    DELETE /admin/works/pinned-similar
@@ -1598,8 +1599,10 @@ export async function handleAdmin(path, request, env, url, headers) {
 
   // ── GET /admin/works/variety-review ───────────────────────────
   // Claude가 자동분류(variety_genre_source='auto')했지만 아직 관리자 확정 전인 작품 조회
-  // missing-media-type과 동일한 방식: offset 없이 항상 최신 N개 — 확정되는 즉시 쿼리에서
-  // 빠지므로 건너뛴 항목은 자연스럽게 다음 배치들에서 다시 보임
+  // 2026-07-07 변경: "건너뛰기"한 항목이 계속 최상단에 남아 새 항목을 가리던 문제 수정.
+  // variety_review_skipped_at이 NULL인(=한 번도 안 건너뛴) 항목을 항상 최우선으로 보여주고,
+  // 건너뛴 항목은 완전히 빼지 않고 "가장 오래전에 건너뛴 순"으로 뒤로 밀어서 계속 순환 노출됨
+  // media_type도 함께 내려줘서 프론트가 TMDB 상세페이지로 바로 링크 걸 수 있게 함
   if (path === "/admin/works/variety-review" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -1608,10 +1611,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       const limit = Math.min(parseInt(url.searchParams.get("limit")) || 12, 30);
 
       const { results: items } = await env.DB.prepare(`
-        SELECT tmdb_id, title_ko, poster_path, variety_genre
+        SELECT tmdb_id, title_ko, poster_path, variety_genre, media_type
         FROM works
         WHERE variety_genre_source = 'auto'
-        ORDER BY tmdb_id
+        ORDER BY (variety_review_skipped_at IS NULL) DESC, variety_review_skipped_at ASC, tmdb_id ASC
         LIMIT ?
       `).bind(limit).all();
 
@@ -1660,6 +1663,37 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, updated: valid.length, remaining: remainRow?.cnt || 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/variety-review/skip ───────────────────────
+  // "건너뛰기"한 작품을 완전히 빼는 게 아니라 variety_review_skipped_at에 현재 시각만 기록.
+  // GET 쪽 ORDER BY가 이 값을 기준으로 순환시키므로, 저장은 이 컬럼 업데이트뿐 — 별도 상태 컬럼 불필요
+  if (path === "/admin/works/variety-review/skip" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbIds = Array.isArray(body.tmdb_ids)
+        ? body.tmdb_ids.map(v => parseInt(v)).filter(v => Number.isInteger(v))
+        : [];
+
+      if (!tmdbIds.length) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_ids required" }), { status: 400, headers });
+      }
+
+      const nowIso = new Date().toISOString();
+      const updates = tmdbIds.map(id =>
+        env.DB.prepare(
+          "UPDATE works SET variety_review_skipped_at = ? WHERE tmdb_id = ?"
+        ).bind(nowIso, id)
+      );
+      await env.DB.batch(updates);
+
+      return new Response(JSON.stringify({ ok: true, skipped: tmdbIds.length }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
