@@ -172,6 +172,14 @@ function K(l,i,t){if(!i.length)return l.slice(0,t).map((r,a)=>({...r,rank:a+1}))
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
+          -- media_type: title_en\uACFC \uB2EC\uB9AC "\uBCF4\uD638 \uB300\uC0C1 \uC544\uB2D8" \u2014 \uD655\uC2E0 \uC788\uB294 \uAC12(NULL \uC544\uB2D8)\uC774 \uC624\uBA74 \uD56D\uC0C1 \uCD5C\uC2E0\uD654.
+          -- movie/tv tmdb_id\uAC00 \uC6B0\uC5F0\uD788 \uACB9\uCCD0 \uD55C \uBC88 \uC798\uBABB \uC800\uC7A5\uB3FC\uB3C4, \uC774\uD6C4 \uC2E0\uB8B0 \uAC00\uB2A5\uD55C \uAC12\uC774 \uB4E4\uC5B4\uC624\uBA74
+          -- \uC790\uB3D9\uC73C\uB85C \uC2A4\uC2A4\uB85C \uACE0\uCCD0\uC9C0\uB294 \uC790\uAC00\uCE58\uC720(self-healing) \uAD6C\uC870 (2026-07-07)
+          media_type = CASE
+            WHEN excluded.media_type IS NOT NULL AND excluded.media_type != ''
+              THEN excluded.media_type
+            ELSE works.media_type
+          END,
           -- title_en \uC5C5\uB370\uC774\uD2B8 \uC870\uAC74:
           --   1) \uD604\uC7AC title_en\uC774 \uBE44\uC5B4\uC788\uC744 \uB54C
           --   2) \uD604\uC7AC title_en\uC774 \uD55C\uAE00\uC77C \uB54C (\uC798\uBABB \uC785\uB825\uB41C \uACBD\uC6B0)
@@ -205,7 +213,7 @@ function K(l,i,t){if(!i.length)return l.slice(0,t).map((r,a)=>({...r,rank:a+1}))
           -- rating_updated_at: \uC774 \uB4F1\uB85D \uC694\uCCAD\uC774 \uB4E4\uC5B4\uC628 \uC2DC\uC810 = \uBC29\uBB38\uC790\uAC00 TMDB\uB97C \uC870\uD68C\uD574\uC628 \uC2DC\uC810\uC774\uBBC0\uB85C
           -- \uB9E4 \uD638\uCD9C\uB9C8\uB2E4 \uBB34\uC870\uAC74 \uCD5C\uC2E0 \uC2DC\uAC01\uC73C\uB85C \uAC31\uC2E0 (\uC2E0\uC791 1\uC77C / \uAD6C\uC791 5\uC77C \uC8FC\uAE30 \uD310\uB2E8\uC758 \uAE30\uC900\uAC12)
           rating_updated_at = excluded.rating_updated_at
-      `).bind(parseInt(d),s||null,E||null,a||null,c||"tv",m||null,p||null,w,R,b).run(),new Response(JSON.stringify({ok:!0}),{headers:o})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:o})}if(l.startsWith("/works/variety-similar/")&&i.method==="GET"){let n=parseInt(l.split("/works/variety-similar/")[1]);if(!n)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:o});let d=Math.min(parseInt(e.searchParams.get("limit")||"10"),20);try{let r=((await t.DB.prepare("SELECT variety_genre FROM works WHERE tmdb_id = ?").bind(n).first())?.variety_genre||"").split(",").map(p=>p.trim()).filter(Boolean);if(!r.length)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:o});let{results:a}=await t.DB.prepare(`
+      `).bind(parseInt(d),s||null,E||null,a||null,c||null,m||null,p||null,w,R,b).run(),new Response(JSON.stringify({ok:!0}),{headers:o})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:o})}if(l.startsWith("/works/variety-similar/")&&i.method==="GET"){let n=parseInt(l.split("/works/variety-similar/")[1]);if(!n)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:o});let d=Math.min(parseInt(e.searchParams.get("limit")||"10"),20);try{let r=((await t.DB.prepare("SELECT variety_genre FROM works WHERE tmdb_id = ?").bind(n).first())?.variety_genre||"").split(",").map(p=>p.trim()).filter(Boolean);if(!r.length)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:o});let{results:a}=await t.DB.prepare(`
         SELECT tmdb_id, title_ko, title_en, poster_path, tmdb_rating, release_year, variety_genre, media_type
         FROM works
         WHERE variety_genre IS NOT NULL AND variety_genre != '' AND tmdb_id != ?
