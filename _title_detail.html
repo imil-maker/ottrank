@@ -2358,16 +2358,27 @@ async function loadTmdb(){
     }
 
     // Select valid TV/Movie
+    // works DB media_type이 이미 확정된 경우(mediaTypeConfirmed), TMDB 응답 성공/실패로
+    // 다시 타입을 재추측하지 않는다 — movie/tv tmdb_id가 우연히 서로 겹치는 경우,
+    // 정확한 DB 값을 TMDB 호출 결과로 뒤집어버리던 버그 재발 방지 (2026-07-07)
     let det=null;
     const tvData=detTv.status==='fulfilled'?detTv.value:null;
     const movieData=detMovie.status==='fulfilled'?detMovie.value:null;
+    const mediaTypeConfirmed=!!worksData?.media_type; // works DB에 media_type이 있으면 100% 신뢰
 
-    if(WORK.type==='movie'){
-      det=movieData?.id?movieData:(tvData?.id?tvData:null);
-      if(det&&det===tvData)WORK.type='tv';
+    if(mediaTypeConfirmed){
+      // DB 값 그대로 신뢰 — 해당 타입의 TMDB 응답만 사용, 실패해도 다른 타입으로 바꾸지 않음
+      det=WORK.type==='movie'?movieData:tvData;
+      if(!det?.id)det=null;
     }else{
-      det=tvData?.id?tvData:(movieData?.id?movieData:null);
-      if(det&&det===movieData)WORK.type='movie';
+      // media_type이 없는 레거시 데이터만 기존 추측 로직 유지
+      if(WORK.type==='movie'){
+        det=movieData?.id?movieData:(tvData?.id?tvData:null);
+        if(det&&det===tvData)WORK.type='tv';
+      }else{
+        det=tvData?.id?tvData:(movieData?.id?movieData:null);
+        if(det&&det===movieData)WORK.type='movie';
+      }
     }
 
     if(!det){
