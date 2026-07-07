@@ -44,6 +44,7 @@
    POST   /admin/works/backfill-release-year
    POST   /admin/works/backfill-rating
    POST   /admin/works/batch-imdb-search   ← IMDb 매칭 배치 (OMDB 제목검색)
+   POST   /admin/works/imdb-manual         ← IMDb 평점 수동 입력 (OMDB 반영 지연 대응)
    GET    /admin/works/missing-media-type
    POST   /admin/works/bulk-set-media-type
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
@@ -2247,6 +2248,55 @@ export async function handleAdmin(path, request, env, url, headers) {
       console.log(`[IMDB_BATCH_SEARCH] ✅ 완료: 시도 ${candidates.length}건, 매칭 ${filled}개`);
       return new Response(JSON.stringify({
         ok: true, attempted: candidates.length, filled, remaining: remainRow?.cnt || 0
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/imdb-manual ─────────────────────────────
+  // [2026-07-08 신설] IMDb 평점 수동 입력 — OMDB 반영 지연 대응.
+  //   배경: 김부장(tmdb_id=296206)처럼 imdb_id는 이미 매칭됐지만 OMDB가
+  //         아직 평점을 못 채운 신작을, 검색 유입이 많을 때 관리자가
+  //         직접 IMDb 사이트에서 확인한 값을 넣어 즉시 반영하기 위함.
+  //   ⚠️ 주의: 프론트(_title_detail.html)는 works.imdb_rating이 있으면
+  //      OMDB를 다시 호출하지 않고 그 값을 그대로 표시함 → 여기서 넣은
+  //      값은 나중에 실제 OMDB 데이터로 자동으로 안 바뀌고 고정됨.
+  //      (사용자 확인 및 동의됨 — 필요시 나중에 다시 이 API로 갱신)
+  //   ⚠️ imdb_id 자체가 없는 작품(TMDB external_ids 미매핑)은 평점을
+  //      넣어도 화면에 카드 자체가 안 뜸 — 응답에 warning으로 안내.
+  if (path === "/admin/works/imdb-manual" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json();
+      const tmdb_id = parseInt(body?.tmdb_id);
+      if (!tmdb_id) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+      }
+
+      const rating = body?.imdb_rating === "" || body?.imdb_rating == null
+        ? null : parseFloat(body.imdb_rating);
+      if (rating !== null && (isNaN(rating) || rating < 0 || rating > 10)) {
+        return new Response(JSON.stringify({ ok: false, message: "imdb_rating은 0~10 사이 숫자여야 합니다" }), { status: 400, headers });
+      }
+      const votes = (body?.imdb_votes || "").toString().trim() || null;
+
+      const existing = await env.DB.prepare(
+        "SELECT imdb_id FROM works WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+      if (!existing) {
+        return new Response(JSON.stringify({ ok: false, message: "해당 tmdb_id 작품을 찾을 수 없습니다" }), { status: 404, headers });
+      }
+
+      await env.DB.prepare(
+        "UPDATE works SET imdb_rating = ?, imdb_votes = ?, imdb_updated = datetime('now') WHERE tmdb_id = ?"
+      ).bind(rating, votes, tmdb_id).run();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        warning: existing.imdb_id ? null : "imdb_id가 없는 작품이라 화면에 카드가 안 뜰 수 있습니다 (IMDb 매칭 배치 선행 필요)",
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
