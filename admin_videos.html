@@ -750,6 +750,63 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div id="imLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
     </div>
 
+    <!-- 구분선 -->
+    <div style="height:1px;background:var(--border);margin:28px 0"></div>
+
+    <!-- ── 개별 작품 IMDb 평점 수동 입력 ── -->
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px">📝 개별 작품 수동 입력</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+      OMDB 반영이 늦은 인기작(예: 신작인데 검색 유입 많은 작품)에 평점을 직접 입력합니다.<br>
+      <span style="color:#F5C518">주의:</span> 여기 입력한 값은 이후 OMDB가 실제 데이터를 채워도 자동으로 안 바뀝니다 — 나중에 다시 확인하고 갱신해주세요.
+    </div>
+
+    <div class="search-tabs">
+      <button class="search-tab" id="imsTabId" onclick="switchImsTab('id')">TMDB ID</button>
+      <button class="search-tab on" id="imsTabName" onclick="switchImsTab('name')">작품명 검색</button>
+    </div>
+    <div class="search-row">
+      <input class="search-input" id="imsTmdbInput" type="number" placeholder="tmdb_id 입력 (예: 296206)"
+        onkeydown="if(event.key==='Enter')loadImsWork()" style="display:none">
+      <div class="search-dropdown" id="imsNameSearchWrap" style="display:block;flex:1">
+        <input class="search-input" id="imsNameInput" type="text"
+          placeholder="한글 또는 영어 작품명 입력"
+          oninput="onImsNameInput(this.value)"
+          onkeydown="if(event.key==='Enter')searchImsByName()"
+          autocomplete="off" style="width:100%">
+        <div class="search-results" id="imsSearchResults"></div>
+      </div>
+      <button class="btn-primary" onclick="handleImsSearch()">작품 조회</button>
+    </div>
+
+    <!-- 선택된 작품 정보 -->
+    <div class="work-info-box" id="imsWorkInfoBox" style="display:none">
+      <div class="work-poster" id="imsWorkPoster"></div>
+      <div>
+        <div class="work-title" id="imsWorkTitle"></div>
+        <div class="work-sub" id="imsWorkSub"></div>
+      </div>
+    </div>
+
+    <!-- 입력 영역 -->
+    <div id="imsEditArea" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:16px">
+      <div id="imsNoIdWarning" style="display:none;background:rgba(240,68,68,.08);border:1px solid rgba(240,68,68,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--red);font-family:var(--mono);line-height:1.6">
+        ⚠️ 이 작품은 imdb_id가 없어요 — 평점을 입력해도 화면에 카드 자체가 안 뜰 수 있습니다. "IMDb 매칭 채우기" 배치를 먼저 실행해보세요.
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-family:var(--mono)">IMDb 평점 (0~10)</div>
+          <input class="search-input" id="imsRatingInput" type="number" min="0" max="10" step="0.1" placeholder="예: 8.1" style="width:100%">
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-family:var(--mono)">투표 수 (선택)</div>
+          <input class="search-input" id="imsVotesInput" type="text" placeholder="예: 1,100" style="width:100%">
+        </div>
+      </div>
+      <button class="btn-crawl" id="imsSaveBtn" onclick="saveImsRating()" style="width:100%;padding:13px;font-size:15px;margin-top:16px">
+        💾 저장
+      </button>
+    </div>
+
   </div>
 
   <!-- ══ 미디어타입 채우기 섹션 ══ -->
@@ -2350,6 +2407,141 @@ function stopImdbBatch() {
     document.getElementById('imStopBtn').disabled = false;
     document.getElementById('imStopBtn').textContent = '⏸ 중단';
   }, 1500);
+}
+
+/* ══════════════════════════════════════════════════════
+   IMDb 평점 개별 수동 입력
+   (MBTI 관리 탭의 단일 작품 검색 UI와 동일한 패턴 재사용)
+══════════════════════════════════════════════════════ */
+let imsSearchTab   = 'name';
+let imsNameTimer   = null;
+let imsCurrentTmdbId = null;
+let imsCurrentImdbId = null; // null이면 imdb_id 없는 작품 (경고 표시용)
+
+function switchImsTab(tab) {
+  imsSearchTab = tab;
+  document.getElementById('imsTabId').classList.toggle('on', tab === 'id');
+  document.getElementById('imsTabName').classList.toggle('on', tab === 'name');
+  document.getElementById('imsTmdbInput').style.display        = tab === 'id'   ? 'block' : 'none';
+  document.getElementById('imsNameSearchWrap').style.display   = tab === 'name' ? 'block' : 'none';
+  document.getElementById('imsSearchResults').classList.remove('show');
+}
+
+function handleImsSearch() {
+  if (imsSearchTab === 'id') loadImsWork();
+  else searchImsByName();
+}
+
+function onImsNameInput(val) {
+  clearTimeout(imsNameTimer);
+  const results = document.getElementById('imsSearchResults');
+  if (!val.trim()) { results.classList.remove('show'); return; }
+  imsNameTimer = setTimeout(() => searchImsByName(val), 400);
+}
+
+async function searchImsByName(query) {
+  const val = query || document.getElementById('imsNameInput').value.trim();
+  if (!val) { showToast('작품명을 입력해주세요'); return; }
+  const results = document.getElementById('imsSearchResults');
+  results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 중...</div>';
+  results.classList.add('show');
+  try {
+    const res  = await fetch(`${API}/works/search?q=${encodeURIComponent(val)}&limit=8`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (!data.ok || !data.data?.length) {
+      results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과가 없습니다</div>';
+      return;
+    }
+    results.innerHTML = data.data.map(w => `
+      <div class="search-result-item" onclick="selectImsWork(${w.tmdb_id})">
+        <div class="sri-poster">
+          ${w.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`}
+        </div>
+        <div>
+          <div class="sri-title">${w.title_ko || ''}</div>
+          <div class="sri-sub">${[w.title_en, `tmdb: ${w.tmdb_id}`].filter(Boolean).join(' · ')}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--accent)">검색 오류</div>';
+  }
+}
+
+async function loadImsWork() {
+  const id = parseInt(document.getElementById('imsTmdbInput').value.trim());
+  if (!id) { showToast('tmdb_id를 입력해주세요'); return; }
+  await loadImsWorkById(id);
+}
+async function selectImsWork(tmdbId) {
+  document.getElementById('imsSearchResults').classList.remove('show');
+  await loadImsWorkById(tmdbId);
+}
+
+async function loadImsWorkById(tmdbId) {
+  imsCurrentTmdbId = tmdbId;
+  try {
+    const res  = await fetch(`${API}/works/${tmdbId}`);
+    const data = await res.json();
+    if (!data.ok || !data.data) { showToast('작품을 찾을 수 없어요'); return; }
+    const w = data.data;
+    imsCurrentImdbId = w.imdb_id || null;
+
+    document.getElementById('imsWorkInfoBox').style.display = 'flex';
+    document.getElementById('imsWorkPoster').innerHTML = w.poster_path
+      ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" alt="">`
+      : '';
+    document.getElementById('imsWorkTitle').textContent = w.title_ko || '';
+    document.getElementById('imsWorkSub').textContent =
+      `tmdb: ${w.tmdb_id} · imdb_id: ${w.imdb_id || '없음'} · 현재 평점: ${w.imdb_rating ?? '-'}`;
+
+    document.getElementById('imsNoIdWarning').style.display = imsCurrentImdbId ? 'none' : 'block';
+    document.getElementById('imsRatingInput').value = w.imdb_rating ?? '';
+    document.getElementById('imsVotesInput').value  = w.imdb_votes ?? '';
+    document.getElementById('imsEditArea').style.display = 'block';
+  } catch(e) {
+    showToast('작품 정보를 불러오지 못했어요');
+  }
+}
+
+async function saveImsRating() {
+  if (!imsCurrentTmdbId) { showToast('작품을 먼저 선택해주세요'); return; }
+  const ratingVal = document.getElementById('imsRatingInput').value.trim();
+  const votesVal  = document.getElementById('imsVotesInput').value.trim();
+
+  if (ratingVal !== '') {
+    const n = parseFloat(ratingVal);
+    if (isNaN(n) || n < 0 || n > 10) { showToast('평점은 0~10 사이 숫자여야 해요'); return; }
+  }
+
+  const btn = document.getElementById('imsSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res = await fetch(`${API}/admin/works/imdb-manual`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({
+        tmdb_id: imsCurrentTmdbId,
+        imdb_rating: ratingVal === '' ? null : ratingVal,
+        imdb_votes: votesVal || null,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.warning ? `⚠️ 저장됨 — ${data.warning}` : '✅ 저장됐어요!');
+    } else {
+      showToast(data.message || '저장 실패');
+    }
+  } catch(e) {
+    showToast('네트워크 오류');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 저장';
+  }
 }
 
 /* ══════════════════════════════════════════════════════
