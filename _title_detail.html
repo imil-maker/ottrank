@@ -2078,7 +2078,7 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   if(posterUrl){const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;setMeta('seoOgImg','content',ogImg);setMeta('seoTwImg','content',ogImg);}
   // 미디어타입 분기 — works 테이블의 media_type을 기준으로 이미 정리된 WORK.type 사용
   const ldType=WORK.type==='movie'?'Movie':'TVSeries';
-  const ld={'@context':'https://schema.org','@type':ldType,'name':t,'description':overview||seoD,'url':canonical};
+  const ld={'@context':'https://schema.org','@type':ldType,'name':t,'description':seoD,'url':canonical};
   if(posterUrl)ld.image=`https://image.tmdb.org/t/p/w780${posterUrl}`;
   if(WORK.genreNames&&WORK.genreNames.length)ld.genre=WORK.genreNames;
   if(WORK.releaseDate)ld.datePublished=WORK.releaseDate;
