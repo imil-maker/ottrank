@@ -1,17 +1,36 @@
 /* ══════════════════════════════════════════════════════════════
    YouTube / TMDB 영상 관련 유틸리티
-   - _crawlYoutubeVideos      : YouTube 검색으로 추가 영상 수집
-   - _saveTmdbVideos          : TMDB API 영상 DB 저장
-   - collectAndTranslateComments : YouTube 댓글 수집 + Claude 번역
+
+   [2026-07-08 구조 변경]
+   YouTube search.list 할당량(하루 약 100회 전용 버킷, 2026-06-01부 정책 변경)
+   소진 사고 재발 방지를 위해 검색·저장 핵심 로직을 _executeYoutubeCrawl로
+   분리하고, 용도별로 아래 두 함수가 나눠서 사용함:
+
+   - _executeYoutubeCrawl      : (비공개) 실제 YouTube 검색 + DB 저장 로직
+   - _crawlYoutubeVideos       : 관리자 수동 실행용 (POST /admin/videos/crawl)
+                                 → 쿨다운 기록 없음, 사람이 누른 즉시 결과 확인 목적
+   - _batchCrawlYoutubeVideos  : 배치 크롤러용 (신규, daily_crawl.yml 연동 예정)
+                                 → 성공/실패 관계없이 works.yt_crawl_attempted_at
+                                   기록 → 다음 배치 사이클에서 재시도 방지
+   - _saveTmdbVideos           : TMDB API 영상 DB 저장 (할당량 무관, 기존 유지)
+   - collectAndTranslateComments : YouTube 댓글 수집 + Claude 번역 (기존 유지)
+
+   검색 쿼리는 기존 4개(공식 예고편/예고편/리뷰/후기) → 2개(공식 예고편/예고편)로
+   축소 — 시도 1회당 search.list 소모량을 절반으로 줄임.
+
+   ※ works.yt_crawl_attempted_at 컬럼은 별도 D1 마이그레이션 필요
+      (ALTER TABLE works ADD COLUMN yt_crawl_attempted_at TEXT;)
 ══════════════════════════════════════════════════════════════ */
 
-/** YouTube 추가 영상 크롤링 (관리자 수동 실행)
+/** YouTube 추가 영상 크롤링 — 핵심 검색/저장 로직 (비공개)
  *  - TMDB 영상 외에 YouTube에서 추가 관련 영상 수집
  *  - works 테이블에서 title_ko 조회 후 YouTube Data API v3 검색
- *  - 1차: "{title_ko} 예고편" / 2차: "{title_ko}" 인기순 폴백
+ *  - 1차: "{title_ko} 공식 예고편" / 2차: "{title_ko} 예고편"
  *  - 기존 DB에 있는 영상은 중복 저장 안 함
+ *  - _crawlYoutubeVideos(관리자용), _batchCrawlYoutubeVideos(배치용)가
+ *    이 함수를 공유해서 씀 — 검색 정책 변경 시 여기 한 곳만 고치면 됨
  */
-export async function _crawlYoutubeVideos(tmdb_id, env) {
+async function _executeYoutubeCrawl(tmdb_id, env) {
   try {
     // ① works 테이블에서 작품명 조회 (title_ko + title_en 모두)
     //    rankings 테이블에서 플랫폼 + category_slot도 함께 조회
@@ -89,29 +108,26 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
 
     // ③ YouTube Data API v3 검색 — 한국어/영어 분기
     //
+    // [2026-07-08] search.list 할당량(하루 약 100회 전용 버킷) 소진 사고 이후
+    // 시도 1회당 소모량을 줄이기 위해 4개 → 2개 쿼리로 축소함.
+    // "리뷰/후기" 쿼리는 관련성 낮은 영상이 걸릴 확률도 상대적으로 높았던
+    // 부분이라, 할당량 절약과 품질 두 측면 모두에서 손해 없는 정리로 판단.
+    //
     // 한국어 모드 (isEnglishMode=false, 대부분의 작품):
     //   1차: "{플랫폼} {title_ko} 공식 예고편"
     //   2차: "{플랫폼} {title_ko} 예고편"
-    //   3차: "{title_ko} 리뷰"
-    //   4차: "{title_ko} 후기"
     //
     // 영어 모드 (isEnglishMode=true, 넷플릭스 전세계 랭킹 category07/08):
     //   1차: "Netflix {title_en} official trailer"
     //   2차: "Netflix {title_en} trailer"
-    //   3차: "{title_en} review"
-    //   4차: "{title_en} clip"
     const searchQueries = isEnglishMode
       ? [
           `${searchTitle} official trailer`,
           `${searchTitle} trailer`,
-          `${searchBase} review`,
-          `${searchBase} clip`,
         ]
       : [
           `${searchTitle} 공식 예고편`,
           `${searchTitle} 예고편`,
-          `${searchBase} 리뷰`,
-          `${searchBase} 후기`,
         ];
 
     // 제목 필터링용 핵심 단어 추출 (한국어/영어 공통)
@@ -206,6 +222,41 @@ export async function _crawlYoutubeVideos(tmdb_id, env) {
     console.error(`[YT_CRAWL] tmdb_id=${tmdb_id} 오류:`, e.message);
     return 0;
   }
+}
+
+/** YouTube 추가 영상 크롤링 — 관리자 수동 실행용
+ *  - POST /admin/videos/crawl 에서 호출
+ *  - 사람이 명시적으로 누르는 액션이므로 쿨다운 기록 없이 즉시 실행
+ *  - 실제 검색/저장은 _executeYoutubeCrawl에 위임
+ */
+export async function _crawlYoutubeVideos(tmdb_id, env) {
+  return _executeYoutubeCrawl(tmdb_id, env);
+}
+
+/** YouTube 추가 영상 크롤링 — 배치 전용
+ *  - daily_crawl.yml 연동 배치 엔드포인트(추후 작업)에서 호출
+ *  - _executeYoutubeCrawl 실행 후, 성공/실패 관계없이 반드시
+ *    works.yt_crawl_attempted_at에 시도 시각을 기록함
+ *  - 이 컬럼 덕분에 다음 배치 사이클이 최근 시도한 작품을 자동으로
+ *    건너뛰게 되어 "실패해도 무한 재시도"하던 구조적 문제가 해소됨
+ *  - ⚠️ works.yt_crawl_attempted_at 컬럼이 D1에 먼저 생성되어 있어야 함
+ *    (ALTER TABLE works ADD COLUMN yt_crawl_attempted_at TEXT;)
+ */
+export async function _batchCrawlYoutubeVideos(tmdb_id, env) {
+  const saved = await _executeYoutubeCrawl(tmdb_id, env);
+
+  try {
+    await env.DB.prepare(
+      "UPDATE works SET yt_crawl_attempted_at = datetime('now') WHERE tmdb_id = ?"
+    ).bind(tmdb_id).run();
+  } catch (e) {
+    // 시도 기록 실패는 크롤링 자체의 성공 여부와 무관하므로 saved 값은 그대로 반환
+    // (기록만 실패한 경우, 다음 배치 사이클에서 같은 작품이 재시도 대상에
+    //  남아있을 수 있음 — 치명적이지 않으므로 로그만 남기고 넘어감)
+    console.error(`[YT_CRAWL_BATCH] tmdb_id=${tmdb_id} 시도 시각 기록 실패:`, e.message);
+  }
+
+  return saved;
 }
 
 /** TMDB 영상 DB 저장
