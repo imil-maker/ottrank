@@ -49,7 +49,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .page-back:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
 .page-title{grid-area:title;font-size:20px;font-weight:700;text-align:center}
 .page-title-nick{color:var(--gold)}
-.page-count{grid-area:count;font-size:13px;color:var(--muted);font-family:var(--font-mono);text-align:right}
+.page-count-wrap{grid-area:count;display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.page-count{font-size:13px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap}
+.share-tag{
+  font-size:10px;padding:3px 8px;border-radius:10px;
+  background:rgba(240,180,41,.18);color:var(--gold);border:.5px solid rgba(240,180,41,.4);
+  cursor:pointer;font-family:var(--font-sans);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:4px;
+  transition:background .15s;
+}
+.share-tag:hover{background:rgba(240,180,41,.28)}
 
 /* 로딩 */
 .loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:14px}
@@ -198,7 +207,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <i class="ti ti-arrow-left" style="font-size:15px"></i>
     </a>
     <span class="page-title" id="pageTitle">⭐ <span class="page-title-nick" id="pageTitleNick"></span> 평점·후기</span>
-    <span class="page-count" id="totalCount"></span>
+    <span class="page-count-wrap" id="pageCountWrap">
+      <button class="rc-tag share-tag" id="shareBtn" onclick="shareCurrentPage()">
+        <i class="ti ti-link" style="font-size:11px"></i> 공유하기
+      </button>
+      <span class="page-count" id="totalCount"></span>
+    </span>
   </div>
 
   <!-- 로딩 -->
@@ -273,6 +287,7 @@ async function init() {
       const json = await (await fetch(`${API}/mypage/reviews`, { headers: { Authorization: 'Bearer ' + sid } })).json();
       if (!json.ok) { showError('로그인이 필요해요'); return; }
       ALL_REVIEWS = json.reviews || [];
+      document.title = `${json.nickname || '나'}의 평점·후기 | 오뜨랑`;
       document.getElementById('pageTitleNick').textContent = json.nickname || '나';
     }
 
@@ -521,7 +536,51 @@ function _date(d) {
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+/* ══════════════════════════════════════
+   공유하기 — 현재 페이지 주소를 클립보드에 복사
+   본인 페이지(uid 없음): /auth/me로 내 고유번호를 가져와 ?uid= 링크를 새로 생성
+   타인 페이지(?uid= 있음): 지금 주소(location.href) 그대로 복사
+═══════════════════════════════════════ */
+async function shareCurrentPage() {
+  let url = location.href;
+
+  if (IS_OWN) {
+    let uid = null;
+    try {
+      if (window.__ottrangAuthReady__) {
+        const timeout = new Promise(res => setTimeout(() => res(null), 3000));
+        const u = await Promise.race([window.__ottrangAuthReady__, timeout]);
+        uid = u?.id || null;
+      }
+      if (!uid) {
+        const sid = localStorage.getItem('ottrang_sid');
+        if (sid) {
+          const res  = await fetch(`${API}/auth/me`, { headers: { Authorization: 'Bearer ' + sid } });
+          const data = await res.json();
+          if (data.ok && data.user) uid = data.user.id;
+        }
+      }
+    } catch (e) { /* 실패 시 아래 fallback으로 현재 주소 복사 */ }
+
+    if (uid) url = `${location.origin}/my_review.html?uid=${uid}`;
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (e) {
+    // 클립보드 API 미지원 구형 브라우저 대응
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    document.body.removeChild(ta);
+  }
+
+  showToast('이 페이지 주소가 복사되었습니다.');
 }
 function showError(msg) {
   document.getElementById('loadingWrap').innerHTML = `<p style="color:var(--accent);font-family:var(--font-mono)">${msg}</p>`;
