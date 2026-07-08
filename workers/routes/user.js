@@ -609,12 +609,14 @@ export async function handleUser(path, request, env, ctx, headers) {
         FROM reviews r
         LEFT JOIN (
           SELECT tmdb_id, title_ko, poster_path, category, release_year
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+          FROM rankings
+          WHERE tmdb_id IN (SELECT tmdb_id FROM reviews WHERE user_id = ?)
+          GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
         WHERE r.user_id = ?
         ORDER BY r.created_at DESC
-      `).bind(targetUid).all();
+      `).bind(targetUid, targetUid).all();
 
       let wishlist = [];
       if (user.wishlist_public) {
@@ -627,11 +629,13 @@ export async function handleUser(path, request, env, ctx, headers) {
           FROM wishlist w
           LEFT JOIN (
             SELECT tmdb_id, title_ko, poster_path, category, release_year
-            FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+            FROM rankings
+            WHERE tmdb_id IN (SELECT tmdb_id FROM wishlist WHERE user_id = ?)
+            GROUP BY tmdb_id
           ) rk ON rk.tmdb_id = w.tmdb_id
           WHERE w.user_id = ?
           ORDER BY w.created_at DESC
-        `).bind(targetUid).all();
+        `).bind(targetUid, targetUid).all();
         wishlist = results;
       }
 
