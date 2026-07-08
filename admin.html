@@ -738,6 +738,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:700">📋 영상 목록</span>
       <span id="contentsTotalCount" style="font-family:var(--mono);font-size:13px;color:var(--muted)"></span>
+      <input id="ctFilterQuery" class="inp" type="text" placeholder="🔍 작품명 검색..."
+        style="margin-bottom:0;padding:6px 12px;width:180px"
+        oninput="contentsSearchInput(this.value)"
+        onkeydown="if(event.key==='Enter'){contentsSearchQuery=this.value.trim();contentsPage=1;loadContentsTable();}">
       <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
         <select id="ctFilterPlatform" class="inp" style="margin-bottom:0;padding:6px 12px;width:auto;cursor:pointer"
           onchange="contentsPlatformFilter=this.value;contentsPage=1;loadContentsTable()">
@@ -4491,6 +4495,18 @@ const TYPE_LABELS_CT  = { trailer:'예고편', preview:'선공개', teaser:'티�
 let contentsPage           = 1;
 let contentsPlatformFilter = '';
 let contentsTypeFilter     = '';
+let contentsSearchQuery    = '';
+let contentsSearchTimer    = null;
+
+/* 작품명 검색 — 400ms 디바운스 (userSearchTimer/worksTimer와 동일 패턴) */
+function contentsSearchInput(v){
+  clearTimeout(contentsSearchTimer);
+  contentsSearchTimer = setTimeout(() => {
+    contentsSearchQuery = v.trim();
+    contentsPage = 1;
+    loadContentsTable();
+  }, 400);
+}
 let pinnedItems            = [];
 let dragSrcIdx             = null;
 
@@ -4620,6 +4636,7 @@ async function loadContentsTable(){
     const qp = new URLSearchParams({ page: contentsPage });
     if(contentsPlatformFilter) qp.set('platform', contentsPlatformFilter);
     if(contentsTypeFilter)     qp.set('type', contentsTypeFilter);
+    if(contentsSearchQuery)    qp.set('q', contentsSearchQuery);
     const res  = await fetch(`${API}/admin/contents?${qp}`, { headers:{ Authorization:`Bearer ${token}` } });
     const data = await res.json();
     const items = data.items || [];
@@ -4627,7 +4644,10 @@ async function loadContentsTable(){
     const countEl = document.getElementById('contentsTotalCount');
     if(countEl) countEl.textContent = `총 ${pag.total||0}개`;
     if(!items.length){
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">등록된 영상이 없습니다.</td></tr>`;
+      const emptyMsg = contentsSearchQuery
+        ? `"${contentsSearchQuery}" 관련 영상이 없습니다. (크롤링 안 됨)`
+        : '등록된 영상이 없습니다.';
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">${emptyMsg}</td></tr>`;
       renderContentsPagination(0, pag.pageSize||50);
       return;
     }
@@ -4894,6 +4914,11 @@ async function fetchYoutubeInfo(){
 }
 
 /* ── TMDB 작품 검색 ── */
+/**
+ * 작품명으로 검색 — 오뜨랑 DB 우선, TMDB 보조
+ * [2026-07-08 수정] 기존엔 TMDB만 검색해서, 방금 등록한 DB 작품이 안 뜨는 문제가 있었음
+ * searchTmdbForEdit()과 동일한 "DB 우선 + TMDB 보완" 패턴 적용
+ */
 async function searchTmdbForContent(){
   const q = document.getElementById('ctTmdbQuery').value.trim();
   if(!q){ showToast('작품명을 입력해주세요.','err'); return; }
@@ -4901,40 +4926,108 @@ async function searchTmdbForContent(){
   resultsEl.style.display = 'block';
   resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">검색 중...</div>`;
   try {
-    const [tvRes, mvRes] = await Promise.all([
+    // ① 우리 DB 검색 + ② TMDB TV/영화 검색 — 병렬 실행
+    const [dbRes, tvRes, mvRes] = await Promise.allSettled([
+      fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=6`),
       fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
       fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
     ]);
-    const tvData = await tvRes.json();
-    const mvData = await mvRes.json();
-    const tvItems = (tvData.results||[]).slice(0,4).map(r=>({...r,_type:'tv'}));
-    const mvItems = (mvData.results||[]).slice(0,3).map(r=>({...r,_type:'movie'}));
-    const items   = [...tvItems, ...mvItems];
-    if(!items.length){
+
+    // DB 결과 파싱 (실패해도 빈 배열)
+    let dbItems = [];
+    if(dbRes.status === 'fulfilled'){
+      const dbData = await dbRes.value.json().catch(()=>({}));
+      dbItems = dbData.data || [];
+    }
+
+    // TMDB 결과 파싱 (실패해도 빈 배열)
+    let tvItems = [], mvItems = [];
+    if(tvRes.status === 'fulfilled'){
+      const tvData = await tvRes.value.json().catch(()=>({}));
+      tvItems = (tvData.results||[]).slice(0,4).map(r=>({...r,_type:'tv'}));
+    }
+    if(mvRes.status === 'fulfilled'){
+      const mvData = await mvRes.value.json().catch(()=>({}));
+      mvItems = (mvData.results||[]).slice(0,3).map(r=>({...r,_type:'movie'}));
+    }
+
+    // DB에 이미 있는 tmdb_id — TMDB 결과에서 중복 제거
+    const dbTmdbIds = new Set(dbItems.map(w=>w.tmdb_id));
+    const tmdbItems = [...tvItems, ...mvItems].filter(item=>!dbTmdbIds.has(item.id));
+
+    if(!dbItems.length && !tmdbItems.length){
       resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">검색 결과 없음</div>`;
       return;
     }
-    resultsEl.innerHTML = items.map(item => {
-      const title    = item.name||item.title||'';
-      const orgTitle = item.original_name||item.original_title||'';
-      const year     = (item.first_air_date||item.release_date||'').slice(0,4);
-      const poster   = item.poster_path ? `${IMG2}${item.poster_path}` : '';
-      const typeLabel = item._type==='tv' ? 'TV' : '영화';
-      const typeColor = item._type==='tv' ? 'var(--info)' : 'var(--gold)';
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s"
-        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
-        onclick="selectTmdbItem(${item.id},'${item._type}','${title.replace(/'/g,"\\'")}','${poster}','${year}')">
-        ${poster
-          ? `<img src="${poster}" alt="" style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">`
-          : `<div style="width:28px;height:42px;background:var(--bg3);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`
-        }
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
-          <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${orgTitle}${year?` · ${year}`:''}</div>
-        </div>
-        <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;background:transparent;color:${typeColor};border:1px solid ${typeColor};flex-shrink:0">${typeLabel}</span>
-      </div>`;
-    }).join('');
+
+    let html = '';
+
+    // ── 섹션 ①: 오뜨랑 DB 결과 ──────────────────────────
+    if(dbItems.length){
+      html += `<div style="padding:6px 14px 4px;font-size:10px;font-family:var(--mono);
+        color:var(--green);letter-spacing:.5px;background:rgba(52,211,153,.06);
+        border-bottom:1px solid var(--border)">🗄️ 오뜨랑 DB</div>`;
+
+      html += dbItems.map(w => {
+        const poster    = w.poster_path ? `${IMG2}${w.poster_path}` : '';
+        const typeLabel = w.media_type === 'movie' ? '영화' : 'TV';
+        const typeColor = w.media_type === 'movie' ? 'var(--gold)' : 'var(--info)';
+        const titleKo   = (w.title_ko||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const titleEn   = (w.title_en||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;
+            border-bottom:1px solid var(--border);transition:background .12s"
+            onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
+            onclick="selectTmdbItem(${w.tmdb_id},'${w.media_type||'tv'}','${titleKo.replace(/'/g,"\\'")}','${poster}','')">
+            ${poster
+              ? `<img src="${poster}" alt="" style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">`
+              : `<div style="width:28px;height:42px;background:var(--bg3);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px">🎬</div>`
+            }
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${titleKo}</span>
+                <span style="font-size:9px;font-family:var(--mono);color:var(--green);background:rgba(52,211,153,.12);
+                  border:1px solid rgba(52,211,153,.3);padding:1px 5px;border-radius:3px;flex-shrink:0;white-space:nowrap">DB</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${titleEn}</div>
+            </div>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;
+              background:transparent;color:${typeColor};border:1px solid ${typeColor};flex-shrink:0">${typeLabel}</span>
+          </div>`;
+      }).join('');
+    }
+
+    // ── 섹션 ②: TMDB 보조 결과 ──────────────────────────
+    if(tmdbItems.length){
+      if(dbItems.length){
+        html += `<div style="padding:6px 14px 4px;font-size:10px;font-family:var(--mono);
+          color:var(--muted2);letter-spacing:.5px;background:rgba(55,138,221,.04);
+          border-bottom:1px solid var(--border)">🌐 TMDB</div>`;
+      }
+      html += tmdbItems.map(item => {
+        const title    = item.name||item.title||'';
+        const orgTitle = item.original_name||item.original_title||'';
+        const year     = (item.first_air_date||item.release_date||'').slice(0,4);
+        const poster   = item.poster_path ? `${IMG2}${item.poster_path}` : '';
+        const typeLabel = item._type==='tv' ? 'TV' : '영화';
+        const typeColor = item._type==='tv' ? 'var(--info)' : 'var(--gold)';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s"
+          onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
+          onclick="selectTmdbItem(${item.id},'${item._type}','${title.replace(/'/g,"\\'")}','${poster}','${year}')">
+          ${poster
+            ? `<img src="${poster}" alt="" style="width:28px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0">`
+            : `<div style="width:28px;height:42px;background:var(--bg3);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`
+          }
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${orgTitle}${year?` · ${year}`:''}</div>
+          </div>
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;background:transparent;color:${typeColor};border:1px solid ${typeColor};flex-shrink:0">${typeLabel}</span>
+        </div>`;
+      }).join('');
+    }
+
+    resultsEl.innerHTML = html;
   } catch(e){
     resultsEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--red);font-size:13px">검색 실패: ${e.message}</div>`;
   }
