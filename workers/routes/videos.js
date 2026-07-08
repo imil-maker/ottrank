@@ -2,7 +2,7 @@
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
    POST   /admin/videos/crawl       관리자 YouTube 크롤링 (단건, 수동)
-   POST   /admin/videos/batch-crawl 관리자 YouTube 크롤링 (배치, daily_crawl.yml 연동)
+   POST   /admin/videos/batch-crawl 관리자 YouTube 크롤링 (배치, 어드민 수동 반복호출 + 하루 예산 상한)
    POST   /admin/videos             관리자 영상 수동 추가
    PATCH  /admin/videos/:id/main    메인 영상 지정
    DELETE /admin/videos/:id         영상 삭제
@@ -76,11 +76,24 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   }
 
   // ── POST /admin/videos/batch-crawl ───────────────────────────
-  // [2026-07-08 신설] daily_crawl.yml 배치 연동용.
+  // [2026-07-08 신설 / 2026-07-09 수정]
   //   대상: title_videos 개수 0~1개 AND (yt_crawl_attempted_at NULL 또는 3일 경과)
   //   우선순위: 오늘 rankings에 존재하는 작품 → works.created_at 최신순
-  //   예산: body.limit (기본 20, 쿼리 2개 기준 최대 40회 search.list 소모)
   //   개별 작품 실패가 배치 전체를 중단시키지 않도록 각 건마다 try/catch
+  //
+  //   [2026-07-09 변경] 호출 주체가 daily_crawl.yml(자동 크론, 하루 4회)에서
+  //   어드민 "🎥 관련영상 채우기" 탭(사람이 remaining:0까지 반복 클릭)으로
+  //   바뀜에 따라, 하루 총 예산 상한을 신설함.
+  //     - YouTube search.list는 2026-06-01부로 하루 약 100회 전용 버킷
+  //       (10,000 unit 풀과 별개, 공식 문서로 확인됨)
+  //     - 작품 1개당 검색 2회 소모 → 하루 30개 작품(=최대 60회)까지만 이
+  //       배치로 처리, 나머지 40회는 관리자 단건 수동 크롤링
+  //       (POST /admin/videos/crawl) 여유분으로 남겨둠
+  //     - 예산 초과 시 attempted:0으로 응답 → 프론트의 "attempted 없으면
+  //       중단" 반복 호출 로직이 자연스럽게 멈춤 (다른 배치 탭들과 동일 패턴)
+  //   응답 필드도 다른 배치 탭들(attempted/filled/remaining)과 통일함
+  //   (기존 processed/totalSaved에서 변경 — admin_videos.html 신규 탭과
+  //   호환 위해 반드시 필요)
   if (path === "/admin/videos/batch-crawl" && request.method === "POST") {
     if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_SECRET}`) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -96,15 +109,44 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         // body 없이 호출된 경우 기본값(20) 사용 — 정상 케이스이므로 무시
       }
 
+      // ── 하루 총 예산 상한 체크 ──────────────────────────────
+      const DAILY_BUDGET  = 30;
+      const todayCountRow = await env.DB.prepare(
+        "SELECT COUNT(*) AS cnt FROM works WHERE yt_crawl_attempted_at >= date('now')"
+      ).first();
+      const todayCount = todayCountRow?.cnt || 0;
+
+      if (todayCount >= DAILY_BUDGET) {
+        // 예산 소진 — 남은 대상 개수만 조회해서 알려주고 attempted:0으로 응답
+        const eligibleRow = await env.DB.prepare(`
+          SELECT COUNT(*) AS cnt
+          FROM works w
+          WHERE (
+            SELECT COUNT(*) FROM title_videos tv WHERE tv.tmdb_id = w.tmdb_id
+          ) <= 1
+          AND (
+            w.yt_crawl_attempted_at IS NULL
+            OR w.yt_crawl_attempted_at < datetime('now', '-3 days')
+          )
+        `).first();
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: eligibleRow?.cnt || 0,
+          message: `오늘 예산(${DAILY_BUDGET}개) 소진 — 내일 다시 시도해주세요`
+        }), { headers });
+      }
+
+      // 오늘 남은 예산과 요청 limit 중 작은 값만 처리
+      const effectiveLimit = Math.min(limit, DAILY_BUDGET - todayCount);
+
       // 오늘 기준 최신 크롤링 날짜 조회 (rankings.date != 'manual' 중 최댓값)
       const latestDateRow = await env.DB.prepare(
         "SELECT MAX(date) AS latest_date FROM rankings WHERE date != 'manual'"
       ).first();
       const latestDate = latestDateRow?.latest_date || null;
 
-      // 대상 작품 조회
+      // 대상 작품 조회 (기존 로직 그대로, LIMIT만 effectiveLimit으로 교체)
       //   - title_videos 개수는 상관관계 서브쿼리로 계산 (works 규모가
-      //     수천 건 수준이고 하루 4회만 실행되는 배치라 성능 여유 있음)
+      //     수천 건 수준이고 반복 호출돼도 성능 여유 있음)
       //   - latestDate가 없으면(신규 DB 등) 우선순위 없이 최신 등록순만 적용
       const { results: candidates } = await env.DB.prepare(`
         SELECT w.tmdb_id
@@ -125,11 +167,11 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           ) DESC,
           w.created_at DESC
         LIMIT ?
-      `).bind(latestDate, limit).all();
+      `).bind(latestDate, effectiveLimit).all();
 
       if (!candidates.length) {
         return new Response(JSON.stringify({
-          ok: true, processed: 0, totalSaved: 0, results: [],
+          ok: true, attempted: 0, filled: 0, remaining: 0,
           message: "대상 작품 없음 (모두 쿨다운 중이거나 영상이 이미 충분함)"
         }), { headers });
       }
@@ -149,9 +191,26 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         }
       }
 
-      console.log(`[BATCH_CRAWL] ✅ 완료: 대상 ${candidates.length}건, 저장 ${totalSaved}개`);
+      // 처리 후 실제 남은 대상 개수 재조회
+      //   방금 처리한 건들은 _batchCrawlYoutubeVideos가 성공/실패 관계없이
+      //   yt_crawl_attempted_at을 갱신했기 때문에 이미 쿨다운에 들어가
+      //   아래 COUNT에서 자동으로 제외됨 (추가 UPDATE 불필요)
+      const afterRow = await env.DB.prepare(`
+        SELECT COUNT(*) AS cnt
+        FROM works w
+        WHERE (
+          SELECT COUNT(*) FROM title_videos tv WHERE tv.tmdb_id = w.tmdb_id
+        ) <= 1
+        AND (
+          w.yt_crawl_attempted_at IS NULL
+          OR w.yt_crawl_attempted_at < datetime('now', '-3 days')
+        )
+      `).first();
+      const remaining = afterRow?.cnt || 0;
+
+      console.log(`[BATCH_CRAWL] ✅ 완료: 시도 ${candidates.length}건, 저장 ${totalSaved}개, 남음 ${remaining}`);
       return new Response(JSON.stringify({
-        ok: true, processed: candidates.length, totalSaved, results
+        ok: true, attempted: candidates.length, filled: totalSaved, remaining, results
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
