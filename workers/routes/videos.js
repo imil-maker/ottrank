@@ -412,6 +412,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   //   0점(투표수 부족)도 유효한 값이므로 COALESCE로 처리 — 0을 NULL로 오인하는 버그 방지
   // - rating_updated_at: 이 API가 호출되는 시점(=방문 시 TMDB를 이미 조회한 시점)의 서버 시각으로
   //   항상 기록 → _title_detail.html의 "N일 지나면 자동 새로고침" 로직이 이 값을 기준으로 판단함
+  // - match_source: [2026-07-08 추가] 최초 INSERT 시에만 'user'로 고정 저장
+  //   (매칭 출처 5분류 중 "사용자가 사이트에 들어와서 페이지가 만들어진 경우" — 기존엔 이 컬럼
+  //   자체가 빠져있어 전부 NULL로 남아 분류가 안 되던 버그. ON CONFLICT 절에는 넣지 않음 —
+  //   이미 admin/crawler로 등록된 작품이 나중에 이 API를 다시 타도 매칭 출처가 덮어써지면 안 됨)
   // 인증 없음 (공개 API, 조건부 업데이트로 안전)
   if (path === "/works/register" && request.method === "POST") {
     try {
@@ -441,9 +445,9 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       await env.DB.prepare(`
         INSERT INTO works (
           tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
-          tmdb_rating, release_date, rating_updated_at
+          tmdb_rating, release_date, rating_updated_at, match_source
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user')
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- media_type: title_en과 달리 "보호 대상 아님" — 확신 있는 값(NULL 아님)이 오면 항상 최신화.
           -- movie/tv tmdb_id가 우연히 겹쳐 한 번 잘못 저장돼도, 이후 신뢰 가능한 값이 들어오면
