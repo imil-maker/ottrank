@@ -716,12 +716,14 @@ export async function handleUser(path, request, env, ctx, headers) {
         FROM reviews r
         LEFT JOIN (
           SELECT tmdb_id, title_ko, poster_path, category, release_year
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+          FROM rankings
+          WHERE tmdb_id IN (SELECT tmdb_id FROM reviews WHERE user_id = ?)
+          GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
         WHERE r.user_id = ?
         ORDER BY r.created_at DESC
-      `).bind(session.user_id).all();
+      `).bind(session.user_id, session.user_id).all();
 
       return new Response(JSON.stringify({ ok: true, reviews, nickname: userRow?.nickname || '나' }), { headers });
     } catch (e) {
@@ -762,13 +764,15 @@ export async function handleUser(path, request, env, ctx, headers) {
         FROM reviews r
         LEFT JOIN (
           SELECT tmdb_id, title_ko, poster_path, category, release_year
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+          FROM rankings
+          WHERE tmdb_id IN (SELECT tmdb_id FROM reviews WHERE user_id = ?)
+          GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
         LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ? AND rl.is_active = 1
         WHERE r.user_id = ?
         ORDER BY r.created_at DESC
-      `).bind(viewerUserId, targetUid).all();
+      `).bind(targetUid, viewerUserId, targetUid).all();
 
       return new Response(JSON.stringify({ ok: true, reviews, nickname: userRow.nickname || '유저' }), { headers });
     } catch (e) {
