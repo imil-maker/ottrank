@@ -764,6 +764,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     font-family:var(--font-mono);
     background:rgba(255,255,255,.05);
   }
+  .mob-tag-ott-upcoming{
+    border-color:rgba(240,180,41,.5);
+    color:var(--gold);
+    background:rgba(240,180,41,.12);
+  }
 
   /* meta/overview/버튼 — 전체폭 */
   .hero-meta{ gap:6px;flex-wrap:wrap; }
@@ -1710,7 +1715,10 @@ function syncMobHero(){
   const mobg=document.getElementById('mobTags');
   if(gt&&mobg){
     mobg.innerHTML=Array.from(gt.querySelectorAll('.hero-tag'))
-      .map(t=>`<span class="mob-tag">${t.innerHTML}</span>`).join('');
+      .map(t=>{
+        const extra=t.classList.contains('hero-tag-ott-upcoming') ? ' mob-tag-ott-upcoming' : '';
+        return `<span class="mob-tag${extra}">${t.innerHTML}</span>`;
+      }).join('');
   }
   top.style.display='flex';
 }
