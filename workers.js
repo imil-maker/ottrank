@@ -187,9 +187,9 @@ function G(o,i,t){if(!i.length)return o.slice(0,t).map((r,a)=>({...r,rank:a+1}))
       `).bind(`%${n}%`,`%${n}%`,`${n}%`,d).all();return new Response(JSON.stringify({ok:!0,data:e}),{headers:l})}catch(e){return new Response(JSON.stringify({ok:!1,message:e.message}),{status:500,headers:l})}}if(o==="/works/register"&&i.method==="POST")try{let n=await i.json(),{tmdb_id:d,title_ko:e,title_en:r,poster_path:a,media_type:c,genre:p,original_language:m,tmdb_rating:u,release_date:g}=n;if(!d||!e)return new Response(JSON.stringify({ok:!1,message:"tmdb_id, title_ko required"}),{status:400,headers:l});let f=r&&/[\uAC00-\uD7A3]/.test(r),E=r&&/[a-zA-Z]/.test(r)&&!f?r:null,w=u??null,R=g||null,b=new Date().toISOString();return await t.DB.prepare(`
         INSERT INTO works (
           tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
-          tmdb_rating, release_date, rating_updated_at
+          tmdb_rating, release_date, rating_updated_at, match_source
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user')
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- media_type: title_en\uACFC \uB2EC\uB9AC "\uBCF4\uD638 \uB300\uC0C1 \uC544\uB2D8" \u2014 \uD655\uC2E0 \uC788\uB294 \uAC12(NULL \uC544\uB2D8)\uC774 \uC624\uBA74 \uD56D\uC0C1 \uCD5C\uC2E0\uD654.
           -- movie/tv tmdb_id\uAC00 \uC6B0\uC5F0\uD788 \uACB9\uCCD0 \uD55C \uBC88 \uC798\uBABB \uC800\uC7A5\uB3FC\uB3C4, \uC774\uD6C4 \uC2E0\uB8B0 \uAC00\uB2A5\uD55C \uAC12\uC774 \uB4E4\uC5B4\uC624\uBA74
