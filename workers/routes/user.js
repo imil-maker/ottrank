@@ -1031,7 +1031,10 @@ export async function handleUser(path, request, env, ctx, headers) {
       const { results } = await env.DB.prepare(`
         SELECT r.id, r.user_id, r.tmdb_id, r.score, r.text AS body,
                r.emotions, r.created_at, r.likes,
-               COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
+               COALESCE(
+                 wk.title_ko,
+                 (SELECT title_ko FROM rankings WHERE tmdb_id = r.tmdb_id ORDER BY date DESC LIMIT 1)
+               ) AS title_ko,
                wk.media_type AS media_type,
                wk.poster_path AS poster_path,
                u.nickname, u.profile_image, u.mbti,
@@ -1039,10 +1042,6 @@ export async function handleUser(path, request, env, ctx, headers) {
         FROM reviews r
         JOIN users u ON u.id = r.user_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
-        LEFT JOIN (
-          SELECT tmdb_id, title_ko
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
-        ) rk ON rk.tmdb_id = r.tmdb_id
         LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ? AND rl.is_active = 1
         ORDER BY r.created_at DESC
         LIMIT ? OFFSET ?
