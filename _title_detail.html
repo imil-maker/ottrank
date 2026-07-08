@@ -100,6 +100,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-tags{display:flex;flex-wrap:wrap;gap:6px}
 .hero-tag{font-size:13px;padding:3px 11px;border-radius:20px;border:.5px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);font-family:var(--font-mono);backdrop-filter:blur(4px);background:rgba(255,255,255,.05)}
 .hero-tag-variety{border-color:rgba(236,72,153,.5);color:#f9a8d4;background:rgba(236,72,153,.12);font-weight:700}
+.hero-tag-ott-upcoming{border-color:rgba(59,130,246,.5);color:#93c5fd;background:rgba(59,130,246,.12);font-weight:700}
 .hero-meta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .hero-meta-item{font-size:15px;color:rgba(255,255,255,.6)}
 .hero-meta-item b{color:#fff;font-weight:600}
@@ -4066,6 +4067,37 @@ function _syncMbtiTab(){
 
 
 
+/* ══ OTT 공개예정 뱃지 ══
+   [2026-07-08 신규] 아직 공개 안 된 작품(release_date > 오늘)은 랭킹/TMDB Watch
+   Providers 데이터가 없어 "보러가기" 섹션이 비어있음. 관리자가 미리 등록해둔
+   work_ott_overrides(forceAdd) 데이터를 재사용해 장르 태그 옆에 "공개예정" 뱃지로
+   노출. 관리자가 아직 입력 안 했으면(override 없음) 아무것도 안 보여줌 —
+   틀린 추측(예: "JTBC 드라마니까 티빙일 것")보다 안 보여주는 쪽이 안전 */
+const OTT_BADGE_NAME = {
+  netflix:'넷플릭스', tving:'티빙', wavve:'웨이브',
+  disney:'디즈니+', coupang:'쿠팡플레이', watcha:'왓챠',
+};
+async function loadUpcomingOttBadge(){
+  if(!WORK.tmdb_id || !WORK.releaseDate) return;
+  const releaseTime = new Date(WORK.releaseDate).getTime();
+  if(!releaseTime || releaseTime <= Date.now()) return; // 공개일 지났으면(또는 날짜 파싱 실패) 표시 안 함
+  try{
+    const res = await fetch(`${OTTRANK_API}/work-ott/${WORK.tmdb_id}`);
+    if(!res.ok) return;
+    const data = await res.json();
+    const addItem = (data.data||[]).find(item=>item.action==='add');
+    if(!addItem) return;
+    const name = OTT_BADGE_NAME[addItem.ott_key];
+    if(!name) return;
+    const genreTagsEl = document.getElementById('genreTags');
+    if(!genreTagsEl) return;
+    const badge = document.createElement('span');
+    badge.className = 'hero-tag hero-tag-ott-upcoming';
+    badge.textContent = `🔵 ${name} 공개예정`;
+    genreTagsEl.appendChild(badge);
+  }catch(e){ /* 조회 실패해도 무시 — 뱃지 안 보여주는 게 안전 */ }
+}
+
 async function init(){
   // Load TMDB (includes hero render + MBTI 즉시 렌더링)
   await loadTmdb();
@@ -4085,6 +4117,7 @@ async function init(){
       loadReviews(WORK.tmdb_id),
       loadTitleVideos(),
       loadFeelingData(),
+      loadUpcomingOttBadge(), // 공개예정 뱃지 (release_date > 오늘 + 관리자 수동입력 있을 때만)
     ]);
   }else{
     renderComments();
