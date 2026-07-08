@@ -100,7 +100,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-tags{display:flex;flex-wrap:wrap;gap:6px}
 .hero-tag{font-size:13px;padding:3px 11px;border-radius:20px;border:.5px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);font-family:var(--font-mono);backdrop-filter:blur(4px);background:rgba(255,255,255,.05)}
 .hero-tag-variety{border-color:rgba(236,72,153,.5);color:#f9a8d4;background:rgba(236,72,153,.12);font-weight:700}
-.hero-tag-ott-upcoming{border-color:rgba(59,130,246,.5);color:#93c5fd;background:rgba(59,130,246,.12);font-weight:700}
+.hero-tag-ott-upcoming{border-color:rgba(240,180,41,.5);color:var(--gold);background:rgba(240,180,41,.12)}
 .hero-meta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .hero-meta-item{font-size:15px;color:rgba(255,255,255,.6)}
 .hero-meta-item b{color:#fff;font-weight:600}
@@ -3351,7 +3351,7 @@ function updateUserRatingCard(){
   const avg5=ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
   const avg10=fmtScore(avg5*2);
   document.getElementById('userScore').textContent=avg10;
-  document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명 평가`;
+  document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명`;
   // avg5 기준으로 반별까지 정확히 표시 (Math.round 제거 → renderHalfStars 사용)
   document.getElementById('userStarDisplay').innerHTML=renderHalfStars(avg5);
   document.getElementById('userRatingEmpty').style.display='none';
@@ -4085,16 +4085,18 @@ async function loadUpcomingOttBadge(){
     const res = await fetch(`${OTTRANK_API}/work-ott/${WORK.tmdb_id}`);
     if(!res.ok) return;
     const data = await res.json();
-    const addItem = (data.data||[]).find(item=>item.action==='add');
-    if(!addItem) return;
-    const name = OTT_BADGE_NAME[addItem.ott_key];
-    if(!name) return;
+    const addItems = (data.data||[]).filter(item=>item.action==='add');
+    if(!addItems.length) return;
     const genreTagsEl = document.getElementById('genreTags');
     if(!genreTagsEl) return;
-    const badge = document.createElement('span');
-    badge.className = 'hero-tag hero-tag-ott-upcoming';
-    badge.textContent = `🔵 ${name} 공개예정`;
-    genreTagsEl.appendChild(badge);
+    addItems.forEach(item => {
+      const name = OTT_BADGE_NAME[item.ott_key];
+      if(!name) return;
+      const badge = document.createElement('span');
+      badge.className = 'hero-tag hero-tag-ott-upcoming';
+      badge.textContent = `🔵 ${name} 공개예정`;
+      genreTagsEl.appendChild(badge);
+    });
   }catch(e){ /* 조회 실패해도 무시 — 뱃지 안 보여주는 게 안전 */ }
 }
 
