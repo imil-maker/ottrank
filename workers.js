@@ -446,12 +446,14 @@ function G(o,i,t){if(!i.length)return o.slice(0,t).map((r,a)=>({...r,rank:a+1}))
         FROM reviews r
         LEFT JOIN (
           SELECT tmdb_id, title_ko, poster_path, category, release_year
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+          FROM rankings
+          WHERE tmdb_id IN (SELECT tmdb_id FROM reviews WHERE user_id = ?)
+          GROUP BY tmdb_id
         ) rk ON rk.tmdb_id = r.tmdb_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
         WHERE r.user_id = ?
         ORDER BY r.created_at DESC
-      `).bind(n).all(),r=[];if(d.wishlist_public){let{results:_}=await t.DB.prepare(`
+      `).bind(n,n).all(),r=[];if(d.wishlist_public){let{results:_}=await t.DB.prepare(`
           SELECT w.*,
             COALESCE(rk.title_ko, w.title_ko) as title_ko,
             COALESCE(rk.poster_path, w.poster_path) as poster_path,
@@ -460,11 +462,13 @@ function G(o,i,t){if(!i.length)return o.slice(0,t).map((r,a)=>({...r,rank:a+1}))
           FROM wishlist w
           LEFT JOIN (
             SELECT tmdb_id, title_ko, poster_path, category, release_year
-            FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
+            FROM rankings
+            WHERE tmdb_id IN (SELECT tmdb_id FROM wishlist WHERE user_id = ?)
+            GROUP BY tmdb_id
           ) rk ON rk.tmdb_id = w.tmdb_id
           WHERE w.user_id = ?
           ORDER BY w.created_at DESC
-        `).bind(n).all();r=_}let{results:a}=await t.DB.prepare(`
+        `).bind(n,n).all();r=_}let{results:a}=await t.DB.prepare(`
         SELECT id, board_type, title, like_count, view_count, created_at
         FROM posts WHERE user_id = ? AND is_hidden = 0 ORDER BY created_at DESC
       `).bind(n).all(),{results:c}=await t.DB.prepare(`
