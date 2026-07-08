@@ -280,6 +280,52 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   <div class="wrap" id="videoWrap">
 
+    <!-- ══ 🎥 관련영상 채우기 (배치) ══ -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <h3 style="margin-bottom:14px">🎥 관련영상 채우기 (배치)</h3>
+
+      <!-- 안내 메시지 -->
+      <div style="background:rgba(245,197,24,.08);border:1px solid rgba(245,197,24,.25);border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 관련 영상이 <span style="color:#F5C518">0~1개뿐인 작품</span>을 찾아 유튜브에서 예고편을 검색해 채웁니다.<br>
+        YouTube 검색(search.list)은 <span style="color:#F5C518">하루 약 100회 전용 한도</span>가 있어, 이 배치는 하루 30개 작품(최대 60회)까지만 처리하고 자동으로 멈춥니다.<br>
+        3일 이내 이미 시도한 작품은 자동으로 건너뜁니다 (무한 재시도 방지). 나머지 여유분은 아래 개별 작품의 "🤖 유튜브 자동 채우기" 버튼용으로 남겨둡니다.
+      </div>
+
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="vcAttempted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">채워짐</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="vcFilled">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:#F5C518" id="vcRemaining">-</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="vcStartBtn" onclick="startVideoCrawlBatch()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 관련영상 채우기 시작
+        </button>
+        <button class="btn-secondary" id="vcStopBtn" onclick="stopVideoCrawlBatch()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="vcStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <!-- 관련영상 채우기 배치 로그 -->
+    <div id="vcLogWrap" style="display:none;margin-bottom:24px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="vcLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin-bottom:24px"></div>
+
     <!-- 작품 검색 -->
     <div class="search-tabs">
       <button class="search-tab" id="tabId" onclick="switchTab('id')">TMDB ID</button>
@@ -2406,6 +2452,122 @@ function stopImdbBatch() {
   setTimeout(() => {
     document.getElementById('imStopBtn').disabled = false;
     document.getElementById('imStopBtn').textContent = '⏸ 중단';
+  }, 1500);
+}
+
+/* ══════════════════════════════════════════════════════
+   관련영상 채우기 (배치) — title_videos, YouTube 예고편 검색
+   /admin/videos/batch-crawl 를 attempted 없거나 remaining이 0이
+   될 때까지 반복 호출 (IMDb 매칭 채우기 탭과 동일한 배치+반복 패턴)
+   ⚠️ 서버 쪽에 하루 예산(30개) 상한이 있어, 예산 소진 시
+      attempted:0으로 응답이 와서 이 반복 루프가 자연스럽게 멈춤
+══════════════════════════════════════════════════════ */
+let vcRunning        = false;
+let vcStopRequested  = false;
+let vcTotalAttempted = 0;
+let vcTotalFilled    = 0;
+
+function vcLog(msg, isError) {
+  const logWrap = document.getElementById('vcLogWrap');
+  const logEl   = document.getElementById('vcLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function vcUpdateCounters(remaining) {
+  document.getElementById('vcAttempted').textContent = vcTotalAttempted;
+  document.getElementById('vcFilled').textContent    = vcTotalFilled;
+  document.getElementById('vcRemaining').textContent = remaining === null ? '-' : remaining;
+}
+
+async function startVideoCrawlBatch() {
+  if (vcRunning) return;
+  vcRunning        = true;
+  vcStopRequested  = false;
+  vcTotalAttempted = 0;
+  vcTotalFilled    = 0;
+
+  const startBtn   = document.getElementById('vcStartBtn');
+  const stopBtn    = document.getElementById('vcStopBtn');
+  const statusLine = document.getElementById('vcStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '채우는 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('vcLog').innerHTML = '';
+  vcUpdateCounters(null);
+  vcLog('관련영상 채우기 시작');
+
+  let batchNum = 0;
+
+  try {
+    while (true) {
+      if (vcStopRequested) {
+        vcLog('사용자 요청으로 중단됨');
+        break;
+      }
+      batchNum++;
+      statusLine.textContent = `${batchNum}번째 배치 처리 중...`;
+
+      let res, data;
+      try {
+        res = await fetch(`${API}/admin/videos/batch-crawl`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+          body: JSON.stringify({ limit: 20 }),
+        });
+        data = await res.json();
+      } catch (e) {
+        vcLog(`네트워크 오류 — 배치 ${batchNum} 실패: ${e.message}`, true);
+        statusLine.textContent = '네트워크 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        vcLog(`API 오류 — 배치 ${batchNum}: ${data.message || res.status}`, true);
+        statusLine.textContent = 'API 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      vcTotalAttempted += data.attempted || 0;
+      vcTotalFilled    += data.filled    || 0;
+      vcUpdateCounters(data.remaining);
+      vcLog(`배치 ${batchNum}: 시도 ${data.attempted}개 · 채워짐 ${data.filled}개 · 남음 ${data.remaining}개${data.message ? ' · ' + data.message : ''}`);
+
+      if (!data.attempted || data.remaining === 0) {
+        const budgetDone = data.message && data.message.includes('예산');
+        statusLine.textContent = budgetDone
+          ? `⏸ ${data.message} (오늘 총 ${vcTotalAttempted}개 시도, ${vcTotalFilled}개 채움)`
+          : `✅ 완료! 총 ${vcTotalAttempted}개 시도, ${vcTotalFilled}개 채움`;
+        vcLog(budgetDone ? '오늘 예산 소진으로 종료' : '모든 대상 작품 처리 완료');
+        showToast(budgetDone ? '⏸ 오늘 예산 소진 — 내일 이어서 진행하세요' : '✅ 관련영상 채우기 완료!');
+        break;
+      }
+
+      await _sleep(400);
+    }
+  } finally {
+    vcRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 관련영상 채우기 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopVideoCrawlBatch() {
+  if (!vcRunning) return;
+  vcStopRequested = true;
+  document.getElementById('vcStopBtn').disabled = true;
+  document.getElementById('vcStopBtn').textContent = '중단 중...';
+  setTimeout(() => {
+    document.getElementById('vcStopBtn').disabled = false;
+    document.getElementById('vcStopBtn').textContent = '⏸ 중단';
   }, 1500);
 }
 
