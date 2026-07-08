@@ -154,11 +154,18 @@ async function _executeYoutubeCrawl(tmdb_id, env) {
       return matchCount >= threshold;
     }
 
-    const items         = [];
-    const fallbackItems = [];
+    // [2026-07-09] 최대 개수 3→2로 축소 + 폴백 로직 완전 제거.
+    //   과거: 필터 통과 영상이 부족하면 관련성 없는 영상(fallbackItems)으로
+    //         억지로 채워넣었음 → 완전히 다른 작품이 "관련 영상"으로 노출되는
+    //         사고 발생(예: 백수아파트 페이지에 마동석 넷플릭스 영화가 뜬 사례).
+    //   변경: 제목에 작품명 키워드가 없는 영상은 그냥 버림. 개수가 2개에서
+    //         모자라거나(1개·0개) 되더라도, 틀린 영상을 보여주는 것보다
+    //         적게 보여주는 게 낫다는 원칙으로 전환.
+    const MAX_ITEMS = 2;
+    const items = [];
 
     for (const query of searchQueries) {
-      if (items.length >= 3) break;
+      if (items.length >= MAX_ITEMS) break;
 
       const ytUrl =
         `https://www.googleapis.com/youtube/v3/search` +
@@ -173,37 +180,26 @@ async function _executeYoutubeCrawl(tmdb_id, env) {
       if (!ytRes.ok || !ytData.items?.length) continue;
 
       for (const item of ytData.items) {
-        if (items.length >= 3) break;
+        if (items.length >= MAX_ITEMS) break;
         const videoId    = item.id?.videoId;
         const videoTitle = item.snippet?.title || '';
         // 이미 DB에 있거나 is_main=1 영상과 동일한 youtube_id면 스킵
         if (!videoId || existingIds.has(videoId) || mainVideoIds.has(videoId)) continue;
 
-        const entry = {
+        // 제목에 작품명 키워드가 없으면(관련성 필터 미통과) 그냥 버림 — 폴백 없음
+        if (!isRelatedVideo(videoTitle)) continue;
+
+        items.push({
           youtube_id:  videoId,
           title:       videoTitle || searchBase,
           youtube_url: `https://www.youtube.com/watch?v=${videoId}`,
-        };
-
-        if (isRelatedVideo(videoTitle)) {
-          items.push(entry);
-          existingIds.add(videoId);
-        } else if (fallbackItems.length < 3) {
-          fallbackItems.push(entry);
-          existingIds.add(videoId);
-        }
+        });
+        existingIds.add(videoId);
       }
     }
 
-    // 필터 통과 영상이 부족하면 폴백으로 채움 (최대 3개)
-    if (items.length < 3 && fallbackItems.length) {
-      const need = 3 - items.length;
-      items.push(...fallbackItems.slice(0, need));
-      console.log(`[YT_CRAWL] tmdb_id=${tmdb_id} "${searchTitle}" 폴백 ${Math.min(need, fallbackItems.length)}개 포함`);
-    }
-
     if (!items.length) {
-      console.log(`[YT_CRAWL] tmdb_id=${tmdb_id} "${searchTitle}" 결과 없음`);
+      console.log(`[YT_CRAWL] tmdb_id=${tmdb_id} "${searchTitle}" 결과 없음 (관련성 필터 통과 영상 없음)`);
       return 0;
     }
 
