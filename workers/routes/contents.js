@@ -419,6 +419,7 @@ async function adminGetContents(url, request, env, headers) {
 
   const platform = url.searchParams.get("platform");
   const type     = url.searchParams.get("type");
+  const q        = (url.searchParams.get("q") || "").trim();
   const page     = Math.max(parseInt(url.searchParams.get("page") || "1"), 1);
   const pageSize = 50;
   const offset   = (page - 1) * pageSize;
@@ -433,6 +434,13 @@ async function adminGetContents(url, request, env, headers) {
   if (type) {
     conditions.push("type = ?");
     bindings.push(type);
+  }
+  if (q) {
+    // 2026-07-08 추가: 작품명 검색 — 띄어쓰기 무시 매칭(works/search와 동일 원칙)
+    // work_title(매칭된 작품명)과 title(원본 영상 제목) 둘 다 대상
+    const qNoSpace = q.replace(/\s+/g, "");
+    conditions.push("(REPLACE(work_title, ' ', '') LIKE ? OR REPLACE(title, ' ', '') LIKE ?)");
+    bindings.push(`%${qNoSpace}%`, `%${qNoSpace}%`);
   }
 
   const where         = conditions.join(" AND ");
