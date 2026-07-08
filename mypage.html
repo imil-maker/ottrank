@@ -546,8 +546,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .profile-emoji-wrap{width:52px;height:52px;border-radius:12px}
   .profile-emoji-wrap .no-emoji{font-size:24px}
   .profile-nickname{font-size:18px}
-  /* 닉네임/MBTI 수정 버튼 → 칩 형태로 표시 */
-  .edit-chip-row{display:flex}
+  /* 닉네임/MBTI 수정 버튼 → 칩 형태 (본인일 때만 JS가 flex로 켜줌, 기본값은 CSS의 none 유지 — 타인 열람 시 노출 방지) */
   /* PC용 닉네임 옆 edit-btn 숨김 */
   #nicknameEditBtn{display:none !important}
 
@@ -595,8 +594,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* ══ PC 전용 스타일 (601px 이상) ══ */
 @media(min-width:601px){
-  /* edit-chip-row — PC에서도 표시 (모바일과 동일 방식) */
-  .edit-chip-row{display:flex !important}
+  /* edit-chip-row — 본인일 때만 JS가 flex로 켜줌 (!important 강제 노출 제거, 타인 열람 시 노출 방지) */
   /* PC용 개별 edit-btn 숨김 */
   #nicknameEditBtn{display:none !important}
 
@@ -799,10 +797,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
       <!-- 모바일 전용 수정 칩 버튼 행 (JS로 is_own 시 활성화) -->
       <div class="edit-chip-row" id="editChipRow">
-        <button class="edit-chip" onclick="toggleNicknameEdit()">
+        <button class="edit-chip" onclick="IS_OWN&&toggleNicknameEdit()">
           <i class="ti ti-pencil" style="font-size:13px"></i> 닉네임 수정
         </button>
-        <button class="edit-chip" id="mbtiChipBtn" onclick="toggleMbtiEdit()">
+        <button class="edit-chip" id="mbtiChipBtn" onclick="IS_OWN&&toggleMbtiEdit()">
           <i class="ti ti-mood-smile" style="font-size:13px"></i> MBTI 설정
         </button>
       </div>
@@ -1101,6 +1099,14 @@ async function init() {
     if (targetUid) {
       /* ── 타인 프로필 보기 ── */
       IS_OWN = false;
+
+      /* ── 본인 전용 UI 방어적 숨김 (CSS/캐시 이슈 대비 이중 안전장치) ──
+         닉네임 수정 / MBTI 설정 / 로그아웃 등은 절대 타인에게 노출되면 안 됨 */
+      document.getElementById('editChipRow').style.display = 'none';
+      document.getElementById('nicknameEditBtn').style.display = 'none';
+      document.getElementById('logoutBtn').style.display = 'none';
+      document.getElementById('nicknameEditRow').classList.remove('show');
+      document.getElementById('mbtiEditRow').classList.remove('show');
 
       /* ── 타인 뷰 레이아웃 재배치 ──
          본인 뷰:  [프로필] [오뜨카드]  /  [리뷰카드배너] [평점·후기]
