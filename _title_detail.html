@@ -1710,7 +1710,7 @@ function syncMobHero(){
   const mobg=document.getElementById('mobTags');
   if(gt&&mobg){
     mobg.innerHTML=Array.from(gt.querySelectorAll('.hero-tag'))
-      .map(t=>`<span class="mob-tag">${t.textContent}</span>`).join('');
+      .map(t=>`<span class="mob-tag">${t.innerHTML}</span>`).join('');
   }
   top.style.display='flex';
 }
@@ -4099,6 +4099,9 @@ async function loadUpcomingOttBadge(){
       badge.innerHTML = `<i class="ti ti-calendar-event"></i> ${_hesc(name)} 공개예정`;
       genreTagsEl.appendChild(badge);
     });
+    // PC 태그(genreTags)에 늦게 붙은 뱃지를 모바일(mobTags)에도 반영 —
+    // syncMobHero()는 loadTmdb() 단계에서 이미 한 번 실행돼서 이 뱃지를 못 가져갔음
+    if(typeof syncMobHero === 'function') syncMobHero();
   }catch(e){ /* 조회 실패해도 무시 — 뱃지 안 보여주는 게 안전 */ }
 }
 
