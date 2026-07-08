@@ -558,5 +558,14 @@ async function initPage(){
 
 // 헤더 로드 전에 initPage가 호출되지 않도록 헤더 finally에서만 호출됨
 </script>
+
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+<script>
+fetch('/footer.html')
+  .then(r=>r.ok?r.text():Promise.reject())
+  .then(h=>{document.getElementById('ottrang-footer').innerHTML=h;})
+  .catch(()=>{});
+</script>
 </body>
 </html>
