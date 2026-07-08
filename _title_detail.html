@@ -3350,7 +3350,7 @@ function updateUserRatingCard(){
   const avg5=ALL_COMMENTS.reduce((s,c)=>s+c.score,0)/ALL_COMMENTS.length;
   const avg10=fmtScore(avg5*2);
   document.getElementById('userScore').textContent=avg10;
-  document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명`;
+  document.getElementById('userVotes').textContent=`${ALL_COMMENTS.length}명 평가`;
   // avg5 기준으로 반별까지 정확히 표시 (Math.round 제거 → renderHalfStars 사용)
   document.getElementById('userStarDisplay').innerHTML=renderHalfStars(avg5);
   document.getElementById('userRatingEmpty').style.display='none';
@@ -3991,7 +3991,11 @@ async function loadWatchProviders(){
       });
     }
 
-    /* Priority 3: Watch Providers — 1,2에 없고 forceRemove 아닌 것만 추가 */
+    /* Priority 3: Watch Providers — 1,2에 없고 forceRemove 아닌 것만 추가
+       [2026-07-08 추가] 우리가 추적하는 6개 플랫폼(넷플릭스/티빙/웨이브/디즈니+/쿠팡플레이/왓챠)
+       외의 provider(Apple TV, Google Play, YouTube, Amazon, 시즌, 네이버 시리즈온 등 대여·구매
+       스토어)는 화이트리스트에서 제외 — TMDB는 이런 스토어까지 전부 내려주지만 오뜨랑은
+       "우리 OTT + 왓챠"만 다루기로 한 서비스 범위와 안 맞아서 걸러냄 */
     if(kr){
       const allProviders = [
         ...(kr.flatrate || []),
@@ -4003,7 +4007,8 @@ async function loadWatchProviders(){
         if(seen.has(nameKo)) continue;
         // forceRemove: provider_name을 ott_key로 변환해서 체크
         const ottKey = _nameKoToOttKey(nameKo);
-        if(ottKey && forceRemove.has(ottKey)) continue;
+        if(!ottKey) continue; // 화이트리스트에 없는 플랫폼(Apple TV 등)은 스킵
+        if(forceRemove.has(ottKey)) continue;
         seen.add(nameKo);
         finalList.push({
           name      : nameKo,
