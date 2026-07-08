@@ -785,7 +785,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
           <i class="ti ti-heart" style="color:var(--accent);font-size:12px"></i>
           받은 좋아요 <b id="profileLikes">0</b>개
         </div>
-        <div class="profile-meta-item">
+        <div class="profile-meta-item" id="profileJoinDateItem">
           <i class="ti ti-calendar" style="color:var(--muted);font-size:12px"></i>
           가입 <b id="profileJoinDate">—</b>
         </div>
@@ -1212,19 +1212,25 @@ function renderProfile(user, stats, isOwn) {
   document.getElementById('profileNickname').textContent = user.nickname || '닉네임 없음';
   if (isOwn) document.getElementById('nicknameInp').value = user.nickname || '';
 
-  // 좋아요 — 1개 이상일 때만 표시
+  // 좋아요 — 본인일 때만, 1개 이상일 때만 표시 (타인에게는 개인정보라 노출 안 함)
   const likes = user.total_likes_received || 0;
   const likesItem = document.getElementById('profileLikesItem');
-  if (likes >= 1) {
+  if (isOwn && likes >= 1) {
     document.getElementById('profileLikes').textContent = likes.toLocaleString();
     likesItem.style.display = 'flex';
   } else {
     likesItem.style.display = 'none';
   }
 
-  // 가입일
-  document.getElementById('profileJoinDate').textContent =
-    user.created_at ? _date(user.created_at) : '—';
+  // 가입일 — 본인일 때만 표시 (타인에게는 개인정보라 노출 안 함)
+  const joinDateItem = document.getElementById('profileJoinDateItem');
+  if (isOwn) {
+    document.getElementById('profileJoinDate').textContent =
+      user.created_at ? _date(user.created_at) : '—';
+    joinDateItem.style.display = 'flex';
+  } else {
+    joinDateItem.style.display = 'none';
+  }
 
   // 소셜 로그인 제공자 (본인만)
   if (isOwn && user.provider) {
