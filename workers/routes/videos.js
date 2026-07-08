@@ -386,16 +386,20 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     if (!q.trim()) {
       return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
     }
+    // 2026-07-08 수정: 띄어쓰기 무시 검색
+    // 사용자가 띄어쓰기 없이 검색해도("멜로는체질") DB 값("멜로는 체질")과 매칭되도록
+    // title_ko/title_en, 검색어 양쪽 모두 공백을 제거한 뒤 비교한다 (REPLACE, 별도 컬럼/마이그레이션 불필요)
+    const qNoSpace = q.replace(/\s+/g, "");
     try {
       const { results } = await env.DB.prepare(`
         SELECT tmdb_id, title_ko, title_en, poster_path, media_type
         FROM works
-        WHERE title_ko LIKE ? OR title_en LIKE ?
+        WHERE REPLACE(title_ko, ' ', '') LIKE ? OR REPLACE(title_en, ' ', '') LIKE ?
         ORDER BY
-          CASE WHEN title_ko LIKE ? THEN 0 ELSE 1 END,
+          CASE WHEN REPLACE(title_ko, ' ', '') LIKE ? THEN 0 ELSE 1 END,
           title_ko ASC
         LIMIT ?
-      `).bind(`%${q}%`, `%${q}%`, `${q}%`, limit).all();
+      `).bind(`%${qNoSpace}%`, `%${qNoSpace}%`, `${qNoSpace}%`, limit).all();
       return new Response(JSON.stringify({ ok: true, data: results }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
