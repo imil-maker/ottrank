@@ -176,6 +176,11 @@ body {
   .pagination { padding: 24px 16px 12px; gap: 4px; flex-wrap: wrap; }
   .pg-btn { min-width: 32px; height: 32px; font-size: 12px; }
 }
+
+/* 커뮤니티 페이지 전용 — 한줄 감상 줄 수만 확장 (3줄/2줄 → 4줄), 나머지 구조/위치는 원본 그대로 */
+#reviewGrid .rc-body {
+  -webkit-line-clamp: 4;
+}
 </style>
 </head>
 <body>
