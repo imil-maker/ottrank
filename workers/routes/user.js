@@ -1028,10 +1028,20 @@ export async function handleUser(path, request, env, ctx, headers) {
       ).first();
       const total = countRow?.total || 0;
 
+      // [2026-07-08 수정] 기존엔 LEFT JOIN (SELECT...FROM rankings GROUP BY tmdb_id)로
+      // 매 호출마다 rankings 테이블 전체를 스캔+그룹핑했음(공개 API라 호출 빈도 높아 D1 rows read
+      // 대량 소모 확인됨). idx_rankings_tmdb_date(tmdb_id, date DESC) 인덱스를 타도록
+      // 행 단위 상관 서브쿼리로 교체. COALESCE는 wk.title_ko가 있으면 이 서브쿼리 자체를
+      // 평가하지 않고 넘어가므로(SQLite 좌→우 단축 평가), 대부분의 행에서는 호출조차 안 됨.
+      // 부가 효과: 기존 GROUP BY는 어떤 날짜의 title_ko를 대표로 뽑을지 불특정이었는데,
+      // ORDER BY date DESC로 "가장 최근 랭킹 기록" 기준으로 명확해짐.
       const { results } = await env.DB.prepare(`
         SELECT r.id, r.user_id, r.tmdb_id, r.score, r.text AS body,
                r.emotions, r.created_at, r.likes,
-               COALESCE(wk.title_ko, rk.title_ko) AS title_ko,
+               COALESCE(
+                 wk.title_ko,
+                 (SELECT title_ko FROM rankings WHERE tmdb_id = r.tmdb_id ORDER BY date DESC LIMIT 1)
+               ) AS title_ko,
                wk.media_type AS media_type,
                wk.poster_path AS poster_path,
                u.nickname, u.profile_image, u.mbti,
@@ -1039,10 +1049,6 @@ export async function handleUser(path, request, env, ctx, headers) {
         FROM reviews r
         JOIN users u ON u.id = r.user_id
         LEFT JOIN works wk ON wk.tmdb_id = r.tmdb_id
-        LEFT JOIN (
-          SELECT tmdb_id, title_ko
-          FROM rankings WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id
-        ) rk ON rk.tmdb_id = r.tmdb_id
         LEFT JOIN review_likes rl ON rl.review_id = r.id AND rl.user_id = ? AND rl.is_active = 1
         ORDER BY r.created_at DESC
         LIMIT ? OFFSET ?
