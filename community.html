@@ -176,34 +176,6 @@ body {
   .pagination { padding: 24px 16px 12px; gap: 4px; flex-wrap: wrap; }
   .pg-btn { min-width: 32px; height: 32px; font-size: 12px; }
 }
-
-/* ══════════════════════════════════════════════
-   커뮤니티 페이지 전용 — 한줄 감상 글자수 제한 해제
-   review-card.css 원본(.rc-content position:absolute top:50%)은 그대로 두고,
-   #reviewGrid 안에서만 static + 음수 margin으로 같은 오버레이 위치를 재현.
-   .rc-poster가 aspect-ratio:2/3(가로:세로=2:3, 세로=가로×1.5)라서
-   원래 top:50%(포스터 세로 기준)와 같은 위치 = margin-top:-75%(가로 기준, % 마진은 항상 부모 "너비" 기준)
-   → 리뷰가 길어지면 카드 높이가 자연스럽게 늘어나고, 짧으면 기존과 동일하게 보임.
-   review-card.css 파일 자체는 손대지 않아 index/mypage에는 영향 없음.
-═══════════════════════════════════════ */
-#reviewGrid .rc-poster {
-  overflow: visible;      /* 늘어난 콘텐츠가 안 잘리게 */
-}
-#reviewGrid .rc-content {
-  position: static;       /* 얹혀있는 상태 해제 → 카드 높이에 반영되게 */
-  top: auto;
-  margin-top: -75%;       /* 기존 top:50% 오버레이 위치 재현 */
-}
-#reviewGrid .rc-body {
-  -webkit-line-clamp: unset;  /* 줄 수 제한 해제 */
-  display: block;
-  overflow: visible;
-  white-space: pre-wrap;      /* 줄바꿈 입력한 그대로 표시 */
-  word-break: break-word;
-}
-#reviewGrid {
-  align-items: start;     /* 카드마다 독립적인 높이 (그리드 stretch 방지) */
-}
 </style>
 </head>
 <body>
