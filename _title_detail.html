@@ -100,7 +100,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-tags{display:flex;flex-wrap:wrap;gap:6px}
 .hero-tag{font-size:13px;padding:3px 11px;border-radius:20px;border:.5px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);font-family:var(--font-mono);backdrop-filter:blur(4px);background:rgba(255,255,255,.05)}
 .hero-tag-variety{border-color:rgba(236,72,153,.5);color:#f9a8d4;background:rgba(236,72,153,.12);font-weight:700}
-.hero-tag-ott-upcoming{border-color:rgba(240,180,41,.5);color:var(--gold);background:rgba(240,180,41,.12)}
+.hero-tag-ott-upcoming{border-color:rgba(240,180,41,.5);color:var(--gold);background:rgba(240,180,41,.12);
+  display:inline-flex;align-items:center;gap:4px}
+.hero-tag-ott-upcoming .ti{font-size:13px;line-height:1}
 .hero-meta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .hero-meta-item{font-size:15px;color:rgba(255,255,255,.6)}
 .hero-meta-item b{color:#fff;font-weight:600}
@@ -4094,7 +4096,7 @@ async function loadUpcomingOttBadge(){
       if(!name) return;
       const badge = document.createElement('span');
       badge.className = 'hero-tag hero-tag-ott-upcoming';
-      badge.textContent = `🔵 ${name} 공개예정`;
+      badge.innerHTML = `<i class="ti ti-calendar-event"></i> ${_hesc(name)} 공개예정`;
       genreTagsEl.appendChild(badge);
     });
   }catch(e){ /* 조회 실패해도 무시 — 뱃지 안 보여주는 게 안전 */ }
