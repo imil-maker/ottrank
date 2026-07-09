@@ -2500,6 +2500,7 @@ async function loadTmdb(){
       const img=document.getElementById('posterImg');
       img.src=IMG+det.poster_path;img.alt=title;img.style.display='block';
       document.getElementById('posterPh').style.display='none';
+      syncMobHero();   // 포스터 세팅 직후 즉시 모바일 동기화 (타이밍 문제 해결)
     }
 
     // platform pill — 내부 접근 시 임시로 1개 표시 (loadPlatforms에서 최종 업데이트)
