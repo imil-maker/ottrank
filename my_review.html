@@ -567,7 +567,7 @@ async function shareCurrentPage() {
       }
     } catch (e) { /* 실패 시 아래 fallback으로 현재 주소 복사 */ }
 
-    if (uid) url = `${location.origin}/my_review.html?uid=${uid}`;
+    if (uid) url = `${location.origin}/my_review?uid=${uid}`;
   }
 
   try {
