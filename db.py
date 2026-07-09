@@ -174,6 +174,19 @@ def init_db() -> sqlite3.Connection:
         )
     """)
 
+    # touched_works 테이블 (신규)
+    # ⚠️ 목적: 이번 크롤링 실행에서 works를 "실제로" 쓴(INSERT/UPDATE) tmdb_id만 기록
+    #   → upload_to_d1.py가 works 전체가 아니라 이 목록에 있는 것만 D1에 업로드하도록 좁히기 위함
+    # ⚠️ 매 실행(run_all.py) 시작 시 반드시 비워야 함 — 지난 실행 기록이 남아있으면
+    #   "이번에 안 바뀐 것"까지 다시 업로드하게 되어 좁히는 의미가 없어짐
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS touched_works (
+            tmdb_id INTEGER PRIMARY KEY
+        )
+    """)
+    conn.execute("DELETE FROM touched_works")
+    conn.commit()
+
     # ── 기존 rankings.db 마이그레이션 (구버전 호환) ──────────
     # rankings.db가 구버전으로 레포에 존재할 경우 컬럼 추가
     migrations = [
@@ -706,7 +719,7 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
     """
     confidence = 100 if match_source == "admin" else 95
     try:
-        conn.execute("""
+        cur = conn.execute("""
             INSERT INTO works
                 (tmdb_id, title_ko, title_en, poster_path, genre, overview,
                  release_year, tmdb_rating, keywords, match_source, confidence_score,
@@ -726,6 +739,15 @@ def insert_work(conn: sqlite3.Connection, tmdb_data: dict, match_source: str = "
             match_source,
             confidence,
         ))
+
+        # ⚠️ ON CONFLICT DO NOTHING이라 이미 있던 tmdb_id면 rowcount=0(아무것도 안 바뀜)
+        # rowcount>0(진짜 신규 삽입)일 때만 touched_works에 기록 → upload_to_d1.py 업로드 대상이 됨
+        if cur.rowcount > 0:
+            conn.execute(
+                "INSERT OR IGNORE INTO touched_works (tmdb_id) VALUES (?)",
+                (tmdb_data["tmdb_id"],)
+            )
+
         conn.commit()
     except Exception as e:
         print(f"  works INSERT 오류: {e}")
@@ -833,6 +855,11 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
                     "UPDATE works SET tmdb_rating = ?, updated_at = datetime('now','localtime') WHERE tmdb_id = ?",
                     (rating, works_data["tmdb_id"])
                 )
+                # 평점이 실제로 바뀐 경우만 touched_works에 기록 → upload_to_d1.py 업로드 대상이 됨
+                conn.execute(
+                    "INSERT OR IGNORE INTO touched_works (tmdb_id) VALUES (?)",
+                    (works_data["tmdb_id"],)
+                )
                 conn.commit()
                 print(f"     → tmdb_rating 갱신: {old} → {rating}")
 
@@ -927,6 +954,11 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
                 conn.execute(
                     "UPDATE works SET tmdb_rating = ?, updated_at = datetime('now','localtime') WHERE tmdb_id = ?",
                     (rating, works_data["tmdb_id"])
+                )
+                # 평점이 실제로 바뀐 경우만 touched_works에 기록 → upload_to_d1.py 업로드 대상이 됨
+                conn.execute(
+                    "INSERT OR IGNORE INTO touched_works (tmdb_id) VALUES (?)",
+                    (works_data["tmdb_id"],)
                 )
                 conn.commit()
                 print(f"     → tmdb_rating 갱신: {old} → {rating}")
