@@ -717,13 +717,15 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         if (kwList.length) {
           try {
             // 키워드 최대 10개를 env.DB.batch()로 한 번에 조회 (Workers 호출 1건, D1 트랜잭션 1번)
-            // — /search/keyword와 동일한 LIKE 매칭 규칙(LOWER 통일) + 자기 자신 제외를 SQL에서 직접 처리
+            // 2026-07-09: 풀스캔 LIKE(LOWER(keywords) LIKE '%,kw,%') → work_keywords 정규화 테이블
+            // 색인(idx_work_keywords_keyword) 조회로 교체. 자기 자신 제외는 그대로 SQL에서 처리.
             const statements = kwList.map(kw =>
               env.DB.prepare(`
-                SELECT tmdb_id, title_ko, title_en, poster_path
-                FROM works
-                WHERE (',' || LOWER(keywords) || ',') LIKE ('%,' || ? || ',%')
-                  AND tmdb_id != ?
+                SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path
+                FROM work_keywords wk
+                JOIN works w ON w.tmdb_id = wk.tmdb_id
+                WHERE wk.keyword = ?
+                  AND wk.tmdb_id != ?
                 LIMIT 20
               `).bind(kw.toLowerCase(), parseInt(tmdb_id))
             );
@@ -775,10 +777,13 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
   // ── GET /search/keyword ───────────────────────────────────
   // 공개 API — 작품 상세페이지의 키워드 태그 클릭 시 호출
-  // works.keywords(콤마구분 문자열)에서 정확히 일치하는 키워드를 가진 작품 조회
+  // work_keywords(정규화 테이블)에서 정확히 일치하는 키워드를 가진 작품 조회
   // 한국 작품(original_language='ko') 우선 정렬 — "비슷한 취향의 작품" 섹션과 동일 원칙
-  // ⚠️ 알려진 한계: TMDB 키워드 이름 자체에 콤마가 포함된 경우(예: "Paris, France")는
-  //    콤마 join 특성상 정확매칭이 안 될 수 있음 (극소수 사례, 추후 개선 여지로 남겨둠)
+  // 2026-07-09: works.keywords 풀스캔 LIKE → work_keywords 색인(idx_work_keywords_keyword) 조회로 교체.
+  //   부수 효과: 콤마 join 방식의 "키워드 이름 자체에 콤마 포함 시 오매칭" 한계도 함께 해소됨
+  //   (정규화 시점에 이미 개별 키워드 단위로 분리 저장하기 때문).
+  //   단, work_keywords는 배치로 채워지는 테이블이라, 정규화 전 작품의 키워드는 아직 검색에 안 잡힐 수 있음
+  //   (어드민 "🔤 키워드 정규화" 배치가 다 돌고 나면 자연히 해소됨).
   if (path === "/search/keyword" && request.method === "GET") {
     const keyword = (url.searchParams.get("keyword") || "").trim().toLowerCase();
     const limit   = Math.min(parseInt(url.searchParams.get("limit") || "20"), 40);
@@ -787,12 +792,13 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     }
     try {
       const { results } = await env.DB.prepare(`
-        SELECT tmdb_id, title_ko, title_en, poster_path, genre, tmdb_rating, media_type, original_language
-        FROM works
-        WHERE (',' || LOWER(keywords) || ',') LIKE ('%,' || ? || ',%')
+        SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.genre, w.tmdb_rating, w.media_type, w.original_language
+        FROM work_keywords wk
+        JOIN works w ON w.tmdb_id = wk.tmdb_id
+        WHERE wk.keyword = ?
         ORDER BY
-          CASE WHEN original_language = 'ko' THEN 0 ELSE 1 END,
-          tmdb_rating DESC
+          CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
+          w.tmdb_rating DESC
         LIMIT ?
       `).bind(keyword, limit).all();
       return new Response(JSON.stringify({ ok: true, keyword, data: results }), { headers });
