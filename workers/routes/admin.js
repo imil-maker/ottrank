@@ -1324,6 +1324,10 @@ export async function handleAdmin(path, request, env, url, headers) {
   // works.keywords_normalized_at으로 처리 여부를 추적 — 키워드가 없는/'__NONE__'인 작품도
   // "시도함"으로 마킹해서 매 배치마다 헛되이 다시 후보로 잡히지 않게 함
   // (release_year=0, original_language='unknown'과 동일한 센티널 원칙).
+  // ⚠️ 2026-07-09 수정: 초기 버전은 "keywords가 아직 비어있는(=수집 전) 작품"까지 도장을 찍어버려서,
+  //    이후 collect-keywords로 키워드가 채워져도 정규화 후보에서 영구 제외되는 버그가 있었음.
+  //    → keywords IS NOT NULL AND keywords != '' 조건을 추가해, "수집 전이라 아직 모름"과
+  //      "__NONE__(TMDB가 확인해줬는데 진짜 없음, 확정값)"을 구분해서, 확정된 것만 도장 찍도록 수정.
   if (path === "/admin/works/backfill-normalize-keywords" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -1335,6 +1339,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const { results: targets } = await env.DB.prepare(`
         SELECT tmdb_id, keywords FROM works
         WHERE keywords_normalized_at IS NULL
+          AND keywords IS NOT NULL AND keywords != ''
         LIMIT ?
       `).bind(limit).all();
 
@@ -1382,9 +1387,11 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       if (statements.length) await env.DB.batch(statements);
 
-      const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM works WHERE keywords_normalized_at IS NULL"
-      ).first();
+      const remainRow = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM works
+        WHERE keywords_normalized_at IS NULL
+          AND keywords IS NOT NULL AND keywords != ''
+      `).first();
 
       return new Response(JSON.stringify({
         ok: true, processed, attempted: targets.length, remaining: remainRow?.cnt || 0,
