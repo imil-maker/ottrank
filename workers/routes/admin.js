@@ -30,6 +30,7 @@
    GET    /admin/users
    POST   /admin/ott-points/adjust
    POST   /admin/works/collect-keywords
+   POST   /admin/works/backfill-normalize-keywords   ← work_keywords/keyword_translation 정규화 백필
    POST   /admin/works/discover-collect
    POST   /admin/works/classify-variety
    GET    /admin/variety-genre-options
@@ -1310,6 +1311,86 @@ export async function handleAdmin(path, request, env, url, headers) {
         ok: true, processed, attempted: targets.length, skippedRetry, remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/backfill-normalize-keywords ────────────
+  // works.keywords(콤마 문자열)를 work_keywords(정규화 테이블)로 분해해서 옮기고,
+  // 등장하는 영문 키워드를 keyword_translation에도 함께 등록(keyword_ko는 NULL로 남겨두고,
+  // 이후 별도 AI 번역 배치가 채움 — 예능 태그 자동분류와 동일한 "auto 초안 → admin 확정" 구조 예정).
+  // 외부 API 호출이 전혀 없는 순수 D1 내부 작업이라, collect-keywords류(외부 API 호출, 30~50개)보다
+  // 훨씬 큰 단위(기본 200, 최대 300)로 처리 가능.
+  // works.keywords_normalized_at으로 처리 여부를 추적 — 키워드가 없는/'__NONE__'인 작품도
+  // "시도함"으로 마킹해서 매 배치마다 헛되이 다시 후보로 잡히지 않게 함
+  // (release_year=0, original_language='unknown'과 동일한 센티널 원칙).
+  if (path === "/admin/works/backfill-normalize-keywords" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 200, 300);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, keywords FROM works
+        WHERE keywords_normalized_at IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({ ok: true, processed: 0, attempted: 0, remaining: 0, message: "정규화할 작품 없음" }), { headers });
+      }
+
+      const statements = [];
+      let processed = 0;
+      const nowIso = new Date().toISOString();
+
+      for (const row of targets) {
+        // '__NONE__'은 "TMDB에 키워드 자체가 없어서 시도했지만 결과 없음" 센티널 —
+        // collect-keywords와 동일하게, 글자 그대로 정규화 대상에 넣지 않도록 명시적으로 제외
+        if (row.keywords && row.keywords !== '__NONE__') {
+          // 같은 작품 안에서 키워드가 중복되는 경우 대비 Set으로 dedupe
+          // (work_keywords에 tmdb_id+keyword UNIQUE 인덱스가 있어 중복 INSERT는 어차피 막히지만,
+          //  batch 문 개수 자체를 줄여서 가볍게 처리하기 위함)
+          const kwSet = new Set(
+            row.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
+          );
+          if (kwSet.size) {
+            for (const kw of kwSet) {
+              statements.push(
+                env.DB.prepare(
+                  "INSERT OR IGNORE INTO work_keywords (tmdb_id, keyword) VALUES (?, ?)"
+                ).bind(row.tmdb_id, kw)
+              );
+              statements.push(
+                env.DB.prepare(
+                  "INSERT OR IGNORE INTO keyword_translation (keyword_en) VALUES (?)"
+                ).bind(kw)
+              );
+            }
+            processed++;
+          }
+        }
+        // 키워드 유무와 무관하게 항상 "시도함" 마킹 (무한 재대상화 방지)
+        statements.push(
+          env.DB.prepare(
+            "UPDATE works SET keywords_normalized_at = ? WHERE tmdb_id = ?"
+          ).bind(nowIso, row.tmdb_id)
+        );
+      }
+
+      if (statements.length) await env.DB.batch(statements);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE keywords_normalized_at IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, processed, attempted: targets.length, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      // batch()는 실패 시 통째로 롤백되므로(부분 반영 없음), 안전하게 그대로 재시도 가능
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
   }
