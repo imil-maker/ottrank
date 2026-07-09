@@ -2498,7 +2498,7 @@ async function loadTmdb(){
     // poster
     if(det.poster_path){
       const img=document.getElementById('posterImg');
-      img.src=IMG+det.poster_path;img.alt=title;img.style.display='block';
+      img.src=IMG+det.poster_path;img.alt=title+' 포스터';img.style.display='block';
       document.getElementById('posterPh').style.display='none';
       syncMobHero();   // 포스터 세팅 직후 즉시 모바일 동기화 (타이밍 문제 해결)
     }
