@@ -280,7 +280,7 @@ async function init() {
       ALL_REVIEWS = json.reviews || [];
       // 뒤로가기 → 해당 유저 마이페이지
       document.getElementById('backBtn').href = `/mypage.html?uid=${targetUid}`;
-      document.title = `${json.nickname || '유저'}의 넷플릭스·티빙 드라마 평점·후기 | 오뜨랑`;
+      document.title = `${json.nickname || '유저'}의 넷플릭스·티빙 드라마 영화 평점·후기 | 오뜨랑`;
       document.getElementById('pageTitleNick').textContent = json.nickname || '유저';
     } else {
       /* ── 내 리뷰 — 리뷰만 가볍게 ── */
@@ -289,7 +289,7 @@ async function init() {
       const json = await (await fetch(`${API}/mypage/reviews`, { headers: { Authorization: 'Bearer ' + sid } })).json();
       if (!json.ok) { showError('로그인이 필요해요'); return; }
       ALL_REVIEWS = json.reviews || [];
-      document.title = `${json.nickname || '나'}의 넷플릭스·티빙 드라마 평점·후기 | 오뜨랑`;
+      document.title = `${json.nickname || '나'}의 넷플릭스·티빙 드라마 영화 평점·후기 | 오뜨랑`;
       document.getElementById('pageTitleNick').textContent = json.nickname || '나';
     }
 
