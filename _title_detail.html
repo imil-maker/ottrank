@@ -1326,7 +1326,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- ══ 모바일 전용 상단 블록 — PC에서 display:none ══ -->
 <div class="hero-backdrop" id="heroBackdrop">
   <div id="heroLoading" class="loading-row"><div class="spinner"></div><span>작품 정보 불러오는 중…</span></div>
-  <img id="backdropImg" class="hero-backdrop-img" src="" alt="">
+  <img id="backdropImg" class="hero-backdrop-img" src="" alt="작품 배경 이미지">
   <div class="hero-backdrop-overlay"></div>
 
   <!-- 뒤로가기 — hero-backdrop 기준 top:16px → 항상 화면 최상단 -->
@@ -1340,7 +1340,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <!-- 왼쪽: 포스터 -->
     <div class="mob-poster-col">
       <div class="mob-poster-img" id="mobPosterWrap">
-        <img id="mobPosterImg" src="" alt="" style="display:none">
+        <img id="mobPosterImg" src="" alt="작품 포스터" style="display:none">
         <div id="mobPosterPh" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px">🎬</div>
         <!-- OTT pill -->
         <div id="mobPlatformPill" class="mob-pill"></div>
@@ -1691,7 +1691,7 @@ function syncMobHero(){
   const mi=document.getElementById('mobPosterImg');
   const mp=document.getElementById('mobPosterPh');
   if(pi&&mi&&pi.src&&pi.style.display!=='none'){
-    mi.src=pi.src;mi.style.display='block';
+    mi.src=pi.src;mi.alt=pi.alt||'작품 포스터';mi.style.display='block';
     if(mp)mp.style.display='none';
   }
   // OTT pill
@@ -2485,11 +2485,12 @@ async function loadTmdb(){
     if(det.backdrop_path){
       const bdImg=document.getElementById('backdropImg');
       bdImg.src=IMG_BACKDROP+det.backdrop_path;
+      bdImg.alt=title+' 배경 이미지';
       bdImg.onload=()=>bdImg.classList.add('loaded');
       bdImg.style.display='block';
     }else if(det.poster_path){
       const bdImg=document.getElementById('backdropImg');
-      bdImg.src=IMG+det.poster_path;bdImg.style.display='block';
+      bdImg.src=IMG+det.poster_path;bdImg.alt=title+' 배경 이미지';bdImg.style.display='block';
       bdImg.style.filter='blur(20px) scale(1.1)';bdImg.style.opacity='.4';
       bdImg.classList.add('loaded');
     }
