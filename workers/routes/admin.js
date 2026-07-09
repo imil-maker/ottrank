@@ -31,6 +31,9 @@
    POST   /admin/ott-points/adjust
    POST   /admin/works/collect-keywords
    POST   /admin/works/backfill-normalize-keywords   ← work_keywords/keyword_translation 정규화 백필
+   POST   /admin/keywords/translate                  ← 영→한 키워드 AI 초벌 번역 (Claude Haiku)
+   GET    /admin/keywords/review                     ← 키워드 번역 검토 대기(source='auto') 목록
+   POST   /admin/keywords/review                     ← 키워드 번역 관리자 확정 저장(source='admin')
    POST   /admin/works/discover-collect
    POST   /admin/works/classify-variety
    GET    /admin/variety-genre-options
@@ -1398,6 +1401,189 @@ export async function handleAdmin(path, request, env, url, headers) {
       }), { headers });
     } catch (e) {
       // batch()는 실패 시 통째로 롤백되므로(부분 반영 없음), 안전하게 그대로 재시도 가능
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/keywords/translate ─────────────────────────
+  // keyword_translation.keyword_ko가 비어있는(source IS NULL) 영문 키워드를
+  // Claude API(Haiku)로 일괄 초벌 번역해 source='auto'로 저장.
+  // 예능 태그 자동분류(classify-variety)와 동일한 "auto 초안 → admin 검토/확정" 구조 —
+  // admin/keywords/review(POST)에서 source='admin'으로 확정되면 이 배치가 다시 건드리지 않음.
+  // 짧은 단어/구 단위라 예능 태그(줄거리 포함)보다 프롬프트 부담이 적어 배치를 더 크게(기본 40, 최대 60) 잡음.
+  if (path === "/admin/keywords/translate" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    if (!env.ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({
+        ok: false, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다"
+      }), { status: 500, headers });
+    }
+
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 40, 60);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT keyword_en FROM keyword_translation
+        WHERE source IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, translated: 0, remaining: 0, message: "번역할 키워드 없음"
+        }), { headers });
+      }
+
+      const kwListText = targets.map(t => `- ${t.keyword_en}`).join("\n");
+
+      const systemPrompt =
+        "너는 TMDB 영문 작품 키워드(테마/분위기 태그)를 한국 OTT 서비스 사용자용으로 번역하는 도우미다. " +
+        "각 영문 키워드를 자연스럽고 간결한 한국어 명사구(대략 2~8자)로 번역해라. " +
+        "직역보다 한국 시청자에게 익숙한 표현을 우선해라(예: revenge→복수, chaebol→재벌, coming of age→성장). " +
+        "설명이나 부연 없이, 요청받은 키워드 전부에 대해 1:1로 번역해라. " +
+        "반드시 JSON 배열만 출력하고, 다른 설명이나 코드블록(```)은 절대 포함하지 마라. " +
+        "출력 형식: [{\"keyword_en\":\"revenge\",\"keyword_ko\":\"복수\"}, ...]";
+
+      const userPrompt = `번역할 키워드 목록:\n${kwListText}`;
+
+      const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 3000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        }),
+      });
+
+      if (!claudeResp.ok) {
+        const errText = await claudeResp.text().catch(() => "");
+        return new Response(JSON.stringify({
+          ok: false, message: `Claude API 오류 (status ${claudeResp.status})`, detail: errText.slice(0, 300),
+        }), { status: 502, headers });
+      }
+
+      const claudeData = await claudeResp.json();
+      const rawText = (claudeData.content || [])
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("");
+
+      let parsed;
+      try {
+        const cleaned = rawText.replace(/```json|```/g, "").trim();
+        parsed = JSON.parse(cleaned);
+      } catch (e) {
+        return new Response(JSON.stringify({
+          ok: false, message: "Claude 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300),
+        }), { status: 502, headers });
+      }
+      if (!Array.isArray(parsed)) parsed = [];
+
+      // 이번 배치에 실제로 요청한 키워드만 반영(할루시네이션/다른 키워드 오염 방지)
+      const targetSet = new Set(targets.map(t => t.keyword_en));
+      const resultMap = new Map();
+      for (const item of parsed) {
+        const en = (item.keyword_en || "").trim().toLowerCase();
+        const ko = (item.keyword_ko || "").trim();
+        if (!en || !ko || !targetSet.has(en)) continue;
+        resultMap.set(en, ko);
+      }
+
+      const updates = [];
+      let translated = 0;
+      for (const t of targets) {
+        if (!resultMap.has(t.keyword_en)) continue; // Claude 응답에 없음 — 다음 배치에서 재시도
+        updates.push(
+          env.DB.prepare(
+            "UPDATE keyword_translation SET keyword_ko = ?, source = 'auto' WHERE keyword_en = ? AND source IS NULL"
+          ).bind(resultMap.get(t.keyword_en), t.keyword_en)
+        );
+        translated++;
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM keyword_translation WHERE source IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, translated, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/keywords/review ──────────────────────────────
+  // admin_videos.html "🔤 키워드 번역 검토" 그리드용 — AI 초안(source='auto') 목록 조회
+  if (path === "/admin/keywords/review" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const limit = Math.min(parseInt(url.searchParams.get("limit")) || 30, 60);
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT id, keyword_en, keyword_ko
+        FROM keyword_translation
+        WHERE source = 'auto'
+        ORDER BY id ASC
+        LIMIT ?
+      `).bind(limit).all();
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM keyword_translation WHERE source = 'auto'"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/keywords/review ─────────────────────────────
+  // 관리자가 검토 그리드에서 확인/수정한 한글 번역을 최종 확정 저장.
+  // source를 'admin'으로 바꿔서 이후 keywords/translate 배치가 절대 다시 건드리지 않음
+  // (variety_genre_source와 동일한 관리자 확정값 보호 원칙)
+  if (path === "/admin/keywords/review" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const items = Array.isArray(body.items) ? body.items : [];
+      const valid = items.filter(it => it && it.id && typeof it.keyword_ko === "string" && it.keyword_ko.trim());
+
+      if (!valid.length) {
+        return new Response(JSON.stringify({ ok: false, message: "유효한 항목이 없어요" }), { status: 400, headers });
+      }
+
+      const updates = valid.map(it =>
+        env.DB.prepare(
+          "UPDATE keyword_translation SET keyword_ko = ?, source = 'admin' WHERE id = ?"
+        ).bind(it.keyword_ko.trim(), parseInt(it.id))
+      );
+      await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM keyword_translation WHERE source = 'auto'"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, updated: valid.length, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
   }
