@@ -298,7 +298,9 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
 
 def upload_works(conn: sqlite3.Connection) -> int:
     """
-    works 신규 작품 D1 업로드
+    works 업로드 — ⚠️ works 전체가 아니라, 이번 실행에서 실제로 INSERT/UPDATE된
+    작품(touched_works에 기록된 tmdb_id)만 대상으로 함
+    (전체를 매번 재업로드하면 works 규모가 클수록 D1 write가 불필요하게 커짐 — 2026-07-10 수정)
     ⚠️ title_ko / title_en / tmdb_id 는 크롤러 수정 불가 (3키 원칙)
     ⚠️ tmdb_rating / genre 는 크롤링마다 최신 값으로 업데이트 (평점은 변동값)
     """
@@ -309,6 +311,7 @@ def upload_works(conn: sqlite3.Connection) -> int:
                    match_source, confidence_score, keywords
             FROM works
             WHERE tmdb_id IS NOT NULL
+              AND tmdb_id IN (SELECT tmdb_id FROM touched_works)
             ORDER BY tmdb_id
         """).fetchall()
     except Exception:
@@ -319,6 +322,7 @@ def upload_works(conn: sqlite3.Connection) -> int:
                        match_source, confidence_score, '' as keywords
                 FROM works
                 WHERE tmdb_id IS NOT NULL
+                  AND tmdb_id IN (SELECT tmdb_id FROM touched_works)
                 ORDER BY tmdb_id
             """).fetchall()
         except Exception:
@@ -328,6 +332,7 @@ def upload_works(conn: sqlite3.Connection) -> int:
                        'admin' as match_source, 100 as confidence_score, '' as keywords
                 FROM works
                 WHERE tmdb_id IS NOT NULL
+                  AND tmdb_id IN (SELECT tmdb_id FROM touched_works)
                 ORDER BY tmdb_id
             """).fetchall()
 
