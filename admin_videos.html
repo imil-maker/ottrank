@@ -245,6 +245,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🏷 키워드 수집
         </button>
+        <button id="tabNormalize" onclick="switchPageTab('normalize')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🔤 키워드 정규화
+        </button>
         <button id="tabDiscover" onclick="switchPageTab('discover')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎬 작품 사전등록
@@ -504,6 +508,54 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="kwLogWrap" style="display:none">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
       <div id="kwLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+  </div>
+
+  <!-- ══ 키워드 정규화 섹션 ══ -->
+  <div class="wrap" id="normalizeWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 <span style="color:var(--green)">works.keywords</span>(콤마 문자열)를 <span style="color:#a78bfa">work_keywords</span>(검색용 정규화 테이블)로 분해하고,
+      등장하는 영문 키워드를 <span style="color:#a78bfa">keyword_translation</span>에도 함께 등록합니다(한글 번역은 이후 별도 배치에서 채움).<br>
+      외부 API 호출이 없는 순수 DB 작업이라 한 번에 최대 300개씩 처리하며, 남은 작품이 0개가 될 때까지 자동 반복 호출합니다.<br>
+      이미 정규화 처리된(<span style="color:var(--gold)">keywords_normalized_at</span> 값 있음) 작품은 다시 건드리지 않습니다.
+    </div>
+
+    <!-- 상태 카드 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="nzAttempted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">정규화됨</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="nzProcessed">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="nzRemaining">-</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="nzStartBtn" onclick="startNormalizeKeywords()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 일괄 정규화 시작
+        </button>
+        <button class="btn-secondary" id="nzStopBtn" onclick="stopNormalizeKeywords()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="nzStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <!-- 최근 배치 로그 -->
+    <div id="nzLogWrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="nzLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
     </div>
 
   </div>
@@ -1408,6 +1460,7 @@ const PAGE_TABS = [
   { key: 'video',    wrapId: 'videoWrap',    btnId: 'tabVideo',    title: '🎬 관련영상 추가',     onColor: 'var(--accent)',        onText: '#fff'     },
   { key: 'mbti',     wrapId: 'mbtiWrap',     btnId: 'tabMbti',     title: '✦ MBTI 관리',      onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
   { key: 'keyword',  wrapId: 'keywordWrap',  btnId: 'tabKeyword',  title: '🏷 키워드 수집',    onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
+  { key: 'normalize', wrapId: 'normalizeWrap', btnId: 'tabNormalize', title: '🔤 키워드 정규화', onColor: 'rgba(167,139,250,.2)', onText: '#a78bfa' },
   { key: 'discover', wrapId: 'discoverWrap', btnId: 'tabDiscover', title: '🎬 작품 사전등록',  onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
   { key: 'person',   wrapId: 'personWrap',   btnId: 'tabPerson',   title: '🎭 인물 사전등록',  onColor: 'rgba(55,138,221,.2)',  onText: '#7ec8e3'  },
   { key: 'lang',     wrapId: 'langWrap',     btnId: 'tabLang',     title: '🌐 원어 정보 채우기', onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
@@ -1849,6 +1902,119 @@ function stopKeywordCollect() {
   setTimeout(() => {
     document.getElementById('kwStopBtn').disabled = false;
     document.getElementById('kwStopBtn').textContent = '⏸ 중단';
+  }, 1500);
+}
+
+/* ══════════════════════════════════════════════════════
+   키워드 정규화 (works.keywords 콤마 문자열 → work_keywords/keyword_translation)
+   /admin/works/backfill-normalize-keywords 를 remaining이 0이 될 때까지 반복 호출
+   — 외부 API 호출이 없는 순수 DB 작업이라 키워드 수집 탭(limit 50)보다
+     훨씬 큰 단위(limit 200)로 호출함
+══════════════════════════════════════════════════════ */
+let nzRunning        = false;
+let nzStopRequested  = false;
+let nzTotalAttempted = 0;
+let nzTotalProcessed = 0;
+
+function nzLog(msg, isError) {
+  const logWrap = document.getElementById('nzLogWrap');
+  const logEl   = document.getElementById('nzLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function nzUpdateCounters(remaining) {
+  document.getElementById('nzAttempted').textContent = nzTotalAttempted;
+  document.getElementById('nzProcessed').textContent = nzTotalProcessed;
+  document.getElementById('nzRemaining').textContent = remaining === null ? '-' : remaining;
+}
+
+async function startNormalizeKeywords() {
+  if (nzRunning) return;
+  nzRunning        = true;
+  nzStopRequested  = false;
+  nzTotalAttempted = 0;
+  nzTotalProcessed = 0;
+
+  const startBtn   = document.getElementById('nzStartBtn');
+  const stopBtn    = document.getElementById('nzStopBtn');
+  const statusLine = document.getElementById('nzStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '정규화 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('nzLog').innerHTML = '';
+  nzUpdateCounters(null);
+  nzLog('일괄 정규화 시작');
+
+  let batchNum = 0;
+
+  try {
+    while (true) {
+      if (nzStopRequested) {
+        nzLog('사용자 요청으로 중단됨');
+        break;
+      }
+      batchNum++;
+      statusLine.textContent = `${batchNum}번째 배치 처리 중...`;
+
+      let res, data;
+      try {
+        res = await fetch(`${API}/admin/works/backfill-normalize-keywords`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+          body: JSON.stringify({ limit: 200 }),
+        });
+        data = await res.json();
+      } catch (e) {
+        nzLog(`네트워크 오류 — 배치 ${batchNum} 실패: ${e.message}`, true);
+        statusLine.textContent = '네트워크 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        nzLog(`API 오류 — 배치 ${batchNum}: ${data.message || res.status}`, true);
+        statusLine.textContent = 'API 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      nzTotalAttempted += data.attempted || 0;
+      nzTotalProcessed += data.processed || 0;
+      nzUpdateCounters(data.remaining);
+      nzLog(`배치 ${batchNum}: 시도 ${data.attempted}개 · 정규화됨 ${data.processed}개 · 남음 ${data.remaining}개`);
+
+      if (!data.attempted || data.remaining === 0) {
+        statusLine.textContent = `✅ 완료! 총 ${nzTotalAttempted}개 시도, ${nzTotalProcessed}개 정규화됨`;
+        nzLog('모든 작품 처리 완료');
+        showToast('✅ 키워드 정규화 완료!');
+        break;
+      }
+
+      // 다음 배치 전 짧은 대기 (D1 부하 방지 — 외부 API는 없지만 동일한 안전 패턴 유지)
+      await _sleep(400);
+    }
+  } finally {
+    nzRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 일괄 정규화 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopNormalizeKeywords() {
+  if (!nzRunning) return;
+  nzStopRequested = true;
+  document.getElementById('nzStopBtn').disabled = true;
+  document.getElementById('nzStopBtn').textContent = '중단 중...';
+  setTimeout(() => {
+    document.getElementById('nzStopBtn').disabled = false;
+    document.getElementById('nzStopBtn').textContent = '⏸ 중단';
   }, 1500);
 }
 
