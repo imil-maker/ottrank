@@ -52,13 +52,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .page-wrap{max-width:900px;margin:0 auto;padding:24px 20px 80px}
 
 /* ── 뒤로가기 ── */
-/* [2026-07-11 5차 수정] back-btn이 이제 person-hero 안(mobile-photo-row 안)으로
-   이동함. PC에서는 flex-basis:100%로 스스로 한 줄 전체를 차지하게 만들어서
-   (person-hero에 flex-wrap:wrap 필요) 기존과 완전히 같은 모습을 유지함. */
+/* [2026-07-11 6차 수정] back-btn이 person-hero 안(mobile-photo-row 안)으로 이동했지만,
+   버튼 자체 크기는 원래(내용물 크기만큼만) 그대로 유지 — "혼자 한 줄 차지"는
+   버튼이 아니라 바로 아래 보이지 않는 .hero-line-break 요소가 담당함.
+   ⚠️ 이전 시도(flex-basis:100%를 버튼 자체에 줌)는 버튼의 테두리 상자 자체가
+   화면 전체 폭으로 늘어나버리는 버그였음 — 폐기. */
 .back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;
   text-decoration:none;padding:7px 14px;border:1px solid var(--border);
-  border-radius:7px;transition:all .15s;font-family:var(--font-mono);cursor:pointer;background:transparent;
-  flex-basis:100%}
+  border-radius:7px;transition:all .15s;font-family:var(--font-mono);cursor:pointer;background:transparent}
+/* [2026-07-11 6차 수정] 보이지 않는 줄바꿈 전용 요소 — 폭 100%를 혼자 차지해서
+   그 다음에 오는 person-photo-wrap을 다음 줄로 밀어냄. 높이 0이라 화면에 아무
+   영향 없음. 모바일에서는 back-btn이 absolute라 필요 없으므로 미디어쿼리에서 숨김. */
+.hero-line-break{flex-basis:100%;height:0;overflow:hidden}
 /* ⚠️ margin-bottom을 여기서 안 주는 이유: back-btn이 이제 person-hero 안에 있어서,
    person-hero의 gap:32px(플렉스 컨테이너 간격)가 back-btn 줄과 사진 줄 사이 여백을
    대신 만들어줌. 여기서 또 margin-bottom을 주면 32px+추가여백으로 이중으로 커짐. */
@@ -251,20 +256,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .person-meta-row{justify-content:center}
   .works-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
 
-  /* ⚠️ 2026-07-11 5차 수정(최종): 화살표와 사진을 진짜 같은 줄(flex row)로 배치.
-     mobile-photo-row가 PC에서는 display:contents(투명)였는데, 모바일에서만 실제
-     flex row로 동작하게 바꿔서 back-btn + person-photo-wrap이 나란히 옴.
-     사진이 justify-content:center로 가운데 정렬되면서 생기는 왼쪽 여백에 화살표가
-     자연스럽게 들어감 — 계산값(calc/transform) 없이 실제 레이아웃으로 처리.
-     화살표 높이가 사진보다 훨씬 작아서(align-items:flex-start), 이 줄 전체 높이는
-     사진 높이 그대로라 세로 공간이 추가로 안 들어감(원래 목표 그대로 달성). */
+  /* ⚠️ 2026-07-11 6차 수정(최종): justify-content:center로 화살표+사진을 "하나로 묶어서"
+     가운데 정렬했더니, 화살표까지 같이 오른쪽으로 밀려서 진짜 왼쪽 상단이 아니게 됨.
+     "왼쪽 상단"은 사진 기준이 아니라 화면(컨테이너) 기준 고정 자리를 뜻했음.
+     → 화살표는 position:absolute로 컨테이너 진짜 왼쪽 위 모서리에 고정(사진과 무관).
+     → 사진은 화살표 흐름에서 완전히 분리되어(화살표가 absolute라 flex 정렬에 안 끼임)
+       원래처럼 독립적으로 가운데 정렬됨 — 정렬되면서 생기는 왼쪽 여백에 화살표가
+       자연스럽게 들어가서 겹치지 않음. */
   .mobile-photo-row{
-    display:flex;flex-direction:row;align-items:flex-start;
-    justify-content:center;gap:8px;width:100%;
+    position:relative;display:flex;justify-content:center;width:100%;
   }
-  .back-btn{flex-basis:auto;padding:9px;border-radius:50%;gap:0;margin-bottom:0;margin-top:0}
+  .back-btn{
+    position:absolute;top:0;left:0;z-index:5;
+    padding:9px;border-radius:50%;gap:0;margin:0;
+    background:rgba(10,10,14,.55);border-color:rgba(255,255,255,.3);backdrop-filter:blur(2px);
+  }
   .back-label{display:none}
-  .back-arrow{font-size:16px;line-height:1}
+  .back-arrow{font-size:16px;line-height:1;color:#fff}
+  .hero-line-break{display:none} /* [2026-07-11 6차 수정] 모바일은 back-btn이 absolute라 줄바꿈 불필요 */
 }
 </style>
 </head>
@@ -307,11 +316,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <!-- 인물 히어로 -->
     <div id="personHero" class="person-hero" style="display:none">
       <div class="mobile-photo-row">
-        <!-- 뒤로가기 — PC: person-hero 첫 줄 전체를 차지(기존과 동일한 모습).
-             모바일: mobile-photo-row가 실제 flex row로 바뀌면서 사진과 같은 줄에 나란히 배치 -->
+        <!-- 뒤로가기 — PC: 원래 크기(작은 버튼) 그대로, 아래 hero-line-break가
+             혼자 한 줄을 차지해서 사진을 다음 줄로 밀어냄(버튼 자체는 안 늘어남).
+             모바일: 화살표가 absolute로 빠져서 hero-line-break는 숨겨지고, 사진만 정상 흐름 -->
         <button class="back-btn" onclick="history.back()">
           <span class="back-arrow">←</span><span class="back-label"> 뒤로가기</span>
         </button>
+        <div class="hero-line-break"></div>
         <div class="person-photo-wrap">
           <div class="person-photo" id="personPhoto">
             <div class="person-photo-ph" id="personPhotoPh">?</div>
