@@ -619,6 +619,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </button>
     </div>
 
+    <!-- 3단계: 캐시 초기화 SQL (참고용 — 실행은 D1 콘솔에서 직접) -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:20px">
+      <h3 style="margin-bottom:10px;font-size:15px">③ 특정 작품 키워드 캐시 초기화 (D1 콘솔용 참고 SQL)</h3>
+      <div style="font-size:13px;color:var(--muted2);margin-bottom:12px;line-height:1.7">
+        번역을 나중에 수정해도 작품페이지엔 캐시(5일~100일) 때문에 바로 반영 안 됩니다.<br>
+        특정 작품에 즉시 반영하고 싶으면, 아래 SQL의 <span style="color:var(--gold)">tmdb_id</span> 숫자만 바꿔서 D1 콘솔에서 실행하세요.
+      </div>
+      <div style="position:relative">
+        <pre id="ktCacheResetSql" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 90px 14px 14px;font-size:12.5px;font-family:var(--mono);color:var(--muted2);white-space:pre-wrap;word-break:break-all;margin:0">UPDATE works SET keyword_ko_map_updated_at = NULL WHERE tmdb_id = 296206</pre>
+        <button class="btn-secondary" onclick="copyKeywordCacheResetSql()" style="position:absolute;top:10px;right:10px;padding:6px 12px;font-size:12px">📋 복사</button>
+      </div>
+    </div>
+
   </div>
 
   <!-- ══ 작품 사전등록 섹션 ══ -->
@@ -2269,6 +2282,13 @@ async function saveKeywordReview() {
     saveBtn.disabled = false;
     saveBtn.textContent = '✅ 확정 저장';
   }
+}
+
+function copyKeywordCacheResetSql() {
+  const text = document.getElementById('ktCacheResetSql').textContent;
+  navigator.clipboard.writeText(text)
+    .then(() => showToast('📋 SQL 복사됨 — tmdb_id 숫자만 바꿔서 D1 콘솔에 붙여넣으세요'))
+    .catch(() => showToast('❌ 복사 실패 — 직접 드래그해서 복사해주세요'));
 }
 
 /* ══════════════════════════════════════════════════════
