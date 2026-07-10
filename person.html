@@ -770,15 +770,27 @@ async function initPage(){
       // 더 정확한 신호로 교체: TMDB의 character 필드 — 예능/리얼리티는 배역명 없이
       // "Self"로 찍히고, 드라마/영화는 실제 배역명이 있음. "회차 수"보다 "진짜 배역이
       // 있는지"가 대표작 여부를 훨씬 정확하게 구분함. 이것도 추가 호출 없는 기존 데이터.
+      // ⚠️ 2026-07-11 3차 개선: 60회 기준 + 선형 감점으로도 부족했음 — "런닝맨",
+      // "무한도전"처럼 10년~20년 넘게 방영된 장수 예능은, 몇 년에 한 번씩만 게스트로
+      // 나와도 다 합치면 episode_count가 쉽게 14~수십 회까지 쌓임(TMDB가 한 사람의
+      // 여러 해에 걸친 출연을 전부 합쳐서 기록하기 때문). 그 결과 "장수 예능=고정 출연"
+      // 취급을 너무 쉽게 받아버려서, 거의 모든 배우 대표작에 런닝맨/무한도전이 나오는
+      // 문제 발생. 두 가지로 보정:
+      //   1) 임계값 60 → 180으로 상향 (진짜 고정 MC급만 감점 면제)
+      //   2) 감점 곡선을 선형(ep/기준)에서 제곱((ep/기준)²)으로 변경
+      //      → 14회처럼 어중간한 회차는 지금보다 훨씬 세게 깎이고(14/180≈0.08 → 제곱하면
+      //      0.006 수준), 진짜 고정 출연(150회 이상)만 확실히 살아남게 됨
       const scoreFor = (it) => {
         const pop = it.popularity || 0;
         const charName = (it.character || '').trim().toLowerCase();
         const isSelfAppearance = it.media_type === 'tv' && (!charName || charName === 'self');
         if(isSelfAppearance){
           // 본인 출연(예능/리얼리티) — 회차 수로 정도만 조절.
-          // 고정 MC급(수십~수백 회)은 감점 거의 없고, 게스트 몇 회는 크게 감점.
+          // 고정 MC급(150회 이상)만 감점 거의 없고, 그 외(장수 예능 게스트 포함)는
+          // 제곱 곡선으로 세게 깎임.
           const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
-          const factor = Math.max(0.1, Math.min(1, ep / 60));
+          const ratio = Math.max(0, Math.min(1, ep / 180));
+          const factor = Math.max(0.02, ratio * ratio);
           return pop * factor;
         }
         return pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
