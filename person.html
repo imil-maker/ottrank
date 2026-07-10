@@ -109,7 +109,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .known-for-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
 .known-for-row::-webkit-scrollbar{height:6px}
 .known-for-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
-.known-for-row .work-card{flex:0 0 120px}
+.known-for-row .work-card{flex:0 0 120px;min-width:0}
+/* ⚠️ 2026-07-11 수정: min-width:0이 빠져있었음 — flex 아이템은 기본적으로
+   min-width:auto라서, 배역명처럼 white-space:nowrap인 긴 텍스트가 있으면
+   flex-shrink:0과 맞물려 카드 자체가 텍스트 길이만큼 억지로 커지는 버그 발생
+   ("Kim Young-ho / John Kim"처럼 긴 배역명 카드만 유독 커지던 원인).
+   min-width:0으로 자동 최소크기 계산을 꺼야 text-overflow:ellipsis가 정상 작동함. */
 /* [2026-07-11 추가] 아이템 2개 이하면 왼쪽에 몰려있지 않게 가운데 정렬 */
 .known-for-row.few-items{justify-content:center}
 
@@ -162,7 +167,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* 작품 그리드 */
 .works-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:16px}
-.work-card{cursor:pointer;text-decoration:none;display:block;transition:transform .2s ease}
+.work-card{cursor:pointer;text-decoration:none;display:block;transition:transform .2s ease;min-width:0}
+/* ⚠️ 2026-07-11 수정: min-width:0 추가 — CSS Grid 아이템도 flex와 동일하게
+   기본 min-width:auto라서, 긴 배역명이 나오면 known-for-row와 같은 이유로
+   그리드 트랙(카드)이 억지로 커질 수 있는 잠재 버그가 있어 예방 차원에서 수정 */
 .work-card:hover{transform:translateY(-4px)}
 .work-poster{width:100%;aspect-ratio:2/3;border-radius:var(--r);overflow:hidden;
   background:var(--bg3);border:.5px solid var(--border);position:relative;margin-bottom:8px}
