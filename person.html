@@ -752,11 +752,30 @@ async function initPage(){
       document.getElementById('tabDirect').textContent = `연출 (${directCredits.length})`;
       renderWorks();
 
-      // [2026-07-11 추가] 대표작(인기순 상위 6개) — 이미 받아온 combined_credits의
-      // popularity 필드 재사용, 추가 API 호출 없음. 포스터 없는 작품은 그리드 깨지므로 제외.
+      // [2026-07-11 추가] 대표작(popularity 기반 + 게스트출연 감점) — 이미 받아온
+      // combined_credits 데이터만 재사용, 추가 API 호출 없음. 포스터 없는 작품은
+      // 그리드 깨지므로 제외.
+      //
+      // ⚠️ 2026-07-11 개선: popularity만 쓰면 "예능 1회 게스트 출연"이 "본인 주연 드라마"보다
+      // 앞에 나오는 문제 발견(예: 배우가 5년 전 예능에 1번 나온 게 popularity가 더 높았음).
+      // 장르(예능/드라마)로 구분하지 않음 — 예능인 본인에게는 예능이 진짜 대표작이기 때문.
+      // 대신 TV 출연작의 episode_count(이 작품에 몇 회 나왔는지)로 "게스트성 출연"인지
+      // 판단: 회차 수가 적을수록 감점 폭을 크게(연속적으로) 적용. 예능 고정 멤버처럼
+      // 회차 수가 많으면 감점 거의 없음 — 장르 상관없이 "비중"만 봄.
+      // episode_count는 지금 이미 호출 중인 combined_credits 응답에 원래 포함된 필드라
+      // 추가 TMDB 호출 없음(트래픽 영향 없음).
+      const scoreFor = (it) => {
+        const pop = it.popularity || 0;
+        if(it.media_type === 'tv' && typeof it.episode_count === 'number' && it.episode_count > 0){
+          const factor = Math.max(0.1, Math.min(1, it.episode_count / 10));
+          return pop * factor;
+        }
+        return pop; // 영화는 episode_count 개념 없음 — 그대로 popularity
+      };
+
       const knownFor = [...allCredits]
         .filter(it => it.poster_path)
-        .sort((a,b) => (b.popularity||0) - (a.popularity||0))
+        .sort((a,b) => scoreFor(b) - scoreFor(a))
         .slice(0, 6);
       if(knownFor.length){
         document.getElementById('knownForSection').style.display = 'block';
