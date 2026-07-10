@@ -74,19 +74,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .person-insta-icon:hover{opacity:1}
 .person-insta-icon img{width:48px;height:48px;border-radius:12px;display:block}
 
-/* [2026-07-11 추가] SNS 아이콘 여러 개 — 이름 옆에 나란히 (인스타 외 트위터/홈페이지 등) */
+/* [2026-07-11 추가] SNS 아이콘 여러 개 — 이름 옆에 나란히 (인스타 외 트위터 등) */
 .person-social-row{display:inline-flex;gap:8px;margin-left:10px;vertical-align:middle;
   position:relative;top:-3px}
 .person-social-icon{display:inline-flex;align-items:center;justify-content:center;
-  width:44px;height:44px;border-radius:12px;background:var(--bg3);
+  width:56px;height:56px;border-radius:14px;background:var(--bg3);
   border:.5px solid var(--border);opacity:.85;transition:all .15s;text-decoration:none;
-  color:var(--muted2);font-size:14px}
+  color:var(--muted2);font-size:14px;cursor:pointer}
 .person-social-icon:hover{opacity:1;border-color:var(--border2);background:var(--bg2)}
 /* ⚠️ 2026-07-11 수정: img 크기 규칙이 누락되어 있었음 — 아이콘 원본 이미지가
    크기 제한 없이 그대로 렌더링되면서 화면 전체를 뒤덮는 버그 발생. 반드시 지정할 것.
-   (2차 수정: 처음엔 18px로 너무 작게 잡아서, 기존 인스타 단일아이콘(48px)에
-   가깝게 28px로 키움) */
-.person-social-icon img{width:28px;height:28px;display:block;object-fit:contain}
+   (2차 수정: 18px→28px, 3차 수정: 여전히 작다는 피드백으로 28px→36px, 박스도 44px→56px) */
+.person-social-icon img{width:36px;height:36px;display:block;object-fit:contain}
+/* [2026-07-11 추가] 공유 버튼 아이콘(SVG, 이미지 파일 의존성 없음) */
+.person-social-icon svg{width:24px;height:24px;stroke:var(--muted2);transition:stroke .15s}
+.person-social-icon:hover svg{stroke:var(--text)}
 
 /* [2026-07-11 추가] 랭킹 배지 — 필모그래피 카드에 지금 랭킹에 있으면 표시 */
 .work-rank-badge{display:none;align-items:center;gap:3px;position:absolute;
@@ -101,12 +103,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .known-for-row::-webkit-scrollbar{height:6px}
 .known-for-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 .known-for-row .work-card{flex:0 0 120px}
+/* [2026-07-11 추가] 아이템 2개 이하면 왼쪽에 몰려있지 않게 가운데 정렬 */
+.known-for-row.few-items{justify-content:center}
 
 /* [2026-07-11 추가] 사진 갤러리 */
 .photo-gallery-section{margin-top:24px}
 .photo-gallery-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
 .photo-gallery-row::-webkit-scrollbar{height:6px}
 .photo-gallery-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+/* [2026-07-11 추가] 아이템 2개 이하면 왼쪽에 몰려있지 않게 가운데 정렬 */
+.photo-gallery-row.few-items{justify-content:center}
 .photo-gallery-thumb{flex:0 0 90px;aspect-ratio:2/3;border-radius:8px;overflow:hidden;
   border:1px solid var(--border);cursor:pointer;background:var(--bg3);transition:border-color .15s}
 .photo-gallery-thumb:hover{border-color:var(--info)}
@@ -519,6 +525,7 @@ async function loadPhotoGallery(personId, imgBase){
     if(!profiles.length) return;
 
     const row = document.getElementById('photoGalleryRow');
+    row.classList.toggle('few-items', profiles.length <= 2); // [2026-07-11 추가]
     row.innerHTML = profiles.map(p => `
       <div class="photo-gallery-thumb" onclick="document.getElementById('personPhoto').innerHTML='<img src=&quot;${imgBase}${p.file_path}&quot; alt=&quot;사진&quot;>'">
         <img src="${imgBase}${p.file_path}" alt="사진" loading="lazy">
@@ -699,7 +706,9 @@ async function initPage(){
         .slice(0, 6);
       if(knownFor.length){
         document.getElementById('knownForSection').style.display = 'block';
-        document.getElementById('knownForRow').innerHTML = knownFor.map(workCardHtml).join('');
+        const knownForRow = document.getElementById('knownForRow');
+        knownForRow.classList.toggle('few-items', knownFor.length <= 2); // [2026-07-11 추가]
+        knownForRow.innerHTML = knownFor.map(workCardHtml).join('');
         loadRankBadges(knownFor); // 대표작 카드도 랭킹배지 대상(캐시 공유라 필모그래피와 겹쳐도 중복요청 안 됨)
       }
     }
