@@ -106,9 +106,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* [2026-07-11 추가] 대표작(인기순) 섹션 — 가로 스크롤 */
 .known-for-section{margin-top:8px}
-.known-for-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
-.known-for-row::-webkit-scrollbar{height:6px}
-.known-for-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.known-for-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.known-for-row::-webkit-scrollbar{display:none}
+/* ⚠️ 2026-07-11 4차 수정: 얇게 만든 스크롤바(6px)도 여전히 못생기고 UX를 해친다는
+   피드백 — 스크롤바 자체를 완전히 숨기고, 대신 좌우 화살표 버튼(PC 전용)으로 조작.
+   scrollbar-width:none(파이어폭스), -ms-overflow-style:none(구형 엣지),
+   ::-webkit-scrollbar{display:none}(크롬/사파리) 3종 다 처리해야 브라우저별로
+   안 남는 데 없이 확실히 숨겨짐. */
 .known-for-row .work-card{flex:0 0 120px;min-width:0}
 /* ⚠️ 2026-07-11 수정: min-width:0이 빠져있었음 — flex 아이템은 기본적으로
    min-width:auto라서, 배역명처럼 white-space:nowrap인 긴 텍스트가 있으면
@@ -120,15 +125,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* [2026-07-11 추가] 사진 갤러리 */
 .photo-gallery-section{margin-top:24px}
-.photo-gallery-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
-.photo-gallery-row::-webkit-scrollbar{height:6px}
-.photo-gallery-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.photo-gallery-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.photo-gallery-row::-webkit-scrollbar{display:none}
 /* [2026-07-11 추가] 아이템 2개 이하면 왼쪽에 몰려있지 않게 가운데 정렬 */
 .photo-gallery-row.few-items{justify-content:center}
 .photo-gallery-thumb{flex:0 0 90px;aspect-ratio:2/3;border-radius:8px;overflow:hidden;
   border:1px solid var(--border);cursor:pointer;background:var(--bg3);transition:border-color .15s}
 .photo-gallery-thumb:hover{border-color:var(--info)}
 .photo-gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* [2026-07-11 추가] 좌우 스크롤 화살표 — PC 전용(대표작/사진갤러리 공통).
+   모바일은 스와이프로 충분히 잘 동작하고 있어서 의도적으로 미적용(하단 미디어쿼리에서 숨김). */
+.scroll-row-wrap{position:relative}
+.scroll-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);
+  width:34px;height:34px;border-radius:50%;
+  background:rgba(20,20,28,.8);border:1px solid var(--border2);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:20px;line-height:1;cursor:pointer;z-index:3;
+  opacity:0;transition:opacity .2s;user-select:none;
+}
+.scroll-row-wrap:hover .scroll-arrow{opacity:.9}
+.scroll-arrow:hover{background:rgba(30,30,42,.95)}
+.scroll-arrow-left{left:-14px}
+.scroll-arrow-right{right:-14px}
+.scroll-arrow.hidden{display:none} /* 스크롤 끝(또는 스크롤 필요 없음)에 도달하면 자동으로 숨김 */
 
 /* ── 인물 정보 ── */
 .person-info{flex:1;min-width:0}
@@ -219,13 +241,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .person-meta-row{justify-content:center}
   .works-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
 
-  /* ⚠️ 2026-07-11 재수정: 사진 옆(세로 중앙) 절대위치는 "뒤로가기는 항상 화면
-     왼쪽 위 고정 자리에 있어야 한다"는 일반적인 UX 관례에 안 맞아서 폐기.
-     화살표만 남기는 건 유지하되, 위치는 원래처럼 페이지 맨 위 왼쪽(일반 흐름)으로 복귀 —
-     오뜨랑 다른 페이지들의 뒤로가기 위치와도 일관되게. */
-  .back-btn{padding:9px;border-radius:50%;gap:0}
+  /* ⚠️ 2026-07-11 3차 수정: "화면 왼쪽 위"의 의미를 잘못 이해해서 페이지 최상단
+     별도 줄로 되돌렸었는데, 정확한 의도는 "포스터(사진) 범위 안에서 왼쪽 위"였음 —
+     별도 줄로 빼면 세로 공간을 다시 차지해서 애초에 "화면 높이를 줄이자"던 작업
+     취지 자체가 무너지기 때문. 사진 위에 오버레이로 얹는 방식으로 최종 확정.
+
+     사진(모바일 160px 폭)은 .person-hero가 align-items:center라서 항상 가로
+     중앙정렬됨. back-btn의 위치 기준(containing block)은 .hero-wrap인데, 이
+     hero-wrap 폭도 결국 사진과 같은 중앙축을 공유하므로, "50% 지점에서 사진
+     절반너비(80px)만큼 왼쪽으로 이동 - 안쪽 여백 8px"로 계산하면 사진 크기가
+     바뀌어도 이 산식만 맞으면 항상 사진 왼쪽 위 모서리에 정확히 맞음. */
+  .back-btn{
+    position:absolute;top:8px;left:50%;transform:translateX(-72px); /* 80px(사진폭 160px의 절반) - 8px(여백) */
+    z-index:5;margin-bottom:0;padding:8px;border-radius:50%;gap:0;
+    background:rgba(10,10,14,.55);border-color:rgba(255,255,255,.3);backdrop-filter:blur(2px);
+  }
   .back-label{display:none}
-  .back-arrow{font-size:16px;line-height:1}
+  .back-arrow{font-size:16px;line-height:1;color:#fff}
 }
 </style>
 </head>
@@ -301,13 +333,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   <div id="photoGallerySection" class="photo-gallery-section" style="display:none">
     <!-- [2026-07-11 수정] "📷 사진" 제목 삭제 — 제목 때문에 사진이 아래로 밀려서
          잘 안 보인다는 피드백으로 제거. 사진 자체가 갤러리인 게 바로 보이니 제목 불필요 -->
-    <div class="photo-gallery-row" id="photoGalleryRow"></div>
+    <div class="scroll-row-wrap">
+      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('photoGalleryRow',-1)" aria-label="이전 사진">‹</button>
+      <div class="photo-gallery-row" id="photoGalleryRow"></div>
+      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('photoGalleryRow',1)" aria-label="다음 사진">›</button>
+    </div>
   </div>
 
   <!-- [2026-07-11 추가] 대표작(인기순 강조) -->
   <div id="knownForSection" class="known-for-section" style="display:none">
     <div class="section-title">🌟 대표작</div>
-    <div class="known-for-row" id="knownForRow"></div>
+    <div class="scroll-row-wrap">
+      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('knownForRow',-1)" aria-label="이전 작품">‹</button>
+      <div class="known-for-row" id="knownForRow"></div>
+      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('knownForRow',1)" aria-label="다음 작품">›</button>
+    </div>
   </div>
 
   <!-- 필모그래피 -->
@@ -346,6 +386,39 @@ const PLATFORM_LABELS = {
 
 /* [2026-07-11 추가] 랭킹 배지 캐시 — tmdb_id별로 한 번만 조회 (더보기 클릭마다 중복조회 방지) */
 let rankBadgeCache = {};
+
+/* [2026-07-11 추가] 좌우 화살표 스크롤 (PC 전용, known-for-row/photo-gallery-row 공통)
+   - 클릭 시 컨테이너 폭의 80%만큼 부드럽게 스크롤
+   - 스크롤이 맨 왼쪽/맨 오른쪽 끝에 도달하면(또는 애초에 스크롤할 내용이 없으면)
+     해당 방향 화살표를 자동으로 숨김 — UX 방해 최소화 */
+function scrollRowBy(rowId, dir){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  const amount = Math.round(row.clientWidth * 0.8) * dir;
+  row.scrollBy({ left: amount, behavior: 'smooth' });
+}
+
+function updateScrollArrows(rowId){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  const wrap = row.closest('.scroll-row-wrap');
+  if(!wrap) return;
+  const leftBtn  = wrap.querySelector('.scroll-arrow-left');
+  const rightBtn = wrap.querySelector('.scroll-arrow-right');
+  const maxScroll = row.scrollWidth - row.clientWidth;
+  if(leftBtn)  leftBtn.classList.toggle('hidden', row.scrollLeft <= 4);
+  if(rightBtn) rightBtn.classList.toggle('hidden', row.scrollLeft >= maxScroll - 4);
+}
+
+function setupScrollRow(rowId){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  row.addEventListener('scroll', () => updateScrollArrows(rowId));
+  window.addEventListener('resize', () => updateScrollArrows(rowId));
+}
+
+setupScrollRow('knownForRow');
+setupScrollRow('photoGalleryRow');
 
 /* [2026-07-11 추가] 사진 갤러리 위치 — PC/모바일에서 서로 다른 부모 컨테이너에
    들어가야 해서 CSS만으로는 처리 불가(부모 자체가 다름) → JS로 화면 크기에 따라
@@ -610,6 +683,7 @@ async function loadPhotoGallery(personId, imgBase){
       </div>
     `).join('');
     document.getElementById('photoGallerySection').style.display = 'block';
+    updateScrollArrows('photoGalleryRow'); // [2026-07-11 추가] 콘텐츠 채워진 뒤 화살표 표시여부 갱신
   }catch(e){
     // 갤러리는 부가 기능 — 실패해도 조용히 무시 (메인 페이지 기능에 영향 없음)
   }
@@ -868,6 +942,7 @@ async function initPage(){
         knownForRow.classList.toggle('few-items', knownFor.length <= 2); // [2026-07-11 추가]
         knownForRow.innerHTML = knownFor.map(workCardHtml).join('');
         loadRankBadges(knownFor); // 대표작 카드도 랭킹배지 대상(캐시 공유라 필모그래피와 겹쳐도 중복요청 안 됨)
+        updateScrollArrows('knownForRow'); // [2026-07-11 추가] 콘텐츠 채워진 뒤 화살표 표시여부 갱신
       }
     }
 
