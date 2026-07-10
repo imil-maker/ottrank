@@ -59,18 +59,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
    화면 전체 폭으로 늘어나버리는 버그였음 — 폐기. */
 .back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;
   text-decoration:none;padding:7px 14px;border:1px solid var(--border);
-  border-radius:7px;transition:all .15s;font-family:var(--font-mono);cursor:pointer;background:transparent}
+  border-radius:7px;transition:all .15s;font-family:var(--font-mono);cursor:pointer;background:transparent;
+  margin-bottom:24px}
 /* [2026-07-11 6차 수정] 보이지 않는 줄바꿈 전용 요소 — 폭 100%를 혼자 차지해서
    그 다음에 오는 person-photo-wrap을 다음 줄로 밀어냄. 높이 0이라 화면에 아무
    영향 없음. 모바일에서는 back-btn이 absolute라 필요 없으므로 미디어쿼리에서 숨김. */
 .hero-line-break{flex-basis:100%;height:0;overflow:hidden}
-/* ⚠️ margin-bottom을 여기서 안 주는 이유: back-btn이 이제 person-hero 안에 있어서,
-   person-hero의 gap:32px(플렉스 컨테이너 간격)가 back-btn 줄과 사진 줄 사이 여백을
-   대신 만들어줌. 여기서 또 margin-bottom을 주면 32px+추가여백으로 이중으로 커짐. */
+/* [2026-07-11 7차 수정] row-gap을 0으로 껐으니, back-btn 자체의 margin-bottom:24px가
+   버튼 줄과 사진 줄 사이의 유일한 세로 간격원. 원래(수정 전) 있던 24px 그대로 복원. */
 .back-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
 
 /* ── 히어로 영역 ── */
-.person-hero{display:flex;flex-wrap:wrap;gap:32px;margin-bottom:32px;align-items:flex-start}
+/* ⚠️ 2026-07-11 7차 수정: gap:32px가 가로/세로 모두에 적용되면서, hero-line-break가
+   만드는 줄바꿈 지점마다(버튼줄→break줄, break줄→사진줄) 세로 간격이 두 번 겹쳐서
+   64px(원래 의도 32px의 2배)로 벌어지는 버그 발생. row-gap(세로)은 0으로 끄고,
+   column-gap(가로, 사진-정보 사이 간격)만 32px 유지. 세로 간격은 아래 back-btn의
+   margin-bottom으로 한 번만 명시적으로 줌. */
+.person-hero{display:flex;flex-wrap:wrap;gap:0 32px;margin-bottom:32px;align-items:flex-start}
 /* [2026-07-11 5차 수정] mobile-photo-row: PC에서는 display:contents로 완전히
    투명해져서(자기 자신은 레이아웃에 관여 안 함) back-btn/person-photo-wrap이
    person-hero의 직속 flex 아이템처럼 동작 — 기존 PC 모습 그대로 유지됨.
