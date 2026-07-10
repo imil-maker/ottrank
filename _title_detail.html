@@ -1746,10 +1746,12 @@ let _kwActive=null;    // 현재 열려있는 키워드 (같은 거 다시 클�
 let _kwFullList=[];    // 노출 대상 키워드 (최대 10개로 이미 잘라둔 상태)
 let _kwPreviewCache=null; // 서버(works.keyword_preview)가 미리 계산해둔 {keyword, items} — 재클릭 시 재요청 없이 재사용
 let _kwScrollListenerAttached=false; // 화살표 scroll 리스너 중복 부착 방지
+let _kwKoMap={};       // 서버가 내려준 {영문키워드: 한글번역} 매핑 — 화면 표시에만 사용, 검색엔 영문 그대로 씀
 const KW_MAX_TOTAL=10;      // 전체 노출 상한 — 10개 이후는 조합이 이상해서 작품 연결이 잘 안 됨
 const KW_MOBILE_VISIBLE=5;  // 모바일 기본 노출 개수 (더보기로 KW_MAX_TOTAL까지 확장)
 
-function renderKeywordTags(raw){
+function renderKeywordTags(raw,koMap){
+  _kwKoMap=koMap||{};
   const section=document.getElementById('keywordSection');
   const wrap=document.getElementById('keywordTags');
   if(!wrap||!section)return;
@@ -1769,9 +1771,10 @@ function renderKeywordTagList(expanded){
   if(!wrap)return;
   const list=_kwFullList;
   const visible=expanded?list:list.slice(0,KW_MOBILE_VISIBLE);
-  let html=visible.map(k=>
-    `<span class="keyword-tag" data-kw="${k.replace(/"/g,'&quot;')}" onclick="onKeywordTagClick(this)">${k}</span>`
-  ).join('');
+  let html=visible.map(k=>{
+    const label=_kwKoMap[k.toLowerCase()]||k; // 한글 번역 있으면 한글, 없으면 영문 그대로 폴백
+    return `<span class="keyword-tag" data-kw="${k.replace(/"/g,'&quot;')}" onclick="onKeywordTagClick(this)">${_hesc(label)}</span>`;
+  }).join('');
   if(!expanded&&list.length>KW_MOBILE_VISIBLE){
     html+=`<span class="keyword-tag keyword-tag-more" onclick="renderKeywordTagList(true)">+${list.length-KW_MOBILE_VISIBLE}개 더보기</span>`;
   }
@@ -1802,7 +1805,7 @@ function renderKeywordResultItems(kw, items){
   const scrollEl=document.getElementById('keywordResultsScroll');
   if(!resultsWrap||!titleEl||!scrollEl)return;
 
-  titleEl.innerHTML=`관련 <span class="kw-result-hl">${_hesc(kw)}</span> 작품 보기`;
+  titleEl.innerHTML=`관련 <span class="kw-result-hl">${_hesc(_kwKoMap[kw.toLowerCase()]||kw)}</span> 작품 보기`;
   if(!items.length){
     scrollEl.innerHTML=`<div class="keyword-results-empty">관련 작품이 아직 없어요.</div>`;
   }else{
@@ -1855,7 +1858,7 @@ async function onKeywordTagClick(el){
     return;
   }
 
-  document.getElementById('keywordResultsTitle').innerHTML=`관련 <span class="kw-result-hl">${_hesc(kw)}</span> 작품 보기`;
+  document.getElementById('keywordResultsTitle').innerHTML=`관련 <span class="kw-result-hl">${_hesc(_kwKoMap[kw.toLowerCase()]||kw)}</span> 작품 보기`;
   document.getElementById('keywordResultsScroll').innerHTML=`<div class="keyword-results-empty">불러오는 중...</div>`;
   try{
     const items=await fetchKeywordItems(kw);
@@ -2549,7 +2552,7 @@ async function loadTmdb(){
 
     // 키워드 태그 — worksData.keywords는 D1에 미리 수집해둔 콤마구분 영문 키워드
     // '__NONE__'은 "TMDB에 키워드 자체가 없어서 시도했지만 결과 없음" 센티널 → 빈 배열로 취급
-    renderKeywordTags(worksData?.keywords);
+    renderKeywordTags(worksData?.keywords, worksData?.keyword_ko_map);
     // worksData.keyword_preview: Workers가 30일 TTL로 미리 계산해둔 결과
     // → 클릭 없이도 조건(2개 이상) 맞는 첫 키워드를 기본 펼침 상태로 보여줌 (추가 API 호출 없음)
     applyKeywordPreview(worksData?.keyword_preview);
