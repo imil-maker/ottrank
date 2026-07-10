@@ -403,6 +403,34 @@ def translate_titles_to_korean(titles: list[str], platform: str = "") -> dict[st
         print(f"  [Claude] 번역 오류: {type(e).__name__}: {e}")
         return {}
 
+def _infer_netflix_media_type_hint(item: dict) -> str | None:
+    """
+    [2026-07-11 신설] 넷플릭스 카테고리 기반 media_type 힌트
+
+    배경: 넷플릭스는 category07=영화, category08=TV처럼 카테고리 자체가
+    영화/TV를 명확히 분리하고 있고, 이 정보가 item["source_name"]에 이미
+    "Movie"/"TV Show" 키워드로 들어있음(netflix_tudum.py 참고). 그런데
+    기존 TMDB 영어검색 단계는 이 정보를 안 쓰고 무조건 tv→movie 순서로
+    검색하다가, "The Hustle"(영화, 2019)을 tv 검색에서 먼저 찾다가
+    "Romesh: Can't Knock the Hustle"(TV, 제목에 "the hustle" 단어만 겹침)을
+    오매칭하는 사고가 있었음. 정답이 movie 검색에 있었는데 tv 검색에서
+    엉뚱한 후보로 먼저 확정되어 movie 검색 자체를 시도조차 안 한 게 원인.
+
+    이 함수는 넷플릭스에 한해서만 힌트를 제공 — 다른 플랫폼은 카테고리가
+    영화/TV로 깔끔히 안 나뉘는 경우가 많아 적용하지 않음(넷플릭스 전용).
+
+    반환: "tv" / "movie" / None(힌트 없음 — 기존 tv→movie 순서 그대로 사용)
+    """
+    if item.get("platform") != "netflix":
+        return None
+    sn = (item.get("source_name") or "").lower()
+    if "tv show" in sn:
+        return "tv"
+    if "movie" in sn:
+        return "movie"
+    return None
+
+
 def search_tmdb_korean(title_ko: str, title_en: str = "") -> dict | None:
     """
     TMDB 검색으로 작품 매칭 (한글 우선 + 영어 폴백)
@@ -985,8 +1013,19 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
             still_unmatched.append(item)
             continue
 
+        # 넷플릭스 카테고리 힌트 반영 — 확실한 타입(영화/TV)을 알고 있으면
+        # 그것부터 검색해서, 틀린 타입에서 먼저 어설프게 매칭되는 사고 방지.
+        # 힌트 없으면(넷플릭스가 아니거나 카테고리가 섞여있으면) 기존 순서 유지.
+        hint = _infer_netflix_media_type_hint(item)
+        if hint:
+            search_order = [hint] + [mt for mt in ("tv", "movie") if mt != hint]
+            print(f"    [카테고리 힌트] '{title_en}' → source_name='{item.get('source_name')}' "
+                  f"기반 '{hint}' 우선 검색")
+        else:
+            search_order = ["tv", "movie"]
+
         tmdb_data = None
-        for media_type in ["tv", "movie"]:
+        for media_type in search_order:
             result = _search_tmdb_by_title(title_en, media_type, lang="en-US", strict=True)
             if result:
                 tmdb_data = result
