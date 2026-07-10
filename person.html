@@ -537,6 +537,38 @@ async function loadPhotoGallery(personId, imgBase){
   }
 }
 
+/* [2026-07-11 추가] 공유 버튼 클릭 시 현재 페이지 URL을 클립보드에 복사.
+   navigator.clipboard는 HTTPS 환경(오뜨랑은 항상 HTTPS)에서만 동작하므로,
+   혹시 지원 안 되는 구형 브라우저 대비 textarea+execCommand 폴백도 같이 둠. */
+function shareProfile(){
+  const url = location.href;
+  const btn = document.getElementById('personShareBtn');
+
+  const showCopied = () => {
+    if(!btn) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    setTimeout(() => { btn.innerHTML = original; }, 1500);
+  };
+
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(showCopied).catch(() => fallbackCopy(url, showCopied));
+  } else {
+    fallbackCopy(url, showCopied);
+  }
+}
+
+function fallbackCopy(text, onDone){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); onDone(); }catch(e){ /* 복사 실패해도 조용히 무시 */ }
+  document.body.removeChild(ta);
+}
+
 async function initPage(){
   if(!personId){
     document.getElementById('pageLoading').innerHTML =
@@ -631,23 +663,30 @@ async function initPage(){
     /* ⑥ SNS/외부링크 — 이름 옆 아이콘들로 표시
        [2026-07-11 확장] 기존엔 Instagram만 표시했는데, 이미 호출 중인 external_ids /
        person 응답 안에 Twitter·TikTok·홈페이지 정보가 같이 들어있어서(추가 API 호출 없음)
-       같이 노출하도록 확장 */
+       같이 노출하도록 확장. 홈페이지 링크는 공유 버튼으로 교체(2026-07-11) */
     const ext = data.external_ids || {};
     const socialLinks = [];
     if(ext.instagram_id) socialLinks.push({ url:`https://www.instagram.com/${ext.instagram_id}/`, label:`Instagram @${ext.instagram_id}`, icon:'/img/instagram.png' });
     if(ext.twitter_id)   socialLinks.push({ url:`https://x.com/${ext.twitter_id}/`, label:`X(Twitter) @${ext.twitter_id}`, icon:'/img/twitter.png' });
     if(ext.tiktok_id)    socialLinks.push({ url:`https://www.tiktok.com/@${ext.tiktok_id}`, label:`TikTok @${ext.tiktok_id}`, icon:'/img/tiktok.png' });
-    if(data.homepage)    socialLinks.push({ url:data.homepage, label:'공식 홈페이지', icon:'/img/link.png' });
 
-    if(socialLinks.length){
-      const nameEl = document.getElementById('personName');
-      const iconsHtml = socialLinks.map(s => `<a class="person-social-icon"
+    // [2026-07-11 추가] 공유 버튼 — 아이콘 파일(/img/link.png) 의존성 없는 인라인 SVG,
+    // 항상 표시(SNS 데이터 유무와 무관). 클릭 시 클립보드 복사 + 잠깐 체크 아이콘으로 피드백.
+    const shareIconHtml = `<a class="person-social-icon" id="personShareBtn"
+        href="javascript:void(0)" title="페이지 링크 복사" onclick="event.stopPropagation();shareProfile()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.6" y1="10.5" x2="15.4" y2="6.5"></line><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line>
+        </svg>
+      </a>`;
+
+    const nameEl = document.getElementById('personName');
+    const iconsHtml = socialLinks.map(s => `<a class="person-social-icon"
         href="${s.url}" target="_blank" rel="noopener" title="${s.label}"
         onclick="event.stopPropagation()">
         <img src="${s.icon}" alt="${s.label}" onerror="this.style.display='none';this.parentElement.textContent='🔗'">
       </a>`).join('');
-      nameEl.innerHTML = nameEl.textContent + `<span class="person-social-row">${iconsHtml}</span>`;
-    }
+    nameEl.innerHTML = nameEl.textContent + `<span class="person-social-row">${iconsHtml}${shareIconHtml}</span>`;
 
     /* ⑦ SEO */
     const profileImgUrl = data.profile_path
