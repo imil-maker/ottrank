@@ -67,28 +67,36 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .person-photo-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   font-size:56px;font-weight:700;color:var(--info);font-family:var(--font-mono)}
 
-/* 인스타 아이콘 — 이름 옆 인라인 */
-.person-insta-icon{display:inline-flex;align-items:center;margin-left:8px;
-  opacity:.75;transition:opacity .15s;vertical-align:middle;text-decoration:none;
-  position:relative;top:-3px}
-.person-insta-icon:hover{opacity:1}
-.person-insta-icon img{width:48px;height:48px;border-radius:12px;display:block}
-
-/* [2026-07-11 추가] SNS 아이콘 여러 개 — 이름 옆에 나란히 (인스타 외 트위터 등) */
+/* [2026-07-11 재수정] SNS 아이콘 — 박스/배경/패딩으로 만들었던 버전은 관리자님
+   피드백으로 폐기. 원래 인스타 아이콘(.person-insta-icon)이 박스 없이 이미지
+   자체가 꽉 차게 나오던 방식이 더 낫다는 판단 → 그 스타일을 여러 개(인스타/트위터/
+   틱톡)에도 동일하게 적용하도록 일반화. */
 .person-social-row{display:inline-flex;gap:8px;margin-left:10px;vertical-align:middle;
   position:relative;top:-3px}
-.person-social-icon{display:inline-flex;align-items:center;justify-content:center;
-  width:56px;height:56px;border-radius:14px;background:var(--bg3);
-  border:.5px solid var(--border);opacity:.85;transition:all .15s;text-decoration:none;
-  color:var(--muted2);font-size:14px;cursor:pointer}
-.person-social-icon:hover{opacity:1;border-color:var(--border2);background:var(--bg2)}
-/* ⚠️ 2026-07-11 수정: img 크기 규칙이 누락되어 있었음 — 아이콘 원본 이미지가
-   크기 제한 없이 그대로 렌더링되면서 화면 전체를 뒤덮는 버그 발생. 반드시 지정할 것.
-   (2차 수정: 18px→28px, 3차 수정: 여전히 작다는 피드백으로 28px→36px, 박스도 44px→56px) */
-.person-social-icon img{width:36px;height:36px;display:block;object-fit:contain}
-/* [2026-07-11 추가] 공유 버튼 아이콘(SVG, 이미지 파일 의존성 없음) */
-.person-social-icon svg{width:24px;height:24px;stroke:var(--muted2);transition:stroke .15s}
-.person-social-icon:hover svg{stroke:var(--text)}
+.person-social-icon{display:inline-flex;align-items:center;opacity:.75;
+  transition:opacity .15s;text-decoration:none}
+.person-social-icon:hover{opacity:1}
+.person-social-icon img{width:48px;height:48px;border-radius:12px;display:block}
+
+/* [2026-07-11 재수정] 공유 버튼 — my_review.html의 "공유하기" 태그(.share-tag)를
+   그대로 참조. 정체를 알 수 없는 아이콘 하나만 덩그러니 있던 버전은 폐기하고,
+   무엇을 하는 버튼인지 텍스트로 바로 보이게 함. 위치도 이름 아래 별도 줄로 배치. */
+.person-share-row{margin-top:10px}
+.share-tag{
+  font-size:12px;padding:5px 12px;border-radius:14px;
+  background:rgba(240,180,41,.18);color:var(--gold);border:.5px solid rgba(240,180,41,.4);
+  cursor:pointer;font-family:var(--font-sans);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s;
+}
+.share-tag:hover{background:rgba(240,180,41,.28)}
+
+/* [2026-07-11 추가] 토스트 알림 — my_review.html과 동일한 스타일/동작 재사용 */
+.toast{position:fixed;top:150px;left:50%;transform:translateX(-50%);
+  background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;
+  border-radius:22px;z-index:9999;opacity:0;pointer-events:none;
+  transition:opacity .25s;font-family:var(--font-mono);word-break:keep-all}
+.toast.show{opacity:1}
 
 /* [2026-07-11 추가] 랭킹 배지 — 필모그래피 카드에 지금 랭킹에 있으면 표시 */
 .work-rank-badge{display:none;align-items:center;gap:3px;position:absolute;
@@ -245,9 +253,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
 
     <div class="person-info">
-      <!-- 이름 + 인스타 아이콘 (JS에서 instaId 있을 때 추가) -->
+      <!-- 이름 + SNS 아이콘 (JS에서 있을 때 추가) -->
       <div class="person-name" id="personName">—</div>
       <div class="person-name-en" id="personNameEn"></div>
+      <!-- [2026-07-11 추가] 공유하기 태그 (my_review.html 패턴 참조) -->
+      <div class="person-share-row">
+        <button class="share-tag" id="shareBtn" onclick="shareProfile()">🔗 공유하기</button>
+      </div>
       <div class="person-meta-row" id="personMetaRow"></div>
       <div class="bio-section">
         <div class="bio-text" id="bioText"></div>
@@ -285,6 +297,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   </div>
 
 </div><!-- /page-wrap -->
+
+<!-- [2026-07-11 추가] 공유하기 토스트 알림 (my_review.html과 동일 패턴) -->
+<div class="toast" id="toast"></div>
 
 <script>
 /* ── 상수 ── */
@@ -537,36 +552,39 @@ async function loadPhotoGallery(personId, imgBase){
   }
 }
 
-/* [2026-07-11 추가] 공유 버튼 클릭 시 현재 페이지 URL을 클립보드에 복사.
+/* [2026-07-11 재수정] 공유 버튼 클릭 시 현재 페이지 URL을 클립보드에 복사.
+   my_review.html의 shareCurrentPage()/showToast() 패턴 그대로 재사용 —
+   버튼 자체가 바뀌는(아이콘 스왑) 방식 대신, 화면 중앙 상단에 토스트 메시지로 안내.
    navigator.clipboard는 HTTPS 환경(오뜨랑은 항상 HTTPS)에서만 동작하므로,
    혹시 지원 안 되는 구형 브라우저 대비 textarea+execCommand 폴백도 같이 둠. */
-function shareProfile(){
+async function shareProfile(){
   const url = location.href;
-  const btn = document.getElementById('personShareBtn');
-
-  const showCopied = () => {
-    if(!btn) return;
-    const original = btn.innerHTML;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-    setTimeout(() => { btn.innerHTML = original; }, 1500);
-  };
-
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(url).then(showCopied).catch(() => fallbackCopy(url, showCopied));
-  } else {
-    fallbackCopy(url, showCopied);
+  try{
+    await navigator.clipboard.writeText(url);
+  }catch(e){
+    fallbackCopy(url);
   }
+  showToast('이 페이지 주소가 복사되었습니다.');
 }
 
-function fallbackCopy(text, onDone){
+function fallbackCopy(text){
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.style.position = 'fixed';
   ta.style.opacity = '0';
   document.body.appendChild(ta);
   ta.select();
-  try{ document.execCommand('copy'); onDone(); }catch(e){ /* 복사 실패해도 조용히 무시 */ }
+  try{ document.execCommand('copy'); }catch(e){ /* 복사 실패해도 조용히 무시 */ }
   document.body.removeChild(ta);
+}
+
+/* [2026-07-11 추가] my_review.html과 동일한 토스트 알림 함수 */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  if(!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
 }
 
 async function initPage(){
@@ -660,33 +678,25 @@ async function initPage(){
       bioEl.textContent = '약력 정보가 없습니다.';
     }
 
-    /* ⑥ SNS/외부링크 — 이름 옆 아이콘들로 표시
-       [2026-07-11 확장] 기존엔 Instagram만 표시했는데, 이미 호출 중인 external_ids /
-       person 응답 안에 Twitter·TikTok·홈페이지 정보가 같이 들어있어서(추가 API 호출 없음)
-       같이 노출하도록 확장. 홈페이지 링크는 공유 버튼으로 교체(2026-07-11) */
+    /* ⑥ SNS 아이콘 — 이름 옆에 원본 인스타 아이콘과 동일한 스타일(박스 없음)로 표시
+       [2026-07-11 확장] 기존엔 Instagram만 표시했는데, 이미 호출 중인 external_ids
+       안에 Twitter·TikTok 정보도 같이 들어있어서(추가 API 호출 없음) 같이 노출.
+       공유 버튼은 이제 정적 HTML(#shareBtn)로 항상 표시되므로 여기서 안 만듦. */
     const ext = data.external_ids || {};
     const socialLinks = [];
     if(ext.instagram_id) socialLinks.push({ url:`https://www.instagram.com/${ext.instagram_id}/`, label:`Instagram @${ext.instagram_id}`, icon:'/img/instagram.png' });
     if(ext.twitter_id)   socialLinks.push({ url:`https://x.com/${ext.twitter_id}/`, label:`X(Twitter) @${ext.twitter_id}`, icon:'/img/twitter.png' });
     if(ext.tiktok_id)    socialLinks.push({ url:`https://www.tiktok.com/@${ext.tiktok_id}`, label:`TikTok @${ext.tiktok_id}`, icon:'/img/tiktok.png' });
 
-    // [2026-07-11 추가] 공유 버튼 — 아이콘 파일(/img/link.png) 의존성 없는 인라인 SVG,
-    // 항상 표시(SNS 데이터 유무와 무관). 클릭 시 클립보드 복사 + 잠깐 체크 아이콘으로 피드백.
-    const shareIconHtml = `<a class="person-social-icon" id="personShareBtn"
-        href="javascript:void(0)" title="페이지 링크 복사" onclick="event.stopPropagation();shareProfile()">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
-          <line x1="8.6" y1="10.5" x2="15.4" y2="6.5"></line><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line>
-        </svg>
-      </a>`;
-
-    const nameEl = document.getElementById('personName');
-    const iconsHtml = socialLinks.map(s => `<a class="person-social-icon"
+    if(socialLinks.length){
+      const nameEl = document.getElementById('personName');
+      const iconsHtml = socialLinks.map(s => `<a class="person-social-icon"
         href="${s.url}" target="_blank" rel="noopener" title="${s.label}"
         onclick="event.stopPropagation()">
-        <img src="${s.icon}" alt="${s.label}" onerror="this.style.display='none';this.parentElement.textContent='🔗'">
+        <img src="${s.icon}" alt="${s.label}" onerror="this.style.display='none'">
       </a>`).join('');
-    nameEl.innerHTML = nameEl.textContent + `<span class="person-social-row">${iconsHtml}${shareIconHtml}</span>`;
+      nameEl.innerHTML = nameEl.textContent + `<span class="person-social-row">${iconsHtml}</span>`;
+    }
 
     /* ⑦ SEO */
     const profileImgUrl = data.profile_path
