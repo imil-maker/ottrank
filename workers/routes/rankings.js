@@ -7,6 +7,7 @@
    GET  /rankings/monthly
    GET  /rankings/history
    GET  /rankings/platforms/:tmdb_id
+   GET  /rankings/platforms-batch?tmdb_ids=1,2,3   ← person.html 필모그래피 배치조회(2026-07-11 신설)
    GET  /rankings/manual/:tmdb_id
    GET  /latest-date
    GET  /platforms
@@ -466,6 +467,55 @@ export async function handleRankings(path, request, env, url, headers) {
         ORDER BY rank ASC
       `).bind(tmdb_id).all();
       return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /rankings/platforms-batch?tmdb_ids=1,2,3,... ─────────
+  // [2026-07-11 신설] person.html 필모그래피용 — 여러 작품이 각각 지금
+  // 랭킹에 있는지 한 번에 확인. 위 /rankings/platforms/:tmdb_id(단건)를
+  // 화면에 보이는 작품 수(수십~수백 개)만큼 반복 호출하면 인물페이지
+  // 방문마다 요청이 폭증하므로(N+1), IN절로 한 번에 묶어서 조회.
+  // ⚠️ 경로를 /rankings/platforms/ 뒤에 이어붙이지 않고 /rankings/platforms-batch로
+  // 완전히 분리 — 위 startsWith("/rankings/platforms/") 라우팅과 접두사가 겹치면
+  // 이 요청이 먼저 그쪽으로 잘못 매칭될 수 있어(라우팅 순서 버그 재발 방지) 의도적으로 분리함.
+  // 프론트(person.html)는 필모그래피 전체가 아니라 "지금 화면에 렌더링된 카드 목록"만
+  // (더보기 클릭 시 그 페이지 분량만) 보내도록 설계 — 호출당 항상 수십 개 이내로 작게 유지.
+  if (path === "/rankings/platforms-batch" && request.method === "GET") {
+    const raw = (url.searchParams.get("tmdb_ids") || "").trim();
+    if (!raw) {
+      return new Response(JSON.stringify({ ok: false, message: "tmdb_ids required" }), { status: 400, headers });
+    }
+
+    // 정수만 걸러내고, 한 번에 최대 50개까지만 허용 (person.html은 24개씩 보내는 게 정상 사용 패턴)
+    const tmdbIds = [...new Set(
+      raw.split(",").map(s => parseInt(s.trim())).filter(n => Number.isInteger(n) && n > 0)
+    )].slice(0, 50);
+
+    if (!tmdbIds.length) {
+      return new Response(JSON.stringify({ ok: false, message: "유효한 tmdb_ids가 없습니다" }), { status: 400, headers });
+    }
+
+    try {
+      const placeholders = tmdbIds.map(() => "?").join(",");
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, platform, MIN(rank) as rank
+        FROM rankings
+        WHERE tmdb_id IN (${placeholders})
+          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+        GROUP BY tmdb_id, platform
+        ORDER BY tmdb_id, rank ASC
+      `).bind(...tmdbIds).all();
+
+      // 프론트에서 바로 쓰기 좋게 { tmdb_id: [{platform, rank}, ...] } 형태로 묶어서 반환
+      const data = {};
+      for (const row of results) {
+        if (!data[row.tmdb_id]) data[row.tmdb_id] = [];
+        data[row.tmdb_id].push({ platform: row.platform, rank: row.rank });
+      }
+
+      return new Response(JSON.stringify({ ok: true, data }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
