@@ -734,20 +734,25 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             // 키워드 최대 10개를 env.DB.batch()로 한 번에 조회 (Workers 호출 1건, D1 트랜잭션 1번)
             // 2026-07-09: 풀스캔 LIKE(LOWER(keywords) LIKE '%,kw,%') → work_keywords 정규화 테이블
             // 색인(idx_work_keywords_keyword) 조회로 교체. 자기 자신 제외는 그대로 SQL에서 처리.
+            // 2026-07-10: /search/keyword(클릭 시 검색)와 동일한 원칙으로 한국 작품 우선 정렬 추가
+            //   (원어 정보 없는 구작은 CASE 분기상 외국작품과 함께 뒤로 밀림 — 의도된 동작)
             const statements = kwList.map(kw =>
               env.DB.prepare(`
-                SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path
+                SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.original_language, w.tmdb_rating
                 FROM work_keywords wk
                 JOIN works w ON w.tmdb_id = wk.tmdb_id
                 WHERE wk.keyword = ?
                   AND wk.tmdb_id != ?
+                ORDER BY
+                  CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
+                  w.tmdb_rating DESC
                 LIMIT 20
               `).bind(kw.toLowerCase(), parseInt(tmdb_id))
             );
             const batchResults = await env.DB.batch(statements);
             for (let i = 0; i < kwList.length; i++) {
               const rows = batchResults[i]?.results || [];
-              if (rows.length >= 2) {           // 관련 작품이 2개 이상인 첫 키워드를 채택
+              if (rows.length >= 3) {           // 관련 작품이 3개 이상인 첫 키워드를 채택
                 preview = { keyword: kwList[i], items: rows };
                 break;
               }
