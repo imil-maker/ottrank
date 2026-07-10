@@ -34,6 +34,8 @@
    POST   /admin/keywords/translate                  ← 영→한 키워드 AI 초벌 번역 (Claude Haiku)
    GET    /admin/keywords/review                     ← 키워드 번역 검토 대기(source='auto') 목록
    POST   /admin/keywords/review                     ← 키워드 번역 관리자 확정 저장(source='admin')
+   GET    /admin/keywords/search                     ← 키워드 en/ko 검색 (오탐 발견 시 수동 수정용)
+   POST   /admin/keywords/update                      ← 특정 키워드 한글 번역 개별 수정
    POST   /admin/works/discover-collect
    POST   /admin/works/classify-variety
    GET    /admin/variety-genre-options
@@ -1583,6 +1585,66 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, updated: valid.length, remaining: remainRow?.cnt || 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/keywords/search ──────────────────────────────
+  // admin_videos.html "④ 키워드 검색/수정"용 — 영문(keyword_en) 또는 한글(keyword_ko)에
+  // 검색어가 포함된 항목 조회. 서로 다른 영문이 같은 한글로 번역돼 중복 노출되는 것 같은
+  // 오탐을 발견했을 때 수동으로 찾아 고치는 용도.
+  // keyword_translation은 규모가 작은 테이블(~4,500행)이라 LIKE 풀스캔도 부담 없음
+  // (관리자가 가끔 수동 호출하는 용도라 트래픽상으로도 문제 없음).
+  if (path === "/admin/keywords/search" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: false, message: "검색어(q)가 필요해요" }), { status: 400, headers });
+      }
+      const like = `%${q}%`;
+      const { results: items } = await env.DB.prepare(`
+        SELECT id, keyword_en, keyword_ko, source
+        FROM keyword_translation
+        WHERE keyword_en LIKE ? OR keyword_ko LIKE ?
+        ORDER BY keyword_en ASC
+        LIMIT 50
+      `).bind(like, like).all();
+
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/keywords/update ─────────────────────────────
+  // 검색 결과에서 개별 키워드의 한글 번역만 수정. source는 항상 'admin'으로 고정
+  // (검토 대기 중이던 항목을 여기서 먼저 고쳐도 확정 처리되도록).
+  // 주의: 이 API로 수정해도 이미 캐싱된 작품페이지(keyword_ko_map, 5~100일 TTL)엔
+  // 즉시 반영 안 됨 — 특정 작품에 바로 반영하려면 어드민 화면 ③번 SQL로 그 작품 캐시를 초기화할 것.
+  if (path === "/admin/keywords/update" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const keyword_en = (body.keyword_en || "").trim();
+      const keyword_ko = (body.keyword_ko || "").trim();
+      if (!keyword_en || !keyword_ko) {
+        return new Response(JSON.stringify({ ok: false, message: "keyword_en, keyword_ko 모두 필요해요" }), { status: 400, headers });
+      }
+      const result = await env.DB.prepare(
+        "UPDATE keyword_translation SET keyword_ko = ?, source = 'admin' WHERE keyword_en = ?"
+      ).bind(keyword_ko, keyword_en).run();
+
+      if (!result.meta || result.meta.changes === 0) {
+        return new Response(JSON.stringify({ ok: false, message: "해당 keyword_en을 찾지 못했어요" }), { status: 404, headers });
+      }
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
