@@ -82,6 +82,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   border:.5px solid var(--border);opacity:.85;transition:all .15s;text-decoration:none;
   color:var(--muted2);font-size:14px}
 .person-social-icon:hover{opacity:1;border-color:var(--border2);background:var(--bg2)}
+/* ⚠️ 2026-07-11 수정: img 크기 규칙이 누락되어 있었음 — 아이콘 원본 이미지가
+   크기 제한 없이 그대로 렌더링되면서 화면 전체를 뒤덮는 버그 발생. 반드시 지정할 것. */
+.person-social-icon img{width:18px;height:18px;display:block;object-fit:contain}
 
 /* [2026-07-11 추가] 랭킹 배지 — 필모그래피 카드에 지금 랭킹에 있으면 표시 */
 .work-rank-badge{display:none;align-items:center;gap:3px;position:absolute;
@@ -334,12 +337,24 @@ function currentList(){
   return allCredits;
 }
 
+/* [2026-07-11 추가] HTML 이스케이프 — 작품 제목/배역명에 특수문자(따옴표, <, > 등)가
+   섞여 있으면 카드 HTML 구조가 깨져서 레이아웃이 이상해질 수 있어 방어적으로 처리.
+   기존엔 data-title 속성만 따옴표 이스케이프하고 있었고, 화면에 실제 보이는
+   텍스트(work-title, work-role, alt)는 그대로 넣고 있었음. */
+function escHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;',
+  }[ch]));
+}
+
 /* ── 작품 카드 HTML ── */
 function workCardHtml(item){
-  const title    = item.title || item.name || '제목 없음';
+  const titleRaw = item.title || item.name || '제목 없음';
+  const roleRaw  = item.character || item.job || '';
+  const title    = escHtml(titleRaw);
+  const role     = escHtml(roleRaw);
   const year     = (item.release_date||item.first_air_date||'').slice(0,4);
   const mediaType= item.media_type || 'tv';
-  const role     = item.character || item.job || '';
   const poster   = item.poster_path
     ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
     : `<div class="work-poster-ph">🎬</div>`;
@@ -347,7 +362,7 @@ function workCardHtml(item){
   const badgeId = `rankBadge-${item.id}-${mediaType}`;
   return `
     <a class="work-card" data-tmdb="${item.id}" data-type="${mediaType}"
-       data-title="${title.replace(/"/g,'&quot;')}" onclick="goWork(this)">
+       data-title="${title}" onclick="goWork(this)">
       <div class="work-poster">
         ${poster}
         ${year?`<span class="work-year-badge">${year}</span>`:''}
