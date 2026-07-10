@@ -213,13 +213,25 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
     _copy_pinned_to_today(pinned)
 
     # ── STEP 3. 로컬 크롤링 결과 조회 ─────────────────────────
+    # ⚠️ 2026-07-11 수정: poster_path를 works 테이블에서 우선 가져오도록 변경
+    # 기존엔 그날 크롤링이 직접 찾은 r.poster_path를 그대로 썼는데, 크롤링이
+    # tmdb_id 매칭은 성공했지만 포스터만 못 찾은 경우(가끔 발생) rankings에
+    # NULL로 저장되고, 관리자가 works에서 수동으로 포스터를 채워도 다음
+    # 크롤링 때 INSERT OR REPLACE로 다시 통째로 덮어써서 사라지는 문제가 있었음.
+    # works는 daily_crawl.yml의 "D1 → 로컬 동기화" 단계에서 이미 로컬에
+    # 최신 상태로 내려와 있으므로, 추가 D1 요청 없이 로컬 JOIN만으로 해결
+    # 가능. works.poster_path가 있으면 그걸 우선 쓰고, 없을 때만(신규 작품 등)
+    # 그날 크롤링 값으로 폴백.
     rows = conn.execute("""
         SELECT r.date, r.platform, r.category, r.category_slot, r.source_name, r.rank,
-               r.title_ko, r.title_en, r.score, r.tmdb_id, r.poster_path,
+               r.title_ko, r.title_en, r.score, r.tmdb_id,
+               COALESCE(w.poster_path, r.poster_path) AS poster_path,
                r.genre, r.overview, r.release_year, r.tmdb_rating, r.is_manual
         FROM rankings r
         LEFT JOIN ott_categories oc
             ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+        LEFT JOIN works w
+            ON r.tmdb_id = w.tmdb_id
         WHERE r.date = ?
         AND (oc.is_active IS NULL OR oc.is_active = 1)
         ORDER BY r.platform, r.category_slot, r.rank
