@@ -74,6 +74,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .person-insta-icon:hover{opacity:1}
 .person-insta-icon img{width:48px;height:48px;border-radius:12px;display:block}
 
+/* [2026-07-11 추가] SNS 아이콘 여러 개 — 이름 옆에 나란히 (인스타 외 트위터/홈페이지 등) */
+.person-social-row{display:inline-flex;gap:6px;margin-left:8px;vertical-align:middle;
+  position:relative;top:-3px}
+.person-social-icon{display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;border-radius:9px;background:var(--bg3);
+  border:.5px solid var(--border);opacity:.85;transition:all .15s;text-decoration:none;
+  color:var(--muted2);font-size:14px}
+.person-social-icon:hover{opacity:1;border-color:var(--border2);background:var(--bg2)}
+
+/* [2026-07-11 추가] 랭킹 배지 — 필모그래피 카드에 지금 랭킹에 있으면 표시 */
+.work-rank-badge{display:none;align-items:center;gap:3px;position:absolute;
+  bottom:6px;left:6px;background:rgba(230,57,70,.92);color:#fff;
+  font-size:10px;font-weight:700;font-family:var(--font-mono);
+  padding:3px 7px;border-radius:5px;backdrop-filter:blur(4px);
+  box-shadow:0 2px 8px rgba(0,0,0,.4)}
+
+/* [2026-07-11 추가] 대표작(인기순) 섹션 — 가로 스크롤 */
+.known-for-section{margin-top:8px}
+.known-for-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+.known-for-row::-webkit-scrollbar{height:6px}
+.known-for-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.known-for-row .work-card{flex:0 0 120px}
+
+/* [2026-07-11 추가] 사진 갤러리 */
+.photo-gallery-section{margin-top:24px}
+.photo-gallery-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+.photo-gallery-row::-webkit-scrollbar{height:6px}
+.photo-gallery-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.photo-gallery-thumb{flex:0 0 90px;aspect-ratio:2/3;border-radius:8px;overflow:hidden;
+  border:1px solid var(--border);cursor:pointer;background:var(--bg3);transition:border-color .15s}
+.photo-gallery-thumb:hover{border-color:var(--info)}
+.photo-gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
 /* ── 인물 정보 ── */
 .person-info{flex:1;min-width:0}
 .person-name{font-size:34px;font-weight:900;line-height:1.1;letter-spacing:-.5px;margin-bottom:4px}
@@ -212,6 +245,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
+  <!-- [2026-07-11 추가] 사진 갤러리 -->
+  <div id="photoGallerySection" class="photo-gallery-section" style="display:none">
+    <div class="section-title">📷 사진</div>
+    <div class="photo-gallery-row" id="photoGalleryRow"></div>
+  </div>
+
+  <!-- [2026-07-11 추가] 대표작(인기순 강조) -->
+  <div id="knownForSection" class="known-for-section" style="display:none">
+    <div class="section-title">🌟 대표작</div>
+    <div class="known-for-row" id="knownForRow"></div>
+  </div>
+
   <!-- 필모그래피 -->
   <div id="filmographySection" class="filmography-section" style="display:none">
     <div class="section-title">
@@ -233,8 +278,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <script>
 /* ── 상수 ── */
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const OTTRANK_API = 'https://ottrank-api.tdidream.workers.dev'; // [2026-07-11 추가] 랭킹배지 조회용
 const IMG        = 'https://image.tmdb.org/t/p/w500';
 const IMG_PROFILE= 'https://image.tmdb.org/t/p/w342';
+
+/* [2026-07-11 추가] 플랫폼 코드 → 한글 라벨 (랭킹 배지용) */
+const PLATFORM_LABELS = {
+  netflix:'넷플릭스', tving:'티빙', disney:'디즈니+',
+  wavve:'웨이브', coupang:'쿠팡플레이', boxoffice:'박스오피스',
+};
+
+/* [2026-07-11 추가] 랭킹 배지 캐시 — tmdb_id별로 한 번만 조회 (더보기 클릭마다 중복조회 방지) */
+let rankBadgeCache = {};
 
 /* ── URL 파라미터 ── */
 // Pages Function(/person/[id])에서 주입한 __PERSON_ID__ 우선,
@@ -288,12 +343,15 @@ function workCardHtml(item){
   const poster   = item.poster_path
     ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
     : `<div class="work-poster-ph">🎬</div>`;
+  // [2026-07-11 추가] 랭킹 배지 placeholder — loadRankBadges()가 데이터 도착 후 채움
+  const badgeId = `rankBadge-${item.id}-${mediaType}`;
   return `
     <a class="work-card" data-tmdb="${item.id}" data-type="${mediaType}"
        data-title="${title.replace(/"/g,'&quot;')}" onclick="goWork(this)">
       <div class="work-poster">
         ${poster}
         ${year?`<span class="work-year-badge">${year}</span>`:''}
+        <span class="work-rank-badge" id="${badgeId}"></span>
       </div>
       <div class="work-title">${title}</div>
       <div class="work-role">
@@ -311,6 +369,42 @@ function renderWorks(){
   shownCount   = slice.length;
   grid.innerHTML = slice.map(workCardHtml).join('');
   moreBtn.style.display = shownCount < list.length ? 'block' : 'none';
+  loadRankBadges(slice); // [2026-07-11 추가] 화면에 보이는 카드만 배지 조회 (더보기 시 새로 늘어난 만큼만 실제 요청됨 — 캐시 재사용)
+}
+
+/* [2026-07-11 추가] 랭킹 배지 로드 — 화면에 보이는 카드들의 tmdb_id를 모아 한 번에 조회
+   /rankings/platforms-batch는 한 번에 최대 50개까지만 받으므로, 이미 캐시된 것은 제외하고
+   요청 — "더보기" 클릭 시에도 새로 추가된 24개 정도만 실제로 네트워크 요청이 나감. */
+async function loadRankBadges(items){
+  const uncachedIds = [...new Set(
+    items.filter(it => !(it.id in rankBadgeCache)).map(it => it.id)
+  )];
+
+  if(uncachedIds.length){
+    try{
+      const res  = await fetch(`${OTTRANK_API}/rankings/platforms-batch?tmdb_ids=${uncachedIds.join(',')}`);
+      const json = await res.json();
+      if(json.ok){
+        uncachedIds.forEach(id => { rankBadgeCache[id] = json.data[id] || null; });
+      }
+    }catch(e){
+      // 배지 조회 실패해도 페이지 본 기능(필모그래피 표시)엔 영향 없게 조용히 무시
+      uncachedIds.forEach(id => { rankBadgeCache[id] = null; });
+    }
+  }
+
+  // 캐시 기준으로 이번에 렌더된 카드들에 배지 적용
+  items.forEach(item => {
+    const badges = rankBadgeCache[item.id];
+    if(!badges || !badges.length) return;
+    const best = badges.reduce((a,b) => a.rank < b.rank ? a : b); // 여러 플랫폼이면 순위 가장 높은 것 하나만
+    const el = document.getElementById(`rankBadge-${item.id}-${item.media_type||'tv'}`);
+    if(el){
+      const label = PLATFORM_LABELS[best.platform] || best.platform;
+      el.textContent = `🔥 ${label} ${best.rank}위`;
+      el.style.display = 'inline-flex';
+    }
+  });
 }
 
 /* ── 더보기 ── */
@@ -397,6 +491,28 @@ function updateSEO(name, desc, imgUrl, jobLabel, instaId){
 }
 
 /* ── 메인 초기화 ── */
+/* [2026-07-11 추가] 사진 갤러리 로드 — TMDB /person/{id}/images 추가 호출 1개
+   메인 initPage 흐름과 분리된 fire-and-forget 호출이라, 이게 느리거나 실패해도
+   나머지 페이지 렌더링(이름/필모그래피 등)엔 전혀 영향 없음. */
+async function loadPhotoGallery(personId, imgBase){
+  try{
+    const res  = await fetch(`${TMDB_PROXY}/person/${personId}/images`);
+    const data = await res.json();
+    const profiles = (data.profiles || []).slice(0, 10);
+    if(!profiles.length) return;
+
+    const row = document.getElementById('photoGalleryRow');
+    row.innerHTML = profiles.map(p => `
+      <div class="photo-gallery-thumb" onclick="document.getElementById('personPhoto').innerHTML='<img src=&quot;${imgBase}${p.file_path}&quot; alt=&quot;사진&quot;>'">
+        <img src="${imgBase}${p.file_path}" alt="사진" loading="lazy">
+      </div>
+    `).join('');
+    document.getElementById('photoGallerySection').style.display = 'block';
+  }catch(e){
+    // 갤러리는 부가 기능 — 실패해도 조용히 무시 (메인 페이지 기능에 영향 없음)
+  }
+}
+
 async function initPage(){
   if(!personId){
     document.getElementById('pageLoading').innerHTML =
@@ -462,6 +578,9 @@ async function initPage(){
     }
     document.getElementById('personMetaRow').innerHTML = chips.join('');
 
+    /* [2026-07-11 추가] 사진 갤러리 — 메인 흐름을 안 막게 await 없이 별도 호출 */
+    loadPhotoGallery(personId, IMG_PROFILE);
+
     /* ⑤ 약력 — ko-KR 없으면 영어 fallback */
     let bio = data.biography || '';
     if(!bio){
@@ -485,18 +604,25 @@ async function initPage(){
       bioEl.textContent = '약력 정보가 없습니다.';
     }
 
-    /* ⑥ 인스타그램 — 이름 옆 아이콘으로 표시 */
-    const instaId = data.external_ids?.instagram_id;
-    if(instaId){
+    /* ⑥ SNS/외부링크 — 이름 옆 아이콘들로 표시
+       [2026-07-11 확장] 기존엔 Instagram만 표시했는데, 이미 호출 중인 external_ids /
+       person 응답 안에 Twitter·TikTok·홈페이지 정보가 같이 들어있어서(추가 API 호출 없음)
+       같이 노출하도록 확장 */
+    const ext = data.external_ids || {};
+    const socialLinks = [];
+    if(ext.instagram_id) socialLinks.push({ url:`https://www.instagram.com/${ext.instagram_id}/`, label:`Instagram @${ext.instagram_id}`, icon:'/img/instagram.png' });
+    if(ext.twitter_id)   socialLinks.push({ url:`https://x.com/${ext.twitter_id}/`, label:`X(Twitter) @${ext.twitter_id}`, icon:'/img/twitter.png' });
+    if(ext.tiktok_id)    socialLinks.push({ url:`https://www.tiktok.com/@${ext.tiktok_id}`, label:`TikTok @${ext.tiktok_id}`, icon:'/img/tiktok.png' });
+    if(data.homepage)    socialLinks.push({ url:data.homepage, label:'공식 홈페이지', icon:'/img/link.png' });
+
+    if(socialLinks.length){
       const nameEl = document.getElementById('personName');
-      const iconHtml = `<a class="person-insta-icon"
-        href="https://www.instagram.com/${instaId}/"
-        target="_blank" rel="noopener"
-        title="Instagram @${instaId}"
+      const iconsHtml = socialLinks.map(s => `<a class="person-social-icon"
+        href="${s.url}" target="_blank" rel="noopener" title="${s.label}"
         onclick="event.stopPropagation()">
-        <img src="/img/instagram.png" alt="Instagram">
-      </a>`;
-      nameEl.innerHTML = nameEl.textContent + iconHtml;
+        <img src="${s.icon}" alt="${s.label}" onerror="this.style.display='none';this.parentElement.textContent='🔗'">
+      </a>`).join('');
+      nameEl.innerHTML = nameEl.textContent + `<span class="person-social-row">${iconsHtml}</span>`;
     }
 
     /* ⑦ SEO */
@@ -506,7 +632,7 @@ async function initPage(){
     const seoDesc = bio
       ? bio.slice(0, 120).replace(/\n/g,' ') + '...'
       : `${displayName} 필모그래피와 프로필을 오뜨랑에서 확인하세요.`;
-    updateSEO(displayName, seoDesc, profileImgUrl, jobLabel, instaId);
+    updateSEO(displayName, seoDesc, profileImgUrl, jobLabel, ext.instagram_id);
 
     /* ⑧ 필모그래피 */
     const credits = data.combined_credits || {};
@@ -547,6 +673,18 @@ async function initPage(){
       document.getElementById('tabAct').textContent    = `출연 (${actCredits.length})`;
       document.getElementById('tabDirect').textContent = `연출 (${directCredits.length})`;
       renderWorks();
+
+      // [2026-07-11 추가] 대표작(인기순 상위 6개) — 이미 받아온 combined_credits의
+      // popularity 필드 재사용, 추가 API 호출 없음. 포스터 없는 작품은 그리드 깨지므로 제외.
+      const knownFor = [...allCredits]
+        .filter(it => it.poster_path)
+        .sort((a,b) => (b.popularity||0) - (a.popularity||0))
+        .slice(0, 6);
+      if(knownFor.length){
+        document.getElementById('knownForSection').style.display = 'block';
+        document.getElementById('knownForRow').innerHTML = knownFor.map(workCardHtml).join('');
+        loadRankBadges(knownFor); // 대표작 카드도 랭킹배지 대상(캐시 공유라 필모그래피와 겹쳐도 중복요청 안 됨)
+      }
     }
 
   }catch(e){
