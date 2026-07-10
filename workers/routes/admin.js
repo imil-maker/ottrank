@@ -1413,6 +1413,14 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 예능 태그 자동분류(classify-variety)와 동일한 "auto 초안 → admin 검토/확정" 구조 —
   // admin/keywords/review(POST)에서 source='admin'으로 확정되면 이 배치가 다시 건드리지 않음.
   // 짧은 단어/구 단위라 예능 태그(줄거리 포함)보다 프롬프트 부담이 적어 배치를 더 크게(기본 40, 최대 60) 잡음.
+  //
+  // ⚠️ 2026-07-11 수정 — "Claude가 요청받은 키워드를 응답에서 빠뜨리는" 경우 무한루프 방지
+  // 기존엔 Claude 응답에 없는 키워드를 그냥 continue로 넘기고 아무 기록도 안 남겼음.
+  // source가 계속 NULL로 남아있으니 다음 배치에서 다시 뽑히고, Claude가 같은 이유로
+  // 또 빠뜨리면 영원히 반복(실제로 'pacific ocean' 1개가 이 패턴으로 무한루프 발생 확인됨).
+  // collect-keywords의 __NONE__ 오탐 버그(2026-07-02)와 같은 계열 — "응답 실패"와
+  // "아직 처리 안 함"을 구분 안 해서 생기는 문제. translate_attempts로 시도 횟수를
+  // 추적해서, 일정 횟수(3회) 넘게 계속 빠지면 자동배치 대상에서 제외(관리자 수동 처리로 전환).
   if (path === "/admin/keywords/translate" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -1430,6 +1438,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const { results: targets } = await env.DB.prepare(`
         SELECT keyword_en FROM keyword_translation
         WHERE source IS NULL
+          AND (translate_attempts IS NULL OR translate_attempts < 3)
         LIMIT ?
       `).bind(limit).all();
 
@@ -1503,7 +1512,18 @@ export async function handleAdmin(path, request, env, url, headers) {
       const updates = [];
       let translated = 0;
       for (const t of targets) {
-        if (!resultMap.has(t.keyword_en)) continue; // Claude 응답에 없음 — 다음 배치에서 재시도
+        if (!resultMap.has(t.keyword_en)) {
+          // Claude 응답에 없음 — 그냥 넘어가면 다음 배치에서 계속 같은 이유로
+          // 빠질 수 있어 무한루프가 됨. 시도 횟수를 기록해서, 3회 넘게 반복되면
+          // 자동배치 조회 조건(WHERE translate_attempts < 3)에서 자연스럽게 빠지게 함.
+          updates.push(
+            env.DB.prepare(
+              "UPDATE keyword_translation SET translate_attempts = COALESCE(translate_attempts, 0) + 1 " +
+              "WHERE keyword_en = ? AND source IS NULL"
+            ).bind(t.keyword_en)
+          );
+          continue;
+        }
         updates.push(
           env.DB.prepare(
             "UPDATE keyword_translation SET keyword_ko = ?, source = 'auto' WHERE keyword_en = ? AND source IS NULL"
@@ -1513,12 +1533,19 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
       if (updates.length) await env.DB.batch(updates);
 
-      const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM keyword_translation WHERE source IS NULL"
-      ).first();
+      // remaining: 자동배치가 다음에 실제로 집어들 수 있는 개수 (translate_attempts < 3 조건 동일 적용)
+      // stuck: 3회 넘게 실패해서 자동배치에서 제외된 개수 — 관리자 수동 처리 필요
+      const remainRow = await env.DB.prepare(`
+        SELECT
+          SUM(CASE WHEN source IS NULL AND (translate_attempts IS NULL OR translate_attempts < 3) THEN 1 ELSE 0 END) AS remaining,
+          SUM(CASE WHEN source IS NULL AND translate_attempts >= 3 THEN 1 ELSE 0 END) AS stuck
+        FROM keyword_translation
+      `).first();
 
       return new Response(JSON.stringify({
-        ok: true, attempted: targets.length, translated, remaining: remainRow?.cnt || 0,
+        ok: true, attempted: targets.length, translated,
+        remaining: remainRow?.remaining || 0,
+        stuck: remainRow?.stuck || 0,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
