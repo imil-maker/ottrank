@@ -228,20 +228,32 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
     크롤러는 works를 절대 UPDATE/DELETE 하지 않음
 
     조회 순서:
-    1. title_en 완전 일치 (영어 제목 크롤러용)
+    1. title_en 완전 일치, 대소문자 무시 (영어 제목 크롤러용)
     2. title_ko 완전 일치 (한글 제목 크롤러용 — 웨이브/티빙 등)
        → 한글 제목이 title_en 자리에 들어올 때 Admin 데이터 보호
+
+    ⚠️ 2026-07-11 수정 — 두 가지 문제 동시 해결:
+    1) 대소문자 불일치로 못 찾는 문제: 크롤러가 매일 가져오는 제목
+       ("The Hustle")과 관리자가 admin.html에서 직접 입력한 제목
+       ("the Hustle")이 대소문자만 달라도 기존엔 완전히 다른 문자열로
+       취급되어 관리자가 저장한 정답을 못 찾고 매번 TMDB 재검색으로
+       빠지던 문제 → COLLATE NOCASE로 대소문자 무시 비교
+    2) 같은 title_en으로 여러 행이 있을 때(관리자 확정 값 vs 크롤러가
+       예전에 잘못 자동생성한 값) 정렬 기준이 없어 어느 게 뽑힐지
+       불확실했던 문제 → confidence_score 높은 것(관리자 확정 100점)을
+       우선하도록 정렬. 새 테이블/조인 없이 기존 컬럼만으로 해결.
     """
     if not title_en or not title_en.strip():
         return None
 
     title = title_en.strip()
 
-    # 1순위: title_en으로 조회 (영어 제목 크롤러)
+    # 1순위: title_en으로 조회 (영어 제목 크롤러) — 대소문자 무시, 신뢰도 높은 것 우선
     row = conn.execute("""
         SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
         FROM works
-        WHERE title_en = ?
+        WHERE title_en = ? COLLATE NOCASE
+        ORDER BY confidence_score DESC
         LIMIT 1
     """, (title,)).fetchone()
 
@@ -254,6 +266,7 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
         SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
         FROM works
         WHERE title_ko = ?
+        ORDER BY confidence_score DESC
         LIMIT 1
     """, (title,)).fetchone()
 
@@ -261,6 +274,7 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
         return dict(row)
 
     return None
+
 
 
 # ══════════════════════════════════════════════════════════════
