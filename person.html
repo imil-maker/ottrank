@@ -764,13 +764,24 @@ async function initPage(){
       // 회차 수가 많으면 감점 거의 없음 — 장르 상관없이 "비중"만 봄.
       // episode_count는 지금 이미 호출 중인 combined_credits 응답에 원래 포함된 필드라
       // 추가 TMDB 호출 없음(트래픽 영향 없음).
+      // ⚠️ 2026-07-11 2차 개선: episode_count만으로는 부족했음 — "런닝맨" 게스트 출연이
+      // episode_count=14로 나와서(여러 해에 걸쳐 여러 번 게스트로 나온 게 누적됨) 기존
+      // 임계값(10회)을 넘어버려 감점이 전혀 안 걸리는 문제 발견.
+      // 더 정확한 신호로 교체: TMDB의 character 필드 — 예능/리얼리티는 배역명 없이
+      // "Self"로 찍히고, 드라마/영화는 실제 배역명이 있음. "회차 수"보다 "진짜 배역이
+      // 있는지"가 대표작 여부를 훨씬 정확하게 구분함. 이것도 추가 호출 없는 기존 데이터.
       const scoreFor = (it) => {
         const pop = it.popularity || 0;
-        if(it.media_type === 'tv' && typeof it.episode_count === 'number' && it.episode_count > 0){
-          const factor = Math.max(0.1, Math.min(1, it.episode_count / 10));
+        const charName = (it.character || '').trim().toLowerCase();
+        const isSelfAppearance = it.media_type === 'tv' && (!charName || charName === 'self');
+        if(isSelfAppearance){
+          // 본인 출연(예능/리얼리티) — 회차 수로 정도만 조절.
+          // 고정 MC급(수십~수백 회)은 감점 거의 없고, 게스트 몇 회는 크게 감점.
+          const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
+          const factor = Math.max(0.1, Math.min(1, ep / 60));
           return pop * factor;
         }
-        return pop; // 영화는 episode_count 개념 없음 — 그대로 popularity
+        return pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
       };
 
       const knownFor = [...allCredits]
