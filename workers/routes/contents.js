@@ -16,6 +16,30 @@
      PUT    /admin/contents/:id              수정
      DELETE /admin/contents/:id              삭제
      PATCH  /admin/contents/pinned/reorder   고정 순서 변경
+
+   [2026-07-10 변경] 작품연결 → title_videos 자동 복사
+   ott_contents(예고편 게시판)에서 tmdb_id가 연결(등록 시 또는 이후 수정 시)
+   되면, 같은 영상을 title_videos(작품 상세페이지 관련영상)에도 자동으로
+   복사해 넣는다. 두 테이블은 원래 완전히 별개 시스템이었는데(사람이 직접
+   확인하고 연결한 예고편이 작품페이지에는 전혀 반영이 안 되고 있었음),
+   이번 변경으로 한쪽에 연결하면 다른 쪽에도 자동 반영되게 함.
+     - 효과 1: 관련영상 개수(title_videos 기준)가 자동으로 늘어나서,
+       유튜브 보충 크롤링(할당량 소모) 대상에서 자동 제외되는 작품이 늘어남
+     - 효과 2: 관리자가 직접 확인하고 연결한 예고편이라 유튜브 검색
+       관련성 필터보다 신뢰도 높은 소스가 관련영상에 섞여 들어감
+   TMDB ID 충돌(영화/TV가 같은 숫자 ID를 쓰는 경우) 방지를 위해, 복사 전
+   반드시 works.media_type과 ott_contents.tmdb_type이 일치하는지 확인한다.
+   일치하지 않거나 works에 해당 작품이 아예 없으면 복사하지 않고 그냥
+   넘어간다(로그만 남김) — 확실하지 않으면 틀린 영상을 붙이지 않는 원칙.
+   이 복사 로직은 부가 기능이므로, 실패해도 ott_contents 등록/수정
+   자체(핵심 기능)는 절대 막지 않도록 항상 try/catch로 격리한다.
+
+   [2026-07-10 변경] adminCreateContent의 works 자동등록 하드코딩 제거
+   기존엔 works에 신규 등록할 때 media_type을 무조건 'tv'로 넣고 있었음
+   (media_type 개념이 정착되기 전에 만들어진 코드로 추정). 이제는 실제
+   tmdb_type 값을 그대로 쓰고, 값이 없으면 추측하지 않고 NULL로 남긴다
+   (release_year=0, original_language='unknown'과 같은 센티널 원칙 —
+   "모름"과 "확정된 값"을 구분해서 다룸).
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth, _getSessionCookie } from "../utils/authUtils.js";
@@ -134,6 +158,51 @@ function checkAdmin(request, env) {
   const authHeader = request.headers.get("Authorization") || "";
   const token = authHeader.replace("Bearer ", "").trim();
   return token === env.ADMIN_SECRET;
+}
+
+// ─────────────────────────────────────────────
+// 헬퍼: ott_contents 영상을 title_videos(작품페이지 관련영상)에 복사
+//
+// [2026-07-10 신설]
+// - adminCreateContent(등록 시 tmdb_id 매칭됨)와 adminUpdateContent
+//   (작품연결 버튼으로 tmdb_id 지정됨) 양쪽에서 공유해서 사용
+// - works.media_type과 넘겨받은 tmdb_type이 일치할 때만 복사 실행
+//   (TMDB ID 충돌 — 영화/TV가 같은 숫자 ID를 쓰는 경우 — 로 인해
+//   엉뚱한 작품에 엉뚱한 영상이 붙는 사고를 막기 위함)
+// - works에 해당 tmdb_id가 아예 없으면 확인 불가이므로 복사하지 않음
+// - INSERT OR IGNORE라 title_videos에 같은 youtube_id가 이미 있으면
+//   자동으로 건너뜀 (중복 저장 안 됨)
+// - 호출부에서 반드시 try/catch로 감싸서 쓸 것 — 이 함수 자체는
+//   에러를 던질 수 있음 (부가 기능 실패가 핵심 기능을 막으면 안 되므로)
+// ─────────────────────────────────────────────
+async function _linkToTitleVideos(tmdb_id, tmdb_type, youtube_id, title, env) {
+  if (!tmdb_id || !youtube_id) return;
+
+  const work = await env.DB.prepare(
+    "SELECT media_type FROM works WHERE tmdb_id = ?"
+  ).bind(tmdb_id).first();
+
+  if (!work) {
+    console.log(`[CONTENTS_LINK] tmdb_id=${tmdb_id} works에 없음 — title_videos 복사 스킵`);
+    return;
+  }
+
+  if (!tmdb_type || work.media_type !== tmdb_type) {
+    console.log(`[CONTENTS_LINK] tmdb_id=${tmdb_id} 타입 불일치(works=${work.media_type}, ott_contents=${tmdb_type}) — title_videos 복사 스킵`);
+    return;
+  }
+
+  await env.DB.prepare(`
+    INSERT OR IGNORE INTO title_videos (tmdb_id, youtube_url, youtube_id, title, is_main)
+    VALUES (?, ?, ?, ?, 0)
+  `).bind(
+    tmdb_id,
+    `https://www.youtube.com/watch?v=${youtube_id}`,
+    youtube_id,
+    title || "",
+  ).run();
+
+  console.log(`[CONTENTS_LINK] ✅ tmdb_id=${tmdb_id} youtube_id=${youtube_id} title_videos 복사 완료`);
 }
 
 // ─────────────────────────────────────────────
@@ -568,6 +637,12 @@ async function adminCreateContent(request, env, headers) {
     // INSERT된 뒤에도 전체 요청이 500으로 응답 — 크롤러가 매번 실패로
     // 인식하는 원인이었음.
     //
+    // ⚠️ 2026-07-10 수정: media_type 'tv' 하드코딩 제거
+    // 기존엔 이 자동등록이 영화/TV 구분 없이 무조건 'tv'로 저장하고
+    // 있었음(media_type 개념이 정착되기 전 코드로 추정). 이제는 실제
+    // tmdb_type을 그대로 쓰고, 없으면 추측하지 않고 NULL로 남긴다
+    // (release_year=0, original_language='unknown'과 같은 센티널 원칙).
+    //
     // 또한 이 works 자동등록은 부가 기능(있으면 좋은 것)이지 핵심 기능이
     // 아니므로, 여기서 또 다른 예기치 못한 에러가 나더라도 ott_contents
     // 등록 자체(핵심 기능)는 절대 막히지 않도록 try/catch로 격리한다.
@@ -575,11 +650,23 @@ async function adminCreateContent(request, env, headers) {
       try {
         await env.DB.prepare(
           `INSERT OR IGNORE INTO works (tmdb_id, media_type, title_ko, match_source)
-           VALUES (?, 'tv', ?, 'crawler')`
-        ).bind(tmdb_id, work_title).run();
+           VALUES (?, ?, ?, 'crawler')`
+        ).bind(tmdb_id, tmdb_type || null, work_title).run();
       } catch (worksErr) {
         // works 자동등록 실패는 로그만 남기고 무시 — ott_contents 등록은 이미 성공했음
         console.error("[contents] works 자동등록 실패(무시):", worksErr.message);
+      }
+    }
+
+    // [2026-07-10 신설] tmdb_id가 매칭된 상태로 등록됐으면, 같은 영상을
+    // title_videos(작품페이지 관련영상)에도 자동 복사. 타입 불일치 등으로
+    // 실패해도 ott_contents 등록 자체(핵심 기능)는 이미 끝난 뒤이므로
+    // try/catch로 격리해서 응답에 영향 없게 한다.
+    if (tmdb_id) {
+      try {
+        await _linkToTitleVideos(tmdb_id, tmdb_type || null, youtube_id, title, env);
+      } catch (linkErr) {
+        console.error("[contents] title_videos 복사 실패(무시):", linkErr.message);
       }
     }
 
@@ -613,8 +700,10 @@ async function adminUpdateContent(id, request, env, headers) {
   }
 
   // 존재 여부 확인
+  // [2026-07-10 변경] tmdb_id 복사 로직에 필요한 youtube_id, title,
+  // tmdb_type(요청에 tmdb_id만 오고 tmdb_type은 안 온 경우 대비)도 함께 조회
   const existing = await env.DB.prepare(
-    `SELECT id FROM ott_contents WHERE id = ?`
+    `SELECT id, youtube_id, title, tmdb_type FROM ott_contents WHERE id = ?`
   ).bind(id).first();
 
   if (!existing) {
@@ -642,6 +731,20 @@ async function adminUpdateContent(id, request, env, headers) {
   await env.DB.prepare(
     `UPDATE ott_contents SET ${setClauses.join(", ")} WHERE id = ?`
   ).bind(...bindings).run();
+
+  // [2026-07-10 신설] "작품연결" — 이번 요청에 tmdb_id가 포함됐으면(=연결
+  // 또는 재연결) 같은 영상을 title_videos(작품페이지 관련영상)에도 자동
+  // 복사. tmdb_type은 이번 요청에 같이 왔으면 그 값을, 안 왔으면 기존에
+  // 저장돼 있던 값을 사용한다. 실패해도 ott_contents 수정 자체(핵심
+  // 기능)는 이미 끝난 뒤이므로 try/catch로 격리해서 응답에 영향 없게 한다.
+  if (body.tmdb_id !== undefined) {
+    try {
+      const effectiveTmdbType = body.tmdb_type !== undefined ? body.tmdb_type : existing.tmdb_type;
+      await _linkToTitleVideos(body.tmdb_id, effectiveTmdbType, existing.youtube_id, existing.title, env);
+    } catch (linkErr) {
+      console.error("[contents] title_videos 복사 실패(무시):", linkErr.message);
+    }
+  }
 
   return json({ ok: true }, 200, headers);
 }
