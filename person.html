@@ -75,16 +75,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .person-insta-icon img{width:48px;height:48px;border-radius:12px;display:block}
 
 /* [2026-07-11 추가] SNS 아이콘 여러 개 — 이름 옆에 나란히 (인스타 외 트위터/홈페이지 등) */
-.person-social-row{display:inline-flex;gap:6px;margin-left:8px;vertical-align:middle;
+.person-social-row{display:inline-flex;gap:8px;margin-left:10px;vertical-align:middle;
   position:relative;top:-3px}
 .person-social-icon{display:inline-flex;align-items:center;justify-content:center;
-  width:32px;height:32px;border-radius:9px;background:var(--bg3);
+  width:44px;height:44px;border-radius:12px;background:var(--bg3);
   border:.5px solid var(--border);opacity:.85;transition:all .15s;text-decoration:none;
   color:var(--muted2);font-size:14px}
 .person-social-icon:hover{opacity:1;border-color:var(--border2);background:var(--bg2)}
 /* ⚠️ 2026-07-11 수정: img 크기 규칙이 누락되어 있었음 — 아이콘 원본 이미지가
-   크기 제한 없이 그대로 렌더링되면서 화면 전체를 뒤덮는 버그 발생. 반드시 지정할 것. */
-.person-social-icon img{width:18px;height:18px;display:block;object-fit:contain}
+   크기 제한 없이 그대로 렌더링되면서 화면 전체를 뒤덮는 버그 발생. 반드시 지정할 것.
+   (2차 수정: 처음엔 18px로 너무 작게 잡아서, 기존 인스타 단일아이콘(48px)에
+   가깝게 28px로 키움) */
+.person-social-icon img{width:28px;height:28px;display:block;object-fit:contain}
 
 /* [2026-07-11 추가] 랭킹 배지 — 필모그래피 카드에 지금 랭킹에 있으면 표시 */
 .work-rank-badge{display:none;align-items:center;gap:3px;position:absolute;
