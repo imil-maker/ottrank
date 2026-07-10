@@ -702,9 +702,24 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     //   - DB 저장은 ctx.waitUntil()로 응답을 막지 않고 백그라운드 처리
     // "조건(2개 이상) 맞는 키워드가 하나도 없음"도 { keyword:null, items:[] }로 캐싱해서
     // 매 방문마다 헛수고로 재계산하지 않도록 함.
-    const KEYWORD_PREVIEW_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일
+    const KEYWORD_TTL_RANKED_MS  = 5   * 24 * 60 * 60 * 1000; // 랭킹 진입작: 5일
+    const KEYWORD_TTL_DEFAULT_MS = 100 * 24 * 60 * 60 * 1000; // 그 외: 100일
+
+    let isRanked = false;
+    try {
+      const { results: rankCheck } = await env.DB.prepare(`
+        SELECT 1 FROM rankings
+        WHERE tmdb_id = ? AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+        LIMIT 1
+      `).bind(parseInt(tmdb_id)).all();
+      isRanked = !!(rankCheck && rankCheck.length);
+    } catch (e) {
+      isRanked = false; // 조회 실패 시 보수적으로 100일(더 긴 캐시) 쪽으로 처리
+    }
+    const ACTIVE_TTL_MS = isRanked ? KEYWORD_TTL_RANKED_MS : KEYWORD_TTL_DEFAULT_MS;
+
     const kwStale = !work.keyword_preview_updated_at ||
-      (Date.now() - new Date(work.keyword_preview_updated_at).getTime()) > KEYWORD_PREVIEW_TTL_MS;
+      (Date.now() - new Date(work.keyword_preview_updated_at).getTime()) > ACTIVE_TTL_MS;
 
     if (kwStale) {
       let preview = { keyword: null, items: [] };
@@ -770,6 +785,50 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     } catch (e) {
       // work_pinned_similar 테이블이 아직 없거나(마이그레이션 전) 조회 실패 시 빈 배열로 안전하게 진행
       work.pinned_similar = [];
+    }
+
+    // ── 키워드 한글 번역 매핑 (관리자 확정본만, 랭킹 여부 따라 5일/100일 캐싱) ──
+    // _title_detail.html이 키워드 태그를 영문 대신 한글로 표시하기 위해 사용.
+    // 위에서 계산한 ACTIVE_TTL_MS(랭킹 여부 기반)를 그대로 재사용 — 쿼리 추가 없음.
+    const kwKoStale = !work.keyword_ko_map_updated_at ||
+      (Date.now() - new Date(work.keyword_ko_map_updated_at).getTime()) > ACTIVE_TTL_MS;
+
+    if (kwKoStale) {
+      let kwKoMap = {};
+      let kwKoFailed = false;
+      if (work.keywords && work.keywords !== '__NONE__') {
+        const allKwList = work.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+        if (allKwList.length) {
+          try {
+            const placeholders = allKwList.map(() => '?').join(',');
+            const { results: kwTrans } = await env.DB.prepare(
+              `SELECT keyword_en, keyword_ko FROM keyword_translation WHERE keyword_en IN (${placeholders}) AND source = 'admin'`
+            ).bind(...allKwList).all();
+            for (const row of (kwTrans || [])) {
+              kwKoMap[row.keyword_en] = row.keyword_ko;
+            }
+          } catch (e) {
+            kwKoFailed = true; // 실패 시 캐시에 남기지 않고 다음 요청에서 재시도
+          }
+        }
+      }
+
+      work.keyword_ko_map = kwKoMap;
+
+      if (!kwKoFailed) {
+        const kwKoNowIso = new Date().toISOString();
+        ctx.waitUntil(
+          env.DB.prepare(
+            "UPDATE works SET keyword_ko_map = ?, keyword_ko_map_updated_at = ? WHERE tmdb_id = ?"
+          ).bind(JSON.stringify(kwKoMap), kwKoNowIso, parseInt(tmdb_id)).run()
+        );
+      }
+    } else {
+      try {
+        work.keyword_ko_map = work.keyword_ko_map ? JSON.parse(work.keyword_ko_map) : {};
+      } catch (e) {
+        work.keyword_ko_map = {};
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, data: work }), { headers });
