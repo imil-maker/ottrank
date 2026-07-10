@@ -632,6 +632,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
     </div>
 
+    <!-- 4단계: 키워드 검색/수정 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:20px">
+      <h3 style="margin-bottom:14px;font-size:15px">④ 키워드 검색/수정</h3>
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <input class="form-input" id="ksSearchInput" type="text" placeholder="영문 또는 한글로 검색 (예: webtoon, 웹툰)" style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')searchKeywords()">
+        <button class="btn-crawl" onclick="searchKeywords()" style="padding:10px 20px;font-size:13px">🔍 검색</button>
+      </div>
+      <div id="ksEmpty" style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center;display:none">검색 결과가 없어요</div>
+      <div id="ksList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
   </div>
 
   <!-- ══ 작품 사전등록 섹션 ══ -->
@@ -2289,6 +2300,72 @@ function copyKeywordCacheResetSql() {
   navigator.clipboard.writeText(text)
     .then(() => showToast('📋 SQL 복사됨 — tmdb_id 숫자만 바꿔서 D1 콘솔에 붙여넣으세요'))
     .catch(() => showToast('❌ 복사 실패 — 직접 드래그해서 복사해주세요'));
+}
+
+async function searchKeywords() {
+  const q = document.getElementById('ksSearchInput').value.trim();
+  const listEl  = document.getElementById('ksList');
+  const emptyEl = document.getElementById('ksEmpty');
+  if (!q) { showToast('⚠️ 검색어를 입력해주세요'); return; }
+
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0">검색 중...</div>';
+  emptyEl.style.display = 'none';
+
+  try {
+    const res  = await fetch(`${API}/admin/keywords/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    listEl.innerHTML = '';
+    if (!data.items || !data.items.length) {
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    data.items.forEach(item => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:8px';
+      row.innerHTML = `
+        <div style="flex:1;font-family:var(--mono);font-size:13px;color:var(--muted2)">${item.keyword_en}</div>
+        <div style="color:var(--muted)">→</div>
+        <input class="form-input" data-en="${item.keyword_en.replace(/"/g, '&quot;')}"
+               value="${(item.keyword_ko || '').replace(/"/g, '&quot;')}"
+               style="flex:1;padding:7px 10px;font-size:13px">
+        <button class="btn-secondary" onclick="saveKeywordItem(this)" style="padding:7px 14px;font-size:12px;white-space:nowrap">저장</button>
+      `;
+      listEl.appendChild(row);
+    });
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0">검색 실패: ${e.message}</div>`;
+  }
+}
+
+async function saveKeywordItem(btn) {
+  const row = btn.closest('div');
+  const input = row.querySelector('input[data-en]');
+  const keyword_en = input.dataset.en;
+  const keyword_ko = input.value.trim();
+  if (!keyword_ko) { showToast('⚠️ 한글 번역을 입력해주세요'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/keywords/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ keyword_en, keyword_ko }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast(`✅ "${keyword_en}" 저장됨`);
+  } catch (e) {
+    showToast(`❌ 저장 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '저장';
+  }
 }
 
 /* ══════════════════════════════════════════════════════
