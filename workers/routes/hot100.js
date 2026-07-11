@@ -652,9 +652,10 @@ export async function getHeroTabs(request, env, headers) {
       return new Response(JSON.stringify({ ok: true, tabs: [] }), { status: 200, headers });
     }
 
-    const tabs = [];
-
-    for (const cfg of tabConfigs) {
+    // ⚠️ [2026-07-12 수정] 기존엔 탭(최대 7개) × 쿼리(최대 3개)를 전부 순차(for-loop await)로
+    // 돌려서 최악의 경우 D1 왕복이 21번 연속으로 이어져 응답이 크게 느려졌음.
+    // Promise.all로 탭 단위 병렬 처리, 탭 내부의 독립적인 쿼리(최신날짜/수동고정)도 병렬화.
+    const tabResults = await Promise.all(tabConfigs.map(async (cfg) => {
       const limit = cfg.top_n || 10;
 
       if (cfg.platform === "all") {
@@ -669,7 +670,7 @@ export async function getHeroTabs(request, env, headers) {
            LIMIT ?`
         ).bind(limit).all();
 
-        tabs.push({
+        return {
           platform: "all",
           label: PLATFORM_LABELS.all,
           items: (results || []).map((row, idx) => ({
@@ -680,11 +681,10 @@ export async function getHeroTabs(request, env, headers) {
             hero_title_baked_in: row.hero_title_baked_in,
             media_type: row.media_type, tmdb_rating: row.tmdb_rating,
           })),
-        });
-        continue;
+        };
       }
 
-      if (!cfg.category_slot) continue; // 카테고리 미지정이면 스킵(설정 누락 방어)
+      if (!cfg.category_slot) return null; // 카테고리 미지정이면 스킵(설정 누락 방어)
 
       // ── 플랫폼 탭: rankings에서 크롤링+수동고정 병합(다른 공개 API와 동일한 원칙) ──
       const latestRow = await env.DB.prepare(
@@ -692,29 +692,31 @@ export async function getHeroTabs(request, env, headers) {
       ).bind(cfg.platform, cfg.category_slot).first();
       const latestDate = latestRow?.latest || null;
 
-      const { results: crawlResults } = latestDate
-        ? await env.DB.prepare(
-            `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
-                    w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
-             FROM rankings r
-             LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
-             WHERE r.platform = ? AND r.category_slot = ? AND r.date = ?
-             ORDER BY r.rank ASC`
-          ).bind(cfg.platform, cfg.category_slot, latestDate).all()
-        : { results: [] };
-
-      const { results: manualResults } = await env.DB.prepare(
-        `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
-                w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
-         FROM rankings r
-         LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
-         WHERE r.platform = ? AND r.category_slot = ? AND r.is_manual = 1 AND r.date = 'manual'
-         ORDER BY r.rank ASC`
-      ).bind(cfg.platform, cfg.category_slot).all();
+      // 크롤링 결과 + 수동고정 결과는 서로 독립적이라 병렬로 같이 조회
+      const [{ results: crawlResults }, { results: manualResults }] = await Promise.all([
+        latestDate
+          ? env.DB.prepare(
+              `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
+                      w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
+               FROM rankings r
+               LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
+               WHERE r.platform = ? AND r.category_slot = ? AND r.date = ?
+               ORDER BY r.rank ASC`
+            ).bind(cfg.platform, cfg.category_slot, latestDate).all()
+          : Promise.resolve({ results: [] }),
+        env.DB.prepare(
+          `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
+                  w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
+           FROM rankings r
+           LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
+           WHERE r.platform = ? AND r.category_slot = ? AND r.is_manual = 1 AND r.date = 'manual'
+           ORDER BY r.rank ASC`
+        ).bind(cfg.platform, cfg.category_slot).all(),
+      ]);
 
       const merged = _mergeRankings(crawlResults || [], manualResults || [], limit);
 
-      tabs.push({
+      return {
         platform: cfg.platform,
         label: PLATFORM_LABELS[cfg.platform] || cfg.platform,
         items: merged.map((row) => ({
@@ -725,8 +727,11 @@ export async function getHeroTabs(request, env, headers) {
           hero_title_baked_in: row.hero_title_baked_in,
           media_type: row.media_type, tmdb_rating: row.tmdb_rating,
         })),
-      });
-    }
+      };
+    }));
+
+    // Promise.all은 tabConfigs 순서를 그대로 보존하므로 display_order 정렬 유지됨. null(스킵)만 제거.
+    const tabs = tabResults.filter(Boolean);
 
     return new Response(JSON.stringify({ ok: true, tabs }), { status: 200, headers });
   } catch (err) {
