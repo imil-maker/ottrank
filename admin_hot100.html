@@ -256,6 +256,10 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
   <div class="backdrop-modal">
     <h3>배경이미지 선택</h3>
     <div class="hint" style="margin-bottom:0">💡 TMDB에 등록된 스틸컷 중에서 골라주세요. 선택 안 하면 기본 포스터가 대신 노출됩니다. 한 번 고르면 이 작품이 나중에 다시 핫100에 들어와도 계속 이 이미지를 씁니다.</div>
+    <label style="display:flex;align-items:center;gap:6px;margin:10px 0 0;font-size:13px;color:var(--text);cursor:pointer">
+      <input type="checkbox" id="bakedInCheckbox" onchange="toggleBakedIn()">
+      이 이미지엔 제목이 이미 들어있음 (로고/텍스트 오버레이 안 씀, 이미지 그대로 노출)
+    </label>
     <div class="backdrop-grid" id="backdropGrid">
       <div class="loading">불러오는 중...</div>
     </div>
@@ -598,7 +602,7 @@ function renderPreviewPage() {
       </td>
       <td><span class="platform-badge" style="background:${PC[r.best_platform]||'#666'}">${PLATFORM_KO[r.best_platform]||r.best_platform}</span></td>
       <td><span style="font-family:var(--mono);font-size:13px">${r.total_score}</span></td>
-      <td><span style="font-family:var(--mono);font-size:13px;color:var(--muted2)">${r.tmdb_rating ?? '-'}</span></td>
+      <td><span style="font-family:var(--mono);font-size:13px;color:var(--muted2)">${r.tmdb_rating != null ? Number(r.tmdb_rating).toFixed(1) : '-'}</span></td>
       <td><input class="boost-inp" type="number" id="pv-boost-${r.tmdb_id}" value="${r.is_pinned ? r.total_score : (r.admin_boost || 0)}"></td>
       <td style="white-space:nowrap">
         <button class="btn-sm btn-fix" onclick="savePreviewBoost(${r.tmdb_id}, ${r.is_pinned ? 1 : 0})">저장</button>
@@ -697,6 +701,7 @@ async function openBackdropPicker(tmdbId, mediaType) {
 
   const row = allPreviewData.find(r => r.tmdb_id === tmdbId);
   const currentPath = row?.hero_backdrop_path || null;
+  document.getElementById('bakedInCheckbox').checked = !!row?.hero_title_baked_in;
 
   try {
     const res  = await fetch(`${TMDB_PROXY}/${mediaType}/${tmdbId}/images`);
@@ -722,6 +727,25 @@ async function openBackdropPicker(tmdbId, mediaType) {
 function closeBackdropPicker() {
   document.getElementById('backdropOverlay').classList.remove('show');
   backdropTargetTmdbId = null;
+}
+
+// [2026-07-11 추가] "이미지에 제목 이미 있음" 체크박스 — 바뀌는 즉시 저장.
+// backdrop_path는 지금 값 그대로 다시 보내서(현재 이미지) 실수로 안 지워지게 함.
+async function toggleBakedIn() {
+  if (!backdropTargetTmdbId) return;
+  const checked = document.getElementById('bakedInCheckbox').checked;
+  const item = allPreviewData.find(r => r.tmdb_id === backdropTargetTmdbId);
+  try {
+    const res  = await fetch(`${API}/admin/works/${backdropTargetTmdbId}/hero-backdrop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backdrop_path: item?.hero_backdrop_path || null, hero_title_baked_in: checked })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    if (item) item.hero_title_baked_in = checked ? 1 : 0;
+    showToast(checked ? '✅ "제목 있음"으로 저장됨' : '✅ 체크 해제됨', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
 }
 
 // [2026-07-11 추가] 후보 클릭 시 바로 저장 — works.hero_backdrop_path 전용 격리 엔드포인트 사용
@@ -912,20 +936,25 @@ function renderHeroCards() {
       : (item.poster_path ? `${IMG}${item.poster_path}` : '');
     const platformColor = PC[item.best_platform] || '#666';
     const platformLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
+    // [2026-07-11 추가] 이미지 자체에 이미 제목이 박혀있으면 그라데이션+텍스트/로고 오버레이를 아예 안 그림
+    const bakedIn = !!item.hero_title_baked_in;
     return `
       <div class="hero-card">
         ${bg ? `<img src="${bg}" loading="lazy">` : ''}
-        <div class="hero-card-gradient"></div>
+        ${bakedIn ? '' : '<div class="hero-card-gradient"></div>'}
         <span class="hero-card-rank">${item.rank}</span>
         <span class="hero-card-platform" style="background:${platformColor}">${platformLabel}</span>
-        <span class="hero-card-title" id="hero-title-${item.tmdb_id}">${title}</span>
+        ${bakedIn ? '' : `<span class="hero-card-title" id="hero-title-${item.tmdb_id}">${title}</span>`}
       </div>
     `;
   }).join('');
 
   // [2026-07-11 추가] 하이브리드 테스트 — 카드 먼저 텍스트로 빠르게 그려놓고,
   // 각 작품마다 TMDB 로고(공식 타이틀 아트) 유무를 비동기로 확인해서 있으면 텍스트를 로고 이미지로 교체
-  tab.items.forEach(item => upgradeToLogoIfAvailable(item.tmdb_id, item.media_type || 'tv'));
+  // (이미지에 제목이 이미 있는 작품은 로고 조회 자체를 생략)
+  tab.items
+    .filter(item => !item.hero_title_baked_in)
+    .forEach(item => upgradeToLogoIfAvailable(item.tmdb_id, item.media_type || 'tv'));
 }
 
 // [2026-07-11 추가] tmdb_id별 로고 조회 결과 캐시 (탭 전환 왔다갔다 해도 재조회 안 하게)
