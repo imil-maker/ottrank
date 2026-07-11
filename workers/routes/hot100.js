@@ -418,6 +418,7 @@ export async function getHot100(request, env, headers) {
         h.engagement_score,
         h.admin_boost,
         h.calc_date,
+        COALESCE(ab.is_pinned, 0) AS is_pinned,
         w.title_ko,
         w.title_en,
         w.poster_path,
@@ -426,6 +427,7 @@ export async function getHot100(request, env, headers) {
         w.release_year
       FROM hot100_scores h
       LEFT JOIN works w ON w.tmdb_id = h.tmdb_id
+      LEFT JOIN admin_boosts ab ON ab.tmdb_id = h.tmdb_id
       ORDER BY h.total_score DESC, w.tmdb_rating DESC
       LIMIT ?
     `;
