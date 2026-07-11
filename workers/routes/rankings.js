@@ -8,6 +8,7 @@
    GET  /rankings/history
    GET  /rankings/platforms/:tmdb_id
    GET  /rankings/platforms-batch?tmdb_ids=1,2,3   ← person.html 필모그래피 배치조회(2026-07-11 신설)
+   GET  /rankings/person-widget                    ← 인물페이지 상단 랭킹 위젯(2026-07-11 신설)
    GET  /rankings/manual/:tmdb_id
    GET  /latest-date
    GET  /platforms
@@ -516,6 +517,68 @@ export async function handleRankings(path, request, env, url, headers) {
       }
 
       return new Response(JSON.stringify({ ok: true, data }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /rankings/person-widget ──────────────────────────────
+  // [2026-07-11 신설] 인물페이지 상단 "오늘의 랭킹" 위젯용.
+  // 어드민 "페이지 카테고리 설정 → 인물페이지 설정"에서 person_section='person'으로
+  // 켜놓은 카테고리 중 person_order가 가장 낮은 것 1개만 반환한다.
+  // 여러 개를 켜놔도(어드민 저장 단계에서 2개 이상은 막지만, 방어적으로) 여기서 1개로 확정.
+  // 켜놓은 게 하나도 없으면 data: null → 프론트(person.html)는 위젯을 아예 렌더링하지 않음.
+  if (path === "/rankings/person-widget" && request.method === "GET") {
+    try {
+      const slot = await env.DB.prepare(`
+        SELECT platform, category_slot, display_name, person_limit
+        FROM ott_categories
+        WHERE person_section = 'person'
+          AND is_active = 1
+        ORDER BY person_order ASC
+        LIMIT 1
+      `).first();
+
+      if (!slot) {
+        return new Response(JSON.stringify({ ok: true, data: null }), { headers });
+      }
+
+      const limit = slot.person_limit || 10;
+
+      // 일반 크롤링 랭킹 (오늘 날짜)
+      const { results: crawlResults } = await env.DB.prepare(`
+        SELECT rank, title_ko, title_en, tmdb_id, poster_path, genre, tmdb_rating, release_year
+        FROM rankings
+        WHERE platform = ? AND category_slot = ?
+          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+        ORDER BY rank ASC
+      `).bind(slot.platform, slot.category_slot).all();
+
+      // 수동고정 랭킹 (다른 엔드포인트와 동일한 규칙: is_manual=1 AND date='manual')
+      const { results: manualResults } = await env.DB.prepare(`
+        SELECT rank, title_ko, title_en, tmdb_id, poster_path, genre, tmdb_rating, release_year
+        FROM rankings
+        WHERE platform = ? AND category_slot = ?
+          AND is_manual = 1 AND date = 'manual'
+        ORDER BY rank ASC
+      `).bind(slot.platform, slot.category_slot).all();
+
+      // 기존 /rankings/main, /rankings/platform과 동일한 병합 함수 재사용
+      const merged = _mergeRankings(crawlResults, manualResults, limit);
+
+      return new Response(JSON.stringify({
+        ok: true,
+        data: {
+          platform: slot.platform,
+          category_slot: slot.category_slot,
+          display_name: slot.display_name,
+          items: merged.map(row => ({
+            rank: row.rank, title_ko: row.title_ko, title_en: row.title_en,
+            tmdb_id: row.tmdb_id, poster_path: row.poster_path,
+            genre: row.genre, tmdb_rating: row.tmdb_rating, release_year: row.release_year,
+          })),
+        }
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
