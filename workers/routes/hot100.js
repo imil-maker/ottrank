@@ -204,10 +204,63 @@ export async function calcHot100(request, env, headers) {
     // env.DB.batch() — 여러 쿼리를 한 번의 네트워크 왕복으로 처리 (트랜잭션처럼 묶임)
     await env.DB.batch(statements);
 
+    // ── 4-1. 넷플릭스 통합랭킹(category10) 저장 ─────────────
+    // 넷플릭스는 FlixPatrol에 "통합(Overall)" 표 자체가 없어서, 다른 플랫폼처럼 그대로 크롤링해
+    // 올 수가 없다. 그래서 핫100 계산 결과(finalRows) 중 best_platform='netflix'인 것만 추려서
+    // rankings 테이블에 category10으로 저장 — 메인페이지는 다른 플랫폼 통합랭킹과 동일한 방식으로
+    // 그대로 가져다 쓸 수 있음. 재계산할 때마다 그날 기존 category10 데이터를 지우고 새로 채운다
+    // (누적 방지). rankings 스키마엔 title_ko/poster_path 등이 필요한데 hot100_scores엔 없어서
+    // works에서 별도로 조회해서 채운다.
+    const netflixTop = finalRows
+      .filter((r) => r.best_platform === "netflix")
+      .slice(0, 20);
+
+    let netflixOverallSaved = 0;
+    if (netflixTop.length > 0) {
+      const tmdbIds = netflixTop.map((r) => r.tmdb_id);
+      const placeholders = tmdbIds.map(() => "?").join(",");
+      const { results: workRows } = await env.DB.prepare(
+        `SELECT tmdb_id, title_ko, title_en, poster_path, genre, tmdb_rating, release_year
+         FROM works WHERE tmdb_id IN (${placeholders})`
+      ).bind(...tmdbIds).all();
+      const workMap = new Map((workRows || []).map((w) => [w.tmdb_id, w]));
+
+      const rankingStatements = [
+        env.DB.prepare(
+          `DELETE FROM rankings WHERE platform = 'netflix' AND category_slot = 'category10' AND date = ?`
+        ).bind(latestDate),
+      ];
+      netflixTop.forEach((row, idx) => {
+        const w = workMap.get(row.tmdb_id) || {};
+        rankingStatements.push(
+          env.DB.prepare(
+            `INSERT INTO rankings
+              (platform, category_slot, category, date, rank, tmdb_id,
+               title_ko, title_en, poster_path, release_year, genre, tmdb_rating,
+               is_manual, source_name)
+             VALUES ('netflix', 'category10', 'category10', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'HOT100 기반 통합랭킹')`
+          ).bind(
+            latestDate,
+            idx + 1,
+            row.tmdb_id,
+            w.title_ko || "",
+            w.title_en || "",
+            w.poster_path || null,
+            w.release_year || null,
+            w.genre || null,
+            w.tmdb_rating || null
+          )
+        );
+      });
+      await env.DB.batch(rankingStatements);
+      netflixOverallSaved = netflixTop.length;
+    }
+
     // ── 5. 결과 응답 ─────────────────────────────────────────
     return new Response(
       JSON.stringify({
         ok: true,
+        netflix_overall_saved: netflixOverallSaved,
         calc_date: latestDate,
         total_works: finalRows.length,
         top10_preview: finalRows.slice(0, 10).map((r) => ({
