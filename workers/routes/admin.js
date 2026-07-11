@@ -14,6 +14,7 @@
    DELETE /admin/rank-override
    GET    /admin/works                (?sort=recent 기본값=created_at DESC, ?sort=updated=updated_at DESC)
    PATCH  /admin/works/:tmdb_id
+   PATCH  /admin/works/:tmdb_id/hero-backdrop  ← 핫100 히어로 캐러셀 배경이미지 수동 선택(2026-07-11 신설, 다른 필드는 안 건드리는 격리된 엔드포인트)
    DELETE /admin/works/:tmdb_id
    GET    /admin/new-match-count
    GET    /admin/manual-rankings
@@ -546,8 +547,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const { display_name, crawl_limit, main_limit, platform_limit,
               is_active, main_section, main_order,
               platform_section, platform_order, memo_label,
-              hot100_eligible, hot100_weight,
-              person_section, person_order, person_limit } = body;
+              hot100_eligible, hot100_weight } = body;
 
       await env.DB.prepare(`
         UPDATE ott_categories SET
@@ -563,9 +563,6 @@ export async function handleAdmin(path, request, env, url, headers) {
           memo_label       = CASE WHEN ? = '__SKIP__' THEN memo_label       ELSE ? END,
           hot100_eligible  = CASE WHEN ? = '__SKIP__' THEN hot100_eligible  ELSE ? END,
           hot100_weight    = COALESCE(?, hot100_weight),
-          person_section   = CASE WHEN ? = '__SKIP__' THEN person_section   ELSE ? END,
-          person_order     = CASE WHEN ? = '__SKIP__' THEN person_order     ELSE ? END,
-          person_limit     = COALESCE(?, person_limit),
           updated_at       = datetime('now')
         WHERE id = ?
       `).bind(
@@ -578,9 +575,6 @@ export async function handleAdmin(path, request, env, url, headers) {
         memo_label     === undefined ? "__SKIP__" : "__SET__", memo_label     === undefined ? null : (memo_label     || null),
         hot100_eligible === undefined ? "__SKIP__" : "__SET__", hot100_eligible === undefined ? null : (hot100_eligible ?? 0),
         hot100_weight ?? null,
-        person_section === undefined ? "__SKIP__" : "__SET__", person_section === undefined ? null : (person_section || null),
-        person_order   === undefined ? "__SKIP__" : "__SET__", person_order   === undefined ? null : (person_order   ?? 0),
-        person_limit ?? null,
         id
       ).run();
 
@@ -941,6 +935,30 @@ export async function handleAdmin(path, request, env, url, headers) {
       await env.DB.prepare(
         "INSERT INTO admin_logs (action, target_id, before_value, after_value) VALUES ('works_update', ?, ?, ?)"
       ).bind(String(tmdb_id), JSON.stringify(before), JSON.stringify(body)).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── PATCH /admin/works/:tmdb_id/hero-backdrop ──────────────────
+  // [2026-07-11 신설] 핫100 히어로 캐러셀용 배경이미지 수동 선택.
+  // ⚠️ 기존 PATCH /admin/works/:tmdb_id는 media_type을 안 보내면 null로 덮어써버리는
+  // 문제가 있어서(TMDB ID 충돌 방지에 중요한 필드), 배경이미지 하나만 딱 격리해서
+  // 건드리는 별도 엔드포인트로 분리함. hero_backdrop_path 외 다른 컬럼은 전혀 안 건드림.
+  if (path.match(/^\/admin\/works\/\d+\/hero-backdrop$/) && request.method === "PATCH") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(path.split("/")[3]);
+      const body    = await request.json();
+      const { backdrop_path } = body; // null이면 선택 해제(기본 이미지로 되돌림)
+
+      await env.DB.prepare(
+        "UPDATE works SET hero_backdrop_path = ? WHERE tmdb_id = ?"
+      ).bind(backdrop_path || null, tmdb_id).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
