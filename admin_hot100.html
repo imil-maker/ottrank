@@ -108,6 +108,7 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
     <button class="tab" onclick="switchTab('category', this)">☑️ 카테고리 체크</button>
     <button class="tab" onclick="switchTab('weight', this)">⚖️ OTT 가중치 설정</button>
     <button class="tab" onclick="switchTab('calc', this)">🔄 수동 핫100</button>
+    <button class="tab" onclick="switchTab('frontend', this)">🎬 프론트엔드 구성</button>
   </div>
 
   <!-- ══ ① 랭킹없는 작품 점수 부여(검색) ══ -->
@@ -194,6 +195,27 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
     </div>
   </div>
 
+  <!-- ══ ⑤ 프론트엔드 구성(메인페이지 히어로 캐러셀 탭) ══ -->
+  <div id="section-frontend" class="section">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+        <h3 style="margin:0">메인페이지 히어로 캐러셀 탭 구성</h3>
+        <button class="btn-sm btn-fix" style="margin-left:auto" onclick="saveAllFrontendTabs()">💾 전체 저장</button>
+      </div>
+      <div class="hint">💡 "전체" 탭은 HOT100 자체를 사용해서 카테고리 지정이 필요 없습니다. 나머지 플랫폼 탭은 그 플랫폼의 어느 카테고리를 "통합 순위"로 보여줄지 고르고, 몇 위까지·어떤 순서로·노출할지 정합니다.</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>플랫폼</th><th>연결 카테고리</th><th>노출 개수</th><th>탭 순서</th><th>노출</th></tr>
+          </thead>
+          <tbody id="frontendTabsBody">
+            <tr><td colspan="5" class="loading">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -226,14 +248,15 @@ const PC = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac
 
 let token = '';
 
-function login() {
+async function login() {
   const t = document.getElementById('tokenInp').value.trim();
   if (!t) return;
   token = t;
   localStorage.setItem('admin_token', t);
   document.getElementById('loginSection').style.display = 'none';
   document.getElementById('mainSection').style.display = 'block';
-  loadCategoryCheck();
+  await loadCategoryCheck(); // 프론트엔드 구성 탭의 카테고리 드롭다운이 allCatCheckData를 쓰므로 먼저 완료돼야 함
+  loadFrontendTabs();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -716,6 +739,93 @@ document.addEventListener('DOMContentLoaded', () => {
     calcTabBtn.addEventListener('click', () => { if (token) loadPreview(); });
   }
 });
+
+// ════════════════════════════════════════════════════
+// ⑤ 프론트엔드 구성 (메인페이지 히어로 캐러셀 탭) — 2026-07-11 추가
+// ════════════════════════════════════════════════════
+let allFrontendTabsData = [];
+
+async function loadFrontendTabs() {
+  try {
+    const res  = await fetch(`${API}/admin/hot100/frontend-tabs`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    allFrontendTabsData = json.data || [];
+    renderFrontendTabs();
+  } catch(e) {
+    document.getElementById('frontendTabsBody').innerHTML = `<tr><td colspan="5" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function renderFrontendTabs() {
+  const body = document.getElementById('frontendTabsBody');
+  if (!allFrontendTabsData.length) { body.innerHTML = '<tr><td colspan="5" class="empty">데이터 없음</td></tr>'; return; }
+
+  body.innerHTML = allFrontendTabsData.map(r => {
+    const isAll = r.platform === 'all';
+    // "전체" 행은 카테고리 개념이 없어 고정 표시, 나머지는 그 플랫폼 카테고리 중에서 선택
+    const catOptions = isAll
+      ? ''
+      : allCatCheckData
+          .filter(c => c.platform === r.platform)
+          .map(c => `<option value="${c.category_slot}" ${c.category_slot===r.category_slot?'selected':''}>${c.category_slot} — ${_esc(c.display_name||c.source_name)}</option>`)
+          .join('');
+    return `
+      <tr data-tabplatform="${r.platform}">
+        <td><span style="color:${PC[r.platform]||'#fff'};font-weight:600;font-size:13px">${isAll ? '⭐ 전체' : (PLATFORM_KO[r.platform]||r.platform)}</span></td>
+        <td>${
+          isAll
+            ? `<span style="font-size:12px;color:var(--muted2)">HOT100 자체 사용</span>`
+            : `<select class="inp" data-field="category_slot" style="font-size:12px;padding:4px 8px;width:220px">${catOptions}</select>`
+        }</td>
+        <td><input class="weight-inp" type="number" min="1" max="50" data-field="top_n" value="${r.top_n ?? 10}" style="width:60px"></td>
+        <td><input class="weight-inp" type="number" min="0" max="99" data-field="display_order" value="${r.display_order ?? 0}" style="width:60px"></td>
+        <td><input type="checkbox" data-field="is_active" ${r.is_active ? 'checked' : ''}></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function saveAllFrontendTabs() {
+  const rows = document.querySelectorAll('#frontendTabsBody [data-tabplatform]');
+  if (!rows.length) return;
+
+  const btn = document.querySelector('[onclick="saveAllFrontendTabs()"]');
+  const orig = btn.textContent;
+  btn.textContent = '저장 중...';
+  btn.disabled = true;
+
+  let ok = 0, fail = 0;
+  for (const row of rows) {
+    const platform = row.dataset.tabplatform;
+    const catSel   = row.querySelector('[data-field="category_slot"]'); // "전체" 행은 없음(null)
+    const top_n    = parseInt(row.querySelector('[data-field="top_n"]').value) || 10;
+    const display_order = parseInt(row.querySelector('[data-field="display_order"]').value) || 0;
+    const is_active = row.querySelector('[data-field="is_active"]').checked ? 1 : 0;
+
+    const payload = { top_n, display_order, is_active };
+    if (catSel) payload.category_slot = catSel.value;
+
+    try {
+      const res  = await fetch(`${API}/admin/hot100/frontend-tabs/${platform}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.ok) {
+        ok++;
+        const item = allFrontendTabsData.find(r => r.platform === platform);
+        if (item) Object.assign(item, payload);
+      } else fail++;
+    } catch(e) { fail++; }
+  }
+
+  btn.textContent = orig;
+  btn.disabled = false;
+
+  if (fail === 0) showToast(`✅ 프론트엔드 구성 ${ok}개 저장 완료`, 'ok');
+  else showToast(`⚠️ ${ok}개 성공 / ${fail}개 실패`, 'err');
+}
 </script>
 </body>
 </html>
