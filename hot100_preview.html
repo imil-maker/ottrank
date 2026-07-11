@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>오뜨랑 — 핫100 히어로 캐러셀 미리보기</title>
+<link rel="preconnect" href="https://ottrank-api.tdidream.workers.dev">
+<link rel="preconnect" href="https://image.tmdb.org">
+<link rel="preconnect" href="https://tmdb-proxy.tdidream.workers.dev">
 <style>
 :root{
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
@@ -11,60 +14,88 @@
   --text:#f2f2f5; --muted:#888780; --muted2:#5f5e5a;
   --gold:#f0b429;
   --sans:'Noto Sans KR',sans-serif; --mono:'DM Mono',monospace;
+  --max-w:1200px;
 }
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0;padding:32px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0;padding:32px 20px}
+.wrap{max-width:var(--max-w);margin:0 auto}
 h1{font-size:18px;font-weight:700;margin:0 0 4px}
 .sub{font-size:13px;color:var(--muted);margin:0 0 24px}
 
 .hero-tab-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
-.hero-tab-pill{padding:9px 18px;border-radius:20px;background:var(--bg3);border:1px solid var(--border2);
+.hero-tab-pill{display:flex;align-items:center;gap:7px;padding:8px 16px 8px 10px;border-radius:20px;
+  background:var(--bg3);border:1px solid var(--border2);
   color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
 .hero-tab-pill.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.hero-tab-pill img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0}
 
-.hero-card-row{display:flex;gap:16px;overflow-x:auto;padding-bottom:12px}
-.hero-card{position:relative;flex:0 0 320px;width:320px;height:320px;border-radius:12px;overflow:hidden;
+.hero-row-wrap{position:relative}
+.hero-card-row{display:flex;gap:16px}
+.hero-card{position:relative;flex:1 1 0;min-width:0;aspect-ratio:1/1;border-radius:12px;overflow:hidden;
   background:var(--card);cursor:pointer;display:flex;flex-direction:column}
-.hero-card-img-wrap{position:relative;width:100%;height:240px;overflow:hidden;flex-shrink:0}
+.hero-card-img-wrap{position:relative;width:100%;flex:0 0 75%;overflow:hidden;container-type:inline-size}
 .hero-card-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
-.hero-card-img-fade{position:absolute;left:0;right:0;bottom:0;height:70px;
-  background:linear-gradient(0deg,var(--card) 0%,rgba(22,22,31,.5) 55%,transparent 100%)}
-.hero-card-rank{position:absolute;top:14px;left:16px;font-family:var(--mono);font-size:44px;font-weight:800;
-  color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
-.hero-card-platform{position:absolute;top:18px;right:16px;font-size:12px;font-weight:700;padding:4px 11px;
+.hero-card-img-fade{position:absolute;left:0;right:0;bottom:0;height:36%;
+  background:linear-gradient(0deg,var(--card) 0%,rgba(22,22,31,.55) 60%,transparent 100%)}
+.hero-card-rank{position:absolute;top:5%;left:5%;font-family:var(--mono);font-size:15cqw;font-weight:900;
+  font-style:italic;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hero-card-platform{position:absolute;top:7%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
   border-radius:5px;color:#fff}
-.hero-card-info{flex:1;background:var(--card);display:flex;flex-direction:column;justify-content:center;
-  padding:0 16px}
-.hero-card-title{color:#fff;font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hero-card-info img.hero-card-logo{max-width:100%;max-height:38px;object-fit:contain;object-position:left center;
-  display:block}
-.hero-card-rating{font-size:11px;color:var(--muted2);font-family:var(--mono);margin-top:4px}
+.hero-card-info{flex:1;background:var(--card);display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:2% 8%;text-align:center}
+.hero-card-title{color:#fff;font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:100%}
+.hero-card-info img.hero-card-logo{max-width:85%;max-height:36px;object-fit:contain;display:block;margin:0 auto}
 .hero-card-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   background:var(--bg3);color:var(--muted2);font-size:13px}
+
+.hero-arrow{position:absolute;top:calc(50% - 22px);width:40px;height:40px;border-radius:50%;
+  background:rgba(12,12,16,.75);border:1px solid var(--border2);color:#fff;font-size:18px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;user-select:none}
+.hero-arrow-left{left:-20px}
+.hero-arrow-right{right:-20px}
+.hero-arrow:hover{background:var(--gold);color:#000}
+
 .empty{color:var(--muted);font-size:13px;padding:20px 0}
 .loading{color:var(--muted);font-size:13px;padding:20px 0}
 </style>
 </head>
 <body>
+<div class="wrap">
 
 <h1>🎬 핫100 히어로 캐러셀 — 디자인 미리보기</h1>
 <p class="sub">실제 메인페이지가 쓸 공개 API(GET /hot100/hero-tabs)를 그대로 호출합니다. 여기서 디자인 확정 후 index.html에 그대로 옮기면 됩니다.</p>
 
 <div class="hero-tab-pills" id="tabPills"><div class="loading">불러오는 중...</div></div>
-<div class="hero-card-row" id="cardRow"></div>
+
+<div class="hero-row-wrap">
+  <div class="hero-arrow hero-arrow-left" onclick="shiftWindow(-1)">‹</div>
+  <div class="hero-card-row" id="cardRow"></div>
+  <div class="hero-arrow hero-arrow-right" onclick="shiftWindow(1)">›</div>
+</div>
+
+</div>
 
 <script>
 const API = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const IMG = 'https://image.tmdb.org/t/p/w300';
 const IMG_BACKDROP = 'https://image.tmdb.org/t/p/w780';
+const IMG_LOGO = 'https://image.tmdb.org/t/p/w300';
+const ICON_BASE = 'https://ottrank.kr/img/';
 const PLATFORM_KO = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스' };
 const PC = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429' };
+const PLATFORM_ICON = {
+  netflix:'netflix-icon.jpg', tving:'tving-icon.jpg', disney:'disneyplus-icon.jpg',
+  coupang:'coupangplay-icon.jpg', wavve:'wavve-icon.jpg', boxoffice:'boxoffice-icon.jpg',
+};
 
 function _esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 let tabsData = [];
 let curTabIdx = 0;
+let windowStart = 0;
+const CARDS_PER_VIEW = 4;
 const logoCache = {};
 
 async function loadHeroTabs(){
@@ -87,12 +118,24 @@ function renderTabs(){
     return;
   }
   box.innerHTML = tabsData.map((t,i) => `
-    <div class="hero-tab-pill ${i===curTabIdx?'on':''}" onclick="setTab(${i})">${_esc(t.label)}</div>
+    <div class="hero-tab-pill ${i===curTabIdx?'on':''}" onclick="setTab(${i})">
+      ${PLATFORM_ICON[t.platform] ? `<img src="${ICON_BASE}${PLATFORM_ICON[t.platform]}" alt="">` : ''}
+      ${_esc(t.label)}
+    </div>
   `).join('');
+  windowStart = 0;
   renderCards();
 }
 
-function setTab(i){ curTabIdx = i; renderTabs(); }
+function setTab(i){ curTabIdx = i; windowStart = 0; renderTabs(); }
+
+function shiftWindow(dir){
+  const tab = tabsData[curTabIdx];
+  if (!tab || !tab.items.length) return;
+  const total = tab.items.length;
+  windowStart = (windowStart + dir + total) % total;
+  renderCards();
+}
 
 function renderCards(){
   const row = document.getElementById('cardRow');
@@ -101,7 +144,11 @@ function renderCards(){
     row.innerHTML = '<div class="empty">이 탭에 노출할 데이터가 없습니다.</div>';
     return;
   }
-  row.innerHTML = tab.items.map(item => {
+  const total = tab.items.length;
+  const visibleCount = Math.min(CARDS_PER_VIEW, total);
+  const visible = Array.from({length: visibleCount}, (_, i) => tab.items[(windowStart + i) % total]);
+
+  row.innerHTML = visible.map(item => {
     const title = _esc(item.title_ko || item.title_en || '');
     const bg    = item.hero_custom_image_url
       ? item.hero_custom_image_url
@@ -127,7 +174,7 @@ function renderCards(){
     `;
   }).join('');
 
-  tab.items
+  visible
     .filter(item => !item.hero_title_baked_in)
     .forEach(item => upgradeToLogo(item.tmdb_id, item.media_type || 'tv'));
 }
@@ -146,7 +193,7 @@ async function upgradeToLogo(tmdbId, mediaType){
     if (!logoPath) return;
     const slot = document.getElementById(`title-${tmdbId}`);
     if (!slot) return;
-    slot.outerHTML = `<img class="hero-card-logo" id="title-${tmdbId}" src="${IMG_BACKDROP}${logoPath}" alt="">`;
+    slot.outerHTML = `<img class="hero-card-logo" id="title-${tmdbId}" src="${IMG_LOGO}${logoPath}" alt="">`;
   }catch(e){ /* 실패해도 텍스트 제목이 이미 있으니 조용히 무시 */ }
 }
 
