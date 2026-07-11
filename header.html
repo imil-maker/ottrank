@@ -929,8 +929,8 @@ function initHeader(){
       // ① 우리 DB works 검색 + TMDB 작품/인물 검색 병렬 실행
       const [dbRes, tvRes, mvRes, personRes] = await Promise.allSettled([
         fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=6`),
-        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
-        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
         fetch(`${TMDB_PROXY}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
       ]);
 
@@ -942,21 +942,23 @@ function initHeader(){
       }
       const dbTmdbIds = new Set(dbWorks.map(w => w.tmdb_id));
 
-      // TMDB TV 결과
+      // TMDB TV 결과 — adult:true 항목은 프록시/파라미터와 무관하게 한 번 더 차단
       let tmdbTv = [];
       if (tvRes.status === 'fulfilled' && tvRes.value.ok) {
         const tvJson = await tvRes.value.json();
         tmdbTv = (tvJson.results || [])
+          .filter(r => !r.adult)
           .filter(r => !dbTmdbIds.has(r.id))
           .slice(0, 5)
           .map(r => ({ ...r, _type: 'tv', tmdb_id: r.id }));
       }
 
-      // TMDB 영화 결과
+      // TMDB 영화 결과 — adult:true 항목은 프록시/파라미터와 무관하게 한 번 더 차단
       let tmdbMv = [];
       if (mvRes.status === 'fulfilled' && mvRes.value.ok) {
         const mvJson = await mvRes.value.json();
         tmdbMv = (mvJson.results || [])
+          .filter(r => !r.adult)
           .filter(r => !dbTmdbIds.has(r.id))
           .slice(0, 5)
           .map(r => ({ ...r, _type: 'movie', tmdb_id: r.id }));
@@ -1196,17 +1198,17 @@ function initHeader(){
     try {
       const [dbRes,tvRes,mvRes,personRes] = await Promise.allSettled([
         fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=6`),
-        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
-        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+        fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
         fetch(`${TMDB_PROXY}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
       ]);
       let dbWorks=[];
       if(dbRes.status==='fulfilled'&&dbRes.value.ok){ const j=await dbRes.value.json(); dbWorks=(j.data||[]).slice(0,6); }
       const dbIds=new Set(dbWorks.map(w=>w.tmdb_id));
       let tmdbTv=[];
-      if(tvRes.status==='fulfilled'&&tvRes.value.ok){ const j=await tvRes.value.json(); tmdbTv=(j.results||[]).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'tv',tmdb_id:r.id})); }
+      if(tvRes.status==='fulfilled'&&tvRes.value.ok){ const j=await tvRes.value.json(); tmdbTv=(j.results||[]).filter(r=>!r.adult).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'tv',tmdb_id:r.id})); }
       let tmdbMv=[];
-      if(mvRes.status==='fulfilled'&&mvRes.value.ok){ const j=await mvRes.value.json(); tmdbMv=(j.results||[]).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'movie',tmdb_id:r.id})); }
+      if(mvRes.status==='fulfilled'&&mvRes.value.ok){ const j=await mvRes.value.json(); tmdbMv=(j.results||[]).filter(r=>!r.adult).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'movie',tmdb_id:r.id})); }
       let persons=[];
       if(personRes.status==='fulfilled'&&personRes.value.ok){ const j=await personRes.value.json(); persons=(j.results||[]).slice(0,3); }
       if(!dbWorks.length&&!tmdbTv.length&&!tmdbMv.length&&!persons.length){
@@ -1254,14 +1256,14 @@ function initHeader(){
       try{
         const [dr,tr,mr,pr]=await Promise.allSettled([
           fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=5`),
-          fetch(`${TMDB}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR`),
-          fetch(`${TMDB}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR`),
+          fetch(`${TMDB}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+          fetch(`${TMDB}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
           fetch(`${TMDB}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
         ]);
         let dw=[];if(dr.status==='fulfilled'&&dr.value.ok){const j=await dr.value.json();dw=(j.data||[]).slice(0,5);}
         const di=new Set(dw.map(w=>w.tmdb_id));
-        let tv=[];if(tr.status==='fulfilled'&&tr.value.ok){const j=await tr.value.json();tv=(j.results||[]).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'tv',tmdb_id:r.id}));}
-        let mv=[];if(mr.status==='fulfilled'&&mr.value.ok){const j=await mr.value.json();mv=(j.results||[]).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'movie',tmdb_id:r.id}));}
+        let tv=[];if(tr.status==='fulfilled'&&tr.value.ok){const j=await tr.value.json();tv=(j.results||[]).filter(r=>!r.adult).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'tv',tmdb_id:r.id}));}
+        let mv=[];if(mr.status==='fulfilled'&&mr.value.ok){const j=await mr.value.json();mv=(j.results||[]).filter(r=>!r.adult).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'movie',tmdb_id:r.id}));}
         let ps=[];if(pr.status==='fulfilled'&&pr.value.ok){const j=await pr.value.json();ps=(j.results||[]).slice(0,2);}
         if(!dw.length&&!tv.length&&!mv.length&&!ps.length){el.innerHTML='<div class="ottrang-sr-empty">검색 결과가 없습니다</div>';return;}
         let h='';
