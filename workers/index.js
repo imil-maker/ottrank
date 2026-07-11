@@ -15,7 +15,7 @@
    contents.js  : /contents/*, /admin/contents*
    blog.js      : /blog-gen/*
    inquiry.js   : /inquiry, /admin/inquiry*  (광고문의/오류신고 게시판)
-   hot100.js    : /hot100, /admin/calc-hot100, /admin/hot100/boosts*  (HOT100 통합 랭킹)
+   hot100.js    : /hot100, /admin/calc-hot100, /admin/hot100/boosts*, /admin/hot100/frontend-tabs*  (HOT100 통합 랭킹)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -32,6 +32,7 @@ import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
   upsertAdminBoost, deleteAdminBoost,
+  listFrontendTabs, updateFrontendTab,
 } from "./routes/hot100.js";
 
 export default {
@@ -175,6 +176,15 @@ export default {
     const boostDeleteMatch = path.match(/^\/admin\/hot100\/boosts\/(\d+)$/);
     if (!res && boostDeleteMatch && request.method === "DELETE") {
       res = await deleteAdminBoost(parseInt(boostDeleteMatch[1], 10), request, env, headers);
+    }
+
+    // 11-2. HOT100 프론트엔드 구성(메인페이지 히어로 캐러셀 탭 설정)
+    if (!res && path === "/admin/hot100/frontend-tabs" && request.method === "GET") {
+      res = await listFrontendTabs(request, env, headers);
+    }
+    const frontendTabMatch = path.match(/^\/admin\/hot100\/frontend-tabs\/([a-z]+)$/);
+    if (!res && frontendTabMatch && request.method === "PATCH") {
+      res = await updateFrontendTab(frontendTabMatch[1], request, env, headers);
     }
 
     // 12. 관리자 (reactions, videos, contents, inquiry, hot100 제외한 나머지)
