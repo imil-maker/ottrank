@@ -121,18 +121,22 @@ function x(d,i,t){if(!i.length)return d.slice(0,t).map((a,r)=>({...a,rank:r+1}))
         ORDER BY person_order ASC
         LIMIT 1
       `).first();if(!o)return new Response(JSON.stringify({ok:!0,data:null}),{headers:s});let n=o.person_limit||10,{results:l}=await t.DB.prepare(`
-        SELECT rank, title_ko, title_en, tmdb_id, poster_path, genre, tmdb_rating, release_year
-        FROM rankings
-        WHERE platform = ? AND category_slot = ?
-          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
-        ORDER BY rank ASC
+        SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
+               r.tmdb_rating, r.release_year, w.media_type
+        FROM rankings r
+        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+        WHERE r.platform = ? AND r.category_slot = ?
+          AND r.date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+        ORDER BY r.rank ASC
       `).bind(o.platform,o.category_slot).all(),{results:e}=await t.DB.prepare(`
-        SELECT rank, title_ko, title_en, tmdb_id, poster_path, genre, tmdb_rating, release_year
-        FROM rankings
-        WHERE platform = ? AND category_slot = ?
-          AND is_manual = 1 AND date = 'manual'
-        ORDER BY rank ASC
-      `).bind(o.platform,o.category_slot).all(),a=x(l,e,n);return new Response(JSON.stringify({ok:!0,data:{platform:o.platform,category_slot:o.category_slot,display_name:o.display_name,items:a.map(r=>({rank:r.rank,title_ko:r.title_ko,title_en:r.title_en,tmdb_id:r.tmdb_id,poster_path:r.poster_path,genre:r.genre,tmdb_rating:r.tmdb_rating,release_year:r.release_year}))}}),{headers:s})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:s})}if(d.startsWith("/rankings/manual/")&&i.method==="GET"){let o=parseInt(d.split("/rankings/manual/")[1]);if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:s});try{let{results:n}=await t.DB.prepare(`
+        SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
+               r.tmdb_rating, r.release_year, w.media_type
+        FROM rankings r
+        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+        WHERE r.platform = ? AND r.category_slot = ?
+          AND r.is_manual = 1 AND r.date = 'manual'
+        ORDER BY r.rank ASC
+      `).bind(o.platform,o.category_slot).all(),a=x(l,e,n);return new Response(JSON.stringify({ok:!0,data:{platform:o.platform,category_slot:o.category_slot,display_name:o.display_name,items:a.map(r=>({rank:r.rank,title_ko:r.title_ko,title_en:r.title_en,tmdb_id:r.tmdb_id,poster_path:r.poster_path,genre:r.genre,tmdb_rating:r.tmdb_rating,release_year:r.release_year,media_type:r.media_type||null}))}}),{headers:s})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:s})}if(d.startsWith("/rankings/manual/")&&i.method==="GET"){let o=parseInt(d.split("/rankings/manual/")[1]);if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:s});try{let{results:n}=await t.DB.prepare(`
         SELECT
           r.rank, r.memo, r.platform, r.category_slot,
           oc.display_name, oc.memo_label
