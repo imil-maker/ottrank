@@ -196,7 +196,6 @@ function login() {
   document.getElementById('loginSection').style.display = 'none';
   document.getElementById('mainSection').style.display = 'block';
   loadCategoryCheck();
-  loadWeightCategories();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -249,7 +248,7 @@ async function runBoostSearch() {
     box.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>포스터</th><th>TMDB ID</th><th>작품명</th><th>고정 점수</th><th></th></tr></thead>
+          <thead><tr><th>포스터</th><th>TMDB ID</th><th>작품명</th><th>플랫폼</th><th>고정 점수</th><th></th></tr></thead>
           <tbody>
             ${rows.map(r => `
               <tr>
@@ -258,6 +257,11 @@ async function runBoostSearch() {
                 <td>
                   <span class="title-ko">${_esc(r.title_ko)}</span>
                   ${r.is_pinned ? `<span class="pin-badge">📌 고정중</span>` : ''}
+                </td>
+                <td>
+                  <select class="inp" id="pp-${r.tmdb_id}" style="font-size:12px;padding:4px 8px;width:110px">
+                    ${HOT100_PLATFORMS.map(p => `<option value="${p}" ${r.pinned_platform===p?'selected':''}>${PLATFORM_KO[p]}</option>`).join('')}
+                  </select>
                 </td>
                 <td><input class="boost-inp" type="number" id="bv-${r.tmdb_id}" value="${r.is_pinned ? r.pinned_score : 0}"></td>
                 <td><button class="btn-sm btn-fix" onclick="savePinFromSearch(${r.tmdb_id})">📌 고정 저장</button></td>
@@ -271,12 +275,13 @@ async function runBoostSearch() {
 }
 
 async function savePinFromSearch(tmdbId) {
-  const pinned_score = parseFloat(document.getElementById(`bv-${tmdbId}`).value) || 0;
+  const pinned_score    = parseFloat(document.getElementById(`bv-${tmdbId}`).value) || 0;
+  const pinned_platform = document.getElementById(`pp-${tmdbId}`).value;
   try {
     const res  = await fetch(`${API}/admin/hot100/boosts`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tmdb_id: tmdbId, is_pinned: true, pinned_score, reason: '검색창에서 고정 등록' })
+      body: JSON.stringify({ tmdb_id: tmdbId, is_pinned: true, pinned_score, pinned_platform, reason: '검색창에서 고정 등록' })
     });
     const json = await res.json();
     if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
@@ -298,6 +303,9 @@ async function loadCategoryCheck() {
     const json = await res.json();
     allCatCheckData = json.data || [];
     renderCatCheck();
+    renderWeightCategories(); // ⚠️ 2026-07-11 수정: 데이터 도착 후 가중치 화면도 같이 갱신
+                              //   (기존엔 로그인 시 loadWeightCategories()가 fetch 완료 전에 먼저 실행돼서
+                              //    "카테고리 체크"에서 저장하기 전까지 빈 목록으로 보이던 버그)
   } catch(e) {
     document.getElementById('catCheckBody').innerHTML = `<tr><td colspan="5" class="empty">오류: ${e.message}</td></tr>`;
   }
@@ -361,10 +369,8 @@ async function saveAllCatCheck() {
 // ════════════════════════════════════════════════════
 // ③ 카테고리별 가중치 설정 (HOT100 포함 카테고리만 대상)
 // ════════════════════════════════════════════════════
-function loadWeightCategories() {
-  // 별도 API 호출 없이 "카테고리 체크" 탭에서 이미 로드한 allCatCheckData 재사용
-  renderWeightCategories();
-}
+// [2026-07-11] loadWeightCategories()는 제거됨 — renderWeightCategories()가
+// loadCategoryCheck() 안에서 데이터 도착 직후 직접 호출되도록 변경됨 (로딩 순서 버그 수정)
 
 function renderWeightCategories() {
   // [2026-07-11 수정] 플랫폼 탭으로 나눠서 보여주던 것 → 전체를 한 테이블에 나열(플랫폼순 정렬)
