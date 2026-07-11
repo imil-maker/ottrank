@@ -33,6 +33,7 @@ import {
   listAdminBoosts, searchWorksForBoost,
   upsertAdminBoost, deleteAdminBoost,
   listFrontendTabs, updateFrontendTab,
+  getHeroTabs,
 } from "./routes/hot100.js";
 
 export default {
@@ -161,6 +162,9 @@ export default {
     }
     if (!res && path === "/hot100") {
       res = await getHot100(request, env, headers);
+    }
+    if (!res && path === "/hot100/hero-tabs") {
+      res = await getHeroTabs(request, env, headers);
     }
 
     // 11-1. HOT100 수동 부스트 관리 (search가 :tmdb_id 패턴보다 앞에 있어야 함)
