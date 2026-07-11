@@ -7,9 +7,11 @@
 // [2026-07-11 추가] 프론트엔드 구성(hot100_frontend_tabs) 관련:
 //   GET   /admin/hot100/frontend-tabs
 //   PATCH /admin/hot100/frontend-tabs/:platform
+//   GET   /hot100/hero-tabs  ← 공개 API, 어드민 미리보기 + 실제 메인페이지가 같이 씀
 // ─────────────────────────────────────────────────────────
 
 import { _checkAuth } from "../utils/authUtils.js";
+import { _mergeRankings } from "./rankings.js";
 
 /**
  * POST /admin/calc-hot100
@@ -616,6 +618,113 @@ export async function updateFrontendTab(platform, request, env, headers) {
   } catch (err) {
     return new Response(
       JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * GET /hot100/hero-tabs
+ * ─────────────────────────────────────────────
+ * 메인페이지 히어로 캐러셀용 공개 조회 API.
+ * hot100_frontend_tabs(is_active=1)를 display_order 순으로 돌면서,
+ * 'all'은 hot100_scores, 나머지 플랫폼은 그 플랫폼의 지정 카테고리(rankings)를 채워서 반환.
+ * ⚠️ 어드민 미리보기("프론트엔드 보기" 버튼)와 실제 메인페이지가 이 API 하나를 그대로 같이 씀 —
+ * 나중에 메인페이지 만들 때 새 API 안 만들어도 됨.
+ */
+export async function getHeroTabs(request, env, headers) {
+  try {
+    const PLATFORM_LABELS = {
+      all: "전체", netflix: "넷플릭스", tving: "티빙", disney: "디즈니+",
+      coupang: "쿠팡플레이", wavve: "웨이브", boxoffice: "박스오피스",
+    };
+
+    const { results: tabConfigs } = await env.DB.prepare(
+      `SELECT platform, category_slot, top_n, display_order
+       FROM hot100_frontend_tabs
+       WHERE is_active = 1
+       ORDER BY display_order ASC`
+    ).all();
+
+    if (!tabConfigs || tabConfigs.length === 0) {
+      return new Response(JSON.stringify({ ok: true, tabs: [] }), { status: 200, headers });
+    }
+
+    const tabs = [];
+
+    for (const cfg of tabConfigs) {
+      const limit = cfg.top_n || 10;
+
+      if (cfg.platform === "all") {
+        // ── "전체" 탭: hot100_scores 그대로 사용 ──
+        const { results } = await env.DB.prepare(
+          `SELECT h.tmdb_id, h.best_platform, w.title_ko, w.title_en,
+                  w.poster_path, w.hero_backdrop_path, w.media_type, w.tmdb_rating
+           FROM hot100_scores h
+           LEFT JOIN works w ON w.tmdb_id = h.tmdb_id
+           ORDER BY h.total_score DESC
+           LIMIT ?`
+        ).bind(limit).all();
+
+        tabs.push({
+          platform: "all",
+          label: PLATFORM_LABELS.all,
+          items: (results || []).map((row, idx) => ({
+            rank: idx + 1, tmdb_id: row.tmdb_id, best_platform: row.best_platform,
+            title_ko: row.title_ko, title_en: row.title_en,
+            poster_path: row.poster_path, hero_backdrop_path: row.hero_backdrop_path,
+            media_type: row.media_type, tmdb_rating: row.tmdb_rating,
+          })),
+        });
+        continue;
+      }
+
+      if (!cfg.category_slot) continue; // 카테고리 미지정이면 스킵(설정 누락 방어)
+
+      // ── 플랫폼 탭: rankings에서 크롤링+수동고정 병합(다른 공개 API와 동일한 원칙) ──
+      const latestRow = await env.DB.prepare(
+        `SELECT MAX(date) AS latest FROM rankings WHERE platform = ? AND category_slot = ? AND date != 'manual'`
+      ).bind(cfg.platform, cfg.category_slot).first();
+      const latestDate = latestRow?.latest || null;
+
+      const { results: crawlResults } = latestDate
+        ? await env.DB.prepare(
+            `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
+                    w.hero_backdrop_path, w.media_type, w.tmdb_rating
+             FROM rankings r
+             LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
+             WHERE r.platform = ? AND r.category_slot = ? AND r.date = ?
+             ORDER BY r.rank ASC`
+          ).bind(cfg.platform, cfg.category_slot, latestDate).all()
+        : { results: [] };
+
+      const { results: manualResults } = await env.DB.prepare(
+        `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
+                w.hero_backdrop_path, w.media_type, w.tmdb_rating
+         FROM rankings r
+         LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
+         WHERE r.platform = ? AND r.category_slot = ? AND r.is_manual = 1 AND r.date = 'manual'
+         ORDER BY r.rank ASC`
+      ).bind(cfg.platform, cfg.category_slot).all();
+
+      const merged = _mergeRankings(crawlResults || [], manualResults || [], limit);
+
+      tabs.push({
+        platform: cfg.platform,
+        label: PLATFORM_LABELS[cfg.platform] || cfg.platform,
+        items: merged.map((row) => ({
+          rank: row.rank, tmdb_id: row.tmdb_id, best_platform: cfg.platform,
+          title_ko: row.title_ko, title_en: row.title_en,
+          poster_path: row.poster_path, hero_backdrop_path: row.hero_backdrop_path,
+          media_type: row.media_type, tmdb_rating: row.tmdb_rating,
+        })),
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, tabs }), { status: 200, headers });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "히어로 탭 조회 중 오류가 발생했습니다.", detail: err.message }),
       { status: 500, headers }
     );
   }
