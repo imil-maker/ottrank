@@ -96,13 +96,61 @@ export async function calcHot100(request, env, headers) {
 
     const { results } = await env.DB.prepare(weightedQuery).bind(latestDate).all();
 
-    // 로우 배열 예외 처리 — 계산할 데이터가 없는 경우
-    if (!results || results.length === 0) {
+    // ── 3-1. 고정(pin) 항목 조회 — 랭킹 유무와 상관없이 항상 포함될 작품들 ──
+    // 3번 검색창(고정 점수 등록)이나 2번 미리보기(📌 고정 버튼)로 is_pinned=1이 된 작품은
+    // 크롤링 랭킹이 있든 없든, pinned_score를 그대로 최종 점수로 사용한다.
+    // (개봉 전 작품 강제 편입 / 특정 작품 강제 하위 노출 둘 다 이 방식 하나로 처리)
+    const { results: pinnedRows } = await env.DB.prepare(
+      `SELECT tmdb_id, pinned_score FROM admin_boosts WHERE is_pinned = 1`
+    ).all();
+    const pinnedMap = new Map((pinnedRows || []).map((p) => [p.tmdb_id, p.pinned_score ?? 0]));
+
+    // 로우 배열 예외 처리 — 크롤링 랭킹도 없고 고정 항목도 없는 경우만 에러
+    if ((!results || results.length === 0) && pinnedMap.size === 0) {
       return new Response(
         JSON.stringify({ ok: false, error: "계산할 랭킹 데이터가 없습니다." }),
         { status: 404, headers }
       );
     }
+
+    // ── 3-2. 크롤링 결과 + 고정 항목 병합 ──
+    // 고정된 tmdb_id는 크롤링 결과에 있어도 점수를 무시하고 pinned_score로 덮어씀
+    // (플랫폼 정보만 있으면 표시용으로 유지). 랭킹 자체가 없는 고정 항목은 별도로 추가.
+    const finalRows = [];
+    const seenTmdbIds = new Set();
+
+    for (const row of results || []) {
+      seenTmdbIds.add(row.tmdb_id);
+      if (pinnedMap.has(row.tmdb_id)) {
+        finalRows.push({
+          tmdb_id: row.tmdb_id,
+          best_platform: row.best_platform,
+          best_rank: row.best_rank,
+          rank_score: 0,
+          platform_weight: 0,
+          weighted_score: 0,
+          admin_boost: pinnedMap.get(row.tmdb_id),
+        });
+      } else {
+        finalRows.push(row);
+      }
+    }
+    for (const [tmdbId, pinnedScore] of pinnedMap) {
+      if (seenTmdbIds.has(tmdbId)) continue; // 이미 위에서 처리됨
+      finalRows.push({
+        tmdb_id: tmdbId,
+        best_platform: "manual", // 크롤링 랭킹 자체가 없는 순수 고정 항목 표시용
+        best_rank: null,
+        rank_score: 0,
+        platform_weight: 0,
+        weighted_score: 0,
+        admin_boost: pinnedScore,
+      });
+    }
+    // 점수 내림차순 재정렬 (top10_preview, DB 저장 순서용 — 정렬 자체가 결과에 영향 없지만 일관성 유지)
+    finalRows.sort(
+      (a, b) => b.weighted_score + b.admin_boost - (a.weighted_score + a.admin_boost)
+    );
 
     // ── 4. hot100_scores 테이블 전체 재계산(덮어쓰기) ─────────
     // KST 기준 현재 시각 (UTC + 9시간)
@@ -114,7 +162,7 @@ export async function calcHot100(request, env, headers) {
     // 기존 데이터 전체 삭제 + 신규 데이터 삽입을 하나의 배치로 묶음
     const statements = [env.DB.prepare(`DELETE FROM hot100_scores`)];
 
-    for (const row of results) {
+    for (const row of finalRows) {
       const totalScore = row.weighted_score + row.admin_boost;
       statements.push(
         env.DB.prepare(
@@ -145,8 +193,8 @@ export async function calcHot100(request, env, headers) {
       JSON.stringify({
         ok: true,
         calc_date: latestDate,
-        total_works: results.length,
-        top10_preview: results.slice(0, 10).map((r) => ({
+        total_works: finalRows.length,
+        top10_preview: finalRows.slice(0, 10).map((r) => ({
           tmdb_id: r.tmdb_id,
           best_platform: r.best_platform,
           best_rank: r.best_rank,
@@ -183,7 +231,7 @@ export async function listAdminBoosts(request, env, headers) {
   }
   try {
     const { results } = await env.DB.prepare(
-      `SELECT ab.tmdb_id, ab.boost_value, ab.reason, ab.updated_at,
+      `SELECT ab.tmdb_id, ab.boost_value, ab.reason, ab.is_pinned, ab.pinned_score, ab.updated_at,
               w.title_ko, w.poster_path
        FROM admin_boosts ab
        LEFT JOIN works w ON w.tmdb_id = ab.tmdb_id
@@ -226,7 +274,9 @@ export async function searchWorksForBoost(request, env, headers) {
 
     const { results } = await env.DB.prepare(
       `SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path,
-              COALESCE(ab.boost_value, 0) AS boost_value
+              COALESCE(ab.boost_value, 0) AS boost_value,
+              COALESCE(ab.is_pinned, 0) AS is_pinned,
+              ab.pinned_score
        FROM works w
        LEFT JOIN admin_boosts ab ON ab.tmdb_id = w.tmdb_id
        WHERE w.title_ko LIKE ? OR w.title_en LIKE ? OR w.tmdb_id = ?
@@ -261,7 +311,7 @@ export async function upsertAdminBoost(request, env, headers) {
   }
   try {
     const body = await request.json();
-    const { tmdb_id, boost_value, reason } = body;
+    const { tmdb_id, boost_value, reason, is_pinned, pinned_score } = body;
 
     if (!tmdb_id) {
       return new Response(
@@ -270,19 +320,40 @@ export async function upsertAdminBoost(request, env, headers) {
       );
     }
 
+    // ⚠️ is_pinned가 요청 body에 아예 없으면(undefined) — 예: boost_value만 보내는
+    // 다른 저장 흐름 — 기존 고정 상태를 실수로 0으로 초기화하지 않도록 기존 값을 유지한다.
+    let finalIsPinned = is_pinned;
+    let finalPinnedScore = pinned_score;
+    if (is_pinned === undefined) {
+      const existing = await env.DB.prepare(
+        `SELECT is_pinned, pinned_score FROM admin_boosts WHERE tmdb_id = ?`
+      ).bind(tmdb_id).first();
+      finalIsPinned = existing?.is_pinned || 0;
+      finalPinnedScore = existing?.pinned_score ?? null;
+    }
+
     const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 19)
       .replace("T", " ");
 
     await env.DB.prepare(
-      `INSERT INTO admin_boosts (tmdb_id, boost_value, reason, updated_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO admin_boosts (tmdb_id, boost_value, reason, is_pinned, pinned_score, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(tmdb_id) DO UPDATE SET
          boost_value = excluded.boost_value,
          reason = excluded.reason,
+         is_pinned = excluded.is_pinned,
+         pinned_score = excluded.pinned_score,
          updated_at = excluded.updated_at`
-    ).bind(tmdb_id, boost_value || 0, reason || null, nowKst).run();
+    ).bind(
+      tmdb_id,
+      boost_value || 0,
+      reason || null,
+      finalIsPinned ? 1 : 0,
+      finalIsPinned ? (finalPinnedScore ?? 0) : null,
+      nowKst
+    ).run();
 
     return new Response(
       JSON.stringify({ ok: true }),
