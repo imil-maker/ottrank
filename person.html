@@ -136,7 +136,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
    포스터 카드는 대표작(.known-for-row .work-card)과 완전히 동일한 크기를 쓰려고
    새 CSS를 만들지 않고 .known-for-row 클래스를 그대로 재사용함(아래 rankingWidgetRow).
    헤더(OTT 네임태그 + 제목)는 netflix.html의 .sec-num/.sec-title 패턴을 재현. */
-.ranking-widget-section{margin-top:8px}
+.ranking-widget-section{margin:32px 0;padding:18px 18px 20px;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg)}
 .ranking-widget-hd{display:flex;align-items:center;gap:10px;margin-bottom:14px;
   text-decoration:none;cursor:pointer}
 .ranking-widget-hd .sec-num{font-family:var(--font-mono);font-size:12px;font-weight:700;
