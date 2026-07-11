@@ -3838,7 +3838,7 @@ const OTT_HOME_URL = {
  * 보러가기 바 목록 렌더링
  * @param {null} _p       - 미사용 (하위호환)
  * @param {null} _n       - 미사용 (하위호환)
- * @param {Array|null} list - [{name, url, logo_path}] 또는 극장 [{name, url, logo}]
+ * @param {Array|null} list - [{name, url, local_logo}] 또는 극장 [{name, url, logo}]
  */
 function renderOttTab(_p, _n, list){
   const listEl = document.getElementById('ottBarList');
@@ -3854,11 +3854,10 @@ function renderOttTab(_p, _n, list){
   if(secEl) secEl.style.display = 'block';
 
   listEl.innerHTML = list.map(item => {
-    const logoUrl = item.logo_path
-      ? `https://image.tmdb.org/t/p/w92${item.logo_path}`
-      : '';
+    /* 자체 업로드 로고(/img/*.jpg)만 사용 — TMDB 등 외부 폴백 없음 */
+    const logoUrl = item.local_logo || '';
 
-    /* 로고 있는 경우: img + onerror 시 컬러 텍스트 폴백
+    /* 로고 있는 경우: img + onerror 시 컬러 텍스트 폴백(1회성, 재요청 없음)
        로고 없는 경우: 바로 컬러 텍스트 표시 */
     const brandColor = item.color || '#555';
     const brandText  = item.text  || (item.name ? item.name[0] : '?');
@@ -3905,17 +3904,17 @@ async function loadWatchProviders(){
   /* ── DB 랭킹 platform → 표시명/URL 매핑 ── */
   const PLATFORM_META = {
     netflix : { name:'넷플릭스',   url: OTT_HOME_URL['넷플릭스'],
-                logo_path:'/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg', color:'#e50914', text:'N'  },
+                local_logo:'/img/netflix-icon.jpg',     color:'#e50914', text:'N'  },
     tving   : { name:'티빙',       url: OTT_HOME_URL['티빙'],
-                logo_path:'/1VRpz5aOxlXTkYkKTqb8wdBlhF3.jpg',  color:'#ff1a6e', text:'T'  },
+                local_logo:'/img/tving-icon.jpg',       color:'#ff1a6e', text:'T'  },
     wavve   : { name:'웨이브',     url: OTT_HOME_URL['웨이브'],
-                logo_path:'/xbhHHa26Qm4skarXnwhxKgne6TN.jpg',  color:'#0070f3', text:'W'  },
+                local_logo:'/img/wavve-icon.jpg',       color:'#0070f3', text:'W'  },
     disney  : { name:'디즈니+',    url: OTT_HOME_URL['디즈니+'],
-                logo_path:'/7rwgEs15tFwyR9NPviyhgNAmYNv.jpg',   color:'#006e99', text:'D+' },
+                local_logo:'/img/disneyplus-icon.jpg',  color:'#006e99', text:'D+' },
     coupang : { name:'쿠팡플레이', url: OTT_HOME_URL['쿠팡플레이'],
-                logo_path: null,                                 color:'#1ac44d', text:'CP' },
+                local_logo:'/img/coupangplay-icon.jpg', color:'#1ac44d', text:'CP' },
     watcha  : { name:'왓챠',       url: OTT_HOME_URL['왓챠']||'https://watcha.com',
-                logo_path:'/3dh6JLtbcIuFVaYxnkEdXAUMtBO.jpg',  color:'#ff0558', text:'W'  },
+                local_logo:'/img/watcha-icon.jpg',      color:'#ff0558', text:'W'  },
   };
 
   /* ────────────────────────────────────────
@@ -3963,11 +3962,11 @@ async function loadWatchProviders(){
     if(!meta || seen.has(meta.name)) continue;
     seen.add(meta.name);
     finalList.push({
-      name      : meta.name,
-      url       : meta.url,
-      logo_path : meta.logo_path,
-      color     : meta.color,
-      text      : meta.text,
+      name       : meta.name,
+      url        : meta.url,
+      local_logo : meta.local_logo,
+      color      : meta.color,
+      text       : meta.text,
     });
   }
 
@@ -3999,11 +3998,11 @@ async function loadWatchProviders(){
       if(!meta || seen.has(meta.name) || forceRemove.has(ottKey)) continue;
       seen.add(meta.name);
       finalList.push({
-        name      : meta.name,
-        url       : meta.url,
-        logo_path : meta.logo_path,
-        color     : meta.color,
-        text      : meta.text,
+        name       : meta.name,
+        url        : meta.url,
+        local_logo : meta.local_logo,
+        color      : meta.color,
+        text       : meta.text,
       });
     }
 
@@ -4026,10 +4025,13 @@ async function loadWatchProviders(){
         if(!ottKey) continue; // 화이트리스트에 없는 플랫폼(Apple TV 등)은 스킵
         if(forceRemove.has(ottKey)) continue;
         seen.add(nameKo);
+        const owMeta = PLATFORM_META[ottKey]; // 화이트리스트 통과 = 항상 존재
         finalList.push({
-          name      : nameKo,
-          url       : OTT_HOME_URL[nameKo] || '#',
-          logo_path : p.logo_path || null,
+          name       : nameKo,
+          url        : OTT_HOME_URL[nameKo] || '#',
+          local_logo : owMeta.local_logo,
+          color      : owMeta.color,
+          text       : owMeta.text,
         });
       }
     }
@@ -4043,11 +4045,11 @@ async function loadWatchProviders(){
     if(!seen.has(meta.name)){
       seen.add(meta.name);
       forceAddItems.push({
-        name      : meta.name,
-        url       : meta.url,
-        logo_path : meta.logo_path,
-        color     : meta.color,
-        text      : meta.text,
+        name       : meta.name,
+        url        : meta.url,
+        local_logo : meta.local_logo,
+        color      : meta.color,
+        text       : meta.text,
       });
     }
   }
