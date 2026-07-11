@@ -3,6 +3,10 @@
 // RankScore × PlatformWeight + AdminBoost 기반
 // (EngagementScore/검색어 점수는 추후 네이버 데이터랩 연동 시 추가 예정,
 //  현재는 컬럼만 만들어두고 항상 0으로 저장)
+//
+// [2026-07-11 추가] 프론트엔드 구성(hot100_frontend_tabs) 관련:
+//   GET   /admin/hot100/frontend-tabs
+//   PATCH /admin/hot100/frontend-tabs/:platform
 // ─────────────────────────────────────────────────────────
 
 import { _checkAuth } from "../utils/authUtils.js";
@@ -538,6 +542,80 @@ export async function getHot100(request, env, headers) {
         error: "HOT100 조회 중 오류가 발생했습니다.",
         detail: err.message,
       }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * GET /admin/hot100/frontend-tabs
+ * 메인페이지 히어로 캐러셀 탭 구성(hot100_frontend_tabs) 7개 행 전체 조회
+ */
+export async function listFrontendTabs(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT platform, category_slot, top_n, display_order, is_active
+       FROM hot100_frontend_tabs
+       ORDER BY display_order ASC`
+    ).all();
+    return new Response(
+      JSON.stringify({ ok: true, data: results || [] }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * PATCH /admin/hot100/frontend-tabs/:platform
+ * body: { category_slot, top_n, display_order, is_active }
+ * platform은 이미 시드로 다 채워져 있는 고정 7개 행 중 하나만 수정(생성/삭제 없음)
+ */
+export async function updateFrontendTab(platform, request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const body = await request.json();
+    const { category_slot, top_n, display_order, is_active } = body;
+
+    await env.DB.prepare(
+      `UPDATE hot100_frontend_tabs SET
+         category_slot = COALESCE(?, category_slot),
+         top_n         = COALESCE(?, top_n),
+         display_order = COALESCE(?, display_order),
+         is_active     = COALESCE(?, is_active)
+       WHERE platform = ?`
+    ).bind(
+      category_slot ?? null,
+      top_n ?? null,
+      display_order ?? null,
+      is_active ?? null,
+      platform
+    ).run();
+
+    return new Response(
+      JSON.stringify({ ok: true }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
       { status: 500, headers }
     );
   }
