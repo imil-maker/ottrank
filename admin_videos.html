@@ -1017,8 +1017,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <!-- 안내 메시지 -->
     <div style="background:rgba(240,68,68,.08);border:1px solid rgba(240,68,68,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
-      💡 제목·줄거리·TMDB키워드에 성인물 의심 단어가 포함된 작품을 찾아 보여줍니다. <span style="color:var(--red)">전부 기본 체크되어 있으니, 성인물이 아닌 걸 발견하면 체크를 해제</span>해주세요.<br>
-      아래 "선택 삭제" 누르면 체크된 것만 삭제되고, 체크 해제한 것은 "정상 확인됨"으로 표시되어 다음부터 목록에 안 나옵니다.<br>
+      💡 제목·줄거리·TMDB키워드에 성인물 의심 단어가 포함된 작품을 찾아 보여줍니다. <span style="color:var(--red)">전부 기본 체크해제 상태이니, 진짜 성인물인 걸 발견하면 체크</span>해주세요.<br>
+      아래 "선택 삭제" 누르면 체크된 것만 삭제되고, 체크 안 한 것은 "정상 확인됨"으로 표시되어 다음부터 목록에 안 나옵니다.<br>
       검색창에 단어를 넣으면 그 단어로만 찾아봅니다. 이미 검사한 단어는 아래 태그로 표시되니 참고해서 겹치지 않는 단어로 검색해주세요.
     </div>
 
@@ -3658,7 +3658,7 @@ async function acLoadBatch() {
 
     acItems = data.items || [];
     acChecked = {};
-    acItems.forEach(it => { acChecked[it.tmdb_id] = true; }); // 기본 전부 체크(삭제 예정)
+    acItems.forEach(it => { acChecked[it.tmdb_id] = false; }); // 기본 전부 체크해제(성인물 확실한 것만 직접 체크)
     document.getElementById('acRemaining').textContent = data.remaining ?? '-';
 
     if (!acItems.length) {
@@ -3673,8 +3673,8 @@ async function acLoadBatch() {
       const searchUrl = `https://www.themoviedb.org/search?query=${encodeURIComponent(it.title_ko || it.title_en || '')}`;
       const title = (it.title_ko || it.title_en || `#${it.tmdb_id}`).replace(/</g, '&lt;').replace(/>/g, '&gt;');
       return `
-        <div class="ac-card" id="acCard_${it.tmdb_id}">
-          <input type="checkbox" class="ac-check" checked onchange="acToggle(${it.tmdb_id}, this.checked)">
+        <div class="ac-card ac-off" id="acCard_${it.tmdb_id}">
+          <input type="checkbox" class="ac-check" onchange="acToggle(${it.tmdb_id}, this.checked)">
           <a href="${searchUrl}" target="_blank" rel="noopener" title="TMDB에서 검색해서 확인">
             ${poster
               ? `<img class="ac-poster" src="${poster}" alt="${title}" loading="lazy">`
