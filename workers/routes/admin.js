@@ -1428,6 +1428,7 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 제목/줄거리/TMDB키워드에 성인물 의심 단어가 포함된 작품을 검색.
   // adult_flag(NULL=미검토)가 아직 안 매겨진 것만 대상으로 하여, 한 번 검토(삭제 또는
   // "정상으로 확인됨" 처리)한 작품은 다음 배치 조회에서 자동으로 빠짐.
+  // ?word= 파라미터가 오면 기본 단어 목록 대신 그 단어 하나로만 검색(어드민 화면 검색창용).
   // ⚠️ 단어 매칭 방식이라 오탐/누락 둘 다 있을 수 있음 — 어드민 화면에서 사람이
   // 포스터·제목 보고 최종 판단하는 용도의 "후보 목록"일 뿐, 자동 확정 아님.
   if (path === "/admin/works/adult-search" && request.method === "GET") {
@@ -1436,23 +1437,32 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
     try {
       const limit = Math.min(parseInt(url.searchParams.get("limit")) || 50, 100);
+      const customWord = (url.searchParams.get("word") || "").trim();
 
-      // 의심 단어 목록 — 강한 신호/약한 신호 구분 없이 전부 OR 매칭(1차 후보군 넓게 잡기 목적)
-      const SUSPECT_WORDS = [
-        "정사", "야한",
-        "계모", "새엄마", "처제", "형수", "동서", "유혹", "불륜", "외도", "몸매", "하룻밤",
-      ];
-      const suspectClause = SUSPECT_WORDS
-        .map(() => "(title_ko LIKE ? OR overview LIKE ?)")
-        .join(" OR ");
-      const suspectParams = SUSPECT_WORDS.flatMap(w => [`%${w}%`, `%${w}%`]);
+      let whereSql, allParams;
 
-      const KEYWORD_TAGS = ["softcore", "erotica", "pinku eiga", "sexploitation"];
-      const keywordClause = KEYWORD_TAGS.map(() => "keywords LIKE ?").join(" OR ");
-      const keywordParams = KEYWORD_TAGS.map(t => `%${t}%`);
+      if (customWord) {
+        // 검색창에서 단어를 직접 넣은 경우 — 그 단어 하나로만 검색
+        whereSql = `adult_flag IS NULL AND (title_ko LIKE ? OR title_en LIKE ? OR overview LIKE ? OR keywords LIKE ?)`;
+        allParams = [`%${customWord}%`, `%${customWord}%`, `%${customWord}%`, `%${customWord}%`];
+      } else {
+        // 기본 의심 단어 목록 — 강한 신호/약한 신호 구분 없이 전부 OR 매칭(1차 후보군 넓게 잡기 목적)
+        const SUSPECT_WORDS = [
+          "정사", "야한",
+          "계모", "새엄마", "처제", "형수", "동서", "유혹", "불륜", "외도", "몸매", "하룻밤",
+        ];
+        const suspectClause = SUSPECT_WORDS
+          .map(() => "(title_ko LIKE ? OR overview LIKE ?)")
+          .join(" OR ");
+        const suspectParams = SUSPECT_WORDS.flatMap(w => [`%${w}%`, `%${w}%`]);
 
-      const whereSql = `adult_flag IS NULL AND (${suspectClause} OR ${keywordClause})`;
-      const allParams = [...suspectParams, ...keywordParams];
+        const KEYWORD_TAGS = ["softcore", "erotica", "pinku eiga", "sexploitation"];
+        const keywordClause = KEYWORD_TAGS.map(() => "keywords LIKE ?").join(" OR ");
+        const keywordParams = KEYWORD_TAGS.map(t => `%${t}%`);
+
+        whereSql = `adult_flag IS NULL AND (${suspectClause} OR ${keywordClause})`;
+        allParams = [...suspectParams, ...keywordParams];
+      }
 
       const { results: items } = await env.DB.prepare(`
         SELECT tmdb_id, title_ko, title_en, poster_path, media_type
@@ -1475,10 +1485,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
   // ── POST /admin/works/adult-review ────────────────────────────
   // 어드민이 화면에서 검토한 결과를 반영:
-  //   delete_ids → 성인물로 확정, 삭제 시도
-  //     (단, rankings/reviews/wishlist/work_reactions에 연결된 데이터가 있으면
-  //      실수로 사용자 활동 기록까지 날리지 않도록 삭제하지 않고 skipped로 보고만 함 —
-  //      2026-07-02 중복 tmdb_id 삭제 때 썼던 "연결 확인 후 안전삭제" 원칙과 동일)
+  //   delete_ids → 성인물로 확정, 바로 삭제
   //   clear_ids  → 성인물 아님으로 확인됨, adult_flag=0으로 표시만(삭제 안 함) →
   //                다음 adult-search 조회부터 후보 목록에서 제외됨
   if (path === "/admin/works/adult-review" && request.method === "POST") {
@@ -1492,28 +1499,13 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       let deleted = 0;
       let cleared = 0;
-      const skipped = []; // 연결된 데이터가 있어 삭제 못한 tmdb_id 목록
 
-      for (const tmdbId of deleteIds) {
-        const linked = await env.DB.prepare(`
-          SELECT
-            (SELECT COUNT(*) FROM rankings      WHERE tmdb_id = ?) AS r,
-            (SELECT COUNT(*) FROM reviews       WHERE tmdb_id = ?) AS rv,
-            (SELECT COUNT(*) FROM wishlist      WHERE tmdb_id = ?) AS w,
-            (SELECT COUNT(*) FROM work_reactions WHERE tmdb_id = ?) AS wr
-        `).bind(tmdbId, tmdbId, tmdbId, tmdbId).first();
-
-        const hasLinkedData = (linked?.r || 0) + (linked?.rv || 0) + (linked?.w || 0) + (linked?.wr || 0) > 0;
-
-        if (hasLinkedData) {
-          // 삭제하지 않고 adult_flag만 1로 표시 — 목록엔 안 다시 뜨지만, DB엔 남겨두고
-          // 관리자가 나중에 D1 콘솔에서 연결 데이터까지 직접 확인 후 수동 처리하도록 함
-          await env.DB.prepare("UPDATE works SET adult_flag = 1 WHERE tmdb_id = ?").bind(tmdbId).run();
-          skipped.push(tmdbId);
-        } else {
-          await env.DB.prepare("DELETE FROM works WHERE tmdb_id = ?").bind(tmdbId).run();
-          deleted++;
-        }
+      if (deleteIds.length) {
+        const deletes = deleteIds.map(tmdbId =>
+          env.DB.prepare("DELETE FROM works WHERE tmdb_id = ?").bind(tmdbId)
+        );
+        await env.DB.batch(deletes);
+        deleted = deleteIds.length;
       }
 
       if (clearIds.length) {
@@ -1525,7 +1517,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       return new Response(JSON.stringify({
-        ok: true, deleted, cleared, skipped,
+        ok: true, deleted, cleared,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
