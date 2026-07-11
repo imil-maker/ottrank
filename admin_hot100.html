@@ -507,6 +507,7 @@ function renderPreviewPage() {
         ${r.is_pinned
           ? `<button class="btn-sm" onclick="unpinPreview(${r.tmdb_id})">🔓 해제</button>`
           : `<button class="btn-sm" onclick="pinPreview(${r.tmdb_id}, ${r.total_score})">📌 고정</button>`}
+        <button class="btn-del" onclick="deleteBoostRow(${r.tmdb_id})">🗑 삭제</button>
       </td>
     </tr>
   `).join('');
@@ -562,6 +563,24 @@ async function unpinPreview(tmdbId) {
     const json = await res.json();
     if (!json.ok) { showToast(json.error || '해제 실패', 'err'); return; }
     showToast('🔓 해제 완료 — 재계산 버튼을 눌러 반영하세요', 'ok');
+    loadPreview();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+// [2026-07-11 추가] 완전 삭제 — admin_boosts 행 자체를 지움(점수/고정 전부 제거).
+// 랭킹없는 점수부여 작품(카테고리 기반이 아니라 강제로 밀어넣은 작품)은 이걸 안 하면
+// 계속 핫100에 남아있게 되므로, 완전히 빼려면 이 버튼으로 삭제해야 함.
+// 실제 랭킹이 있는 작품이면 삭제해도 그 작품 자체는 정상적인 랭킹 기반 점수로 계속 노출됨(부스트/고정만 사라짐).
+async function deleteBoostRow(tmdbId) {
+  if (!confirm('완전히 삭제할까요? 점수/고정 설정이 모두 사라집니다.\n(랭킹없이 점수만으로 들어온 작품이면 다음 재계산 때 핫100에서 사라집니다)')) return;
+  try {
+    const res  = await fetch(`${API}/admin/hot100/boosts/${tmdbId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.error || '삭제 실패', 'err'); return; }
+    showToast('🗑 삭제 완료 — 재계산 버튼을 눌러 반영하세요', 'ok');
     loadPreview();
   } catch(e) { showToast(e.message, 'err'); }
 }
