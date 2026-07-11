@@ -93,6 +93,8 @@ td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;vertic
   border-radius:4px;color:#fff}
 .hero-card-title{position:absolute;left:12px;bottom:10px;right:12px;color:#fff;font-size:15px;font-weight:700;
   text-shadow:0 2px 6px rgba(0,0,0,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero-card-logo{position:absolute;left:12px;bottom:10px;max-width:calc(100% - 24px);max-height:44px;
+  object-fit:contain;object-position:left bottom;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))}
 .hero-card-rating{position:absolute;left:12px;bottom:-14px;font-size:11px;color:var(--muted2);font-family:var(--mono)}
 .boost-inp{width:70px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:13px}
 .weight-inp{width:80px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:13px}
@@ -916,10 +918,37 @@ function renderHeroCards() {
         <div class="hero-card-gradient"></div>
         <span class="hero-card-rank">${item.rank}</span>
         <span class="hero-card-platform" style="background:${platformColor}">${platformLabel}</span>
-        <span class="hero-card-title">${title}</span>
+        <span class="hero-card-title" id="hero-title-${item.tmdb_id}">${title}</span>
       </div>
     `;
   }).join('');
+
+  // [2026-07-11 추가] 하이브리드 테스트 — 카드 먼저 텍스트로 빠르게 그려놓고,
+  // 각 작품마다 TMDB 로고(공식 타이틀 아트) 유무를 비동기로 확인해서 있으면 텍스트를 로고 이미지로 교체
+  tab.items.forEach(item => upgradeToLogoIfAvailable(item.tmdb_id, item.media_type || 'tv'));
+}
+
+// [2026-07-11 추가] tmdb_id별 로고 조회 결과 캐시 (탭 전환 왔다갔다 해도 재조회 안 하게)
+const heroLogoCache = {};
+
+async function upgradeToLogoIfAvailable(tmdbId, mediaType) {
+  try {
+    let logoPath = heroLogoCache[tmdbId];
+    if (logoPath === undefined) {
+      const res  = await fetch(`${TMDB_PROXY}/${mediaType}/${tmdbId}/images`);
+      const json = await res.json();
+      const logos = json.logos || [];
+      // 한국어 로고 우선, 없으면 언어 미지정(범용) 로고, 그것도 없으면 null(로고 없음으로 확정 캐시)
+      const best = logos.find(l => l.iso_639_1 === 'ko') || logos.find(l => !l.iso_639_1) || null;
+      logoPath = best ? best.file_path : null;
+      heroLogoCache[tmdbId] = logoPath;
+    }
+    if (!logoPath) return; // 로고 없음 — 이미 그려진 텍스트 제목 그대로 둠(B안 폴백)
+
+    const slot = document.getElementById(`hero-title-${tmdbId}`);
+    if (!slot) return; // 그 사이 다른 탭으로 넘어가서 카드가 이미 사라진 경우
+    slot.outerHTML = `<img class="hero-card-logo" id="hero-title-${tmdbId}" src="${IMG_BACKDROP}${logoPath}" alt="">`;
+  } catch(e) { /* 로고 조회 실패해도 텍스트 제목이 이미 있으니 조용히 무시 */ }
 }
 </script>
 </body>
