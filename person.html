@@ -365,20 +365,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div><!-- /hero-wrap -->
 
-  <!-- [2026-07-11 추가] 오늘의 랭킹 위젯 — 어드민 "인물페이지 설정"에서 켠 카테고리 1개만 노출.
-       관리자가 아무것도 안 켜놨으면(data===null) JS가 이 섹션을 그대로 숨김. -->
-  <div id="rankingWidgetSection" class="ranking-widget-section" style="display:none">
-    <a class="ranking-widget-hd" id="rankingWidgetLink" href="#">
-      <span class="sec-num" id="rankingWidgetTag"></span>
-      <span class="sec-title" id="rankingWidgetTitle"></span>
-    </a>
-    <div class="scroll-row-wrap">
-      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('rankingWidgetRow',-1)" aria-label="이전 작품">‹</button>
-      <div class="known-for-row" id="rankingWidgetRow"></div>
-      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('rankingWidgetRow',1)" aria-label="다음 작품">›</button>
-    </div>
-  </div>
-
   <!-- ⚠️ 2026-07-11 재수정: 사진 컬럼(200px) 안에 갤러리를 넣었더니 대표작처럼
        한 줄에 다 보이던 게 좁아져서 스크롤바가 두껍게 생기는 문제 발생 → PC는
        원래 이 자리(화면 전체 폭, 대표작 섹션과 같은 방식)로 되돌림.
@@ -405,6 +391,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('knownForRow',-1)" aria-label="이전 작품">‹</button>
       <div class="known-for-row" id="knownForRow"></div>
       <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('knownForRow',1)" aria-label="다음 작품">›</button>
+    </div>
+  </div>
+
+  <!-- [2026-07-11 재배치] 오늘의 랭킹 위젯 — 어드민 "인물페이지 설정"에서 켠 카테고리 1개만 노출.
+       관리자가 아무것도 안 켜놨으면(data===null) JS가 이 섹션을 그대로 숨김.
+       ⚠️ 원래 hero-wrap 바로 뒤(프로필-사진갤러리 사이)에 뒀다가, 대표작/필모그래피
+       사이가 맞는 자리라는 피드백으로 이동함(2026-07-11). -->
+  <div id="rankingWidgetSection" class="ranking-widget-section" style="display:none">
+    <a class="ranking-widget-hd" id="rankingWidgetLink" href="#">
+      <span class="sec-num" id="rankingWidgetTag"></span>
+      <span class="sec-title" id="rankingWidgetTitle"></span>
+    </a>
+    <div class="scroll-row-wrap">
+      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('rankingWidgetRow',-1)" aria-label="이전 작품">‹</button>
+      <div class="known-for-row" id="rankingWidgetRow"></div>
+      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('rankingWidgetRow',1)" aria-label="다음 작품">›</button>
     </div>
   </div>
 
