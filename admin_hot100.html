@@ -585,13 +585,27 @@ function renderPreviewPage() {
   body.innerHTML = rows.map(r => `
     <tr>
       <td><span class="rank-num">${r.hot_rank}</span></td>
-      <td>${
-        r.hero_backdrop_path
-          ? `<img class="backdrop-thumb" src="${IMG_BACKDROP}${r.hero_backdrop_path}" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')" title="클릭해서 배경이미지 변경">`
-          : r.poster_path
-            ? `<img class="backdrop-thumb" src="${IMG}${r.poster_path}" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')" title="클릭해서 배경이미지 선택 (지금은 기본 포스터)">`
-            : `<div class="backdrop-ph" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')">🖼️</div>`
-      }</td>
+      <td>
+        ${
+          r.hero_custom_image_url
+            ? `<img class="backdrop-thumb" src="${r.hero_custom_image_url}" title="커스텀 업로드 이미지 사용중">`
+            : r.hero_backdrop_path
+              ? `<img class="backdrop-thumb" src="${IMG_BACKDROP}${r.hero_backdrop_path}" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')" title="클릭해서 배경이미지 변경">`
+              : r.poster_path
+                ? `<img class="backdrop-thumb" src="${IMG}${r.poster_path}" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')" title="클릭해서 배경이미지 선택 (지금은 기본 포스터)">`
+                : `<div class="backdrop-ph" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')">🖼️</div>`
+        }
+        <div style="display:flex;gap:4px;margin-top:4px">
+          <label class="btn-sm" style="cursor:pointer;font-size:10px;padding:3px 6px">
+            📤 업로드
+            <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none"
+                   onchange="uploadHeroImage(${r.tmdb_id}, this.files[0])">
+          </label>
+          ${r.hero_custom_image_url
+            ? `<button class="btn-sm" style="font-size:10px;padding:3px 6px" onclick="deleteHeroUpload(${r.tmdb_id})">✕</button>`
+            : ''}
+        </div>
+      </td>
       <td>
         <span class="title-ko">${_esc(r.title_ko || '')}</span>
         ${r.is_pinned ? `<span class="pin-badge">📌 고정</span>` : ''}
@@ -785,6 +799,45 @@ async function clearBackdropSelection() {
   } catch(e) { showToast(e.message, 'err'); }
 }
 
+// [2026-07-12 추가] 커스텀 히어로 이미지 업로드 — R2에 저장, 기본적으로 "제목있음" 자동 체크
+async function uploadHeroImage(tmdbId, file) {
+  if (!file) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    showToast('jpg/png/webp 파일만 업로드 가능합니다', 'err'); return;
+  }
+  showToast('업로드 중...', 'ok');
+  try {
+    const res  = await fetch(`${API}/admin/works/${tmdbId}/hero-upload`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type },
+      body: file
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '업로드 실패', 'err'); return; }
+    const item = allPreviewData.find(r => r.tmdb_id === tmdbId);
+    if (item) { item.hero_custom_image_url = json.url; item.hero_title_baked_in = 1; }
+    showToast('✅ 업로드 완료 — "제목있음"이 자동으로 체크됐습니다', 'ok');
+    renderPreviewPage();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+// [2026-07-12 추가] 커스텀 히어로 이미지 삭제 — TMDB 백드롭/기본 포스터로 자동 복귀
+async function deleteHeroUpload(tmdbId) {
+  if (!confirm('업로드한 이미지를 삭제할까요? TMDB 배경이미지(선택돼 있으면) 또는 기본 포스터로 돌아갑니다.')) return;
+  try {
+    const res  = await fetch(`${API}/admin/works/${tmdbId}/hero-upload`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '삭제 실패', 'err'); return; }
+    const item = allPreviewData.find(r => r.tmdb_id === tmdbId);
+    if (item) item.hero_custom_image_url = null;
+    showToast('🗑 삭제 완료', 'ok');
+    renderPreviewPage();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
 // 계산 탭 진입 시 기존 결과 있으면 자동으로 미리보기 로드
 document.addEventListener('DOMContentLoaded', () => {
   const calcTabBtn = document.querySelector('.tab-bar .tab:nth-child(4)');
@@ -929,9 +982,11 @@ function renderHeroCards() {
   }
   row.innerHTML = tab.items.map(item => {
     const title = _esc(item.title_ko || item.title_en || '');
-    const bg    = item.hero_backdrop_path
-      ? `${IMG_BACKDROP}${item.hero_backdrop_path}`
-      : (item.poster_path ? `${IMG}${item.poster_path}` : '');
+    const bg    = item.hero_custom_image_url
+      ? item.hero_custom_image_url
+      : item.hero_backdrop_path
+        ? `${IMG_BACKDROP}${item.hero_backdrop_path}`
+        : (item.poster_path ? `${IMG}${item.poster_path}` : '');
     const platformColor = PC[item.best_platform] || '#666';
     const platformLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
     // [2026-07-11 추가] 이미지 자체에 이미 제목이 박혀있으면 그라데이션+텍스트/로고 오버레이를 아예 안 그림
