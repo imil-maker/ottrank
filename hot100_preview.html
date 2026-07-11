@@ -30,8 +30,10 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
 .hero-tab-pill img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0}
 
 .hero-row-wrap{position:relative}
-.hero-card-row{display:flex;gap:16px}
-.hero-card{position:relative;flex:1 1 0;min-width:0;aspect-ratio:1/1;border-radius:12px;overflow:hidden;
+.hero-card-row{display:flex;gap:16px;overflow-x:auto;scroll-behavior:smooth;
+  scrollbar-width:none;-ms-overflow-style:none}
+.hero-card-row::-webkit-scrollbar{display:none}
+.hero-card{position:relative;flex:0 0 calc(25% - 12px);min-width:220px;aspect-ratio:1/1;border-radius:12px;overflow:hidden;
   background:var(--card);cursor:pointer;display:flex;flex-direction:column}
 .hero-card-img-wrap{position:relative;width:100%;flex:0 0 75%;overflow:hidden;container-type:inline-size}
 .hero-card-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
@@ -42,10 +44,10 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
 .hero-card-platform{position:absolute;top:7%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
   border-radius:5px;color:#fff}
 .hero-card-info{flex:1;background:var(--card);display:flex;flex-direction:column;align-items:center;
-  justify-content:center;padding:2% 8%;text-align:center}
+  justify-content:flex-start;padding:10px 8% 0;text-align:center}
 .hero-card-title{color:#fff;font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:100%}
-.hero-card-info img.hero-card-logo{max-width:85%;max-height:36px;object-fit:contain;display:block;margin:0 auto}
+.hero-card-info img.hero-card-logo{max-width:85%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
 .hero-card-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   background:var(--bg3);color:var(--muted2);font-size:13px}
 
@@ -94,9 +96,8 @@ function _esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;',
 
 let tabsData = [];
 let curTabIdx = 0;
-let windowStart = 0;
-const CARDS_PER_VIEW = 4;
 const logoCache = {};
+let logoObserver = null;
 
 async function loadHeroTabs(){
   try{
@@ -123,18 +124,32 @@ function renderTabs(){
       ${_esc(t.label)}
     </div>
   `).join('');
-  windowStart = 0;
   renderCards();
 }
 
-function setTab(i){ curTabIdx = i; windowStart = 0; renderTabs(); }
+function setTab(i){ curTabIdx = i; renderTabs(); }
 
+// [2026-07-12 수정] 4개씩 통째로 바뀌는 "윈도우" 방식 대신, 전체 카드를 한 줄에 다 깔아두고
+// 네이티브 가로 스크롤(scroll-behavior:smooth)로 한 장씩 부드럽게 슬라이딩.
+// 로고 조회는 IntersectionObserver로 "화면 근처에 실제로 보일 때"만 실행해서 초기 로딩은 여전히 가볍게 유지.
 function shiftWindow(dir){
-  const tab = tabsData[curTabIdx];
-  if (!tab || !tab.items.length) return;
-  const total = tab.items.length;
-  windowStart = (windowStart + dir + total) % total;
-  renderCards();
+  const row = document.getElementById('cardRow');
+  const card = row.querySelector('.hero-card');
+  if (!card) return;
+  const cardWidth = card.getBoundingClientRect().width;
+  const gap = 16;
+  const step = cardWidth + gap;
+
+  const atEnd   = row.scrollLeft + row.clientWidth >= row.scrollWidth - step / 2;
+  const atStart = row.scrollLeft <= step / 2;
+
+  if (dir > 0 && atEnd) {
+    row.scrollTo({ left: 0, behavior: 'smooth' }); // 끝까지 가면 처음으로 순환
+  } else if (dir < 0 && atStart) {
+    row.scrollTo({ left: row.scrollWidth, behavior: 'smooth' }); // 처음에서 왼쪽 누르면 끝으로 순환
+  } else {
+    row.scrollBy({ left: dir * step, behavior: 'smooth' });
+  }
 }
 
 function renderCards(){
@@ -144,11 +159,8 @@ function renderCards(){
     row.innerHTML = '<div class="empty">이 탭에 노출할 데이터가 없습니다.</div>';
     return;
   }
-  const total = tab.items.length;
-  const visibleCount = Math.min(CARDS_PER_VIEW, total);
-  const visible = Array.from({length: visibleCount}, (_, i) => tab.items[(windowStart + i) % total]);
 
-  row.innerHTML = visible.map(item => {
+  row.innerHTML = tab.items.map(item => {
     const title = _esc(item.title_ko || item.title_en || '');
     const bg    = item.hero_custom_image_url
       ? item.hero_custom_image_url
@@ -160,7 +172,8 @@ function renderCards(){
     const bakedIn = !!item.hero_title_baked_in;
 
     return `
-      <div class="hero-card">
+      <div class="hero-card" data-tmdb="${item.tmdb_id}" data-mtype="${item.media_type || 'tv'}"
+           data-bakedin="${bakedIn ? 1 : 0}">
         <div class="hero-card-img-wrap">
           ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hero-card-ph">이미지 없음</div>`}
           <div class="hero-card-img-fade"></div>
@@ -174,9 +187,25 @@ function renderCards(){
     `;
   }).join('');
 
-  visible
-    .filter(item => !item.hero_title_baked_in)
-    .forEach(item => upgradeToLogo(item.tmdb_id, item.media_type || 'tv'));
+  row.scrollLeft = 0;
+  observeCardsForLogo();
+}
+
+// [2026-07-12 추가] 화면(스크롤 컨테이너) 근처에 들어온 카드만 로고 조회 — 전체를 한 줄에
+// 다 그려도 실제 로딩 부담은 "지금 보이는 몇 장"에서 크게 안 늘어남
+function observeCardsForLogo(){
+  if (logoObserver) logoObserver.disconnect();
+  logoObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target;
+      logoObserver.unobserve(el);
+      if (el.dataset.bakedin === '1') return;
+      upgradeToLogo(el.dataset.tmdb, el.dataset.mtype);
+    });
+  }, { root: document.getElementById('cardRow'), rootMargin: '0px 400px' });
+
+  document.querySelectorAll('.hero-card').forEach(el => logoObserver.observe(el));
 }
 
 async function upgradeToLogo(tmdbId, mediaType){
