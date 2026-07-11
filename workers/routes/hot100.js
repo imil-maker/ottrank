@@ -499,6 +499,7 @@ export async function getHot100(request, env, headers) {
         w.title_ko,
         w.title_en,
         w.poster_path,
+        w.hero_backdrop_path,
         w.media_type,
         w.tmdb_rating,
         w.release_year
