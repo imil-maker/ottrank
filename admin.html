@@ -669,6 +669,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </tbody>
     </table>
   </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+    <button class="btn-load" id="worksPrevBtn" onclick="changeWorksPage(-1)">◀ 이전 페이지</button>
+    <span style="font-family:var(--mono);font-size:13px;color:var(--muted2)" id="worksPageLabel">1페이지</span>
+    <button class="btn-load" id="worksNextBtn" onclick="changeWorksPage(1)">다음 페이지 ▶</button>
+  </div>
 </div>
 
 
@@ -4076,8 +4081,10 @@ async function saveCat(id) {
 let worksTimer = null;
 
 let worksSort = 'recent'; // 'recent'=최근 등록순(기본) | 'updated'=최근 수정순
+let worksPage = 1;
 function setWorksSort(sort, btn) {
   worksSort = sort;
+  worksPage = 1; // 정렬 바꾸면 1페이지로 리셋
   document.querySelectorAll('#worksSortTabs .ftab').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   loadWorks();
@@ -4087,20 +4094,32 @@ async function loadWorks() {
   document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
   try {
     const q = document.getElementById('worksSearchInp')?.value || '';
-    const params = new URLSearchParams({ sort: worksSort });
+    const params = new URLSearchParams({ sort: worksSort, page: worksPage });
     if (q) params.set('q', q);
     const res = await fetch(`${API}/admin/works?${params}`, { headers: { Authorization: `Bearer ${token}` } });
     const json = await res.json();
     const rows = json.data || [];
     document.getElementById('worksStat').textContent = `${rows.length}개`;
+    document.getElementById('worksPageLabel').textContent = `${worksPage}페이지`;
+    document.getElementById('worksPrevBtn').disabled = worksPage <= 1;
+    document.getElementById('worksNextBtn').disabled = rows.length < 50; // 50개 안 채워졌으면 마지막 페이지
     renderWorks(rows);
   } catch(e) {
     document.getElementById('worksTableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
   }
 }
 
+function changeWorksPage(delta) {
+  const next = worksPage + delta;
+  if (next < 1) return;
+  worksPage = next;
+  loadWorks();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function searchWorksTable(val) {
   clearTimeout(worksTimer);
+  worksPage = 1; // 검색어 바뀌면 1페이지로 리셋
   worksTimer = setTimeout(loadWorks, 400);
 }
 
