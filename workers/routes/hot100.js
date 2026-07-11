@@ -96,59 +96,72 @@ export async function calcHot100(request, env, headers) {
 
     const { results } = await env.DB.prepare(weightedQuery).bind(latestDate).all();
 
-    // ── 3-1. 고정(pin) 항목 조회 — 랭킹 유무와 상관없이 항상 포함될 작품들 ──
-    // 3번 검색창(고정 점수 등록)이나 2번 미리보기(📌 고정 버튼)로 is_pinned=1이 된 작품은
-    // 크롤링 랭킹이 있든 없든, pinned_score를 그대로 최종 점수로 사용한다.
-    // (개봉 전 작품 강제 편입 / 특정 작품 강제 하위 노출 둘 다 이 방식 하나로 처리)
-    const { results: pinnedRows } = await env.DB.prepare(
-      `SELECT tmdb_id, pinned_score, pinned_platform FROM admin_boosts WHERE is_pinned = 1`
+    // ── 3-1. admin_boosts 전체 조회 ──
+    // is_pinned=1(고정) → 랭킹 유무 상관없이 pinned_score를 그대로 최종 점수로 사용(크롤링 반영 안 됨)
+    // is_pinned=0인데 boost_value≠0 → "랭킹없는 작품 고정" 탭에서 점수만 부여한 경우.
+    //   고정이 아니므로 매번 재계산 시 boost_value를 그대로 반영(살아있는 값), 나중에 크롤링으로
+    //   실제 랭킹이 잡히면 자동으로 그 위에 합산되는 원래 부스트 동작으로 자연스럽게 전환됨.
+    const { results: boostRows } = await env.DB.prepare(
+      `SELECT tmdb_id, boost_value, is_pinned, pinned_score, pinned_platform FROM admin_boosts`
     ).all();
-    const pinnedMap = new Map(
-      (pinnedRows || []).map((p) => [p.tmdb_id, { score: p.pinned_score ?? 0, platform: p.pinned_platform || null }])
-    );
+    const boostMap = new Map((boostRows || []).map((b) => [b.tmdb_id, b]));
 
-    // 로우 배열 예외 처리 — 크롤링 랭킹도 없고 고정 항목도 없는 경우만 에러
-    if ((!results || results.length === 0) && pinnedMap.size === 0) {
+    // 로우 배열 예외 처리 — 크롤링 랭킹도 없고 부스트/고정 항목도 없는 경우만 에러
+    if ((!results || results.length === 0) && boostMap.size === 0) {
       return new Response(
         JSON.stringify({ ok: false, error: "계산할 랭킹 데이터가 없습니다." }),
         { status: 404, headers }
       );
     }
 
-    // ── 3-2. 크롤링 결과 + 고정 항목 병합 ──
-    // 고정된 tmdb_id는 크롤링 결과에 있어도 점수를 무시하고 pinned_score로 덮어씀
-    // (플랫폼 정보만 있으면 표시용으로 유지). 랭킹 자체가 없는 고정 항목은 별도로 추가.
+    // ── 3-2. 크롤링 결과 + 부스트/고정 항목 병합 ──
     const finalRows = [];
     const seenTmdbIds = new Set();
 
     for (const row of results || []) {
       seenTmdbIds.add(row.tmdb_id);
-      if (pinnedMap.has(row.tmdb_id)) {
-        const pin = pinnedMap.get(row.tmdb_id);
+      const b = boostMap.get(row.tmdb_id);
+      if (b && b.is_pinned) {
+        // 고정된 작품 — 크롤링 결과가 있어도 무시하고 pinned_score로 덮어씀
         finalRows.push({
           tmdb_id: row.tmdb_id,
-          best_platform: pin.platform || row.best_platform, // 관리자가 지정한 플랫폼 우선, 없으면 크롤링 값 유지
+          best_platform: b.pinned_platform || row.best_platform,
           best_rank: row.best_rank,
           rank_score: 0,
           platform_weight: 0,
           weighted_score: 0,
-          admin_boost: pin.score,
+          admin_boost: b.pinned_score ?? 0,
         });
       } else {
+        // 고정 아님 — weightedQuery의 SQL이 이미 boost_value를 admin_boost로 합산해 옴, 그대로 사용
         finalRows.push(row);
       }
     }
-    for (const [tmdbId, pin] of pinnedMap) {
-      if (seenTmdbIds.has(tmdbId)) continue; // 이미 위에서 처리됨
-      finalRows.push({
-        tmdb_id: tmdbId,
-        best_platform: pin.platform || "manual", // 지정 안 했으면 표시용 기본값
-        best_rank: null,
-        rank_score: 0,
-        platform_weight: 0,
-        weighted_score: 0,
-        admin_boost: pin.score,
-      });
+    for (const [tmdbId, b] of boostMap) {
+      if (seenTmdbIds.has(tmdbId)) continue; // 크롤링 랭킹이 있는 작품은 위에서 이미 처리됨
+      if (b.is_pinned) {
+        // 랭킹 없이 고정만 된 작품(개봉 전 강제 편입 등)
+        finalRows.push({
+          tmdb_id: tmdbId,
+          best_platform: b.pinned_platform || "manual",
+          best_rank: null,
+          rank_score: 0,
+          platform_weight: 0,
+          weighted_score: 0,
+          admin_boost: b.pinned_score ?? 0,
+        });
+      } else if (b.boost_value) {
+        // 랭킹은 없지만 점수(부스트)만 부여된 작품 — 고정 아니므로 boost_value가 바뀌면 다음 재계산에 그대로 반영됨
+        finalRows.push({
+          tmdb_id: tmdbId,
+          best_platform: b.pinned_platform || "manual",
+          best_rank: null,
+          rank_score: 0,
+          platform_weight: 0,
+          weighted_score: 0,
+          admin_boost: b.boost_value,
+        });
+      }
     }
     // 점수 내림차순 재정렬 (top10_preview, DB 저장 순서용 — 정렬 자체가 결과에 영향 없지만 일관성 유지)
     finalRows.sort(
@@ -324,19 +337,22 @@ export async function upsertAdminBoost(request, env, headers) {
       );
     }
 
-    // ⚠️ is_pinned가 요청 body에 아예 없으면(undefined) — 예: boost_value만 보내는
-    // 다른 저장 흐름 — 기존 고정 상태를 실수로 0으로 초기화하지 않도록 기존 값을 유지한다.
-    let finalIsPinned = is_pinned;
-    let finalPinnedScore = pinned_score;
-    let finalPinnedPlatform = pinned_platform;
-    if (is_pinned === undefined) {
-      const existing = await env.DB.prepare(
-        `SELECT is_pinned, pinned_score, pinned_platform FROM admin_boosts WHERE tmdb_id = ?`
+    // ⚠️ 요청 body에 필드가 아예 없으면(undefined) 기존 값을 유지한다 — 예를 들어
+    // "해제"(is_pinned:false만 보냄) 요청이 boost_value/pinned_platform을 실수로
+    // 0/null로 초기화하지 않도록 방어. pinned_score/pinned_platform은 is_pinned=0이어도
+    // 지우지 않고 남겨둔다 (계산에는 is_pinned=1일 때만 쓰이므로 남아있어도 안전, 나중에
+    // 다시 고정할 때 이전 값을 이어서 쓸 수 있음).
+    const hasField = (key) => Object.prototype.hasOwnProperty.call(body, key);
+    let existing = null;
+    if (!hasField("boost_value") || !hasField("is_pinned") || !hasField("pinned_score") || !hasField("pinned_platform")) {
+      existing = await env.DB.prepare(
+        `SELECT boost_value, is_pinned, pinned_score, pinned_platform FROM admin_boosts WHERE tmdb_id = ?`
       ).bind(tmdb_id).first();
-      finalIsPinned = existing?.is_pinned || 0;
-      finalPinnedScore = existing?.pinned_score ?? null;
-      finalPinnedPlatform = existing?.pinned_platform ?? null;
     }
+    const finalBoostValue     = hasField("boost_value")     ? (boost_value || 0)       : (existing?.boost_value ?? 0);
+    const finalIsPinned       = hasField("is_pinned")       ? (is_pinned ? 1 : 0)      : (existing?.is_pinned || 0);
+    const finalPinnedScore    = hasField("pinned_score")    ? (pinned_score ?? 0)      : (existing?.pinned_score ?? null);
+    const finalPinnedPlatform = hasField("pinned_platform") ? (pinned_platform || null) : (existing?.pinned_platform ?? null);
 
     const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
       .toISOString()
@@ -355,11 +371,11 @@ export async function upsertAdminBoost(request, env, headers) {
          updated_at = excluded.updated_at`
     ).bind(
       tmdb_id,
-      boost_value || 0,
+      finalBoostValue,
       reason || null,
-      finalIsPinned ? 1 : 0,
-      finalIsPinned ? (finalPinnedScore ?? 0) : null,
-      finalIsPinned ? (finalPinnedPlatform || null) : null,
+      finalIsPinned,
+      finalPinnedScore,
+      finalPinnedPlatform,
       nowKst
     ).run();
 
