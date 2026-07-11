@@ -546,21 +546,29 @@ export async function handleRankings(path, request, env, url, headers) {
       const limit = slot.person_limit || 10;
 
       // 일반 크롤링 랭킹 (오늘 날짜)
+      // ⚠️ works를 LEFT JOIN해서 media_type을 같이 가져옴 — rankings 테이블엔
+      // media_type이 없는데, 영화/TV는 TMDB 숫자 tmdb_id를 공유하므로 이게 없으면
+      // 프론트에서 작품 상세페이지로 이동할 때 완전히 다른(엉뚱한) 작품으로
+      // 잘못 연결될 수 있음(works 3키 원칙과 같은 계열의 위험).
       const { results: crawlResults } = await env.DB.prepare(`
-        SELECT rank, title_ko, title_en, tmdb_id, poster_path, genre, tmdb_rating, release_year
-        FROM rankings
-        WHERE platform = ? AND category_slot = ?
-          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
-        ORDER BY rank ASC
+        SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
+               r.tmdb_rating, r.release_year, w.media_type
+        FROM rankings r
+        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+        WHERE r.platform = ? AND r.category_slot = ?
+          AND r.date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+        ORDER BY r.rank ASC
       `).bind(slot.platform, slot.category_slot).all();
 
       // 수동고정 랭킹 (다른 엔드포인트와 동일한 규칙: is_manual=1 AND date='manual')
       const { results: manualResults } = await env.DB.prepare(`
-        SELECT rank, title_ko, title_en, tmdb_id, poster_path, genre, tmdb_rating, release_year
-        FROM rankings
-        WHERE platform = ? AND category_slot = ?
-          AND is_manual = 1 AND date = 'manual'
-        ORDER BY rank ASC
+        SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
+               r.tmdb_rating, r.release_year, w.media_type
+        FROM rankings r
+        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+        WHERE r.platform = ? AND r.category_slot = ?
+          AND r.is_manual = 1 AND r.date = 'manual'
+        ORDER BY r.rank ASC
       `).bind(slot.platform, slot.category_slot).all();
 
       // 기존 /rankings/main, /rankings/platform과 동일한 병합 함수 재사용
@@ -576,6 +584,7 @@ export async function handleRankings(path, request, env, url, headers) {
             rank: row.rank, title_ko: row.title_ko, title_en: row.title_en,
             tmdb_id: row.tmdb_id, poster_path: row.poster_path,
             genre: row.genre, tmdb_rating: row.tmdb_rating, release_year: row.release_year,
+            media_type: row.media_type || null,
           })),
         }
       }), { headers });
