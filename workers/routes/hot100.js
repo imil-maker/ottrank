@@ -506,8 +506,9 @@ export async function getHot100(request, env, headers) {
         w.title_en,
         w.poster_path,
         w.hero_backdrop_path,
+        w.hero_title_baked_in,
         w.media_type,
-        w.tmdb_rating,
+        ROUND(w.tmdb_rating, 1) AS tmdb_rating,
         w.release_year
       FROM hot100_scores h
       LEFT JOIN works w ON w.tmdb_id = h.tmdb_id
@@ -659,7 +660,8 @@ export async function getHeroTabs(request, env, headers) {
         // ── "전체" 탭: hot100_scores 그대로 사용 ──
         const { results } = await env.DB.prepare(
           `SELECT h.tmdb_id, h.best_platform, w.title_ko, w.title_en,
-                  w.poster_path, w.hero_backdrop_path, w.media_type, w.tmdb_rating
+                  w.poster_path, w.hero_backdrop_path, w.hero_title_baked_in,
+                  w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
            FROM hot100_scores h
            LEFT JOIN works w ON w.tmdb_id = h.tmdb_id
            ORDER BY h.total_score DESC
@@ -673,6 +675,7 @@ export async function getHeroTabs(request, env, headers) {
             rank: idx + 1, tmdb_id: row.tmdb_id, best_platform: row.best_platform,
             title_ko: row.title_ko, title_en: row.title_en,
             poster_path: row.poster_path, hero_backdrop_path: row.hero_backdrop_path,
+            hero_title_baked_in: row.hero_title_baked_in,
             media_type: row.media_type, tmdb_rating: row.tmdb_rating,
           })),
         });
@@ -690,7 +693,7 @@ export async function getHeroTabs(request, env, headers) {
       const { results: crawlResults } = latestDate
         ? await env.DB.prepare(
             `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
-                    w.hero_backdrop_path, w.media_type, w.tmdb_rating
+                    w.hero_backdrop_path, w.hero_title_baked_in, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
              FROM rankings r
              LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
              WHERE r.platform = ? AND r.category_slot = ? AND r.date = ?
@@ -700,7 +703,7 @@ export async function getHeroTabs(request, env, headers) {
 
       const { results: manualResults } = await env.DB.prepare(
         `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
-                w.hero_backdrop_path, w.media_type, w.tmdb_rating
+                w.hero_backdrop_path, w.hero_title_baked_in, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
          FROM rankings r
          LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
          WHERE r.platform = ? AND r.category_slot = ? AND r.is_manual = 1 AND r.date = 'manual'
@@ -716,6 +719,7 @@ export async function getHeroTabs(request, env, headers) {
           rank: row.rank, tmdb_id: row.tmdb_id, best_platform: cfg.platform,
           title_ko: row.title_ko, title_en: row.title_en,
           poster_path: row.poster_path, hero_backdrop_path: row.hero_backdrop_path,
+          hero_title_baked_in: row.hero_title_baked_in,
           media_type: row.media_type, tmdb_rating: row.tmdb_rating,
         })),
       });
