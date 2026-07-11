@@ -961,11 +961,15 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const tmdb_id = parseInt(path.split("/")[3]);
       const body    = await request.json();
-      const { backdrop_path } = body; // null이면 선택 해제(기본 이미지로 되돌림)
+      const { backdrop_path, hero_title_baked_in } = body; // backdrop_path: null이면 선택 해제(기본 이미지로 되돌림)
+
+      // hero_title_baked_in이 요청에 아예 없으면(undefined) 기존 값 유지 — 배경이미지만
+      // 바꾸는 호출이 체크박스 상태를 실수로 0으로 초기화하지 않도록 방어
+      const bakedInValue = hero_title_baked_in === undefined ? null : (hero_title_baked_in ? 1 : 0);
 
       await env.DB.prepare(
-        "UPDATE works SET hero_backdrop_path = ? WHERE tmdb_id = ?"
-      ).bind(backdrop_path || null, tmdb_id).run();
+        "UPDATE works SET hero_backdrop_path = ?, hero_title_baked_in = COALESCE(?, hero_title_baked_in) WHERE tmdb_id = ?"
+      ).bind(backdrop_path || null, bakedInValue, tmdb_id).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
