@@ -55,6 +55,27 @@ td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;vertic
 .tmdb-id{font-family:var(--mono);font-size:11px;color:var(--muted2)}
 .pin-badge{display:inline-block;margin-left:6px;font-size:10px;padding:2px 7px;border-radius:10px;
   background:rgba(230,57,70,.18);color:#ff6b7a;border:1px solid rgba(230,57,70,.4);font-weight:600}
+
+/* [2026-07-11 추가] 핫100 히어로 배경이미지 선택 */
+.backdrop-thumb{width:96px;height:54px;object-fit:cover;border-radius:6px;background:var(--bg3);
+  display:block;cursor:pointer;border:1px solid var(--border2);transition:border-color .15s}
+.backdrop-thumb:hover{border-color:var(--gold)}
+.backdrop-ph{width:96px;height:54px;border-radius:6px;background:var(--bg3);display:flex;
+  align-items:center;justify-content:center;font-size:20px;cursor:pointer;color:var(--muted2)}
+.backdrop-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;
+  align-items:center;justify-content:center}
+.backdrop-overlay.show{display:flex}
+.backdrop-modal{background:var(--card);border:1px solid var(--border2);border-radius:16px;
+  padding:24px;width:720px;max-width:95vw;max-height:85vh;overflow-y:auto}
+.backdrop-modal h3{margin:0 0 4px}
+.backdrop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.backdrop-candidate{position:relative;cursor:pointer;border-radius:8px;overflow:hidden;
+  border:2px solid transparent;transition:border-color .15s}
+.backdrop-candidate:hover{border-color:var(--gold)}
+.backdrop-candidate.selected{border-color:var(--gold)}
+.backdrop-candidate img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:var(--bg3)}
+.backdrop-candidate.selected::after{content:'✓ 사용중';position:absolute;top:4px;right:4px;
+  background:var(--gold);color:#000;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px}
 .boost-inp{width:70px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:13px}
 .weight-inp{width:80px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:13px}
 .calc-box{display:flex;align-items:center;gap:14px;margin-bottom:20px}
@@ -177,12 +198,29 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
 
 <div class="toast" id="toast"></div>
 
+<!-- [2026-07-11 추가] 핫100 히어로 배경이미지 선택 모달 -->
+<div class="backdrop-overlay" id="backdropOverlay" onclick="if(event.target===this)closeBackdropPicker()">
+  <div class="backdrop-modal">
+    <h3>배경이미지 선택</h3>
+    <div class="hint" style="margin-bottom:0">💡 TMDB에 등록된 스틸컷 중에서 골라주세요. 선택 안 하면 기본 포스터가 대신 노출됩니다. 한 번 고르면 이 작품이 나중에 다시 핫100에 들어와도 계속 이 이미지를 씁니다.</div>
+    <div class="backdrop-grid" id="backdropGrid">
+      <div class="loading">불러오는 중...</div>
+    </div>
+    <div style="margin-top:16px;text-align:right;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-sm" onclick="clearBackdropSelection()">선택 해제(기본 포스터로)</button>
+      <button class="btn-sm" onclick="closeBackdropPicker()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ════════════════════════════════════════════════════
 // 공통 상수 및 로그인 (admin.html과 동일한 토큰 공유)
 // ════════════════════════════════════════════════════
 const API = 'https://ottrank-api.tdidream.workers.dev';
 const IMG = 'https://image.tmdb.org/t/p/w92';
+const IMG_BACKDROP = 'https://image.tmdb.org/t/p/w300';
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const PLATFORM_KO = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스' };
 const PC = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429' };
 
@@ -492,7 +530,13 @@ function renderPreviewPage() {
   body.innerHTML = rows.map(r => `
     <tr>
       <td><span class="rank-num">${r.hot_rank}</span></td>
-      <td>${r.poster_path ? `<img class="poster-thumb" src="${IMG}${r.poster_path}">` : `<div class="poster-ph">🎬</div>`}</td>
+      <td>${
+        r.hero_backdrop_path
+          ? `<img class="backdrop-thumb" src="${IMG_BACKDROP}${r.hero_backdrop_path}" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')" title="클릭해서 배경이미지 변경">`
+          : r.poster_path
+            ? `<img class="backdrop-thumb" src="${IMG}${r.poster_path}" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')" title="클릭해서 배경이미지 선택 (지금은 기본 포스터)">`
+            : `<div class="backdrop-ph" onclick="openBackdropPicker(${r.tmdb_id}, '${r.media_type||'tv'}')">🖼️</div>`
+      }</td>
       <td>
         <span class="title-ko">${_esc(r.title_ko || '')}</span>
         ${r.is_pinned ? `<span class="pin-badge">📌 고정</span>` : ''}
@@ -582,6 +626,86 @@ async function deleteBoostRow(tmdbId) {
     if (!json.ok) { showToast(json.error || '삭제 실패', 'err'); return; }
     showToast('🗑 삭제 완료 — 재계산 버튼을 눌러 반영하세요', 'ok');
     loadPreview();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════
+// ⑤ 핫100 히어로 배경이미지 선택 (2026-07-11 추가)
+// ════════════════════════════════════════════════════
+let backdropTargetTmdbId = null;
+
+// [2026-07-11 추가] 썸네일 클릭 시 TMDB에서 그 작품의 백드롭 후보를 불러와 그리드로 표시
+async function openBackdropPicker(tmdbId, mediaType) {
+  backdropTargetTmdbId = tmdbId;
+  const grid = document.getElementById('backdropGrid');
+  grid.innerHTML = '<div class="loading">불러오는 중...</div>';
+  document.getElementById('backdropOverlay').classList.add('show');
+
+  const row = allPreviewData.find(r => r.tmdb_id === tmdbId);
+  const currentPath = row?.hero_backdrop_path || null;
+
+  try {
+    const res  = await fetch(`${TMDB_PROXY}/${mediaType}/${tmdbId}/images`);
+    const json = await res.json();
+    const backdrops = (json.backdrops || []).slice(0, 12); // 평점순 상위 12개(TMDB 기본 정렬)
+
+    if (!backdrops.length) {
+      grid.innerHTML = '<div class="empty">TMDB에 등록된 백드롭 이미지가 없습니다.</div>';
+      return;
+    }
+
+    grid.innerHTML = backdrops.map(b => `
+      <div class="backdrop-candidate ${b.file_path === currentPath ? 'selected' : ''}"
+           onclick="selectBackdrop('${b.file_path}')">
+        <img src="${IMG_BACKDROP}${b.file_path}" loading="lazy">
+      </div>
+    `).join('');
+  } catch(e) {
+    grid.innerHTML = `<div class="empty">오류: ${e.message}</div>`;
+  }
+}
+
+function closeBackdropPicker() {
+  document.getElementById('backdropOverlay').classList.remove('show');
+  backdropTargetTmdbId = null;
+}
+
+// [2026-07-11 추가] 후보 클릭 시 바로 저장 — works.hero_backdrop_path 전용 격리 엔드포인트 사용
+// (일반 works PATCH는 media_type을 실수로 지울 위험이 있어서 안 씀)
+async function selectBackdrop(filePath) {
+  if (!backdropTargetTmdbId) return;
+  try {
+    const res  = await fetch(`${API}/admin/works/${backdropTargetTmdbId}/hero-backdrop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backdrop_path: filePath })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    const item = allPreviewData.find(r => r.tmdb_id === backdropTargetTmdbId);
+    if (item) item.hero_backdrop_path = filePath;
+    showToast('✅ 배경이미지 저장 완료', 'ok');
+    closeBackdropPicker();
+    renderPreviewPage();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+// [2026-07-11 추가] 선택 해제 — 기본 포스터로 되돌림
+async function clearBackdropSelection() {
+  if (!backdropTargetTmdbId) return;
+  try {
+    const res  = await fetch(`${API}/admin/works/${backdropTargetTmdbId}/hero-backdrop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backdrop_path: null })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '해제 실패', 'err'); return; }
+    const item = allPreviewData.find(r => r.tmdb_id === backdropTargetTmdbId);
+    if (item) item.hero_backdrop_path = null;
+    showToast('✅ 기본 포스터로 되돌림', 'ok');
+    closeBackdropPicker();
+    renderPreviewPage();
   } catch(e) { showToast(e.message, 'err'); }
 }
 
