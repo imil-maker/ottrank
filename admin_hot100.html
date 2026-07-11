@@ -601,14 +601,14 @@ function renderPreviewPage() {
         <div class="tmdb-id">ID ${r.tmdb_id}</div>
       </td>
       <td><span class="platform-badge" style="background:${PC[r.best_platform]||'#666'}">${PLATFORM_KO[r.best_platform]||r.best_platform}</span></td>
-      <td><span style="font-family:var(--mono);font-size:13px">${r.total_score}</span></td>
+      <td><span style="font-family:var(--mono);font-size:13px">${Number(r.total_score).toFixed(1)}</span></td>
       <td><span style="font-family:var(--mono);font-size:13px;color:var(--muted2)">${r.tmdb_rating != null ? Number(r.tmdb_rating).toFixed(1) : '-'}</span></td>
-      <td><input class="boost-inp" type="number" id="pv-boost-${r.tmdb_id}" value="${r.is_pinned ? r.total_score : (r.admin_boost || 0)}"></td>
+      <td><input class="boost-inp" type="number" id="pv-boost-${r.tmdb_id}" value="${r.is_pinned ? Number(r.total_score).toFixed(1) : (r.admin_boost || 0)}"></td>
       <td style="white-space:nowrap">
         <button class="btn-sm btn-fix" onclick="savePreviewBoost(${r.tmdb_id}, ${r.is_pinned ? 1 : 0})">저장</button>
         ${r.is_pinned
           ? `<button class="btn-sm" onclick="unpinPreview(${r.tmdb_id})">🔓 해제</button>`
-          : `<button class="btn-sm" onclick="pinPreview(${r.tmdb_id}, ${r.total_score})">📌 고정</button>`}
+          : `<button class="btn-sm" onclick="pinPreview(${r.tmdb_id}, ${Number(r.total_score).toFixed(1)})">📌 고정</button>`}
         <button class="btn-del" onclick="deleteBoostRow(${r.tmdb_id})">🗑 삭제</button>
       </td>
     </tr>
