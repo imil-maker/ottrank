@@ -29,7 +29,7 @@
  * @param {number} limit     - 최대 노출 개수
  * @returns {Array}          - 병합 후 재번호 매긴 배열
  */
-function _mergeRankings(crawlRows, manualRows, limit) {
+export function _mergeRankings(crawlRows, manualRows, limit) {
   if (!manualRows.length) {
     // 수동고정 없으면 크롤링만 limit개
     return crawlRows.slice(0, limit).map((r, i) => ({ ...r, rank: i + 1 }));
