@@ -756,6 +756,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div id="pcLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
     </div>
 
+    <div style="border-top:1px solid var(--border);margin:24px 0"></div>
+
+    <!-- 인물 검색 + 삭제 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <h3 style="margin-bottom:14px">🔍 인물 검색 · 삭제</h3>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input class="search-input" id="pSearchInput" type="text" placeholder="이름 입력 (예: 손나은)"
+          style="flex:1" onkeydown="if(event.key==='Enter')searchPersons()">
+        <button class="btn-primary" onclick="searchPersons()" style="padding:0 20px">검색</button>
+      </div>
+      <div id="pSearchResults"></div>
+    </div>
+
   </div>
 
   <!-- ══ 원어 정보 채우기 섹션 ══ -->
@@ -2697,6 +2710,67 @@ function stopPersonCollect() {
     document.getElementById('pcStopBtn').disabled = false;
     document.getElementById('pcStopBtn').textContent = '⏸ 중단';
   }, 1500);
+}
+
+/* ── 인물 검색 · 삭제 ── */
+async function searchPersons() {
+  const q = document.getElementById('pSearchInput').value.trim();
+  const resultsEl = document.getElementById('pSearchResults');
+  if (!q) { resultsEl.innerHTML = ''; return; }
+
+  resultsEl.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px">검색 중...</div>`;
+
+  try {
+    const res = await fetch(`${API}/admin/persons/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      resultsEl.innerHTML = '';
+      showToast(`검색 실패: ${data.message || res.status}`);
+      return;
+    }
+    if (!data.items.length) {
+      resultsEl.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px">검색 결과 없음</div>`;
+      return;
+    }
+    resultsEl.innerHTML = data.items.map(p => {
+      const jobLabel = p.job === 'direct' ? '감독' : '배우';
+      const name = (p.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `
+        <div id="pRow_${p.tmdb_id}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <div style="flex:1">
+            <span style="font-weight:600">${name}</span>
+            <span style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-left:8px">${jobLabel} · tmdb_id ${p.tmdb_id}</span>
+          </div>
+          <a href="/person.html?id=${p.tmdb_id}" target="_blank" rel="noopener" style="font-size:12px;color:var(--gold);text-decoration:none">페이지 보기 ↗</a>
+          <button class="btn-secondary" style="padding:6px 14px;font-size:12px" onclick="deletePerson(${p.tmdb_id})">삭제</button>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    resultsEl.innerHTML = '';
+    showToast(`네트워크 오류: ${e.message}`);
+  }
+}
+
+async function deletePerson(tmdbId) {
+  if (!confirm('이 인물을 삭제할까요?')) return;
+  try {
+    const res = await fetch(`${API}/admin/persons/${tmdbId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showToast(`삭제 실패: ${data.message || res.status}`);
+      return;
+    }
+    const row = document.getElementById(`pRow_${tmdbId}`);
+    if (row) row.remove();
+    showToast('🗑 삭제 완료');
+  } catch (e) {
+    showToast(`네트워크 오류: ${e.message}`);
+  }
 }
 
 /* ══════════════════════════════════════════════════════
