@@ -49,6 +49,8 @@
    GET    /admin/works/pinned-similar/:tmdb_id
    DELETE /admin/works/pinned-similar
    POST   /admin/persons/collect
+   GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설)
+   DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
    POST   /admin/works/backfill-release-year
    POST   /admin/works/backfill-rating
@@ -2450,6 +2452,43 @@ export async function handleAdmin(path, request, env, url, headers) {
         personsFound: personRows.size,
         remaining: remainRow?.cnt || 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/search ────────────────────────────────
+  // persons 테이블에서 이름으로 검색 (인물 사전등록 탭 — 삭제 대상 찾기용)
+  if (path === "/admin/persons/search" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
+      }
+      const { results: items } = await env.DB.prepare(
+        "SELECT tmdb_id, name, job FROM persons WHERE name LIKE ? ORDER BY name LIMIT 30"
+      ).bind(`%${q}%`).all();
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/persons/:tmdb_id ───────────────────────────
+  // persons 테이블에서 인물 1명 삭제. persons는 이름표만 저장하는 테이블이라
+  // (상세정보는 person.html 방문 시 TMDB에서 실시간 조회) 다른 데이터에 영향 없음.
+  // 실수로 지워도 "인물 수집" 재실행하면 다시 채워지므로 별도 복구 로직 없이 바로 삭제.
+  if (path.match(/^\/admin\/persons\/\d+$/) && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdbId = parseInt(path.split("/")[3]);
+      await env.DB.prepare("DELETE FROM persons WHERE tmdb_id = ?").bind(tmdbId).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
