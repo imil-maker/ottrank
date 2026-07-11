@@ -131,6 +131,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .known-for-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;
   scrollbar-width:none;-ms-overflow-style:none}
 .known-for-row::-webkit-scrollbar{display:none}
+
+/* [2026-07-11 추가] 오늘의 랭킹 위젯 — 방문객 전원에게 노출되는 유입 장치.
+   포스터 카드는 대표작(.known-for-row .work-card)과 완전히 동일한 크기를 쓰려고
+   새 CSS를 만들지 않고 .known-for-row 클래스를 그대로 재사용함(아래 rankingWidgetRow).
+   헤더(OTT 네임태그 + 제목)는 netflix.html의 .sec-num/.sec-title 패턴을 재현. */
+.ranking-widget-section{margin-top:8px}
+.ranking-widget-hd{display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  text-decoration:none;cursor:pointer}
+.ranking-widget-hd .sec-num{font-family:var(--font-mono);font-size:12px;font-weight:700;
+  padding:3px 10px;border-radius:4px;letter-spacing:1px;white-space:nowrap}
+.ranking-widget-hd .sec-title{font-size:17px;font-weight:700;color:var(--text);transition:color .15s}
+.ranking-widget-hd:hover .sec-title{color:var(--info)}
+.ranking-widget-rank{position:absolute;top:6px;left:6px;
+  background:rgba(0,0,0,.75);color:#fff;font-family:var(--font-mono);
+  font-size:11px;font-weight:700;min-width:20px;height:20px;padding:0 2px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;backdrop-filter:blur(4px)}
 /* ⚠️ 2026-07-11 4차 수정: 얇게 만든 스크롤바(6px)도 여전히 못생기고 UX를 해친다는
    피드백 — 스크롤바 자체를 완전히 숨기고, 대신 좌우 화살표 버튼(PC 전용)으로 조작.
    scrollbar-width:none(파이어폭스), -ms-overflow-style:none(구형 엣지),
@@ -348,6 +365,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div><!-- /hero-wrap -->
 
+  <!-- [2026-07-11 추가] 오늘의 랭킹 위젯 — 어드민 "인물페이지 설정"에서 켠 카테고리 1개만 노출.
+       관리자가 아무것도 안 켜놨으면(data===null) JS가 이 섹션을 그대로 숨김. -->
+  <div id="rankingWidgetSection" class="ranking-widget-section" style="display:none">
+    <a class="ranking-widget-hd" id="rankingWidgetLink" href="#">
+      <span class="sec-num" id="rankingWidgetTag"></span>
+      <span class="sec-title" id="rankingWidgetTitle"></span>
+    </a>
+    <div class="scroll-row-wrap">
+      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('rankingWidgetRow',-1)" aria-label="이전 작품">‹</button>
+      <div class="known-for-row" id="rankingWidgetRow"></div>
+      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('rankingWidgetRow',1)" aria-label="다음 작품">›</button>
+    </div>
+  </div>
+
   <!-- ⚠️ 2026-07-11 재수정: 사진 컬럼(200px) 안에 갤러리를 넣었더니 대표작처럼
        한 줄에 다 보이던 게 좁아져서 스크롤바가 두껍게 생기는 문제 발생 → PC는
        원래 이 자리(화면 전체 폭, 대표작 섹션과 같은 방식)로 되돌림.
@@ -411,6 +442,17 @@ const PLATFORM_LABELS = {
   wavve:'웨이브', coupang:'쿠팡플레이', boxoffice:'박스오피스',
 };
 
+/* [2026-07-11 추가] 오늘의 랭킹 위젯용 — 플랫폼 페이지 URL(header.html과 동일 경로)·
+   브랜드 색상(header.html의 CC 상수와 동일 hex) */
+const PLATFORM_PAGES = {
+  netflix:'/netflix.html', tving:'/tving.html', disney:'/disneyplus.html',
+  coupang:'/coupangplay.html', wavve:'/wavve.html', boxoffice:'/boxoffice.html',
+};
+const PLATFORM_COLORS = {
+  netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4',
+  coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429',
+};
+
 /* [2026-07-11 추가] 랭킹 배지 캐시 — tmdb_id별로 한 번만 조회 (더보기 클릭마다 중복조회 방지) */
 let rankBadgeCache = {};
 
@@ -446,6 +488,7 @@ function setupScrollRow(rowId){
 
 setupScrollRow('knownForRow');
 setupScrollRow('photoGalleryRow');
+setupScrollRow('rankingWidgetRow');
 
 /* [2026-07-11 추가] 사진 갤러리 위치 — PC/모바일에서 서로 다른 부모 컨테이너에
    들어가야 해서 CSS만으로는 처리 불가(부모 자체가 다름) → JS로 화면 크기에 따라
@@ -716,6 +759,63 @@ async function loadPhotoGallery(personId, imgBase){
   }
 }
 
+/* [2026-07-11 추가] 오늘의 랭킹 위젯 — 어드민이 "인물페이지 설정"에서 켜놓은 카테고리
+   1개를 노출. 이 배우/인물과 무관하게 방문객 전원에게 보이는 유입 장치라, 사진갤러리와
+   동일하게 initPage 메인 흐름과 분리된 fire-and-forget 호출로 둠 — 느리거나 실패해도
+   필모그래피 등 본 기능엔 전혀 영향 없음. 관리자가 아무것도 안 켜놨으면(data===null)
+   섹션 자체를 계속 숨김 상태로 둠(HTML 기본값 display:none 그대로 유지). */
+async function loadRankingWidget(){
+  try{
+    const res  = await fetch(`${OTTRANK_API}/rankings/person-widget`);
+    const json = await res.json();
+    if(!json.ok || !json.data || !json.data.items || !json.data.items.length) return;
+
+    const { platform, display_name, items } = json.data;
+    const pageUrl = PLATFORM_PAGES[platform] || '/netflix.html';
+    const color   = PLATFORM_COLORS[platform] || '#888';
+    const label   = PLATFORM_LABELS[platform] || platform;
+
+    document.getElementById('rankingWidgetLink').href = pageUrl;
+
+    const tag = document.getElementById('rankingWidgetTag');
+    tag.textContent      = label;
+    tag.style.color      = color;
+    tag.style.background = color + '2e'; // 약 18% 알파 배경
+    tag.style.border     = `1px solid ${color}59`; // 약 35% 알파 보더
+
+    document.getElementById('rankingWidgetTitle').textContent = `🔥 지금 ${display_name}`;
+
+    const row = document.getElementById('rankingWidgetRow');
+    row.classList.toggle('few-items', items.length <= 2);
+    row.innerHTML = items.map(rankingWidgetCardHtml).join('');
+
+    document.getElementById('rankingWidgetSection').style.display = 'block';
+    updateScrollArrows('rankingWidgetRow');
+  }catch(e){
+    // 위젯은 부가 기능 — 실패해도 조용히 무시 (메인 페이지 기능에 영향 없음)
+  }
+}
+
+/* [2026-07-11 추가] 오늘의 랭킹 위젯 카드 — 대표작(workCardHtml)과 같은
+   .work-card/.work-poster 클래스를 재사용해 크기를 동일하게 맞춤.
+   클릭 시 이동은 기존 goWork()를 그대로 재사용(작품 상세페이지, media_type 포함) */
+function rankingWidgetCardHtml(item){
+  const title     = escHtml(item.title_ko || item.title_en || '');
+  const mediaType = item.media_type || 'tv'; // works에 media_type 미확정인 극소수 케이스 — 기존 goWork 폴백과 동일 관례
+  const poster    = item.poster_path
+    ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
+    : `<div class="work-poster-ph">🎬</div>`;
+  return `
+    <a class="work-card" data-tmdb="${item.tmdb_id}" data-type="${mediaType}"
+       data-title="${title}" onclick="goWork(this)">
+      <div class="work-poster">
+        ${poster}
+        <span class="ranking-widget-rank">${item.rank}</span>
+      </div>
+      <div class="work-title">${title}</div>
+    </a>`;
+}
+
 /* [2026-07-11 재수정] 공유 버튼 클릭 시 현재 페이지 URL을 클립보드에 복사.
    my_review.html의 shareCurrentPage()/showToast() 패턴 그대로 재사용 —
    버튼 자체가 바뀌는(아이콘 스왑) 방식 대신, 화면 중앙 상단에 토스트 메시지로 안내.
@@ -820,6 +920,10 @@ async function initPage(){
 
     /* [2026-07-11 추가] 사진 갤러리 — 메인 흐름을 안 막게 await 없이 별도 호출 */
     loadPhotoGallery(personId, IMG_PROFILE);
+
+    /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 이 인물과 무관한 전역 데이터라
+       personId 로딩 성공 여부와 상관없이 독립적으로 호출, await 없이 별도 호출 */
+    loadRankingWidget();
 
     /* ⑤ 약력 — ko-KR 없으면 영어 fallback */
     let bio = data.biography || '';
