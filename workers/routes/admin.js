@@ -15,6 +15,8 @@
    GET    /admin/works                (?sort=recent 기본값=created_at DESC, ?sort=updated=updated_at DESC)
    PATCH  /admin/works/:tmdb_id
    PATCH  /admin/works/:tmdb_id/hero-backdrop  ← 핫100 히어로 캐러셀 배경이미지 수동 선택(2026-07-11 신설, 다른 필드는 안 건드리는 격리된 엔드포인트)
+   PUT    /admin/works/:tmdb_id/hero-upload    ← 커스텀 히어로 이미지 업로드(R2, 2026-07-12 신설)
+   DELETE /admin/works/:tmdb_id/hero-upload    ← 커스텀 히어로 이미지 삭제(R2, 2026-07-12 신설)
    DELETE /admin/works/:tmdb_id
    GET    /admin/new-match-count
    GET    /admin/manual-rankings
@@ -970,6 +972,70 @@ export async function handleAdmin(path, request, env, url, headers) {
       await env.DB.prepare(
         "UPDATE works SET hero_backdrop_path = ?, hero_title_baked_in = COALESCE(?, hero_title_baked_in) WHERE tmdb_id = ?"
       ).bind(backdrop_path || null, bakedInValue, tmdb_id).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── PUT /admin/works/:tmdb_id/hero-upload ───────────────────────
+  // [2026-07-12 신설] 커스텀 히어로 이미지 직접 업로드 (R2 저장).
+  // 파일을 멀티파트가 아니라 요청 body에 그대로(raw binary) 받음 — Content-Type 헤더로 확장자 결정.
+  // "?baked_in=0" 쿼리로 명시적으로 끄지 않는 한, 커스텀 이미지는 기본적으로 제목이 이미
+  // 들어있다고 간주해 hero_title_baked_in을 자동으로 켬(사용자 요청사항).
+  if (path.match(/^\/admin\/works\/\d+\/hero-upload$/) && request.method === "PUT") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(path.split("/")[3]);
+      const contentType = request.headers.get("Content-Type") || "image/jpeg";
+      const extMap = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+      const ext = extMap[contentType] || "jpg";
+      const key = `hero/${tmdb_id}-${Date.now()}.${ext}`;
+
+      await env.IMAGES.put(key, request.body, {
+        httpMetadata: { contentType },
+      });
+
+      const publicUrl = `https://img.ottrank.kr/${key}`;
+
+      const url = new URL(request.url);
+      const autoBakedIn = url.searchParams.get("baked_in") !== "0";
+
+      await env.DB.prepare(
+        "UPDATE works SET hero_custom_image_url = ?, hero_title_baked_in = ? WHERE tmdb_id = ?"
+      ).bind(publicUrl, autoBakedIn ? 1 : 0, tmdb_id).run();
+
+      return new Response(JSON.stringify({ ok: true, url: publicUrl }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/works/:tmdb_id/hero-upload ─────────────────────
+  // 커스텀 이미지 삭제 — R2 오브젝트도 같이 지우고(용량 낭비 방지), works 컬럼은 비움
+  // (TMDB 백드롭 선택/기본 포스터로 자동 되돌아감). hero_title_baked_in은 그대로 둠 —
+  // TMDB 백드롭으로 되돌아간 뒤에도 admin이 원하면 계속 유지/해제할 수 있게.
+  if (path.match(/^\/admin\/works\/\d+\/hero-upload$/) && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(path.split("/")[3]);
+      const existing = await env.DB.prepare(
+        "SELECT hero_custom_image_url FROM works WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+
+      if (existing?.hero_custom_image_url) {
+        const key = existing.hero_custom_image_url.replace("https://img.ottrank.kr/", "");
+        try { await env.IMAGES.delete(key); } catch (e) { /* R2 삭제 실패해도 DB는 정리 진행 */ }
+      }
+
+      await env.DB.prepare(
+        "UPDATE works SET hero_custom_image_url = NULL WHERE tmdb_id = ?"
+      ).bind(tmdb_id).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
