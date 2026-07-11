@@ -53,6 +53,8 @@ td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;vertic
 .poster-ph{width:32px;height:48px;border-radius:4px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:14px}
 .title-ko{font-size:13px;font-weight:500;color:var(--text)}
 .tmdb-id{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.pin-badge{display:inline-block;margin-left:6px;font-size:10px;padding:2px 7px;border-radius:10px;
+  background:rgba(230,57,70,.18);color:#ff6b7a;border:1px solid rgba(230,57,70,.4);font-weight:600}
 .boost-inp{width:70px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:13px}
 .weight-inp{width:80px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:13px}
 .calc-box{display:flex;align-items:center;gap:14px;margin-bottom:20px}
@@ -81,17 +83,17 @@ input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
 <div id="mainSection" class="main" style="display:none">
 
   <div class="tab-bar">
-    <button class="tab on" onclick="switchTab('boost', this)">🎯 핫100 (수동부스트)</button>
+    <button class="tab on" onclick="switchTab('boost', this)">📌 랭킹없는 작품 고정</button>
     <button class="tab" onclick="switchTab('category', this)">☑️ 카테고리 체크</button>
     <button class="tab" onclick="switchTab('weight', this)">⚖️ OTT 가중치 설정</button>
     <button class="tab" onclick="switchTab('calc', this)">🔄 수동 핫100</button>
   </div>
 
-  <!-- ══ ① 핫100 (수동부스트 검색) ══ -->
+  <!-- ══ ① 핫100 고정 등록(검색) ══ -->
   <div id="section-boost" class="section on">
     <div class="card">
-      <h3>작품 검색 후 수동 부스트 부여</h3>
-      <div class="hint">💡 특정 작품의 HOT100 점수에 ±점수를 직접 더하고 뺄 수 있습니다. 작품명 또는 TMDB ID로 검색하세요. 현재 부스트가 걸린 작품과 실제 순위 반영 결과는 "수동 핫100" 탭 미리보기에서 확인·조정할 수 있습니다.</div>
+      <h3>랭킹에 없는 작품 고정 등록</h3>
+      <div class="hint">💡 개봉 전이라 랭킹 데이터가 아예 없는 작품을 핫100에 강제로 포함시킬 때 사용합니다. 점수를 입력하면 크롤링 결과와 상관없이 그 점수 그대로 고정됩니다. 이미 랭킹에 있는 작품의 점수를 조정하거나 고정하려면 "수동 핫100" 탭 미리보기에서 하세요.</div>
       <div class="search-row">
         <input class="inp" id="boostSearchInp" placeholder="작품명 또는 TMDB ID 검색" oninput="searchBoostTimer()" style="margin-bottom:0">
       </div>
@@ -243,15 +245,18 @@ async function runBoostSearch() {
     box.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>포스터</th><th>TMDB ID</th><th>작품명</th><th>부스트값</th><th></th></tr></thead>
+          <thead><tr><th>포스터</th><th>TMDB ID</th><th>작품명</th><th>고정 점수</th><th></th></tr></thead>
           <tbody>
             ${rows.map(r => `
               <tr>
                 <td>${r.poster_path ? `<img class="poster-thumb" src="${IMG}${r.poster_path}">` : `<div class="poster-ph">🎬</div>`}</td>
                 <td><span class="tmdb-id">${r.tmdb_id}</span></td>
-                <td><span class="title-ko">${_esc(r.title_ko)}</span></td>
-                <td><input class="boost-inp" type="number" id="bv-${r.tmdb_id}" value="${r.boost_value}"></td>
-                <td><button class="btn-sm btn-fix" onclick="saveBoost(${r.tmdb_id})">저장</button></td>
+                <td>
+                  <span class="title-ko">${_esc(r.title_ko)}</span>
+                  ${r.is_pinned ? `<span class="pin-badge">📌 고정중</span>` : ''}
+                </td>
+                <td><input class="boost-inp" type="number" id="bv-${r.tmdb_id}" value="${r.is_pinned ? r.pinned_score : 0}"></td>
+                <td><button class="btn-sm btn-fix" onclick="savePinFromSearch(${r.tmdb_id})">📌 고정 저장</button></td>
               </tr>
             `).join('')}
           </tbody>
@@ -261,33 +266,21 @@ async function runBoostSearch() {
   } catch(e) { box.innerHTML = `<div class="empty">오류: ${e.message}</div>`; }
 }
 
-async function saveBoost(tmdbId) {
-  const boost_value = parseFloat(document.getElementById(`bv-${tmdbId}`).value) || 0;
+async function savePinFromSearch(tmdbId) {
+  const pinned_score = parseFloat(document.getElementById(`bv-${tmdbId}`).value) || 0;
   try {
     const res  = await fetch(`${API}/admin/hot100/boosts`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tmdb_id: tmdbId, boost_value, reason: '관리자 수동 조정' })
+      body: JSON.stringify({ tmdb_id: tmdbId, is_pinned: true, pinned_score, reason: '검색창에서 고정 등록' })
     });
     const json = await res.json();
     if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
-    showToast('✅ 부스트 저장 완료', 'ok');
+    showToast('📌 고정 저장 완료 — "수동 핫100" 탭에서 재계산하면 반영됩니다', 'ok');
   } catch(e) { showToast(e.message, 'err'); }
 }
 
-async function deleteBoost(tmdbId) {
-  if (!confirm('이 부스트 설정을 삭제할까요?')) return;
-  try {
-    const res  = await fetch(`${API}/admin/hot100/boosts/${tmdbId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const json = await res.json();
-    if (!json.ok) { showToast(json.error || '삭제 실패', 'err'); return; }
-    showToast('🗑️ 삭제 완료', 'ok');
-    loadPreview();
-  } catch(e) { showToast(e.message, 'err'); }
-}
+// [2026-07-11] 구버전 deleteBoost()는 unpinPreview()로 대체되어 제거됨 (기능 동일, 이름/문구만 명확화)
 
 // ════════════════════════════════════════════════════
 // ② 카테고리 체크
@@ -474,6 +467,7 @@ function renderPreviewPage() {
       <td>${r.poster_path ? `<img class="poster-thumb" src="${IMG}${r.poster_path}">` : `<div class="poster-ph">🎬</div>`}</td>
       <td>
         <span class="title-ko">${_esc(r.title_ko || '')}</span>
+        ${r.is_pinned ? `<span class="pin-badge">📌 고정</span>` : ''}
         <div class="tmdb-id">ID ${r.tmdb_id}</div>
       </td>
       <td><span class="platform-badge" style="background:${PC[r.best_platform]||'#666'}">${PLATFORM_KO[r.best_platform]||r.best_platform}</span></td>
@@ -482,7 +476,9 @@ function renderPreviewPage() {
       <td><input class="boost-inp" type="number" id="pv-boost-${r.tmdb_id}" value="${r.admin_boost || 0}"></td>
       <td style="white-space:nowrap">
         <button class="btn-sm btn-fix" onclick="savePreviewBoost(${r.tmdb_id})">저장</button>
-        <button class="btn-del" onclick="deleteBoost(${r.tmdb_id})">삭제</button>
+        ${r.is_pinned
+          ? `<button class="btn-sm" onclick="unpinPreview(${r.tmdb_id})">🔓 해제</button>`
+          : `<button class="btn-sm" onclick="pinPreview(${r.tmdb_id}, ${r.total_score})">📌 고정</button>`}
       </td>
     </tr>
   `).join('');
@@ -499,6 +495,38 @@ async function savePreviewBoost(tmdbId) {
     const json = await res.json();
     if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
     showToast('✅ 부스트 저장 완료 — 재계산 버튼을 눌러 반영하세요', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+// [2026-07-11 추가] 현재 화면에 보이는 total_score 그대로 얼림(고정) — 이후 재계산해도 이 점수 유지
+async function pinPreview(tmdbId, currentScore) {
+  if (!confirm(`현재 점수(${currentScore})로 고정할까요? 이후 크롤링 재계산에 영향받지 않습니다.`)) return;
+  try {
+    const res  = await fetch(`${API}/admin/hot100/boosts`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id: tmdbId, is_pinned: true, pinned_score: currentScore, reason: '미리보기에서 고정' })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.error || '고정 실패', 'err'); return; }
+    showToast('📌 고정 완료', 'ok');
+    loadPreview();
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+// [2026-07-11 추가] 고정 해제 — 부스트값도 함께 초기화되어 순수 크롤링 기반 계산으로 복귀
+// (랭킹 자체가 없던 고정 전용 작품이었다면 다음 재계산 때 핫100에서 자연스럽게 사라짐)
+async function unpinPreview(tmdbId) {
+  if (!confirm('고정을 해제할까요? 다음 재계산부터 크롤링 기반 점수로 돌아갑니다(랭킹이 없던 작품은 목록에서 사라질 수 있습니다).')) return;
+  try {
+    const res  = await fetch(`${API}/admin/hot100/boosts/${tmdbId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.error || '해제 실패', 'err'); return; }
+    showToast('🔓 해제 완료 — 재계산 버튼을 눌러 반영하세요', 'ok');
+    loadPreview();
   } catch(e) { showToast(e.message, 'err'); }
 }
 
