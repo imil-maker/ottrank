@@ -289,6 +289,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .works-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
   /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 모바일은 OTT 태그(1줄) / 제목+카운트(2줄)로 분리 */
   .ranking-widget-title-row{flex-basis:100%;margin-top:4px}
+  /* [2026-07-11 추가] 모바일 전용 — 태그 위아래 여백 축소 */
+  .ranking-widget-hd .sec-num{padding:2px 10px}
+  /* [2026-07-11 추가] 모바일 전용 — 랭킹 위젯 화살표는 PC(호버 시에만 노출)와 달리
+     기본값으로 바로 노출. 스크롤 끝(맨 앞/맨 뒤) 도달 시 자동 숨기는 기존 JS 로직
+     (.hidden 클래스)은 그대로 살아있어서, 처음엔 오른쪽 화살표만 보이고
+     왼쪽은 스크롤해야 나타남 — "더 있다"는 걸 알려주는 효과 */
+  .ranking-widget-section .scroll-arrow{opacity:.9}
 
   /* ⚠️ 2026-07-11 6차 수정(최종): justify-content:center로 화살표+사진을 "하나로 묶어서"
      가운데 정렬했더니, 화살표까지 같이 오른쪽으로 밀려서 진짜 왼쪽 상단이 아니게 됨.
