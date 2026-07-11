@@ -1284,6 +1284,7 @@ ${S.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
         w.title_ko,
         w.title_en,
         w.poster_path,
+        w.hero_backdrop_path,
         w.media_type,
         w.tmdb_rating,
         w.release_year
