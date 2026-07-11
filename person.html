@@ -146,11 +146,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .ranking-widget-hd .sec-title{font-size:17px;font-weight:700;color:var(--text);transition:color .15s}
 .ranking-widget-hd .sec-count{font-family:var(--disp);font-size:17px;letter-spacing:1px;color:var(--muted)}
 .ranking-widget-hd:hover .sec-title{color:var(--info)}
+/* [2026-07-11 추가] 랭킹 위젯 전용 행 — .known-for-row(대표작과 공유)에서 분리해서
+   대표작 카드 크기에 영향 안 주고 이 위젯만 사진갤러리(90px)와 동일 사이즈로 줄임 */
+.ranking-widget-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.ranking-widget-row::-webkit-scrollbar{display:none}
+.ranking-widget-row.few-items{justify-content:center}
+.ranking-widget-row .work-card{flex:0 0 90px;min-width:0}
 .ranking-widget-rank{position:absolute;top:6px;left:6px;
-  background:rgba(0,0,0,.75);color:#fff;font-family:var(--font-mono);
+  background:rgba(230,57,70,.92);color:#fff;font-family:var(--font-mono);
   font-size:11px;font-weight:700;min-width:20px;height:20px;padding:0 2px;
   display:flex;align-items:center;justify-content:center;
-  border-radius:50%;backdrop-filter:blur(4px)}
+  border-radius:50%;backdrop-filter:blur(4px);box-shadow:0 2px 8px rgba(0,0,0,.4)}
 /* ⚠️ 2026-07-11 4차 수정: 얇게 만든 스크롤바(6px)도 여전히 못생기고 UX를 해친다는
    피드백 — 스크롤바 자체를 완전히 숨기고, 대신 좌우 화살표 버튼(PC 전용)으로 조작.
    scrollbar-width:none(파이어폭스), -ms-overflow-style:none(구형 엣지),
@@ -413,7 +420,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </a>
     <div class="scroll-row-wrap">
       <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('rankingWidgetRow',-1)" aria-label="이전 작품">‹</button>
-      <div class="known-for-row" id="rankingWidgetRow"></div>
+      <div class="ranking-widget-row" id="rankingWidgetRow"></div>
       <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('rankingWidgetRow',1)" aria-label="다음 작품">›</button>
     </div>
   </div>
