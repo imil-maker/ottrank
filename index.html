@@ -1773,9 +1773,12 @@ let hhCurTabItemCount = 0;
 // 어드민 스위치(페이지 카테고리 설정 > HOT100 노출) 확인 후 켜져있을 때만 그림
 async function hhLoadHero(){
   try{
-    const dres  = await fetch(`${HH_API}/hot100/page-display?page=main`);
-    const djson = await dres.json();
-    if (!djson.ok || !djson.is_active) return; // 꺼져있으면 아무것도 안 그림(섹션 자체가 안 생김)
+    // [2026-07-12 수정] "켜져있나?" 확인 → "데이터 가져오기" 순차 2회 호출이 HOT100만 유난히
+    // 느리게 만든 원인이었음. page 파라미터로 한 번에 물어봐서 왕복 1번으로 단축 —
+    // 다른 섹션(TV/영화 TOP10 등)과 동일하게 "API 1번 호출로 끝" 구조로 맞춤.
+    const res  = await fetch(`${HH_API}/hot100/hero-tabs?page=main`);
+    const json = await res.json();
+    if (!json.ok || !json.active) return; // 꺼져있으면 아무것도 안 그림(섹션 자체가 안 생김)
 
     document.getElementById('hot100HeroWrap').innerHTML = `
       <div class="sec-hd" id="hot100Hero">
@@ -1791,8 +1794,6 @@ async function hhLoadHero(){
     `;
     hhSetupArrowVisibility(document.getElementById('hhCardRow'));
 
-    const res  = await fetch(`${HH_API}/hot100/hero-tabs`);
-    const json = await res.json();
     hhTabsData  = json.tabs || [];
     hhCurTabIdx = 0;
     hhRenderTabs();
