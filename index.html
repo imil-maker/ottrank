@@ -56,11 +56,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style"
-  href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap"
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap"
   rel="stylesheet" media="print" onload="this.media='all'">
 <noscript>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap" rel="stylesheet">
 </noscript>
 
 <!-- 리뷰 카드 공통 컴포넌트 CSS — FOUC 방지를 위해 head에 직접 로드 -->
@@ -714,6 +714,53 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <link rel="stylesheet" href="/components/review-card.css">
 <!-- 좋아요 하트 아이콘용 Tabler 아이콘 폰트 (_title_detail.html과 동일) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+<!-- [2026-07-12 추가] HOT100 히어로 캐러셀 — hot100_preview.html에서 확정한 디자인 그대로 이식.
+     클래스는 전부 hh- 접두사를 붙여서 기존 스타일과 절대 안 겹치게 분리 -->
+<style>
+.hh-tab-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.hh-tab-pill{display:flex;align-items:center;gap:7px;padding:8px 16px 8px 10px;border-radius:20px;
+  background:var(--bg3);border:1px solid var(--border2);
+  color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.hh-tab-pill.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.hh-tab-pill img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0}
+
+.hh-row-wrap{position:relative}
+.hh-card-row{display:flex;gap:16px;overflow-x:auto;scroll-behavior:smooth;
+  scrollbar-width:none;-ms-overflow-style:none}
+.hh-card-row::-webkit-scrollbar{display:none}
+.hh-card{position:relative;flex:0 0 calc(25% - 12px);min-width:220px;aspect-ratio:1/1;border-radius:12px;overflow:hidden;
+  background:var(--card);cursor:pointer;display:flex;flex-direction:column}
+.hh-card-img-wrap{position:relative;width:100%;flex:0 0 75%;overflow:hidden;container-type:inline-size}
+.hh-card-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.hh-card-img-fade{position:absolute;left:0;right:0;bottom:0;height:55%;
+  background:linear-gradient(0deg,var(--card) 0%,rgba(22,22,31,.55) 60%,transparent 100%)}
+.hh-card-rank{position:absolute;top:5%;left:5%;font-family:'Bebas Neue',var(--sans),sans-serif;font-size:15cqw;font-weight:900;
+  font-style:italic;letter-spacing:1px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hh-card-platform{position:absolute;top:7%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
+  border-radius:5px;color:#fff;text-decoration:none;cursor:pointer}
+.hh-card-info{flex:1;position:relative;z-index:2;margin-top:-60px;background:transparent;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;padding:10px 8% 0;text-align:center}
+.hh-card-title{color:#fff;font-family:'Black Han Sans',var(--sans),sans-serif;font-size:29px;letter-spacing:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:100%}
+.hh-card-info img.hh-card-logo{max-width:85%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
+.hh-card-rating{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:3;
+  display:inline-flex;align-items:center;gap:6px;padding:2px 22px;border-radius:20px;
+  background:#3a3a42;color:#fff;font-size:22px;font-weight:800;
+  font-family:var(--mono);white-space:nowrap}
+.hh-card-rating .star{color:var(--gold)}
+.hh-card-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  background:var(--bg3);color:var(--muted2);font-size:13px}
+
+.hh-arrow{position:absolute;top:calc(50% - 22px);width:40px;height:40px;border-radius:50%;
+  background:rgba(12,12,16,.75);border:1px solid var(--border2);color:#fff;font-size:18px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;user-select:none}
+.hh-arrow-left{left:-20px}
+.hh-arrow-right{right:-20px}
+.hh-arrow:hover{background:var(--gold);color:#000}
+.hh-arrow.hide{display:none}
+</style>
 </head>
 <body>
 
@@ -765,6 +812,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 </div>
 
 <div class="main-outer">
+
+  <!-- ══ HOT100 히어로 캐러셀 (어드민 페이지 카테고리 설정 > HOT100 노출 스위치로 켜고 끔) ══ -->
+  <div id="hot100HeroWrap"></div>
 
   <!-- ══ 넷플릭스 featured 슬라이드 섹션 (어드민 main_section=featured 설정 시 표시) ══ -->
   <div id="featuredWrap"></div>
@@ -1622,6 +1672,9 @@ async function init(){
   if(document.getElementById('updateTxt2')) document.getElementById('updateTxt2').textContent=dateStr;
   if(document.getElementById('updateTxt3')) document.getElementById('updateTxt3').textContent=dateStr;
 
+  // HOT100 히어로 캐러셀 — 다른 로드와 완전히 독립적(await 안 함) — 켜져있을 때만 그려짐
+  hhLoadHero();
+
   // TV시리즈/영화 TOP10 화살표 — 스크롤 이벤트는 최초 1회만 연결 (renderGrids는 여러 번 재실행되므로 여기서 분리)
   ['tvGrid','movieGrid'].forEach(id=>{
     const el=document.getElementById(id);
@@ -1647,6 +1700,171 @@ async function init(){
     loadRecentReviews(),
   ]);
 }
+
+// ════════════════════════════════════════════════════
+// HOT100 히어로 캐러셀 — hot100_preview.html에서 확정한 디자인/로직 그대로 이식
+// (변수·함수명은 전부 hh 접두사로 기존 코드와 충돌 방지, PC 상수만 이미 있는 걸 재사용)
+// ════════════════════════════════════════════════════
+const HH_API          = API; // 이미 위에서 선언된 것과 동일한 서버
+const HH_IMG          = 'https://image.tmdb.org/t/p/w300';
+const HH_IMG_BACKDROP = 'https://image.tmdb.org/t/p/w780';
+const HH_IMG_LOGO     = 'https://image.tmdb.org/t/p/w300';
+const HH_ICON_BASE    = 'https://ottrank.kr/img/';
+const HH_PLATFORM_KO  = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스' };
+const HH_PLATFORM_ICON = {
+  netflix:'netflix-icon.jpg', tving:'tving-icon.jpg', disney:'disneyplus-icon.jpg',
+  coupang:'coupangplay-icon.jpg', wavve:'wavve-icon.jpg', boxoffice:'boxoffice-icon.jpg',
+};
+const HH_PLATFORM_URL = { netflix:'/netflix', tving:'/tving', disney:'/disneyplus', coupang:'/coupangplay', wavve:'/wavve', boxoffice:'/boxoffice' };
+
+function _hhEsc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+let hhTabsData = [];
+let hhCurTabIdx = 0;
+let hhCurTabItemCount = 0;
+
+// 어드민 스위치(페이지 카테고리 설정 > HOT100 노출) 확인 후 켜져있을 때만 그림
+async function hhLoadHero(){
+  try{
+    const dres  = await fetch(`${HH_API}/hot100/page-display?page=main`);
+    const djson = await dres.json();
+    if (!djson.ok || !djson.is_active) return; // 꺼져있으면 아무것도 안 그림(섹션 자체가 안 생김)
+
+    document.getElementById('hot100HeroWrap').innerHTML = `
+      <div class="sec-hd" id="hot100Hero">
+        <span class="sec-icon">🎬</span>
+        <span class="sec-title">HOT100 실시간 랭킹</span>
+      </div>
+      <div class="hh-tab-pills" id="hhTabPills"><div class="loading">불러오는 중...</div></div>
+      <div class="hh-row-wrap">
+        <div class="hh-arrow hh-arrow-left" onclick="hhShiftWindow(-1)">‹</div>
+        <div class="hh-card-row" id="hhCardRow"></div>
+        <div class="hh-arrow hh-arrow-right" onclick="hhShiftWindow(1)">›</div>
+      </div>
+    `;
+    hhSetupArrowVisibility(document.getElementById('hhCardRow'));
+
+    const res  = await fetch(`${HH_API}/hot100/hero-tabs`);
+    const json = await res.json();
+    hhTabsData  = json.tabs || [];
+    hhCurTabIdx = 0;
+    hhRenderTabs();
+  }catch(e){ /* 실패해도 메인페이지 나머지 기능엔 영향 없이 조용히 무시 */ }
+}
+
+function hhRenderTabs(){
+  const box = document.getElementById('hhTabPills');
+  if (!box) return;
+  if (!hhTabsData.length){
+    document.getElementById('hot100HeroWrap').innerHTML = ''; // 노출 탭 자체가 없으면 섹션 통째로 숨김
+    return;
+  }
+  box.innerHTML = hhTabsData.map((t,i) => `
+    <div class="hh-tab-pill ${i===hhCurTabIdx?'on':''}" onclick="hhSetTab(${i})">
+      ${HH_PLATFORM_ICON[t.platform] ? `<img src="${HH_ICON_BASE}${HH_PLATFORM_ICON[t.platform]}" alt="">` : ''}
+      ${_hhEsc(t.label)}
+    </div>
+  `).join('');
+  hhRenderCards();
+}
+
+function hhSetTab(i){ hhCurTabIdx = i; hhRenderTabs(); }
+
+function _hhCardStep(row){
+  const card = row.querySelector('.hh-card');
+  if (!card) return 0;
+  const gap = 16;
+  return card.getBoundingClientRect().width + gap;
+}
+
+function hhShiftWindow(dir){
+  const row = document.getElementById('hhCardRow');
+  const step = _hhCardStep(row);
+  if (!step) return;
+  row.scrollBy({ left: dir * step, behavior: 'smooth' });
+}
+
+function _hhUpdateArrowVisibility(){
+  const row = document.getElementById('hhCardRow');
+  const leftArrow  = document.querySelector('#hot100HeroWrap .hh-arrow-left');
+  const rightArrow = document.querySelector('#hot100HeroWrap .hh-arrow-right');
+  if (!row || !leftArrow || !rightArrow) return;
+  const noScrollNeeded = row.scrollWidth <= row.clientWidth + 1;
+  const atStart = row.scrollLeft <= 2;
+  const atEnd   = row.scrollLeft + row.clientWidth >= row.scrollWidth - 2;
+  leftArrow.classList.toggle('hide', noScrollNeeded || atStart);
+  rightArrow.classList.toggle('hide', noScrollNeeded || atEnd);
+}
+
+let _hhArrowVisTimer = null;
+function hhSetupArrowVisibility(row){
+  if (!row) return;
+  row.addEventListener('scroll', () => {
+    clearTimeout(_hhArrowVisTimer);
+    _hhArrowVisTimer = setTimeout(_hhUpdateArrowVisibility, 60);
+  });
+  window.addEventListener('resize', () => {
+    clearTimeout(_hhArrowVisTimer);
+    _hhArrowVisTimer = setTimeout(_hhUpdateArrowVisibility, 60);
+  });
+}
+
+function _hhCardHtml(item){
+  const title = _hhEsc(item.title_ko || item.title_en || '');
+  const bg    = item.hero_custom_image_url
+    ? item.hero_custom_image_url
+    : item.hero_backdrop_path
+      ? `${HH_IMG_BACKDROP}${item.hero_backdrop_path}`
+      : (item.poster_path ? `${HH_IMG}${item.poster_path}` : '');
+  const platformColor = PC[item.best_platform] || '#666';
+  const platformLabel = HH_PLATFORM_KO[item.best_platform] || item.best_platform || '';
+  const bakedIn = !!item.hero_title_baked_in;
+
+  const titleOrLogoHtml = bakedIn
+    ? ''
+    : (item.hero_logo_path
+        ? `<img class="hh-card-logo" src="${HH_IMG_LOGO}${item.hero_logo_path}" alt="">`
+        : `<span class="hh-card-title">${title}</span>`);
+
+  const ratingHtml = (item.tmdb_rating != null)
+    ? `<div class="hh-card-rating"><span class="star">★</span>${Number(item.tmdb_rating).toFixed(1)}</div>`
+    : '';
+
+  // 카드 클릭 이동은 새로 만들지 않고 이 페이지에 이미 있는 goDetail() 그대로 재사용
+  const mediaType = item.media_type || 'tv';
+  const safeTitleAttr = title.replace(/'/g, '');
+  const goAttr = `onclick="goDetail(${item.tmdb_id},'${mediaType}','${item.best_platform}',${item.rank},'${safeTitleAttr}')"`;
+
+  return `
+    <div class="hh-card" ${goAttr} style="cursor:pointer">
+      <div class="hh-card-img-wrap">
+        ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hh-card-ph">이미지 없음</div>`}
+        <div class="hh-card-img-fade"></div>
+        <span class="hh-card-rank">${item.rank}</span>
+        <a class="hh-card-platform" href="${HH_PLATFORM_URL[item.best_platform] || '#'}" target="_blank"
+           style="background:${platformColor}" onclick="event.stopPropagation()">${platformLabel}</a>
+      </div>
+      <div class="hh-card-info">${titleOrLogoHtml}</div>
+      ${ratingHtml}
+    </div>
+  `;
+}
+
+function hhRenderCards(){
+  const row = document.getElementById('hhCardRow');
+  const tab = hhTabsData[hhCurTabIdx];
+  if (!row) return;
+  if (!tab || !tab.items.length){
+    hhCurTabItemCount = 0;
+    row.innerHTML = '<div class="empty">이 탭에 노출할 데이터가 없습니다.</div>';
+    return;
+  }
+  hhCurTabItemCount = tab.items.length;
+  row.innerHTML = tab.items.map(_hhCardHtml).join('');
+  row.scrollLeft = 0;
+  _hhUpdateArrowVisibility();
+}
+
 
 /* ── 오늘의 신작 & 예정작 (메인 5개) ── */
 const CT_TYPE_LABEL = { trailer:'예고편', preview:'선공개', teaser:'티저', release:'신작공개' };
