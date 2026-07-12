@@ -196,22 +196,25 @@ function _cardHtml(item){
   const platformLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
   const bakedIn = !!item.hero_title_baked_in;
 
-  // 하이브리드 규칙 그대로 유지: 제목있음 체크 → 아무것도 안 그림 /
-  // 로고 있음 → 로고 이미지 / 둘 다 아니면 텍스트 제목으로 폴백
-  let infoHtml = '';
-  if (!bakedIn) {
-    const titleOrLogo = item.hero_logo_path
-      ? `<img class="hero-card-logo" src="${IMG_LOGO}${item.hero_logo_path}" alt="">`
-      : `<span class="hero-card-title">${title}</span>`;
-    // [2026-07-12 수정] 플랫폼별 실제 순위(예: "티빙 4위")는 "전체" 탭에서 재계산 시점 기준으로만
-    // 정확하고 실시간 크롤링 순위와 어긋날 수 있어서 제거. 평점(tmdb_rating)은 크롤링 때마다
-    // 항상 최신화되는 값이라 부정확할 위험이 없어서 이것만 표시 — OTT별 색 구분 없이 중립적인
-    // 밝은 회색 박스로 표시(featuredWrap의 rating-b 배지와 같은 원리, 추가 API 호출 없음)
-    const ratingHtml = (item.tmdb_rating != null)
-      ? `<div class="hero-card-rating"><span class="star">★</span>${item.tmdb_rating}</div>`
-      : '';
-    infoHtml = titleOrLogo + ratingHtml;
-  }
+  // [2026-07-12 수정] "제목있음"(hero_title_baked_in) 체크는 제목/로고 오버레이에만 적용되는
+  // 규칙인데, 평점 박스까지 같은 조건 안에 묶여있어서 커스텀 이미지 작품은 평점까지 통째로
+  // 안 보이던 버그. 제목/로고와 평점을 서로 다른 조건으로 완전히 분리한다.
+  const titleOrLogoHtml = bakedIn
+    ? ''
+    : (item.hero_logo_path
+        ? `<img class="hero-card-logo" src="${IMG_LOGO}${item.hero_logo_path}" alt="">`
+        : `<span class="hero-card-title">${title}</span>`);
+
+  // 플랫폼별 실제 순위(예: "티빙 4위")는 "전체" 탭에서 재계산 시점 기준으로만 정확하고
+  // 실시간 크롤링 순위와 어긋날 수 있어서 제거. 평점(tmdb_rating)은 크롤링 때마다
+  // 항상 최신화되는 값이라 부정확할 위험이 없어서 이것만 표시 — OTT별 색 구분 없이 중립적인
+  // 밝은 회색 박스로 표시(featuredWrap의 rating-b 배지와 같은 원리, 추가 API 호출 없음).
+  // "제목있음" 여부와 무관하게 평점이 있으면 항상 보여준다.
+  const ratingHtml = (item.tmdb_rating != null)
+    ? `<div class="hero-card-rating"><span class="star">★</span>${item.tmdb_rating}</div>`
+    : '';
+
+  const infoHtml = titleOrLogoHtml + ratingHtml;
 
   const mediaType = item.media_type || 'tv';
   const goAttr = `data-tmdb="${item.tmdb_id}" data-title-ko="${_esc(item.title_ko || '')}" `
