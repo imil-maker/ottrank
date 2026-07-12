@@ -201,8 +201,12 @@ function _cardHtml(item){
       : `<span class="hero-card-title">${title}</span>`;
   }
 
+  const mediaType = item.media_type || 'tv';
+  const goAttr = `data-tmdb="${item.tmdb_id}" data-title-ko="${_esc(item.title_ko || '')}" `
+    + `data-title-en="${_esc(item.title_en || '')}" data-media-type="${mediaType}"`;
+
   return `
-    <div class="hero-card">
+    <div class="hero-card" ${goAttr} onclick="goTitleCard(this)">
       <div class="hero-card-img-wrap">
         ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hero-card-ph">이미지 없음</div>`}
         <div class="hero-card-img-fade"></div>
@@ -213,6 +217,27 @@ function _cardHtml(item){
       <div class="hero-card-info">${infoHtml}</div>
     </div>
   `;
+}
+
+// [2026-07-12 추가] 사이트 전체가 쓰는 작품페이지 이동 표준 패턴 그대로 사용.
+// <a href="/title/...">로 그냥 걸면 sessionStorage에 데이터가 없어서 작품페이지가 빈 화면을 띄우는
+// 기존에 알려진 버그가 있어서, 다른 페이지(mypage.html 등)와 동일하게 클릭 시 필요한 정보를
+// sessionStorage에 저장한 뒤 이동하는 방식으로 맞춘다. release_year는 이 API 응답에 없어서
+// 생략하면 goTitle과 동일하게 현재 연도로 자동 대체된다.
+function goTitleCard(el){
+  const tmdbId = el.dataset.tmdb;
+  if (!tmdbId) return;
+  const season = 1;
+  const year = new Date().getFullYear();
+  const url = `/title/${season}-${year}${tmdbId}`;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type: el.dataset.mediaType || 'tv',
+    platform: '', rank: '—',
+    title: el.dataset.titleKo || el.dataset.titleEn || '',
+    season, year
+  }));
+  sessionStorage.setItem('ottrang_slug', url);
+  location.href = url;
 }
 
 function renderCards(){
