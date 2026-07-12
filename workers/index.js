@@ -15,7 +15,8 @@
    contents.js  : /contents/*, /admin/contents*
    blog.js      : /blog-gen/*
    inquiry.js   : /inquiry, /admin/inquiry*  (광고문의/오류신고 게시판)
-   hot100.js    : /hot100, /admin/calc-hot100, /admin/hot100/boosts*, /admin/hot100/frontend-tabs*  (HOT100 통합 랭킹)
+   hot100.js    : /hot100, /admin/calc-hot100, /admin/hot100/boosts*, /admin/hot100/frontend-tabs*,
+                  /admin/hot100/backfill-logos*  (HOT100 통합 랭킹 + 히어로 로고 백필)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -34,6 +35,7 @@ import {
   upsertAdminBoost, deleteAdminBoost,
   listFrontendTabs, updateFrontendTab,
   getHeroTabs,
+  backfillHeroLogos, getBackfillLogoStatus,
 } from "./routes/hot100.js";
 
 export default {
@@ -189,6 +191,16 @@ export default {
     const frontendTabMatch = path.match(/^\/admin\/hot100\/frontend-tabs\/([a-z]+)$/);
     if (!res && frontendTabMatch && request.method === "PATCH") {
       res = await updateFrontendTab(frontendTabMatch[1], request, env, headers);
+    }
+
+    // 11-3. HOT100 히어로 로고 백필 (2026-07-12 추가)
+    //       /status가 :platform 같은 동적 패턴이 아니라 고정 경로라 순서는 상관없지만,
+    //       12번 관리자 캐치올보다는 반드시 앞에 있어야 함(안 그러면 404)
+    if (!res && path === "/admin/hot100/backfill-logos" && request.method === "POST") {
+      res = await backfillHeroLogos(request, env, headers);
+    }
+    if (!res && path === "/admin/hot100/backfill-logos/status" && request.method === "GET") {
+      res = await getBackfillLogoStatus(request, env, headers);
     }
 
     // 12. 관리자 (reactions, videos, contents, inquiry, hot100 제외한 나머지)
