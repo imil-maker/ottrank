@@ -747,7 +747,7 @@ export async function updateFrontendTab(platform, request, env, headers) {
 export async function getHeroTabs(request, env, headers) {
   try {
     const PLATFORM_LABELS = {
-      all: "전체", netflix: "넷플릭스", tving: "티빙", disney: "디즈니+",
+      all: "전체 순위", netflix: "넷플릭스", tving: "티빙", disney: "디즈니+",
       coupang: "쿠팡플레이", wavve: "웨이브", boxoffice: "박스오피스",
     };
 
