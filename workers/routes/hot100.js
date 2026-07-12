@@ -746,6 +746,26 @@ export async function updateFrontendTab(platform, request, env, headers) {
  */
 export async function getHeroTabs(request, env, headers) {
   try {
+    // ⚠️ [2026-07-12 수정] 원래는 프론트가 "노출 켜져있나?"(page-display)를 먼저 물어보고,
+    // 그 응답을 받은 뒤에야 이 API를 또 호출하는 2단계 순차 구조였음 — 다른 섹션들(TV/영화 TOP10 등)은
+    // 전부 서버가 미리 필터링해서 1번 호출로 끝나는데 HOT100만 유난히 느렸던 진짜 원인이 이 구조였음.
+    // page 파라미터를 받으면 이 API 안에서 노출 여부까지 한 번에 확인해서, 꺼져있으면 무거운 계산
+    // (탭 7개 × 쿼리) 자체를 아예 안 하고 바로 반환 — 프론트는 이제 이 API 딱 1번만 호출하면 됨.
+    // page 파라미터 없이 호출(예: hot100_preview.html의 관리자 미리보기)하면 예전처럼 그대로 동작.
+    const url  = new URL(request.url);
+    const page = url.searchParams.get("page");
+    if (page) {
+      const displayRow = await env.DB.prepare(
+        `SELECT is_active FROM hot100_page_display WHERE page = ?`
+      ).bind(page).first();
+      if (!displayRow || !displayRow.is_active) {
+        return new Response(
+          JSON.stringify({ ok: true, active: false, tabs: [] }),
+          { status: 200, headers }
+        );
+      }
+    }
+
     const PLATFORM_LABELS = {
       all: "전체 순위", netflix: "넷플릭스", tving: "티빙", disney: "디즈니+",
       coupang: "쿠팡플레이", wavve: "웨이브", boxoffice: "박스오피스",
@@ -759,7 +779,7 @@ export async function getHeroTabs(request, env, headers) {
     ).all();
 
     if (!tabConfigs || tabConfigs.length === 0) {
-      return new Response(JSON.stringify({ ok: true, tabs: [] }), { status: 200, headers });
+      return new Response(JSON.stringify({ ok: true, active: true, tabs: [] }), { status: 200, headers });
     }
 
     // ⚠️ [2026-07-12 수정] 기존엔 탭(최대 7개) × 쿼리(최대 3개)를 전부 순차(for-loop await)로
@@ -847,7 +867,7 @@ export async function getHeroTabs(request, env, headers) {
     // Promise.all은 tabConfigs 순서를 그대로 보존하므로 display_order 정렬 유지됨. null(스킵)만 제거.
     const tabs = tabResults.filter(Boolean);
 
-    return new Response(JSON.stringify({ ok: true, tabs }), { status: 200, headers });
+    return new Response(JSON.stringify({ ok: true, active: true, tabs }), { status: 200, headers });
   } catch (err) {
     return new Response(
       JSON.stringify({ ok: false, error: "히어로 탭 조회 중 오류가 발생했습니다.", detail: err.message }),
