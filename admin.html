@@ -4146,14 +4146,32 @@ function renderWorks(rows) {
     return;
   }
   const srcColor = { admin:'var(--green)', auto_claude:'var(--info)', auto_tmdb:'var(--muted2)' };
-  document.getElementById('worksTableBody').innerHTML = rows.map(r => `
+  document.getElementById('worksTableBody').innerHTML = rows.map(r => {
+    // [2026-07-12 추가] 포스터 → 오뜨랑 작품페이지, TMDB ID → TMDB 원본 페이지로 각각 새 탭 링크.
+    // 슬러그 형식은 사이트 표준(/title/{시즌}-{연도}{tmdb_id})과 동일 — season/year 정보가
+    // 이 목록엔 없어서 사이트 다른 곳(goDetail 등)과 동일한 기본값(시즌1, 올해)으로 채움.
+    // 어차피 실제 페이지는 tmdb_id로 서버에서 다시 조회해서 채우므로 season/year 추정값이 틀려도
+    // 화면 내용 자체엔 영향 없음(URL 슬러그 파싱용일 뿐).
+    const ottYear   = r.release_year || new Date().getFullYear(); // 있으면 실제 개봉/방영 연도, 없을 때만 올해로 폴백(사이트 다른 곳과 동일 관례)
+    const ottUrl    = `/title/1-${ottYear}${r.tmdb_id}`;
+    const tmdbType  = r.media_type === 'movie' ? 'movie' : 'tv'; // 정보 없으면 tv로 안전 폴백(사이트 기존 관례와 동일)
+    const tmdbUrl   = `https://www.themoviedb.org/${tmdbType}/${r.tmdb_id}`;
+
+    return `
     <tr>
       <td><input type="checkbox" class="works-check" data-tmdb-id="${r.tmdb_id}"></td>
-      <td>${r.poster_path
-        ? `<img class="poster-thumb" src="${IMG}${r.poster_path}" alt="" loading="lazy">`
-        : `<div class="poster-ph">🎬</div>`}
+      <td>
+        <a href="${ottUrl}" target="_blank" rel="noopener" title="오뜨랑 작품페이지로 이동">
+          ${r.poster_path
+            ? `<img class="poster-thumb" src="${IMG}${r.poster_path}" alt="" loading="lazy">`
+            : `<div class="poster-ph">🎬</div>`}
+        </a>
       </td>
-      <td><span style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${r.tmdb_id}</span></td>
+      <td>
+        <a href="${tmdbUrl}" target="_blank" rel="noopener"
+           style="font-family:var(--mono);font-size:12px;color:var(--muted2);text-decoration:underline"
+           title="TMDB 페이지로 이동">${r.tmdb_id}</a>
+      </td>
       <td>
         <input class="date-inp" type="text" id="wtko-${r.tmdb_id}" value="${_esc(r.title_ko||'')}"
           style="width:140px;font-size:12px">
@@ -4178,7 +4196,8 @@ function renderWorks(rows) {
           onclick="deleteWork(${r.tmdb_id},'${_esc(r.title_ko||r.title_en||'')}')">삭제</button>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 /* ── data-* 속성으로 works 수정 모달 열기 (onclick 문자열 이스케이프 문제 방지) ── */
