@@ -37,13 +37,13 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
   background:var(--card);cursor:pointer;display:flex;flex-direction:column}
 .hero-card-img-wrap{position:relative;width:100%;flex:0 0 75%;overflow:hidden;container-type:inline-size}
 .hero-card-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
-.hero-card-img-fade{position:absolute;left:0;right:0;bottom:0;height:36%;
+.hero-card-img-fade{position:absolute;left:0;right:0;bottom:0;height:55%;
   background:linear-gradient(0deg,var(--card) 0%,rgba(22,22,31,.55) 60%,transparent 100%)}
 .hero-card-rank{position:absolute;top:5%;left:5%;font-family:var(--mono);font-size:15cqw;font-weight:900;
   font-style:italic;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
 .hero-card-platform{position:absolute;top:7%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
   border-radius:5px;color:#fff}
-.hero-card-info{flex:1;background:var(--card);display:flex;flex-direction:column;align-items:center;
+.hero-card-info{flex:1;position:relative;z-index:2;margin-top:-60px;background:transparent;display:flex;flex-direction:column;align-items:center;
   justify-content:flex-start;padding:10px 8% 0;text-align:center}
 .hero-card-title{color:#fff;font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:100%}
@@ -80,7 +80,6 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
 
 <script>
 const API = 'https://ottrank-api.tdidream.workers.dev';
-const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const IMG = 'https://image.tmdb.org/t/p/w300';
 const IMG_BACKDROP = 'https://image.tmdb.org/t/p/w780';
 const IMG_LOGO = 'https://image.tmdb.org/t/p/w300';
@@ -96,8 +95,6 @@ function _esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;',
 
 let tabsData = [];
 let curTabIdx = 0;
-const logoCache = {};
-let logoObserver = null;
 
 async function loadHeroTabs(){
   try{
@@ -131,7 +128,6 @@ function setTab(i){ curTabIdx = i; renderTabs(); }
 
 // [2026-07-12 수정] 4개씩 통째로 바뀌는 "윈도우" 방식 대신, 전체 카드를 한 줄에 다 깔아두고
 // 네이티브 가로 스크롤(scroll-behavior:smooth)로 한 장씩 부드럽게 슬라이딩.
-// 로고 조회는 IntersectionObserver로 "화면 근처에 실제로 보일 때"만 실행해서 초기 로딩은 여전히 가볍게 유지.
 function shiftWindow(dir){
   const row = document.getElementById('cardRow');
   const card = row.querySelector('.hero-card');
@@ -152,6 +148,8 @@ function shiftWindow(dir){
   }
 }
 
+// [2026-07-12 수정] 로고를 방문 때마다 TMDB에 다시 물어보지 않고, /hot100/hero-tabs API가
+// 이미 내려준 hero_logo_path(관리자가 미리 백필해둔 값)를 그대로 사용 — 추가 네트워크 요청 없음.
 function renderCards(){
   const row = document.getElementById('cardRow');
   const tab = tabsData[curTabIdx];
@@ -171,59 +169,29 @@ function renderCards(){
     const platformLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
     const bakedIn = !!item.hero_title_baked_in;
 
+    // 하이브리드 규칙 그대로 유지: 제목있음 체크 → 아무것도 안 그림 /
+    // 로고 있음 → 로고 이미지 / 둘 다 아니면 텍스트 제목으로 폴백
+    let infoHtml = '';
+    if (!bakedIn) {
+      infoHtml = item.hero_logo_path
+        ? `<img class="hero-card-logo" src="${IMG_LOGO}${item.hero_logo_path}" alt="">`
+        : `<span class="hero-card-title">${title}</span>`;
+    }
+
     return `
-      <div class="hero-card" data-tmdb="${item.tmdb_id}" data-mtype="${item.media_type || 'tv'}"
-           data-bakedin="${bakedIn ? 1 : 0}">
+      <div class="hero-card">
         <div class="hero-card-img-wrap">
           ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hero-card-ph">이미지 없음</div>`}
           <div class="hero-card-img-fade"></div>
           <span class="hero-card-rank">${item.rank}</span>
           <span class="hero-card-platform" style="background:${platformColor}">${platformLabel}</span>
         </div>
-        <div class="hero-card-info">
-          ${bakedIn ? '' : `<span class="hero-card-title" id="title-${item.tmdb_id}">${title}</span>`}
-        </div>
+        <div class="hero-card-info">${infoHtml}</div>
       </div>
     `;
   }).join('');
 
   row.scrollLeft = 0;
-  observeCardsForLogo();
-}
-
-// [2026-07-12 추가] 화면(스크롤 컨테이너) 근처에 들어온 카드만 로고 조회 — 전체를 한 줄에
-// 다 그려도 실제 로딩 부담은 "지금 보이는 몇 장"에서 크게 안 늘어남
-function observeCardsForLogo(){
-  if (logoObserver) logoObserver.disconnect();
-  logoObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const el = entry.target;
-      logoObserver.unobserve(el);
-      if (el.dataset.bakedin === '1') return;
-      upgradeToLogo(el.dataset.tmdb, el.dataset.mtype);
-    });
-  }, { root: document.getElementById('cardRow'), rootMargin: '0px 400px' });
-
-  document.querySelectorAll('.hero-card').forEach(el => logoObserver.observe(el));
-}
-
-async function upgradeToLogo(tmdbId, mediaType){
-  try{
-    let logoPath = logoCache[tmdbId];
-    if (logoPath === undefined){
-      const res  = await fetch(`${TMDB_PROXY}/${mediaType}/${tmdbId}/images`);
-      const json = await res.json();
-      const logos = json.logos || [];
-      const best = logos.find(l => l.iso_639_1 === 'ko') || logos.find(l => !l.iso_639_1) || null;
-      logoPath = best ? best.file_path : null;
-      logoCache[tmdbId] = logoPath;
-    }
-    if (!logoPath) return;
-    const slot = document.getElementById(`title-${tmdbId}`);
-    if (!slot) return;
-    slot.outerHTML = `<img class="hero-card-logo" id="title-${tmdbId}" src="${IMG_LOGO}${logoPath}" alt="">`;
-  }catch(e){ /* 실패해도 텍스트 제목이 이미 있으니 조용히 무시 */ }
 }
 
 loadHeroTabs();
