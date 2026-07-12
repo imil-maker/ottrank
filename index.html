@@ -787,11 +787,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .hh-tab-pills::-webkit-scrollbar{display:none}
   .hh-tab-pill{flex-shrink:0}
 
-  /* 2. 카드 — 딱 1개만 보이게(다음 카드 peek 없음). main-outer가 모바일에서 좌우 padding 0이라
-        row-wrap에 직접 16px 패딩을 줘서 화면 끝에 카드가 딱 붙지 않게 함 */
-  .hh-row-wrap{padding:0 16px}
+  /* 2. 카드 — 다른 섹션(.ott-grid, .mob-slide-track)과 동일하게 좌우 여백 0으로 맞춤.
+        딱 1개만 보이게(다음 카드 peek 없음) 유지 */
+  .hh-row-wrap{padding:0}
   .hh-card{
-    flex:0 0 calc(100vw - 32px);
+    flex:0 0 calc(100vw - 16px);
     min-width:0;
     max-width:480px;
   }
