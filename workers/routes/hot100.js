@@ -798,24 +798,24 @@ export async function getHeroTabs(request, env, headers) {
       if (!cfg.category_slot) return null; // 카테고리 미지정이면 스킵(설정 누락 방어)
 
       // ── 플랫폼 탭: rankings에서 크롤링+수동고정 병합(다른 공개 API와 동일한 원칙) ──
-      const latestRow = await env.DB.prepare(
-        `SELECT MAX(date) AS latest FROM rankings WHERE platform = ? AND category_slot = ? AND date != 'manual'`
-      ).bind(cfg.platform, cfg.category_slot).first();
-      const latestDate = latestRow?.latest || null;
-
-      // 크롤링 결과 + 수동고정 결과는 서로 독립적이라 병렬로 같이 조회
+      // ⚠️ [2026-07-12 수정] "최신 날짜가 언제야?" 물어보고(1번 왕복) → 그 날짜로 목록 가져오기(2번 왕복)
+      // 순서로 처리하던 걸, 서브쿼리로 합쳐서 크롤링 결과 조회 자체를 1번 왕복으로 줄임.
+      // 크롤링 데이터가 아예 없으면 서브쿼리가 NULL을 반환하고 r.date=NULL 비교는 항상 거짓이 되어
+      // 결과가 빈 배열로 나오는데, 이는 기존 동작(날짜 없으면 조회 자체를 건너뜀)과 동일한 결과.
       const [{ results: crawlResults }, { results: manualResults }] = await Promise.all([
-        latestDate
-          ? env.DB.prepare(
-              `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
-                      w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
-                      w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
-               FROM rankings r
-               LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
-               WHERE r.platform = ? AND r.category_slot = ? AND r.date = ?
-               ORDER BY r.rank ASC`
-            ).bind(cfg.platform, cfg.category_slot, latestDate).all()
-          : Promise.resolve({ results: [] }),
+        env.DB.prepare(
+          `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
+                  w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
+                  w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
+           FROM rankings r
+           LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
+           WHERE r.platform = ? AND r.category_slot = ?
+             AND r.date = (
+               SELECT MAX(date) FROM rankings
+               WHERE platform = ? AND category_slot = ? AND date != 'manual'
+             )
+           ORDER BY r.rank ASC`
+        ).bind(cfg.platform, cfg.category_slot, cfg.platform, cfg.category_slot).all(),
         env.DB.prepare(
           `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
                   w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
