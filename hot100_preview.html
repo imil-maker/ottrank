@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://tmdb-proxy.tdidream.workers.dev">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
@@ -42,13 +42,14 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
 .hero-card-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-card-img-fade{position:absolute;left:0;right:0;bottom:0;height:55%;
   background:linear-gradient(0deg,var(--card) 0%,rgba(22,22,31,.55) 60%,transparent 100%)}
-.hero-card-rank{position:absolute;top:5%;left:5%;font-family:var(--sans);font-size:15cqw;font-weight:900;
-  font-style:italic;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hero-card-rank{position:absolute;top:5%;left:5%;font-family:'Bebas Neue',var(--sans),sans-serif;font-size:15cqw;font-weight:900;
+  font-style:italic;letter-spacing:1px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
 .hero-card-platform{position:absolute;top:7%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
   border-radius:5px;color:#fff}
 .hero-card-info{flex:1;position:relative;z-index:2;margin-top:-60px;background:transparent;display:flex;flex-direction:column;align-items:center;
   justify-content:flex-start;padding:10px 8% 0;text-align:center}
-.hero-card-title{color:#fff;font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+.hero-card-title{color:#fff;font-family:'Black Han Sans',var(--sans),sans-serif;font-size:19px;letter-spacing:.5px;
+  text-shadow:0 2px 8px rgba(0,0,0,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:100%}
 .hero-card-info img.hero-card-logo{max-width:85%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
 .hero-card-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
@@ -60,6 +61,7 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
 .hero-arrow-left{left:-20px}
 .hero-arrow-right{right:-20px}
 .hero-arrow:hover{background:var(--gold);color:#000}
+.hero-arrow.hide{display:none}
 
 .empty{color:var(--muted);font-size:13px;padding:20px 0}
 .loading{color:var(--muted);font-size:13px;padding:20px 0}
@@ -129,10 +131,9 @@ function renderTabs(){
 
 function setTab(i){ curTabIdx = i; renderTabs(); }
 
-// [2026-07-12 수정] 카드를 3벌(앞/가운데/뒤) 이어붙여서 렌더링하고, 항상 "가운데 벌"을 보고 있게 시작.
-// 화살표를 눌러 앞/뒤 복제본 쪽으로 넘어가면, 스크롤이 멈춘 직후 아무도 모르게(애니메이션 없이)
-// 가운데 벌의 같은 카드 위치로 되돌려놓는다 — 앞뒤 벌이 내용까지 완전히 똑같아서 티가 안 남.
-// 화살표 클릭뿐 아니라 손가락 스와이프로 스크롤해도 동일하게 자연스럽게 순환된다.
+// [2026-07-12 수정] 무한 루프 방식은 3벌 렌더링 후 위치보정하는 구조라 자잘한 튐 버그가
+// 생겨서 폐기. 훨씬 단순하고 안전한 방식으로 교체: 카드는 1벌만 그리고, 더 이상 갈 곳이
+// 없는 방향의 화살표는 그냥 숨긴다(일반적인 캐러셀 표준 동작).
 let curTabItemCount = 0;
 
 function _cardStep(row){
@@ -149,23 +150,30 @@ function shiftWindow(dir){
   row.scrollBy({ left: dir * step, behavior: 'smooth' });
 }
 
-let _scrollFixTimer = null;
-function _setupInfiniteLoopFix(row){
+// 스크롤 위치에 따라 왼쪽/오른쪽 화살표 표시 여부 갱신
+function _updateArrowVisibility(){
+  const row = document.getElementById('cardRow');
+  const leftArrow  = document.querySelector('.hero-arrow-left');
+  const rightArrow = document.querySelector('.hero-arrow-right');
+  if (!row || !leftArrow || !rightArrow) return;
+
+  const noScrollNeeded = row.scrollWidth <= row.clientWidth + 1;
+  const atStart = row.scrollLeft <= 2;
+  const atEnd   = row.scrollLeft + row.clientWidth >= row.scrollWidth - 2;
+
+  leftArrow.classList.toggle('hide', noScrollNeeded || atStart);
+  rightArrow.classList.toggle('hide', noScrollNeeded || atEnd);
+}
+
+let _arrowVisTimer = null;
+function _setupArrowVisibility(row){
   row.addEventListener('scroll', () => {
-    clearTimeout(_scrollFixTimer);
-    // 스크롤이 완전히 멈춘 뒤(120ms 동안 추가 스크롤 없음)에만 위치 보정 —
-    // 스크롤 도중에 하면 오히려 뚝뚝 끊겨 보임
-    _scrollFixTimer = setTimeout(() => {
-      const N = curTabItemCount;
-      const step = _cardStep(row);
-      if (!N || !step) return;
-      const idx = Math.round(row.scrollLeft / step);
-      if (idx < N) {
-        row.scrollLeft += N * step; // 앞쪽 복제본 → 가운데 벌 같은 위치로
-      } else if (idx >= N * 2) {
-        row.scrollLeft -= N * step; // 뒤쪽 복제본 → 가운데 벌 같은 위치로
-      }
-    }, 120);
+    clearTimeout(_arrowVisTimer);
+    _arrowVisTimer = setTimeout(_updateArrowVisibility, 60);
+  });
+  window.addEventListener('resize', () => {
+    clearTimeout(_arrowVisTimer);
+    _arrowVisTimer = setTimeout(_updateArrowVisibility, 60);
   });
 }
 
@@ -210,23 +218,19 @@ function renderCards(){
   if (!tab || !tab.items.length){
     curTabItemCount = 0;
     row.innerHTML = '<div class="empty">이 탭에 노출할 데이터가 없습니다.</div>';
+    document.querySelector('.hero-arrow-left')?.classList.add('hide');
+    document.querySelector('.hero-arrow-right')?.classList.add('hide');
     return;
   }
 
   curTabItemCount = tab.items.length;
-  const items = tab.items;
-  // 앞/가운데/뒤 3벌을 이어붙여서 렌더링 — 가운데 벌에서 시작해야 양쪽 어디로 스크롤해도 복제본이 있음
-  row.innerHTML = [...items, ...items, ...items].map(_cardHtml).join('');
-
-  const step = _cardStep(row);
-  row.scrollLeft = step ? curTabItemCount * step : 0; // 가운데 벌의 시작 위치로 (애니메이션 없이)
+  row.innerHTML = tab.items.map(_cardHtml).join('');
+  row.scrollLeft = 0;
+  _updateArrowVisibility();
 }
 
 loadHeroTabs();
-
-// 스크롤 위치 보정 리스너는 페이지에 한 번만 붙이면 됨(카드 목록 자체는 매번 새로 그려져도
-// #cardRow 엘리먼트 자체는 계속 같은 것이라 리스너가 계속 유효함)
-_setupInfiniteLoopFix(document.getElementById('cardRow'));
+_setupArrowVisibility(document.getElementById('cardRow'));
 </script>
 </body>
 </html>
