@@ -36,6 +36,7 @@ import {
   listFrontendTabs, updateFrontendTab,
   getHeroTabs,
   backfillHeroLogos, getBackfillLogoStatus,
+  listHot100PageDisplay, updateHot100PageDisplay, getHot100PageDisplay,
 } from "./routes/hot100.js";
 
 export default {
@@ -201,6 +202,18 @@ export default {
     }
     if (!res && path === "/admin/hot100/backfill-logos/status" && request.method === "GET") {
       res = await getBackfillLogoStatus(request, env, headers);
+    }
+
+    // 11-4. HOT100 페이지 노출 설정 (메인페이지/인물페이지에 캐러셀 노출할지) — 2026-07-12 추가
+    if (!res && path === "/admin/hot100/page-display" && request.method === "GET") {
+      res = await listHot100PageDisplay(request, env, headers);
+    }
+    const pageDisplayMatch = path.match(/^\/admin\/hot100\/page-display\/([a-z]+)$/);
+    if (!res && pageDisplayMatch && request.method === "PATCH") {
+      res = await updateHot100PageDisplay(pageDisplayMatch[1], request, env, headers);
+    }
+    if (!res && path === "/hot100/page-display" && request.method === "GET") {
+      res = await getHot100PageDisplay(request, env, headers);
     }
 
     // 12. 관리자 (reactions, videos, contents, inquiry, hot100 제외한 나머지)
