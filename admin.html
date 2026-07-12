@@ -660,6 +660,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
     <div style="font-size:15px;font-weight:600">🎬 works 테이블 관리</div>
     <input class="date-inp" type="text" id="worksSearchInp" placeholder="제목 검색..." oninput="searchWorksTable(this.value)" style="width:200px">
+    <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)"
+      onclick="deleteCheckedWorks()">🗑 체크 삭제</button>
     <button class="btn-load" onclick="loadWorks()" style="margin-left:auto">새로고침</button>
     <span id="worksStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
   </div>
@@ -674,12 +676,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <table>
       <thead>
         <tr>
+          <th></th>
           <th>포스터</th><th>TMDB ID</th><th>한글 제목</th><th>영어 제목</th>
           <th>매칭 출처</th><th>신뢰도</th><th>수정</th><th>삭제</th>
         </tr>
       </thead>
       <tbody id="worksTableBody">
-        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+        <tr><td colspan="9" class="loading">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -4105,7 +4108,7 @@ function setWorksSort(sort, btn) {
 }
 
 async function loadWorks() {
-  document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="9" class="loading">불러오는 중...</td></tr>';
   try {
     const q = document.getElementById('worksSearchInp')?.value || '';
     const params = new URLSearchParams({ sort: worksSort, page: worksPage });
@@ -4119,7 +4122,7 @@ async function loadWorks() {
     document.getElementById('worksNextBtn').disabled = rows.length < 50; // 50개 안 채워졌으면 마지막 페이지
     renderWorks(rows);
   } catch(e) {
-    document.getElementById('worksTableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+    document.getElementById('worksTableBody').innerHTML = `<tr><td colspan="9" class="empty">오류: ${e.message}</td></tr>`;
   }
 }
 
@@ -4139,12 +4142,13 @@ function searchWorksTable(val) {
 
 function renderWorks(rows) {
   if (!rows.length) {
-    document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
+    document.getElementById('worksTableBody').innerHTML = '<tr><td colspan="9" class="empty">데이터 없음</td></tr>';
     return;
   }
   const srcColor = { admin:'var(--green)', auto_claude:'var(--info)', auto_tmdb:'var(--muted2)' };
   document.getElementById('worksTableBody').innerHTML = rows.map(r => `
     <tr>
+      <td><input type="checkbox" class="works-check" data-tmdb-id="${r.tmdb_id}"></td>
       <td>${r.poster_path
         ? `<img class="poster-thumb" src="${IMG}${r.poster_path}" alt="" loading="lazy">`
         : `<div class="poster-ph">🎬</div>`}
@@ -4358,6 +4362,34 @@ async function deleteWork(tmdbId, title) {
     showToast(`🗑️ 삭제 완료 (${tmdbId})`, 'ok');
     loadWorks();
   } catch(e) { showToast(e.message, 'err'); }
+}
+
+// [2026-07-12 추가] 체크된 항목만 삭제 — 전체선택 버튼은 의도적으로 안 만듦(실수로 전체삭제 방지).
+// 관리자가 하나하나 직접 체크한 것만 모아서, 기존 단건 삭제(deleteWork와 동일한 DELETE 엔드포인트)를
+// 순서대로(동시에 안 쏘고 하나씩 await) 호출 — 실패한 건 건너뛰고 계속 진행, 마지막에 결과 요약.
+async function deleteCheckedWorks() {
+  const checked = Array.from(document.querySelectorAll('.works-check:checked'));
+  if (!checked.length) { showToast('체크된 항목이 없습니다', 'err'); return; }
+
+  const ids = checked.map(el => el.dataset.tmdbId);
+  if (!confirm(`⚠️ 체크된 ${ids.length}개 작품을 works에서 삭제합니다.\n\n삭제 후 다음 크롤링에서 재매칭됩니다. 계속하시겠습니까?`)) return;
+
+  let success = 0, fail = 0;
+  for (const tmdbId of ids) {
+    try {
+      const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tmdb_id: tmdbId })
+      });
+      const json = await res.json();
+      if (json.ok) success++; else fail++;
+    } catch(e) { fail++; }
+  }
+
+  if (fail === 0) showToast(`🗑️ ${success}개 삭제 완료`, 'ok');
+  else showToast(`⚠️ ${success}개 성공 / ${fail}개 실패`, 'err');
+  loadWorks(); // 목록 새로고침 — 체크 상태도 자연히 초기화됨
 }
 
 
