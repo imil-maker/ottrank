@@ -13,6 +13,94 @@
 import { _checkAuth } from "../utils/authUtils.js";
 import { _mergeRankings } from "./rankings.js";
 
+// [2026-07-12 추가] 히어로 캐러셀용 TMDB 로고(타이틀 아트) 이미지 프록시.
+// hot100_preview.html이 브라우저에서 직접 호출하던 것과 동일한 서버를 백엔드에서도 그대로 사용.
+const TMDB_IMAGE_PROXY = "https://tmdb-proxy.tdidream.workers.dev/tmdb";
+
+/**
+ * TMDB 로고 이미지 1건 조회.
+ * 한국어(ko) 로고 우선, 없으면 언어정보 없는(iso_639_1=null) 로고, 둘 다 없으면 null.
+ * ⚠️ "TMDB 응답 실패"와 "TMDB에 로고가 진짜 없음"을 구분해서 반환한다(work_keywords의
+ * __NONE__ sentinel과 동일 원칙) — 실패했을 때 ok:false를 줘야 호출부가
+ * hero_logo_checked_at을 찍지 않고 다음 배치에서 재시도할 수 있다.
+ */
+async function _fetchHeroLogoResult(tmdbId, mediaType) {
+  try {
+    const res = await fetch(`${TMDB_IMAGE_PROXY}/${mediaType}/${tmdbId}/images`);
+    if (!res.ok) return { ok: false, logoPath: null };
+    const json = await res.json();
+    const logos = json.logos || [];
+    const best =
+      logos.find((l) => l.iso_639_1 === "ko") ||
+      logos.find((l) => !l.iso_639_1) ||
+      null;
+    return { ok: true, logoPath: best ? best.file_path : null };
+  } catch (e) {
+    return { ok: false, logoPath: null };
+  }
+}
+
+/**
+ * 히어로 캐러셀 로고 자동 백필 — 최대 limit개까지 처리.
+ * ─────────────────────────────────────────────
+ * 대상 = hot100_scores(=calcHot100이 계산에 사용한 작품 전체)에 속하면서
+ *   - hero_title_baked_in = 0  (이미지 자체에 이미 제목이 있는 건 로고/텍스트 오버레이 자체를 안 쓰므로 제외)
+ *   - hero_logo_checked_at IS NULL  (아직 한 번도 TMDB 로고 유무를 확인 안 해본 것만, 중복 조회 방지)
+ *
+ * TMDB 응답 실패 건은 checked_at을 찍지 않고 건너뛰어 다음 배치에서 자동 재시도되게 둔다.
+ * calcHot100(소량 자동) / backfillHeroLogos(관리자 수동, 대량) 양쪽에서 공용으로 사용.
+ */
+async function _backfillHeroLogosBatch(env, limit) {
+  const { results: targets } = await env.DB.prepare(
+    `SELECT w.tmdb_id, w.media_type
+     FROM hot100_scores h
+     JOIN works w ON w.tmdb_id = h.tmdb_id
+     WHERE COALESCE(w.hero_title_baked_in, 0) = 0
+       AND w.hero_logo_checked_at IS NULL
+     LIMIT ?`
+  )
+    .bind(limit)
+    .all();
+
+  if (!targets || targets.length === 0) {
+    return { processed: 0, found: 0, failed: 0 };
+  }
+
+  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ");
+
+  let found = 0;
+  let failed = 0;
+  const statements = [];
+
+  for (const t of targets) {
+    // media_type이 비어있는 구작 데이터 대비 tv로 안전 폴백
+    const mediaType = t.media_type === "movie" ? "movie" : "tv";
+    const result = await _fetchHeroLogoResult(t.tmdb_id, mediaType);
+
+    if (!result.ok) {
+      failed++;
+      continue; // checked_at 안 찍음 → 다음 배치에서 재시도
+    }
+
+    if (result.logoPath) found++;
+
+    statements.push(
+      env.DB.prepare(
+        `UPDATE works SET hero_logo_path = ?, hero_logo_checked_at = ? WHERE tmdb_id = ?`
+      ).bind(result.logoPath, nowKst, t.tmdb_id)
+    );
+  }
+
+  if (statements.length > 0) {
+    await env.DB.batch(statements);
+  }
+
+  return { processed: statements.length, found, failed };
+}
+
 /**
  * POST /admin/calc-hot100
  * ─────────────────────────────────────────────
@@ -262,6 +350,18 @@ export async function calcHot100(request, env, headers) {
       netflixOverallSaved = netflixTop.length;
     }
 
+    // ── 4-2. 히어로 로고 자동 백필(신규 유입분만, 소량) ─────────
+    // 계산할 때마다 전체를 다시 훑지 않고, 아직 확인 안 된 것 중 최대 20개만 처리해서
+    // "계산" 버튼 응답이 과도하게 느려지지 않도록 함. 초기 대량 백필(기존에 쌓여있던 물량)은
+    // 별도 "🖼 로고 일괄 백필" 버튼(POST /admin/hot100/backfill-logos)에서 처리한다.
+    // 실패해도 핫100 계산 자체의 성공 여부에는 영향 주지 않는다.
+    let heroLogoBackfill = { processed: 0, found: 0, failed: 0 };
+    try {
+      heroLogoBackfill = await _backfillHeroLogosBatch(env, 20);
+    } catch (e) {
+      console.error("calcHot100 로고 백필 오류:", e);
+    }
+
     // ── 5. 결과 응답 ─────────────────────────────────────────
     return new Response(
       JSON.stringify({
@@ -269,6 +369,7 @@ export async function calcHot100(request, env, headers) {
         netflix_overall_saved: netflixOverallSaved,
         calc_date: latestDate,
         total_works: finalRows.length,
+        hero_logo_backfill: heroLogoBackfill,
         top10_preview: finalRows.slice(0, 10).map((r) => ({
           tmdb_id: r.tmdb_id,
           best_platform: r.best_platform,
@@ -737,6 +838,89 @@ export async function getHeroTabs(request, env, headers) {
   } catch (err) {
     return new Response(
       JSON.stringify({ ok: false, error: "히어로 탭 조회 중 오류가 발생했습니다.", detail: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * POST /admin/hot100/backfill-logos
+ * body: { limit? } — 기본 30, 최대 50
+ * "🖼 로고 일괄 백필" 버튼에서 호출. 한 번에 limit개씩 처리하고 남은 개수를 같이 반환 —
+ * 다 채워질 때까지 관리자가 버튼을 반복 클릭하는 방식(타임아웃 방지용).
+ */
+export async function backfillHeroLogos(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    let limit = 30;
+    try {
+      const body = await request.json();
+      if (body && body.limit) {
+        limit = Math.min(Math.max(parseInt(body.limit, 10) || 30, 1), 50);
+      }
+    } catch (e) {
+      // body가 없어도 기본값(30)으로 그냥 진행
+    }
+
+    const result = await _backfillHeroLogosBatch(env, limit);
+
+    const remainingRow = await env.DB.prepare(
+      `SELECT COUNT(*) AS cnt
+       FROM hot100_scores h
+       JOIN works w ON w.tmdb_id = h.tmdb_id
+       WHERE COALESCE(w.hero_title_baked_in, 0) = 0
+         AND w.hero_logo_checked_at IS NULL`
+    ).first();
+
+    return new Response(
+      JSON.stringify({ ok: true, ...result, remaining: remainingRow?.cnt ?? 0 }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "로고 백필 중 오류가 발생했습니다.",
+        detail: err.message,
+      }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * GET /admin/hot100/backfill-logos/status
+ * 아직 로고 확인 안 된 남은 개수만 조회 — 버튼 누르기 전 화면에 미리 표시용.
+ */
+export async function getBackfillLogoStatus(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const row = await env.DB.prepare(
+      `SELECT COUNT(*) AS cnt
+       FROM hot100_scores h
+       JOIN works w ON w.tmdb_id = h.tmdb_id
+       WHERE COALESCE(w.hero_title_baked_in, 0) = 0
+         AND w.hero_logo_checked_at IS NULL`
+    ).first();
+    return new Response(
+      JSON.stringify({ ok: true, remaining: row?.cnt ?? 0 }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
       { status: 500, headers }
     );
   }
