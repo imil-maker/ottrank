@@ -53,7 +53,7 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
   max-width:100%}
 .hero-card-info img.hero-card-logo{max-width:85%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
 .hero-card-rating{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:3;
-  display:inline-flex;align-items:center;gap:6px;padding:6px 22px;border-radius:24px;
+  display:inline-flex;align-items:center;gap:6px;padding:3px 22px;border-radius:22px;
   background:var(--gold);color:#1a1a24;font-size:22px;font-weight:800;
   font-family:var(--sans);white-space:nowrap}
 .hero-card-rating .star{color:#1a1a24}
@@ -215,7 +215,7 @@ function _cardHtml(item){
   // 평점 위치가 들쭉날쭉했음 — .hero-card-info 안이 아니라 카드(.hero-card) 기준
   // "바닥에서 20px 위"로 절대배치해서 어떤 카드든 항상 같은 자리에 오도록 고정.
   const ratingHtml = (item.tmdb_rating != null)
-    ? `<div class="hero-card-rating"><span class="star">★</span>${item.tmdb_rating}</div>`
+    ? `<div class="hero-card-rating"><span class="star">★</span>${Number(item.tmdb_rating).toFixed(1)}</div>`
     : '';
 
   const mediaType = item.media_type || 'tv';
