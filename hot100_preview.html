@@ -45,11 +45,11 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
 .hero-card-rank{position:absolute;top:5%;left:5%;font-family:'Bebas Neue',var(--sans),sans-serif;font-size:15cqw;font-weight:900;
   font-style:italic;letter-spacing:1px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
 .hero-card-platform{position:absolute;top:7%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
-  border-radius:5px;color:#fff}
+  border-radius:5px;color:#fff;text-decoration:none;cursor:pointer}
 .hero-card-info{flex:1;position:relative;z-index:2;margin-top:-60px;background:transparent;display:flex;flex-direction:column;align-items:center;
   justify-content:flex-start;padding:10px 8% 0;text-align:center}
-.hero-card-title{color:#fff;font-family:'Black Han Sans',var(--sans),sans-serif;font-size:19px;letter-spacing:.5px;
-  text-shadow:0 2px 8px rgba(0,0,0,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+.hero-card-title{color:#fff;font-family:'Black Han Sans',var(--sans),sans-serif;font-size:29px;letter-spacing:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:100%}
 .hero-card-info img.hero-card-logo{max-width:85%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
 .hero-card-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
@@ -91,6 +91,8 @@ const IMG_LOGO = 'https://image.tmdb.org/t/p/w300';
 const ICON_BASE = 'https://ottrank.kr/img/';
 const PLATFORM_KO = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스' };
 const PC = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429' };
+// [2026-07-12 추가] 플랫폼 뱃지 클릭 시 이동할 실제 OTT 페이지 경로(사이트 정적 페이지 목록 기준)
+const PLATFORM_URL = { netflix:'/netflix', tving:'/tving', disney:'/disneyplus', coupang:'/coupangplay', wavve:'/wavve', boxoffice:'/boxoffice' };
 const PLATFORM_ICON = {
   netflix:'netflix-icon.jpg', tving:'tving-icon.jpg', disney:'disneyplus-icon.jpg',
   coupang:'coupangplay-icon.jpg', wavve:'wavve-icon.jpg', boxoffice:'boxoffice-icon.jpg',
@@ -205,7 +207,8 @@ function _cardHtml(item){
         ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hero-card-ph">이미지 없음</div>`}
         <div class="hero-card-img-fade"></div>
         <span class="hero-card-rank">${item.rank}</span>
-        <span class="hero-card-platform" style="background:${platformColor}">${platformLabel}</span>
+        <a class="hero-card-platform" href="${PLATFORM_URL[item.best_platform] || '#'}" target="_blank"
+           style="background:${platformColor}" onclick="event.stopPropagation()">${platformLabel}</a>
       </div>
       <div class="hero-card-info">${infoHtml}</div>
     </div>
