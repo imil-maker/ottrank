@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://ottrank-api.tdidream.workers.dev">
 <link rel="preconnect" href="https://image.tmdb.org">
 <link rel="preconnect" href="https://tmdb-proxy.tdidream.workers.dev">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
@@ -39,7 +42,7 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
 .hero-card-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-card-img-fade{position:absolute;left:0;right:0;bottom:0;height:55%;
   background:linear-gradient(0deg,var(--card) 0%,rgba(22,22,31,.55) 60%,transparent 100%)}
-.hero-card-rank{position:absolute;top:5%;left:5%;font-family:var(--mono);font-size:15cqw;font-weight:900;
+.hero-card-rank{position:absolute;top:5%;left:5%;font-family:var(--sans);font-size:15cqw;font-weight:900;
   font-style:italic;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
 .hero-card-platform{position:absolute;top:7%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
   border-radius:5px;color:#fff}
@@ -126,75 +129,104 @@ function renderTabs(){
 
 function setTab(i){ curTabIdx = i; renderTabs(); }
 
-// [2026-07-12 수정] 4개씩 통째로 바뀌는 "윈도우" 방식 대신, 전체 카드를 한 줄에 다 깔아두고
-// 네이티브 가로 스크롤(scroll-behavior:smooth)로 한 장씩 부드럽게 슬라이딩.
+// [2026-07-12 수정] 카드를 3벌(앞/가운데/뒤) 이어붙여서 렌더링하고, 항상 "가운데 벌"을 보고 있게 시작.
+// 화살표를 눌러 앞/뒤 복제본 쪽으로 넘어가면, 스크롤이 멈춘 직후 아무도 모르게(애니메이션 없이)
+// 가운데 벌의 같은 카드 위치로 되돌려놓는다 — 앞뒤 벌이 내용까지 완전히 똑같아서 티가 안 남.
+// 화살표 클릭뿐 아니라 손가락 스와이프로 스크롤해도 동일하게 자연스럽게 순환된다.
+let curTabItemCount = 0;
+
+function _cardStep(row){
+  const card = row.querySelector('.hero-card');
+  if (!card) return 0;
+  const gap = 16;
+  return card.getBoundingClientRect().width + gap;
+}
+
 function shiftWindow(dir){
   const row = document.getElementById('cardRow');
-  const card = row.querySelector('.hero-card');
-  if (!card) return;
-  const cardWidth = card.getBoundingClientRect().width;
-  const gap = 16;
-  const step = cardWidth + gap;
+  const step = _cardStep(row);
+  if (!step) return;
+  row.scrollBy({ left: dir * step, behavior: 'smooth' });
+}
 
-  const atEnd   = row.scrollLeft + row.clientWidth >= row.scrollWidth - step / 2;
-  const atStart = row.scrollLeft <= step / 2;
-
-  if (dir > 0 && atEnd) {
-    row.scrollTo({ left: 0, behavior: 'smooth' }); // 끝까지 가면 처음으로 순환
-  } else if (dir < 0 && atStart) {
-    row.scrollTo({ left: row.scrollWidth, behavior: 'smooth' }); // 처음에서 왼쪽 누르면 끝으로 순환
-  } else {
-    row.scrollBy({ left: dir * step, behavior: 'smooth' });
-  }
+let _scrollFixTimer = null;
+function _setupInfiniteLoopFix(row){
+  row.addEventListener('scroll', () => {
+    clearTimeout(_scrollFixTimer);
+    // 스크롤이 완전히 멈춘 뒤(120ms 동안 추가 스크롤 없음)에만 위치 보정 —
+    // 스크롤 도중에 하면 오히려 뚝뚝 끊겨 보임
+    _scrollFixTimer = setTimeout(() => {
+      const N = curTabItemCount;
+      const step = _cardStep(row);
+      if (!N || !step) return;
+      const idx = Math.round(row.scrollLeft / step);
+      if (idx < N) {
+        row.scrollLeft += N * step; // 앞쪽 복제본 → 가운데 벌 같은 위치로
+      } else if (idx >= N * 2) {
+        row.scrollLeft -= N * step; // 뒤쪽 복제본 → 가운데 벌 같은 위치로
+      }
+    }, 120);
+  });
 }
 
 // [2026-07-12 수정] 로고를 방문 때마다 TMDB에 다시 물어보지 않고, /hot100/hero-tabs API가
 // 이미 내려준 hero_logo_path(관리자가 미리 백필해둔 값)를 그대로 사용 — 추가 네트워크 요청 없음.
+function _cardHtml(item){
+  const title = _esc(item.title_ko || item.title_en || '');
+  const bg    = item.hero_custom_image_url
+    ? item.hero_custom_image_url
+    : item.hero_backdrop_path
+      ? `${IMG_BACKDROP}${item.hero_backdrop_path}`
+      : (item.poster_path ? `${IMG}${item.poster_path}` : '');
+  const platformColor = PC[item.best_platform] || '#666';
+  const platformLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
+  const bakedIn = !!item.hero_title_baked_in;
+
+  // 하이브리드 규칙 그대로 유지: 제목있음 체크 → 아무것도 안 그림 /
+  // 로고 있음 → 로고 이미지 / 둘 다 아니면 텍스트 제목으로 폴백
+  let infoHtml = '';
+  if (!bakedIn) {
+    infoHtml = item.hero_logo_path
+      ? `<img class="hero-card-logo" src="${IMG_LOGO}${item.hero_logo_path}" alt="">`
+      : `<span class="hero-card-title">${title}</span>`;
+  }
+
+  return `
+    <div class="hero-card">
+      <div class="hero-card-img-wrap">
+        ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hero-card-ph">이미지 없음</div>`}
+        <div class="hero-card-img-fade"></div>
+        <span class="hero-card-rank">${item.rank}</span>
+        <span class="hero-card-platform" style="background:${platformColor}">${platformLabel}</span>
+      </div>
+      <div class="hero-card-info">${infoHtml}</div>
+    </div>
+  `;
+}
+
 function renderCards(){
   const row = document.getElementById('cardRow');
   const tab = tabsData[curTabIdx];
   if (!tab || !tab.items.length){
+    curTabItemCount = 0;
     row.innerHTML = '<div class="empty">이 탭에 노출할 데이터가 없습니다.</div>';
     return;
   }
 
-  row.innerHTML = tab.items.map(item => {
-    const title = _esc(item.title_ko || item.title_en || '');
-    const bg    = item.hero_custom_image_url
-      ? item.hero_custom_image_url
-      : item.hero_backdrop_path
-        ? `${IMG_BACKDROP}${item.hero_backdrop_path}`
-        : (item.poster_path ? `${IMG}${item.poster_path}` : '');
-    const platformColor = PC[item.best_platform] || '#666';
-    const platformLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
-    const bakedIn = !!item.hero_title_baked_in;
+  curTabItemCount = tab.items.length;
+  const items = tab.items;
+  // 앞/가운데/뒤 3벌을 이어붙여서 렌더링 — 가운데 벌에서 시작해야 양쪽 어디로 스크롤해도 복제본이 있음
+  row.innerHTML = [...items, ...items, ...items].map(_cardHtml).join('');
 
-    // 하이브리드 규칙 그대로 유지: 제목있음 체크 → 아무것도 안 그림 /
-    // 로고 있음 → 로고 이미지 / 둘 다 아니면 텍스트 제목으로 폴백
-    let infoHtml = '';
-    if (!bakedIn) {
-      infoHtml = item.hero_logo_path
-        ? `<img class="hero-card-logo" src="${IMG_LOGO}${item.hero_logo_path}" alt="">`
-        : `<span class="hero-card-title">${title}</span>`;
-    }
-
-    return `
-      <div class="hero-card">
-        <div class="hero-card-img-wrap">
-          ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hero-card-ph">이미지 없음</div>`}
-          <div class="hero-card-img-fade"></div>
-          <span class="hero-card-rank">${item.rank}</span>
-          <span class="hero-card-platform" style="background:${platformColor}">${platformLabel}</span>
-        </div>
-        <div class="hero-card-info">${infoHtml}</div>
-      </div>
-    `;
-  }).join('');
-
-  row.scrollLeft = 0;
+  const step = _cardStep(row);
+  row.scrollLeft = step ? curTabItemCount * step : 0; // 가운데 벌의 시작 위치로 (애니메이션 없이)
 }
 
 loadHeroTabs();
+
+// 스크롤 위치 보정 리스너는 페이지에 한 번만 붙이면 됨(카드 목록 자체는 매번 새로 그려져도
+// #cardRow 엘리먼트 자체는 계속 같은 것이라 리스너가 계속 유효함)
+_setupInfiniteLoopFix(document.getElementById('cardRow'));
 </script>
 </body>
 </html>
