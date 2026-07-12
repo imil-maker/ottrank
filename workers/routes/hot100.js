@@ -782,47 +782,34 @@ export async function getHeroTabs(request, env, headers) {
       return new Response(JSON.stringify({ ok: true, active: true, tabs: [] }), { status: 200, headers });
     }
 
-    // ⚠️ [2026-07-12 수정] 기존엔 탭(최대 7개) × 쿼리(최대 3개)를 전부 순차(for-loop await)로
-    // 돌려서 최악의 경우 D1 왕복이 21번 연속으로 이어져 응답이 크게 느려졌음.
-    // Promise.all로 탭 단위 병렬 처리, 탭 내부의 독립적인 쿼리(최신날짜/수동고정)도 병렬화.
-    const tabResults = await Promise.all(tabConfigs.map(async (cfg) => {
+    // ⚠️ [2026-07-12 재수정] Promise.all은 "동시에 쏘긴" 하지만 D1 입장에서는 여전히 최대 13개의
+    // 개별 왕복(요청)임. env.DB.batch()로 묶으면 여러 쿼리를 물리적으로 한 번의 네트워크 왕복으로
+    // 처리할 수 있어서 구조적으로 더 빠름(이미 다른 곳(calcHot100)에서 검증된 방식과 동일 원리).
+    // tabConfigs를 순회하며 필요한 쿼리들을 하나의 배열에 순서대로 쌓아두고, batch 실행 후
+    // 같은 순서로 다시 꺼내서 매칭한다 — 쿼리 개수가 탭마다 다르므로(전체=1개, 플랫폼=2개)
+    // 포인터(bi)로 정확히 짚어가며 소비.
+    const statements = [];
+    for (const cfg of tabConfigs) {
       const limit = cfg.top_n || 10;
 
       if (cfg.platform === "all") {
-        // ── "전체" 탭: hot100_scores 그대로 사용 ──
-        const { results } = await env.DB.prepare(
-          `SELECT h.tmdb_id, h.best_platform, w.title_ko, w.title_en,
-                  w.poster_path, w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
-                  w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
-           FROM hot100_scores h
-           LEFT JOIN works w ON w.tmdb_id = h.tmdb_id
-           ORDER BY h.total_score DESC
-           LIMIT ?`
-        ).bind(limit).all();
-
-        return {
-          platform: "all",
-          label: PLATFORM_LABELS.all,
-          items: (results || []).map((row, idx) => ({
-            rank: idx + 1, tmdb_id: row.tmdb_id, best_platform: row.best_platform,
-            title_ko: row.title_ko, title_en: row.title_en,
-            poster_path: row.poster_path, hero_backdrop_path: row.hero_backdrop_path,
-            hero_custom_image_url: row.hero_custom_image_url,
-            hero_title_baked_in: row.hero_title_baked_in,
-            hero_logo_path: row.hero_logo_path,
-            media_type: row.media_type, tmdb_rating: row.tmdb_rating,
-          })),
-        };
+        statements.push(
+          env.DB.prepare(
+            `SELECT h.tmdb_id, h.best_platform, w.title_ko, w.title_en,
+                    w.poster_path, w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
+                    w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
+             FROM hot100_scores h
+             LEFT JOIN works w ON w.tmdb_id = h.tmdb_id
+             ORDER BY h.total_score DESC
+             LIMIT ?`
+          ).bind(limit)
+        );
+        continue;
       }
 
-      if (!cfg.category_slot) return null; // 카테고리 미지정이면 스킵(설정 누락 방어)
+      if (!cfg.category_slot) continue; // 카테고리 미지정이면 스킵(설정 누락 방어) — 쿼리 자체를 안 쌓음
 
-      // ── 플랫폼 탭: rankings에서 크롤링+수동고정 병합(다른 공개 API와 동일한 원칙) ──
-      // ⚠️ [2026-07-12 수정] "최신 날짜가 언제야?" 물어보고(1번 왕복) → 그 날짜로 목록 가져오기(2번 왕복)
-      // 순서로 처리하던 걸, 서브쿼리로 합쳐서 크롤링 결과 조회 자체를 1번 왕복으로 줄임.
-      // 크롤링 데이터가 아예 없으면 서브쿼리가 NULL을 반환하고 r.date=NULL 비교는 항상 거짓이 되어
-      // 결과가 빈 배열로 나오는데, 이는 기존 동작(날짜 없으면 조회 자체를 건너뜀)과 동일한 결과.
-      const [{ results: crawlResults }, { results: manualResults }] = await Promise.all([
+      statements.push(
         env.DB.prepare(
           `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
                   w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
@@ -835,7 +822,9 @@ export async function getHeroTabs(request, env, headers) {
                WHERE platform = ? AND category_slot = ? AND date != 'manual'
              )
            ORDER BY r.rank ASC`
-        ).bind(cfg.platform, cfg.category_slot, cfg.platform, cfg.category_slot).all(),
+        ).bind(cfg.platform, cfg.category_slot, cfg.platform, cfg.category_slot)
+      );
+      statements.push(
         env.DB.prepare(
           `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
                   w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
@@ -844,12 +833,42 @@ export async function getHeroTabs(request, env, headers) {
            LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
            WHERE r.platform = ? AND r.category_slot = ? AND r.is_manual = 1 AND r.date = 'manual'
            ORDER BY r.rank ASC`
-        ).bind(cfg.platform, cfg.category_slot).all(),
-      ]);
+        ).bind(cfg.platform, cfg.category_slot)
+      );
+    }
 
-      const merged = _mergeRankings(crawlResults || [], manualResults || [], limit);
+    const batchResults = statements.length ? await env.DB.batch(statements) : [];
 
-      return {
+    let bi = 0; // batchResults 소비 포인터 — statements를 쌓은 순서와 정확히 같은 순서로 다시 훑는다
+    const tabs = [];
+    for (const cfg of tabConfigs) {
+      const limit = cfg.top_n || 10;
+
+      if (cfg.platform === "all") {
+        const results = batchResults[bi++]?.results || [];
+        tabs.push({
+          platform: "all",
+          label: PLATFORM_LABELS.all,
+          items: results.map((row, idx) => ({
+            rank: idx + 1, tmdb_id: row.tmdb_id, best_platform: row.best_platform,
+            title_ko: row.title_ko, title_en: row.title_en,
+            poster_path: row.poster_path, hero_backdrop_path: row.hero_backdrop_path,
+            hero_custom_image_url: row.hero_custom_image_url,
+            hero_title_baked_in: row.hero_title_baked_in,
+            hero_logo_path: row.hero_logo_path,
+            media_type: row.media_type, tmdb_rating: row.tmdb_rating,
+          })),
+        });
+        continue;
+      }
+
+      if (!cfg.category_slot) continue; // 위에서 쿼리 자체를 안 쌓았으므로 bi도 그대로 둠
+
+      const crawlResults  = batchResults[bi++]?.results || [];
+      const manualResults = batchResults[bi++]?.results || [];
+      const merged = _mergeRankings(crawlResults, manualResults, limit);
+
+      tabs.push({
         platform: cfg.platform,
         label: PLATFORM_LABELS[cfg.platform] || cfg.platform,
         items: merged.map((row) => ({
@@ -861,11 +880,8 @@ export async function getHeroTabs(request, env, headers) {
           hero_logo_path: row.hero_logo_path,
           media_type: row.media_type, tmdb_rating: row.tmdb_rating,
         })),
-      };
-    }));
-
-    // Promise.all은 tabConfigs 순서를 그대로 보존하므로 display_order 정렬 유지됨. null(스킵)만 제거.
-    const tabs = tabResults.filter(Boolean);
+      });
+    }
 
     return new Response(JSON.stringify({ ok: true, active: true, tabs }), { status: 200, headers });
   } catch (err) {
