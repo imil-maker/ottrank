@@ -760,6 +760,41 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-arrow-right{right:-20px}
 .hh-arrow:hover{background:var(--gold);color:#000}
 .hh-arrow.hide{display:none}
+
+@media(max-width:768px){
+  /* 1. OTT 탭 알약 — 아래 포스터 캐러셀과 완전히 독립적으로 가로 슬라이딩. 화살표 없음(손가락 스와이프만) */
+  .hh-tab-pills{
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    scroll-behavior:smooth;
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+    padding:0 16px;
+    margin-bottom:16px;
+  }
+  .hh-tab-pills::-webkit-scrollbar{display:none}
+  .hh-tab-pill{flex-shrink:0}
+
+  /* 2. 카드 — 딱 1개만 보이게(다음 카드 peek 없음). main-outer가 모바일에서 좌우 padding 0이라
+        row-wrap에 직접 16px 패딩을 줘서 화면 끝에 카드가 딱 붙지 않게 함 */
+  .hh-row-wrap{padding:0 16px}
+  .hh-card{
+    flex:0 0 calc(100vw - 32px);
+    min-width:0;
+    max-width:480px;
+  }
+
+  /* 3. 화살표 — 사이트 표준 모바일 오버레이 화살표 패턴(.ft-btn과 동일 원리):
+        카드 바깥(-20px)이 아니라 카드 이미지 위, 화면 안쪽에 겹쳐서 표시 */
+  .hh-arrow{
+    left:auto; right:auto;
+    background:rgba(12,12,16,.6);
+    backdrop-filter:blur(4px);
+    border:.5px solid rgba(255,255,255,.25);
+  }
+  .hh-arrow-left{ left:8px !important; }
+  .hh-arrow-right{ right:8px !important; }
+}
 </style>
 </head>
 <body>
