@@ -938,3 +938,91 @@ export async function getBackfillLogoStatus(request, env, headers) {
     );
   }
 }
+
+/**
+ * GET /admin/hot100/page-display
+ * 어느 페이지(메인/인물)에 HOT100 캐러셀을 노출할지 설정 — 딱 2줄(main, person)만 존재
+ */
+export async function listHot100PageDisplay(request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT page, is_active FROM hot100_page_display ORDER BY page ASC`
+    ).all();
+    return new Response(
+      JSON.stringify({ ok: true, data: results || [] }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * PATCH /admin/hot100/page-display/:page
+ * body: { is_active }
+ * page는 이미 시드로 채워진 고정 2행(main/person) 중 하나만 수정(생성/삭제 없음)
+ */
+export async function updateHot100PageDisplay(page, request, env, headers) {
+  const isAuthed = await _checkAuth(request, env);
+  if (!isAuthed) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "관리자 인증이 필요합니다." }),
+      { status: 401, headers }
+    );
+  }
+  try {
+    const body = await request.json();
+    const { is_active } = body;
+
+    await env.DB.prepare(
+      `UPDATE hot100_page_display SET is_active = ? WHERE page = ?`
+    ).bind(is_active ? 1 : 0, page).run();
+
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * GET /hot100/page-display?page=main
+ * 공개 조회 — index.html/person.html이 캐러셀을 그릴지 말지 방문 시 확인하는 용도.
+ * 인증 불필요(누구나 조회 가능한 단순 표시 설정값).
+ */
+export async function getHot100PageDisplay(request, env, headers) {
+  try {
+    const url = new URL(request.url);
+    const page = url.searchParams.get("page");
+    if (!page) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "page 파라미터가 필요합니다." }),
+        { status: 400, headers }
+      );
+    }
+    const row = await env.DB.prepare(
+      `SELECT is_active FROM hot100_page_display WHERE page = ?`
+    ).bind(page).first();
+    return new Response(
+      JSON.stringify({ ok: true, is_active: !!(row && row.is_active) }),
+      { status: 200, headers }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error: err.message }),
+      { status: 500, headers }
+    );
+  }
+}
