@@ -52,9 +52,10 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:100%}
 .hero-card-info img.hero-card-logo{max-width:85%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
-.hero-card-rating{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 13px;
-  border-radius:20px;background:rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:700;
-  font-family:var(--mono)}
+.hero-card-rating{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:3;
+  display:inline-flex;align-items:center;gap:8px;padding:11px 28px;border-radius:32px;
+  background:rgba(255,255,255,.88);color:#1a1a24;font-size:26px;font-weight:800;
+  font-family:var(--mono);white-space:nowrap}
 .hero-card-rating .star{color:var(--gold)}
 .hero-card-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   background:var(--bg3);color:var(--muted2);font-size:13px}
@@ -210,11 +211,12 @@ function _cardHtml(item){
   // 항상 최신화되는 값이라 부정확할 위험이 없어서 이것만 표시 — OTT별 색 구분 없이 중립적인
   // 밝은 회색 박스로 표시(featuredWrap의 rating-b 배지와 같은 원리, 추가 API 호출 없음).
   // "제목있음" 여부와 무관하게 평점이 있으면 항상 보여준다.
+  // [2026-07-12 수정] 로고 있는 카드/텍스트 제목 카드/제목없는 카드끼리 높이가 서로 달라서
+  // 평점 위치가 들쭉날쭉했음 — .hero-card-info 안이 아니라 카드(.hero-card) 기준
+  // "바닥에서 20px 위"로 절대배치해서 어떤 카드든 항상 같은 자리에 오도록 고정.
   const ratingHtml = (item.tmdb_rating != null)
     ? `<div class="hero-card-rating"><span class="star">★</span>${item.tmdb_rating}</div>`
     : '';
-
-  const infoHtml = titleOrLogoHtml + ratingHtml;
 
   const mediaType = item.media_type || 'tv';
   const goAttr = `data-tmdb="${item.tmdb_id}" data-title-ko="${_esc(item.title_ko || '')}" `
@@ -229,7 +231,8 @@ function _cardHtml(item){
         <a class="hero-card-platform" href="${PLATFORM_URL[item.best_platform] || '#'}" target="_blank"
            style="background:${platformColor}" onclick="event.stopPropagation()">${platformLabel}</a>
       </div>
-      <div class="hero-card-info">${infoHtml}</div>
+      <div class="hero-card-info">${titleOrLogoHtml}</div>
+      ${ratingHtml}
     </div>
   `;
 }
