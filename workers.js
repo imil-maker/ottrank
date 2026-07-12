@@ -1314,7 +1314,7 @@ ${O.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
          top_n         = COALESCE(?, top_n),
          display_order = COALESCE(?, display_order),
          is_active     = COALESCE(?, is_active)
-       WHERE platform = ?`).bind(n??null,d??null,e??null,r??null,o).run(),new Response(JSON.stringify({ok:!0}),{status:200,headers:u})}catch(l){return new Response(JSON.stringify({ok:!1,error:l.message}),{status:500,headers:u})}}async function Ot(o,i,t){try{let u={all:"\uC804\uCCB4",netflix:"\uB137\uD50C\uB9AD\uC2A4",tving:"\uD2F0\uBE59",disney:"\uB514\uC988\uB2C8+",coupang:"\uCFE0\uD321\uD50C\uB808\uC774",wavve:"\uC6E8\uC774\uBE0C",boxoffice:"\uBC15\uC2A4\uC624\uD53C\uC2A4"},{results:s}=await i.DB.prepare(`SELECT platform, category_slot, top_n, display_order
+       WHERE platform = ?`).bind(n??null,d??null,e??null,r??null,o).run(),new Response(JSON.stringify({ok:!0}),{status:200,headers:u})}catch(l){return new Response(JSON.stringify({ok:!1,error:l.message}),{status:500,headers:u})}}async function Ot(o,i,t){try{let u={all:"\uC804\uCCB4 \uC21C\uC704",netflix:"\uB137\uD50C\uB9AD\uC2A4",tving:"\uD2F0\uBE59",disney:"\uB514\uC988\uB2C8+",coupang:"\uCFE0\uD321\uD50C\uB808\uC774",wavve:"\uC6E8\uC774\uBE0C",boxoffice:"\uBC15\uC2A4\uC624\uD53C\uC2A4"},{results:s}=await i.DB.prepare(`SELECT platform, category_slot, top_n, display_order
        FROM hot100_frontend_tabs
        WHERE is_active = 1
        ORDER BY display_order ASC`).all();if(!s||s.length===0)return new Response(JSON.stringify({ok:!0,tabs:[]}),{status:200,headers:t});let n=(await Promise.all(s.map(async d=>{let e=d.top_n||10;if(d.platform==="all"){let{results:p}=await i.DB.prepare(`SELECT h.tmdb_id, h.best_platform, w.title_ko, w.title_en,
