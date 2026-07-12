@@ -52,8 +52,10 @@ h1{font-size:18px;font-weight:700;margin:0 0 4px}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:100%}
 .hero-card-info img.hero-card-logo{max-width:85%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
-.hero-card-meta{font-size:11px;font-family:var(--mono);color:var(--muted2);margin-top:4px}
-.hero-card-meta .rating{color:var(--gold)}
+.hero-card-rating{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 13px;
+  border-radius:20px;background:rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:700;
+  font-family:var(--mono)}
+.hero-card-rating .star{color:var(--gold)}
 .hero-card-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   background:var(--bg3);color:var(--muted2);font-size:13px}
 
@@ -201,12 +203,14 @@ function _cardHtml(item){
     const titleOrLogo = item.hero_logo_path
       ? `<img class="hero-card-logo" src="${IMG_LOGO}${item.hero_logo_path}" alt="">`
       : `<span class="hero-card-title">${title}</span>`;
-    // [2026-07-12 추가] 제목 아래에 "티빙 1위 · ★9.0" — 플랫폼명은 해당 OTT 고유색으로 표시
+    // [2026-07-12 수정] 플랫폼별 실제 순위(예: "티빙 4위")는 "전체" 탭에서 재계산 시점 기준으로만
+    // 정확하고 실시간 크롤링 순위와 어긋날 수 있어서 제거. 평점(tmdb_rating)은 크롤링 때마다
+    // 항상 최신화되는 값이라 부정확할 위험이 없어서 이것만 표시 — OTT별 색 구분 없이 중립적인
+    // 밝은 회색 박스로 표시(featuredWrap의 rating-b 배지와 같은 원리, 추가 API 호출 없음)
     const ratingHtml = (item.tmdb_rating != null)
-      ? ` · <span class="rating">★${item.tmdb_rating}</span>`
+      ? `<div class="hero-card-rating"><span class="star">★</span>${item.tmdb_rating}</div>`
       : '';
-    const metaHtml = `<div class="hero-card-meta"><span style="color:${platformColor}">${platformLabel} ${item.rank}위</span>${ratingHtml}</div>`;
-    infoHtml = titleOrLogo + metaHtml;
+    infoHtml = titleOrLogo + ratingHtml;
   }
 
   const mediaType = item.media_type || 'tv';
