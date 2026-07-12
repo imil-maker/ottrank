@@ -13,31 +13,41 @@
 import { _checkAuth } from "../utils/authUtils.js";
 import { _mergeRankings } from "./rankings.js";
 
-// [2026-07-12 추가] 히어로 캐러셀용 TMDB 로고(타이틀 아트) 이미지 프록시.
-// hot100_preview.html이 브라우저에서 직접 호출하던 것과 동일한 서버를 백엔드에서도 그대로 사용.
-const TMDB_IMAGE_PROXY = "https://tmdb-proxy.tdidream.workers.dev/tmdb";
-
 /**
- * TMDB 로고 이미지 1건 조회.
+ * TMDB 로고 이미지 1건 조회 — admin.js의 collect-keywords와 완전히 동일한 방식으로
+ * TMDB 공식 서버를 직접 호출한다(브라우저용 tmdb-proxy 아님. Worker끼리는 이 방식만 검증됨).
  * 한국어(ko) 로고 우선, 없으면 언어정보 없는(iso_639_1=null) 로고, 둘 다 없으면 null.
- * ⚠️ "TMDB 응답 실패"와 "TMDB에 로고가 진짜 없음"을 구분해서 반환한다(work_keywords의
- * __NONE__ sentinel과 동일 원칙) — 실패했을 때 ok:false를 줘야 호출부가
+ * ⚠️ "TMDB 응답 실패"와 "TMDB에 로고가 진짜 없음"을 구분해서 반환한다(collect-keywords의
+ * anySuccess 플래그와 동일 원칙) — 실패했을 때 ok:false를 줘야 호출부가
  * hero_logo_checked_at을 찍지 않고 다음 배치에서 재시도할 수 있다.
+ * media_type을 모를 때는 collect-keywords와 동일하게 tv → movie 순서로 둘 다 시도한다.
  */
-async function _fetchHeroLogoResult(tmdbId, mediaType) {
-  try {
-    const res = await fetch(`${TMDB_IMAGE_PROXY}/${mediaType}/${tmdbId}/images`);
-    if (!res.ok) return { ok: false, logoPath: null };
-    const json = await res.json();
-    const logos = json.logos || [];
-    const best =
-      logos.find((l) => l.iso_639_1 === "ko") ||
-      logos.find((l) => !l.iso_639_1) ||
-      null;
-    return { ok: true, logoPath: best ? best.file_path : null };
-  } catch (e) {
-    return { ok: false, logoPath: null };
+async function _fetchHeroLogoResult(tmdbId, knownMediaType, env) {
+  const mtypes = knownMediaType ? [knownMediaType] : ["tv", "movie"];
+  let anySuccess = false;
+
+  for (const mtype of mtypes) {
+    try {
+      const res = await fetch(
+        `https://api.themoviedb.org/3/${mtype}/${tmdbId}/images?api_key=${env.TMDB_API_KEY}`
+      );
+      if (!res.ok) continue; // 이 media_type 실패 — 다음 타입 시도(anySuccess는 그대로)
+      anySuccess = true;
+      const json = await res.json();
+      const logos = json.logos || [];
+      const best =
+        logos.find((l) => l.iso_639_1 === "ko") ||
+        logos.find((l) => !l.iso_639_1) ||
+        null;
+      if (best) return { ok: true, logoPath: best.file_path };
+      // 이 media_type엔 로고가 없음 — 나머지 media_type도 마저 시도
+    } catch (e) {
+      // 네트워크 오류 — 다음 media_type으로 계속 시도
+    }
   }
+
+  // 모든 media_type을 다 시도한 결과
+  return { ok: anySuccess, logoPath: null };
 }
 
 /**
@@ -76,9 +86,8 @@ async function _backfillHeroLogosBatch(env, limit) {
   const statements = [];
 
   for (const t of targets) {
-    // media_type이 비어있는 구작 데이터 대비 tv로 안전 폴백
-    const mediaType = t.media_type === "movie" ? "movie" : "tv";
-    const result = await _fetchHeroLogoResult(t.tmdb_id, mediaType);
+    // media_type을 이미 알면 그대로, 모르면(구작 데이터) 함수 내부에서 tv/movie 둘 다 시도
+    const result = await _fetchHeroLogoResult(t.tmdb_id, t.media_type || null, env);
 
     if (!result.ok) {
       failed++;
