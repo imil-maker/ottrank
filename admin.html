@@ -367,6 +367,14 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
   <!-- 메인페이지 설정 -->
   <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--gold)">🖥️ 메인페이지 설정</div>
+  <!-- [2026-07-12 추가] HOT100은 ott_categories 소속이 아니라(여러 카테고리를 합친 별도 데이터) 표에
+       못 들어가서, 노출 여부만 결정하는 작은 스위치를 따로 둠. 노출 개수/순서는 핫100 관리 페이지의
+       "프론트엔드 구성"에서 별도 설정 -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    <span style="font-size:13px;font-weight:600">🔥 HOT100 노출</span>
+    <input type="checkbox" id="hot100DisplayMain" onchange="saveHot100PageDisplay('main', this.checked)">
+    <span style="font-size:11px;color:var(--muted2)">노출 개수·순서는 HOT100 관리 페이지의 "프론트엔드 구성"에서 따로 설정합니다.</span>
+  </div>
   <div class="table-wrap" style="margin-bottom:24px">
     <table>
       <thead>
@@ -412,6 +420,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
     💡 인물페이지 상단 위젯에 노출할 카테고리를 <b>하나만</b> "✅ 노출"로 선택하세요. 2개 이상 선택 시 저장되지 않습니다. 메인페이지·OTT페이지 설정과는 별개로 저장됩니다.
+  </div>
+  <!-- [2026-07-12 추가] 메인페이지 스위치와 동일한 원리 -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
+    <span style="font-size:13px;font-weight:600">🔥 HOT100 노출</span>
+    <input type="checkbox" id="hot100DisplayPerson" onchange="saveHot100PageDisplay('person', this.checked)">
+    <span style="font-size:11px;color:var(--muted2)">노출 개수·순서는 HOT100 관리 페이지의 "프론트엔드 구성"에서 따로 설정합니다.</span>
   </div>
   <div class="table-wrap">
     <table>
@@ -4405,6 +4419,34 @@ async function loadPageCat() {
   } catch(e) {
     showToast('카테고리 로드 실패: ' + e.message, 'err');
   }
+  loadHot100PageDisplay(); // 카테고리 로드랑 독립적이라 실패해도 서로 영향 없음
+}
+
+// [2026-07-12 추가] HOT100 메인/인물페이지 노출 스위치 — ott_categories 소속이 아닌 별도 설정
+async function loadHot100PageDisplay() {
+  try {
+    const res = await fetch(`${API}/admin/hot100/page-display`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    (json.data || []).forEach(row => {
+      const el = document.getElementById(row.page === 'main' ? 'hot100DisplayMain' : 'hot100DisplayPerson');
+      if (el) el.checked = !!row.is_active;
+    });
+  } catch(e) { /* 조용히 무시 — 체크박스가 기본값(꺼짐)으로 남아도 안전 */ }
+}
+
+async function saveHot100PageDisplay(page, isChecked) {
+  try {
+    const res = await fetch(`${API}/admin/hot100/page-display/${page}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: isChecked })
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.error || '저장 실패', 'err'); return; }
+    showToast(`✅ ${page === 'main' ? '메인페이지' : '인물페이지'} HOT100 노출 ${isChecked ? '켜짐' : '꺼짐'}`, 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
 }
 
 function setPagecatPlatform(platform, btn) {
