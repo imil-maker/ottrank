@@ -742,6 +742,8 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             // 색인(idx_work_keywords_keyword) 조회로 교체. 자기 자신 제외는 그대로 SQL에서 처리.
             // 2026-07-10: /search/keyword(클릭 시 검색)와 동일한 원칙으로 한국 작품 우선 정렬 추가
             //   (원어 정보 없는 구작은 CASE 분기상 외국작품과 함께 뒤로 밀림 — 의도된 동작)
+            // 2026-07-14: adult_flag=1(성인물) 작품은 일반 작품의 "관련 키워드 작품"에 안 뜨도록 제외.
+            //   지금 보는 작품이 성인물이어도 상관없이 무조건 제외(성인물끼리 매칭은 굳이 안 함).
             const statements = kwList.map(kw =>
               env.DB.prepare(`
                 SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.original_language, w.tmdb_rating
@@ -749,6 +751,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
                 JOIN works w ON w.tmdb_id = wk.tmdb_id
                 WHERE wk.keyword = ?
                   AND wk.tmdb_id != ?
+                  AND (w.adult_flag IS NULL OR w.adult_flag != 1)
                 ORDER BY
                   CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
                   w.tmdb_rating DESC
@@ -854,6 +857,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   //   (정규화 시점에 이미 개별 키워드 단위로 분리 저장하기 때문).
   //   단, work_keywords는 배치로 채워지는 테이블이라, 정규화 전 작품의 키워드는 아직 검색에 안 잡힐 수 있음
   //   (어드민 "🔤 키워드 정규화" 배치가 다 돌고 나면 자연히 해소됨).
+  // 2026-07-14: adult_flag=1(성인물) 작품은 결과에서 제외 — keyword_preview와 동일 원칙.
   if (path === "/search/keyword" && request.method === "GET") {
     const keyword = (url.searchParams.get("keyword") || "").trim().toLowerCase();
     const limit   = Math.min(parseInt(url.searchParams.get("limit") || "20"), 40);
@@ -866,6 +870,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         FROM work_keywords wk
         JOIN works w ON w.tmdb_id = wk.tmdb_id
         WHERE wk.keyword = ?
+          AND (w.adult_flag IS NULL OR w.adult_flag != 1)
         ORDER BY
           CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
           w.tmdb_rating DESC
