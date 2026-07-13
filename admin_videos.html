@@ -295,6 +295,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           ⭐ 평점 채우기
         </button>
+        <button id="tabRatingCheck" onclick="switchPageTab('ratingCheck')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          📊 OTT 평점 반영
+        </button>
         <button id="tabImdb" onclick="switchPageTab('imdb')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎬 IMDb 매칭 채우기
@@ -972,6 +976,44 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
       <div id="rtsStatusLine" style="margin-top:12px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
     </div>
+
+  </div>
+
+  <!-- ══ OTT 평점 반영 섹션 (2026-07-14 신설) ══ -->
+  <div class="wrap" id="ratingCheckWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 플랫폼·카테고리를 고르면 <span style="color:var(--gold)">가장 최근 크롤링 날짜</span> 순위 리스트를 불러와,
+      메인페이지(rankings) 평점과 작품페이지(works) 평점이 다른 작품만 골라서 보여줍니다.<br>
+      다른 작품 옆의 버튼을 누르면 TMDB에서 최신값을 받아와 즉시 반영합니다.
+    </div>
+
+    <!-- 플랫폼/카테고리 선택 -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+      <select class="search-input" id="rcPlatformSelect" style="max-width:200px" onchange="onRcPlatformChange()">
+        <option value="">플랫폼 선택...</option>
+      </select>
+      <select class="search-input" id="rcCategorySelect" style="max-width:260px" disabled>
+        <option value="">카테고리 선택...</option>
+      </select>
+      <button class="btn-primary" id="rcLoadBtn" onclick="loadRcList()" disabled>불러오기</button>
+    </div>
+
+    <!-- 요약 + 일괄 버튼 -->
+    <div id="rcSummaryBar" style="display:none;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-family:var(--mono);color:var(--muted2)">
+        전체 <span id="rcTotalCount" style="color:#fff;font-weight:700">0</span>개 ·
+        불일치 <span id="rcMismatchCount" style="color:var(--red);font-weight:700">0</span>개
+      </div>
+      <button class="btn-crawl" id="rcBulkBtn" onclick="bulkSyncRc()" style="margin-left:auto;padding:9px 16px;font-size:13px">
+        🔄 다른 작품 전체 일괄 갱신
+      </button>
+      <div id="rcBulkStatus" style="font-size:12px;font-family:var(--mono);color:var(--muted);display:none"></div>
+    </div>
+
+    <!-- 결과 리스트 -->
+    <div id="rcListArea"></div>
 
   </div>
 
@@ -1744,6 +1786,7 @@ const PAGE_TABS = [
   { key: 'mediatype', wrapId: 'mediaTypeWrap', btnId: 'tabMediaType', title: '🎞 미디어타입 채우기', onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
   { key: 'variety',   wrapId: 'varietyWrap',   btnId: 'tabVariety',   title: '🎭 예능 태그',       onColor: 'rgba(236,72,153,.2)',  onText: '#f472b6' },
   { key: 'rating',    wrapId: 'ratingWrap',    btnId: 'tabRating',    title: '⭐ 평점 채우기',      onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
+  { key: 'ratingCheck', wrapId: 'ratingCheckWrap', btnId: 'tabRatingCheck', title: '📊 OTT 평점 반영', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
   { key: 'imdb',      wrapId: 'imdbWrap',      btnId: 'tabImdb',      title: '🎬 IMDb 매칭 채우기', onColor: 'rgba(245,197,24,.2)',  onText: '#F5C518' },
   { key: 'adult',     wrapId: 'adultWrap',     btnId: 'tabAdult',     title: '🔞 성인물 정리',      onColor: 'rgba(240,68,68,.2)',   onText: 'var(--red)' },
 ];
@@ -1760,6 +1803,7 @@ function switchPageTab(tab) {
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
   if (tab === 'adult') { acRenderWordHistory(); acConfirmedLoad(); }
+  if (tab === 'ratingCheck' && !rcCategoriesLoaded) loadRcCategories();
 }
 
 /* ══ MBTI 관리 — 상태 ══ */
@@ -3614,6 +3658,187 @@ async function syncRtsRating(refresh) {
     refreshBtn.disabled = false;
     applyBtn.disabled   = false;
   }
+}
+
+/* ══════════════════════════════════════════════════════
+   OTT 평점 반영 (2026-07-14 신설)
+   카테고리 하나를 통째로 불러와 rankings↔works 평점을 비교,
+   다른 것만 개별/일괄로 sync-rating-single(refresh=true) 호출
+══════════════════════════════════════════════════════ */
+const RC_PLATFORM_LABELS = {
+  netflix: '넷플릭스', tving: '티빙', disney: '디즈니+',
+  wavve: '웨이브', coupang: '쿠팡플레이', boxoffice: '박스오피스',
+};
+let rcCategoriesLoaded = false;
+let rcAllCategories    = []; // /admin/categories 전체 캐시
+let rcCurrentRows      = []; // 마지막으로 불러온 리스트 (일괄 버튼용)
+
+async function loadRcCategories() {
+  try {
+    const res  = await fetch(`${API}/admin/categories`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (!data.ok) { showToast('카테고리 목록을 못 불러왔어요'); return; }
+    rcAllCategories = data.data || [];
+    rcCategoriesLoaded = true;
+
+    // 플랫폼 드롭다운 채우기 (등장하는 순서대로 중복제거)
+    const platforms = [...new Set(rcAllCategories.map(c => c.platform))];
+    const platSelect = document.getElementById('rcPlatformSelect');
+    platSelect.innerHTML = '<option value="">플랫폼 선택...</option>' +
+      platforms.map(p => `<option value="${p}">${RC_PLATFORM_LABELS[p] || p}</option>`).join('');
+  } catch (e) {
+    showToast('카테고리 목록 조회 오류');
+  }
+}
+
+function onRcPlatformChange() {
+  const platform = document.getElementById('rcPlatformSelect').value;
+  const catSelect = document.getElementById('rcCategorySelect');
+  const loadBtn   = document.getElementById('rcLoadBtn');
+
+  if (!platform) {
+    catSelect.innerHTML = '<option value="">카테고리 선택...</option>';
+    catSelect.disabled = true;
+    loadBtn.disabled = true;
+    return;
+  }
+
+  const cats = rcAllCategories.filter(c => c.platform === platform);
+  catSelect.innerHTML = '<option value="">카테고리 선택...</option>' +
+    cats.map(c => `<option value="${c.category_slot}">${c.display_name || c.source_name || c.category_slot}</option>`).join('');
+  catSelect.disabled = false;
+  loadBtn.disabled = true; // 카테고리까지 선택해야 활성화(아래서 처리)
+  catSelect.onchange = () => { loadBtn.disabled = !catSelect.value; };
+}
+
+async function loadRcList() {
+  const platform = document.getElementById('rcPlatformSelect').value;
+  const category = document.getElementById('rcCategorySelect').value;
+  if (!platform || !category) { showToast('플랫폼과 카테고리를 선택해주세요'); return; }
+
+  const listArea = document.getElementById('rcListArea');
+  listArea.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px">불러오는 중...</div>';
+  document.getElementById('rcSummaryBar').style.display = 'none';
+
+  try {
+    const res  = await fetch(`${API}/admin/rankings/rating-check?platform=${platform}&category_slot=${category}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (!data.ok) { showToast(data.message || '조회 실패'); listArea.innerHTML = ''; return; }
+
+    rcCurrentRows = data.data || [];
+    renderRcList();
+  } catch (e) {
+    showToast('네트워크 오류');
+    listArea.innerHTML = '';
+  }
+}
+
+function renderRcList() {
+  const listArea = document.getElementById('rcListArea');
+  if (!rcCurrentRows.length) {
+    listArea.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px">이 카테고리에 데이터가 없습니다</div>';
+    document.getElementById('rcSummaryBar').style.display = 'none';
+    return;
+  }
+
+  const mismatchCount = rcCurrentRows.filter(isRcMismatch).length;
+  document.getElementById('rcSummaryBar').style.display = 'flex';
+  document.getElementById('rcTotalCount').textContent    = rcCurrentRows.length;
+  document.getElementById('rcMismatchCount').textContent = mismatchCount;
+  document.getElementById('rcBulkBtn').style.display = mismatchCount > 0 ? 'block' : 'none';
+
+  listArea.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      ${rcCurrentRows.map(r => renderRcRow(r)).join('')}
+    </div>`;
+}
+
+function isRcMismatch(r) {
+  return String(r.rankings_rating ?? '') !== String(r.works_rating ?? '');
+}
+
+function renderRcRow(r) {
+  const mismatch = isRcMismatch(r);
+  return `
+    <div id="rcRow-${r.tmdb_id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg2);font-size:13px">
+      <div style="width:28px;color:var(--muted);font-family:var(--mono);flex-shrink:0">${r.rank}</div>
+      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title_ko || ''}</div>
+      <div style="width:150px;font-family:var(--mono);color:var(--muted2);flex-shrink:0">
+        rankings ${r.rankings_rating ?? '없음'} / works ${r.works_rating ?? '없음'}
+      </div>
+      <div style="width:90px;flex-shrink:0;font-family:var(--mono)">
+        ${mismatch ? '<span style="color:var(--red)">⚠️ 다름</span>' : '<span style="color:var(--green)">✓ 일치</span>'}
+      </div>
+      <div style="width:170px;flex-shrink:0;text-align:right" id="rcBtnCell-${r.tmdb_id}">
+        ${mismatch ? `<button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="syncRcRow(${r.tmdb_id})">🔄 TMDB 갱신 후 반영</button>` : ''}
+      </div>
+    </div>`;
+}
+
+async function syncRcRow(tmdbId) {
+  const cell = document.getElementById(`rcBtnCell-${tmdbId}`);
+  cell.innerHTML = '<span style="font-family:var(--mono);font-size:12px;color:var(--muted)">처리 중...</span>';
+  try {
+    const res = await fetch(`${API}/admin/works/sync-rating-single`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, refresh: true }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const row = rcCurrentRows.find(r => r.tmdb_id === tmdbId);
+      if (row) { row.rankings_rating = data.tmdb_rating; row.works_rating = data.tmdb_rating; }
+      document.getElementById(`rcRow-${tmdbId}`).outerHTML = renderRcRow(row);
+      const mismatchCount = rcCurrentRows.filter(isRcMismatch).length;
+      document.getElementById('rcMismatchCount').textContent = mismatchCount;
+      document.getElementById('rcBulkBtn').style.display = mismatchCount > 0 ? 'block' : 'none';
+    } else {
+      showToast(data.message || '반영 실패');
+      cell.innerHTML = `<button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="syncRcRow(${tmdbId})">🔄 TMDB 갱신 후 반영</button>`;
+    }
+  } catch (e) {
+    showToast('네트워크 오류');
+    cell.innerHTML = `<button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="syncRcRow(${tmdbId})">🔄 TMDB 갱신 후 반영</button>`;
+  }
+}
+
+async function bulkSyncRc() {
+  const targets = rcCurrentRows.filter(isRcMismatch);
+  if (!targets.length) return;
+
+  const bulkBtn = document.getElementById('rcBulkBtn');
+  const status  = document.getElementById('rcBulkStatus');
+  bulkBtn.disabled = true;
+  status.style.display = 'inline';
+
+  let done = 0;
+  for (const r of targets) {
+    done++;
+    status.textContent = `${done}/${targets.length} 처리 중... (${r.title_ko || r.tmdb_id})`;
+    try {
+      const res = await fetch(`${API}/admin/works/sync-rating-single`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+        body: JSON.stringify({ tmdb_id: r.tmdb_id, refresh: true }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        r.rankings_rating = data.tmdb_rating;
+        r.works_rating    = data.tmdb_rating;
+      }
+    } catch (e) { /* 이 작품만 실패, 다음으로 계속 진행 */ }
+    await _sleep(300); // TMDB API 연속 호출 부담 완화
+  }
+
+  status.textContent = `✅ 완료! ${targets.length}개 처리`;
+  showToast('✅ 일괄 갱신 완료!');
+  renderRcList();
+  bulkBtn.disabled = false;
+  setTimeout(() => { status.style.display = 'none'; }, 4000);
 }
 
 /* ══════════════════════════════════════════════════════
