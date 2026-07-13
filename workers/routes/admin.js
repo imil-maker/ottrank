@@ -13,8 +13,10 @@
    POST   /admin/rank-override
    DELETE /admin/rank-override
    GET    /admin/works                (?sort=recent 기본값=created_at DESC, ?sort=updated=updated_at DESC)
+                                       (?filter=adult_confirmed → adult_flag=1 확정 성인물만, 2026-07-13 신설)
    PATCH  /admin/works/:tmdb_id
    PATCH  /admin/works/:tmdb_id/hero-backdrop  ← 핫100 히어로 캐러셀 배경이미지 수동 선택(2026-07-11 신설, 다른 필드는 안 건드리는 격리된 엔드포인트)
+   PATCH  /admin/works/:tmdb_id/adult-flag     ← works 관리 19금 체크박스(2026-07-13 신설, adult_flag만 건드리는 격리된 엔드포인트)
    PUT    /admin/works/:tmdb_id/hero-upload    ← 커스텀 히어로 이미지 업로드(R2, 2026-07-12 신설)
    DELETE /admin/works/:tmdb_id/hero-upload    ← 커스텀 히어로 이미지 삭제(R2, 2026-07-12 신설)
    DELETE /admin/works/:tmdb_id
@@ -878,6 +880,14 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (filter === "new_match" && date) {
         query  = `SELECT * FROM works WHERE first_matched_date = ? AND match_source IN ('auto_claude', 'auto_tmdb') ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
         params = [date, limit, offset];
+      } else if (filter === "adult_confirmed" && q) {
+        // [2026-07-13 추가] "확정된 성인물 리스트"용 — adult_flag=1로 확정된 것만, 제목 검색도 함께 지원
+        query  = `SELECT * FROM works WHERE adult_flag = 1 AND (title_ko LIKE ? OR title_en LIKE ?) ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+        params = [`%${q}%`, `%${q}%`, limit, offset];
+      } else if (filter === "adult_confirmed") {
+        // [2026-07-13 추가] admin.html works 관리 왼쪽 체크박스로 표시한 adult_flag=1 작품 전체 목록
+        query  = `SELECT * FROM works WHERE adult_flag = 1 ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+        params = [limit, offset];
       } else if (q) {
         query  = `SELECT * FROM works WHERE title_ko LIKE ? OR title_en LIKE ? ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
         params = [`%${q}%`, `%${q}%`, limit, offset];
@@ -1042,6 +1052,29 @@ export async function handleAdmin(path, request, env, url, headers) {
       ).bind(tmdb_id).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── PATCH /admin/works/:tmdb_id/adult-flag ──────────────────────
+  // [2026-07-13 신설] works 관리 표의 19금 체크박스용. adult_flag 컬럼 하나만 딱 건드리는
+  // 격리된 엔드포인트 — hero-backdrop과 동일한 패턴(범용 PATCH가 다른 필드를 실수로
+  // 덮어쓰는 걸 방지). adult_flag: 1(19금 확정) 또는 null(체크 해제=미검토로 되돌림)만 허용.
+  if (path.match(/^\/admin\/works\/\d+\/adult-flag$/) && request.method === "PATCH") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(path.split("/")[3]);
+      const body    = await request.json();
+      const finalValue = body.adult_flag === 1 ? 1 : null; // 1 이외에는 전부 null로 취급(안전한 기본값)
+
+      await env.DB.prepare(
+        "UPDATE works SET adult_flag = ? WHERE tmdb_id = ?"
+      ).bind(finalValue, tmdb_id).run();
+
+      return new Response(JSON.stringify({ ok: true, adult_flag: finalValue }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
