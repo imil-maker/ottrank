@@ -31,6 +31,7 @@
    PATCH  /admin/sync-ratings
    GET    /admin/works/:tmdb_id/rating-status   ← 특정 작품 works↔rankings 평점 불일치 미리보기(2026-07-13 신설)
    POST   /admin/works/sync-rating-single       ← 특정 작품 평점 강제 동기화(2026-07-13 신설)
+   GET    /admin/rankings/rating-check          ← 카테고리별 평점 비교 리스트(2026-07-14 신설, "OTT 평점 반영" 탭)
    GET    /admin/grade-settings
    PUT    /admin/grade-settings
    POST   /admin/grade-settings/assign
@@ -1507,6 +1508,42 @@ export async function handleAdmin(path, request, env, url, headers) {
         tmdb_rating: finalRating,
         rankings_updated: result.meta?.changes ?? 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/rankings/rating-check ────────────────────────────
+  // [2026-07-14 신설] "OTT 평점 반영" 탭 전용 — 특정 플랫폼+카테고리의
+  // 가장 최근 크롤링 날짜 순위 리스트를 뽑아서, 각 행마다 rankings.tmdb_rating과
+  // works.tmdb_rating을 나란히 붙여서 반환. 프론트가 이 응답 하나로 "뭐가 몇 개나
+  // 다른지"를 한 번에 렌더링할 수 있음(작품마다 별도 API 호출 불필요).
+  // 날짜는 항상 "가장 최근 크롤링 날짜"(date != 'manual' 중 MAX) 고정 — 수동고정(is_manual=2)
+  // 작품도 크롤링 시점에 그날 날짜로 복사되는 기존 구조라 별도 처리 불필요.
+  if (path === "/admin/rankings/rating-check" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const platform      = url.searchParams.get("platform");
+      const category_slot = url.searchParams.get("category_slot");
+      if (!platform || !category_slot) {
+        return new Response(JSON.stringify({ ok: false, message: "platform, category_slot required" }), { status: 400, headers });
+      }
+
+      const { results } = await env.DB.prepare(`
+        SELECT r.tmdb_id, r.rank, r.title_ko,
+               r.tmdb_rating   AS rankings_rating,
+               w.tmdb_rating   AS works_rating,
+               w.rating_updated_at
+        FROM rankings r
+        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+        WHERE r.platform = ? AND r.category_slot = ?
+          AND r.date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+        ORDER BY r.rank ASC
+      `).bind(platform, category_slot).all();
+
+      return new Response(JSON.stringify({ ok: true, data: results }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
