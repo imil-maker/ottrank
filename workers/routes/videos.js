@@ -499,17 +499,21 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // ④ 상세 정보 조회 (성인물 제외)
       const idPlaceholders = allIds.map(() => "?").join(",");
       const { results: workRows } = await env.DB.prepare(`
-        SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating
+        SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
         FROM works
         WHERE tmdb_id IN (${idPlaceholders})
           AND (adult_flag IS NULL OR adult_flag != 1)
       `).bind(...allIds).all();
 
-      // ⑤ 정렬: 제목매칭 우선 → 평점 내림차순 (결과 규모가 작아 JS 정렬로 처리)
+      // ⑤ 정렬: 제목매칭 우선 → 한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
+      //   (결과 규모가 작아 JS 정렬로 처리)
       workRows.sort((a, b) => {
         const ta = matchType.get(a.tmdb_id) ?? 1;
         const tb = matchType.get(b.tmdb_id) ?? 1;
         if (ta !== tb) return ta - tb;
+        const ka = a.original_language === 'ko' ? 0 : 1;
+        const kb = b.original_language === 'ko' ? 0 : 1;
+        if (ka !== kb) return ka - kb;
         return (b.tmdb_rating || 0) - (a.tmdb_rating || 0);
       });
 
