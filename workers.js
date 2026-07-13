@@ -237,7 +237,7 @@ function $(o,i,t){if(!i.length)return o.slice(0,t).map((a,r)=>({...a,rank:r+1}))
       `).bind(`%${r}%`,`%${r}%`,a).all(),p=await t.DB.prepare(`
         SELECT DISTINCT wk.tmdb_id
         FROM keyword_translation kt
-        JOIN work_keywords wk ON wk.keyword = kt.keyword_en
+        CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
         WHERE kt.keyword_ko LIKE ?
         LIMIT ?
       `).bind(`%${n}%`,a).all(),_=new Map;d.results.forEach(b=>_.set(b.tmdb_id,0)),p.results.forEach(b=>{_.has(b.tmdb_id)||_.set(b.tmdb_id,1)});let g=[..._.keys()].slice(0,a);if(!g.length)return new Response(JSON.stringify({ok:!0,data:[],has_more:!1,limit:c,offset:e}),{headers:l});let m=g.map(()=>"?").join(","),{results:f}=await t.DB.prepare(`
