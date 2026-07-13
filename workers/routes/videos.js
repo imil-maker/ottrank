@@ -460,7 +460,11 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     const q      = url.searchParams.get("q") || "";
     const limit  = Math.min(parseInt(url.searchParams.get("limit") || "15"), 30);
     const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
-    const MAX_MATCH_IDS = 300;
+    // 2026-07-14 수정: D1은 쿼리 1개당 바인딩 변수 최대 100개 제한이 있음.
+    //   흔한 검색어(예: "로맨스")는 매칭 tmdb_id가 300개 가까이 나와서
+    //   WHERE tmdb_id IN (...) 300개 바인딩 시 "too many SQL variables" 에러 발생 확인됨.
+    //   화면엔 15개씩만 보여주므로 100개로도 충분 — 안전하게 축소.
+    const MAX_MATCH_IDS = 100;
 
     if (!q.trim()) {
       return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
