@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>검색결과 - 오뜨랑 (테스트)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --sans:'Noto Sans KR',sans-serif; --mono:'DM Mono',monospace; --r:10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5}
+
+/* 상단 검색바 */
+.topbar{border-bottom:1px solid var(--border);padding:14px 20px}
+.topbar-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px}
+.logo{font-size:18px;font-weight:700;flex-shrink:0}
+.logo span{color:#e50914}
+.search-wrap{flex:1;max-width:420px;position:relative}
+.search-input{width:100%;padding:10px 42px 10px 14px;border-radius:10px;border:1px solid var(--border2);
+  background:var(--bg2);color:var(--text);font-size:14px;font-family:var(--sans);outline:none}
+.search-input:focus{border-color:#e50914}
+.search-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;
+  border-radius:7px;border:none;background:var(--bg3);color:var(--text);cursor:pointer}
+
+/* 레이아웃 */
+.layout{max-width:1100px;margin:0 auto;padding:28px 20px 80px;display:grid;grid-template-columns:200px 1fr;gap:32px}
+@media (max-width:760px){.layout{grid-template-columns:1fr}}
+
+.page-title{font-size:26px;font-weight:700;margin-bottom:20px;grid-column:1/-1}
+.page-title .q{color:#7ec8e3}
+
+/* 사이드바 탭 */
+.side{display:flex;flex-direction:column;gap:6px;align-self:start;position:sticky;top:20px}
+.side-tab{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:9px;
+  cursor:pointer;color:var(--muted2);font-size:15px;font-weight:500;transition:background .15s}
+.side-tab:hover{background:var(--bg3)}
+.side-tab.active{background:#3778dd;color:#fff}
+.side-tab .cnt{font-family:var(--mono);font-size:13px;color:inherit;opacity:.85}
+
+/* 콘텐츠 */
+.content{min-width:0}
+.sec{margin-bottom:36px}
+.sec-title{font-size:17px;font-weight:700;margin-bottom:14px}
+
+.work-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px}
+.work-card{cursor:pointer}
+.work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
+.work-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
+.work-type{position:absolute;top:6px;left:6px;font-size:10px;padding:2px 7px;border-radius:5px;color:#fff;font-weight:600}
+.work-db{position:absolute;top:6px;right:6px;font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(52,211,153,.85);color:#fff;font-weight:600}
+.work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work-meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+
+.person-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px 24px}
+.person-card{display:flex;align-items:center;gap:12px;cursor:pointer}
+.person-photo{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--bg3)}
+.person-photo-ph{width:44px;height:44px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;
+  font-size:18px;color:var(--muted);flex-shrink:0}
+.person-name{font-size:15px;font-weight:500;color:var(--text)}
+.person-meta{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.empty, .loading{padding:40px 0;text-align:center;color:var(--muted);font-size:14px;grid-column:1/-1}
+.spin{width:18px;height:18px;border:2px solid var(--border2);border-top-color:#7ec8e3;border-radius:50%;
+  animation:spin .7s linear infinite;display:inline-block;vertical-align:-3px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">오뜨<span>랑</span></div>
+    <div class="search-wrap">
+      <input class="search-input" id="searchInput" type="text" placeholder="작품, 배우 검색"
+        onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="search-btn" onclick="doSearch()">⌕</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="page-title">"<span class="q" id="qLabel"></span>" 검색결과</div>
+
+  <div class="side">
+    <div class="side-tab active" data-target="secWorks">작품 <span class="cnt" id="cntWorks">0</span></div>
+    <div class="side-tab" data-target="secPersons">인물 <span class="cnt" id="cntPersons">0</span></div>
+  </div>
+
+  <div class="content">
+    <div class="sec" id="secWorks">
+      <div class="sec-title">작품</div>
+      <div class="work-grid" id="workGrid">
+        <div class="loading"><span class="spin"></span>검색 중...</div>
+      </div>
+    </div>
+    <div class="sec" id="secPersons">
+      <div class="sec-title">인물</div>
+      <div class="person-grid" id="personGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API        = 'https://ottrank-api.tdidream.workers.dev';
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const IMG        = 'https://image.tmdb.org/t/p/w342';
+const IMG_PROFILE= 'https://image.tmdb.org/t/p/w185';
+
+const params = new URLSearchParams(location.search);
+const q = (params.get('q') || '').trim();
+
+document.getElementById('qLabel').textContent = q;
+document.getElementById('searchInput').value = q;
+
+function doSearch(){
+  const v = document.getElementById('searchInput').value.trim();
+  if(!v) return;
+  location.href = `search-results.html?q=${encodeURIComponent(v)}`;
+}
+
+/* 사이드바 탭 클릭 → 해당 섹션으로 스크롤 */
+document.querySelectorAll('.side-tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.side-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.target)?.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+function hesc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function slug(tmdbId){ return `/title/1-${new Date().getFullYear()}${tmdbId}`; }
+
+function goWork(tmdbId, type, title){
+  if(!tmdbId) return;
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id:tmdbId, type:type||'tv', platform:'', rank:1, title, season:1, year:new Date().getFullYear()
+  }));
+  location.href = slug(tmdbId);
+}
+
+function workCard(w, isDB){
+  const poster  = w.poster_path
+    ? `<img src="${IMG}${w.poster_path}" alt="" loading="lazy">`
+    : `<div class="work-poster-ph">🎬</div>`;
+  const title   = w.title_ko || w.title || w.name || '';
+  const year    = (w.release_year || (w.first_air_date || w.release_date || '').slice(0,4)) || '';
+  const mtype   = w.media_type || w._type || '';
+  const typeLabel = mtype==='movie' ? '영화' : 'TV';
+  const typeColor = mtype==='movie' ? 'rgba(240,180,41,.85)' : 'rgba(55,138,221,.85)';
+  const dbBadge = isDB ? `<span class="work-db">DB</span>` : '';
+  const tmdbId  = w.tmdb_id || w.id;
+
+  const card = document.createElement('div');
+  card.className = 'work-card';
+  card.innerHTML = `
+    <div class="work-poster">
+      ${poster}
+      <span class="work-type" style="background:${typeColor}">${typeLabel}</span>
+      ${dbBadge}
+    </div>
+    <div class="work-title">${hesc(title)}</div>
+    <div class="work-meta">${year||'-'}</div>
+  `;
+  card.onclick = ()=>goWork(tmdbId, mtype, title);
+  return card;
+}
+
+function personCard(p){
+  const photo = p.profile_path
+    ? `<img class="person-photo" src="${IMG_PROFILE}${p.profile_path}" alt="" loading="lazy">`
+    : `<div class="person-photo-ph">👤</div>`;
+  const known = (p.known_for||[]).map(k=>k.title||k.name).slice(0,2).join(', ');
+
+  const card = document.createElement('div');
+  card.className = 'person-card';
+  card.innerHTML = `
+    ${photo}
+    <div>
+      <div class="person-name">${hesc(p.name||'')}</div>
+      <div class="person-meta">${hesc(p.known_for_department||'')}${known?` · ${hesc(known)}`:''}</div>
+    </div>
+  `;
+  card.onclick = ()=>{ location.href = `/person.html?id=${p.id}`; };
+  return card;
+}
+
+async function runSearch(){
+  const workGrid   = document.getElementById('workGrid');
+  const personGrid = document.getElementById('personGrid');
+
+  if(!q){
+    workGrid.innerHTML   = `<div class="empty">검색어를 입력해주세요.</div>`;
+    return;
+  }
+
+  try{
+    const [dbRes, tvRes, mvRes, personRes] = await Promise.allSettled([
+      fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=12`),
+      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+      fetch(`${TMDB_PROXY}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
+    ]);
+
+    // 우리 DB 작품
+    let dbWorks = [];
+    if(dbRes.status==='fulfilled' && dbRes.value.ok){
+      const j = await dbRes.value.json();
+      dbWorks = (j.data || []);
+    }
+    const dbTmdbIds = new Set(dbWorks.map(w=>w.tmdb_id));
+
+    // TMDB TV/영화 (DB에 이미 있는 건 제외, 성인물 제외)
+    let tmdbTv = [];
+    if(tvRes.status==='fulfilled' && tvRes.value.ok){
+      const j = await tvRes.value.json();
+      tmdbTv = (j.results||[]).filter(r=>!r.adult).filter(r=>!dbTmdbIds.has(r.id))
+        .map(r=>({...r, _type:'tv', tmdb_id:r.id}));
+    }
+    let tmdbMv = [];
+    if(mvRes.status==='fulfilled' && mvRes.value.ok){
+      const j = await mvRes.value.json();
+      tmdbMv = (j.results||[]).filter(r=>!r.adult).filter(r=>!dbTmdbIds.has(r.id))
+        .map(r=>({...r, _type:'movie', tmdb_id:r.id}));
+    }
+
+    // 인물
+    let persons = [];
+    if(personRes.status==='fulfilled' && personRes.value.ok){
+      const j = await personRes.value.json();
+      persons = (j.results||[]);
+    }
+
+    // ── 작품 렌더링 (DB 우선, 그다음 TMDB) ──
+    workGrid.innerHTML = '';
+    dbWorks.forEach(w=>workGrid.appendChild(workCard(w, true)));
+    [...tmdbTv, ...tmdbMv].forEach(w=>workGrid.appendChild(workCard(w, false)));
+    const workCount = dbWorks.length + tmdbTv.length + tmdbMv.length;
+    if(workCount===0) workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
+    document.getElementById('cntWorks').textContent = workCount;
+
+    // ── 인물 렌더링 ──
+    personGrid.innerHTML = '';
+    persons.forEach(p=>personGrid.appendChild(personCard(p)));
+    if(persons.length===0) personGrid.innerHTML = `<div class="empty">인물 검색 결과가 없습니다.</div>`;
+    document.getElementById('cntPersons').textContent = persons.length;
+
+  }catch(e){
+    console.warn('검색 실패:', e);
+    workGrid.innerHTML = `<div class="empty">검색 중 오류가 발생했습니다.</div>`;
+  }
+}
+
+runSearch();
+</script>
+
+</body>
+</html>
