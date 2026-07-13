@@ -3371,24 +3371,14 @@ async function toggleCrawlLock(id, checked) {
     const json = await res.json();
     if (json.ok) {
       showToast(`✅ ${label} 완료`, 'ok');
-      // 뱃지 업데이트 — 리로드 없이 현재 행에서 직접 처리
-      const tr         = checkbox.closest('tr');
-      const badgeCell  = tr.querySelector('td:nth-child(6)'); // 상태 칸
-      const labelEl    = checkbox.closest('label');
-      if (checked) {
-        // 날짜고정 뱃지 추가
-        if (badgeCell && !badgeCell.querySelector('.crawl-lock-badge')) {
-          badgeCell.insertAdjacentHTML('beforeend',
-            `<span class="manual-badge crawl-lock-badge"
-              style="background:rgba(100,160,255,.15);color:#7ec8e3;border:1px solid rgba(100,160,255,.35);margin-left:4px">
-              📌 날짜고정</span>`);
-        }
-        if (labelEl) labelEl.style.color = '#7ec8e3';
-      } else {
-        // 날짜고정 뱃지 제거
-        badgeCell?.querySelector('.crawl-lock-badge')?.remove();
-        if (labelEl) labelEl.style.color = 'var(--muted2)';
-      }
+      // 원본 데이터(allData)도 함께 갱신 — 이걸 안 하면 필터탭 클릭 등으로
+      // renderTable()이 다시 호출될 때 예전 상태(is_manual)로 되돌아가 보이는 버그가 있었음
+      const row = allData.find(r => r.id === id);
+      if (row) row.is_manual = is_manual;
+      // 배지를 손으로 직접 지우고 넣던 방식은 클래스명이 서로 어긋나
+      // (렌더링 시 붙는 클래스와 삭제 시 찾는 클래스가 달라서) 제대로 지워지지 않는 버그가 있었음.
+      // → 화면 전체를 allData 기준으로 다시 그려서 체크박스·배지가 항상 일치하도록 처리
+      renderTable();
     } else {
       // 실패 시 체크박스 원복
       if (checkbox) checkbox.checked = !checked;
