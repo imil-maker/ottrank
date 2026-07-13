@@ -921,6 +921,58 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div id="rtLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
     </div>
 
+    <!-- 구분선 -->
+    <div style="height:1px;background:var(--border);margin:28px 0"></div>
+
+    <!-- ── 특정 작품 평점 강제 동기화 (2026-07-13 신설) ── -->
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px">🎯 특정 작품 평점 강제 동기화</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+      메인페이지(rankings)와 작품페이지(works) 평점이 다른 작품을 몇 개만 급하게 맞출 때 사용합니다.<br>
+      <span style="color:var(--gold)">주의:</span> 값이 이미 있어도 무조건 덮어씁니다 — 위 배치(빈 값만 채움)와 다른 동작입니다.
+    </div>
+
+    <div class="search-tabs">
+      <button class="search-tab" id="rtsTabId" onclick="switchRtsTab('id')">TMDB ID</button>
+      <button class="search-tab on" id="rtsTabName" onclick="switchRtsTab('name')">작품명 검색</button>
+    </div>
+    <div class="search-row">
+      <input class="search-input" id="rtsTmdbInput" type="number" placeholder="tmdb_id 입력 (예: 296206)"
+        onkeydown="if(event.key==='Enter')loadRtsWork()" style="display:none">
+      <div class="search-dropdown" id="rtsNameSearchWrap" style="display:block;flex:1">
+        <input class="search-input" id="rtsNameInput" type="text"
+          placeholder="한글 또는 영어 작품명 입력"
+          oninput="onRtsNameInput(this.value)"
+          onkeydown="if(event.key==='Enter')searchRtsByName()"
+          autocomplete="off" style="width:100%">
+        <div class="search-results" id="rtsSearchResults"></div>
+      </div>
+      <button class="btn-primary" onclick="handleRtsSearch()">작품 조회</button>
+    </div>
+
+    <!-- 선택된 작품 + 불일치 미리보기 -->
+    <div id="rtsResultArea" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:16px">
+      <div class="work-info-box" id="rtsWorkInfoBox" style="margin-bottom:16px">
+        <div class="work-poster" id="rtsWorkPoster"></div>
+        <div>
+          <div class="work-title" id="rtsWorkTitle"></div>
+          <div class="work-sub" id="rtsWorkSub"></div>
+        </div>
+      </div>
+
+      <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">메인페이지(rankings)에 있는 값</div>
+      <div id="rtsRankingRows" style="font-size:13px;font-family:var(--mono);line-height:2;max-height:200px;overflow-y:auto"></div>
+
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn-secondary" id="rtsRefreshBtn" onclick="syncRtsRating(true)" style="flex:1;padding:12px;font-size:14px">
+          🔄 TMDB 최신값으로 갱신 후 반영
+        </button>
+        <button class="btn-crawl" id="rtsApplyBtn" onclick="syncRtsRating(false)" style="flex:1;padding:12px;font-size:14px">
+          ✅ 지금 works 값 그대로 반영
+        </button>
+      </div>
+      <div id="rtsStatusLine" style="margin-top:12px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
   </div>
 
   <!-- ══ IMDb 매칭 채우기 섹션 ══ -->
@@ -3421,6 +3473,146 @@ async function saveImsRating() {
   } finally {
     btn.disabled = false;
     btn.textContent = '💾 저장';
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   특정 작품 평점 강제 동기화 (2026-07-13 신설)
+   (IMDb 개별 수동입력 탭의 검색 UI와 동일한 패턴 재사용)
+   기존 배치(평점 채우기)는 "빈 값만" 채우는 반면, 이건 "이미 값이
+   있어도 rankings ↔ works가 다르면" 강제로 맞추는 용도.
+══════════════════════════════════════════════════════ */
+let rtsSearchTab     = 'name';
+let rtsNameTimer     = null;
+let rtsCurrentTmdbId = null;
+
+function switchRtsTab(tab) {
+  rtsSearchTab = tab;
+  document.getElementById('rtsTabId').classList.toggle('on', tab === 'id');
+  document.getElementById('rtsTabName').classList.toggle('on', tab === 'name');
+  document.getElementById('rtsTmdbInput').style.display      = tab === 'id'   ? 'block' : 'none';
+  document.getElementById('rtsNameSearchWrap').style.display = tab === 'name' ? 'block' : 'none';
+  document.getElementById('rtsSearchResults').classList.remove('show');
+}
+
+function handleRtsSearch() {
+  if (rtsSearchTab === 'id') loadRtsWork();
+  else searchRtsByName();
+}
+
+function onRtsNameInput(val) {
+  clearTimeout(rtsNameTimer);
+  const results = document.getElementById('rtsSearchResults');
+  if (!val.trim()) { results.classList.remove('show'); return; }
+  rtsNameTimer = setTimeout(() => searchRtsByName(val), 400);
+}
+
+async function searchRtsByName(query) {
+  const val = query || document.getElementById('rtsNameInput').value.trim();
+  if (!val) { showToast('작품명을 입력해주세요'); return; }
+  const results = document.getElementById('rtsSearchResults');
+  results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 중...</div>';
+  results.classList.add('show');
+  try {
+    const res  = await fetch(`${API}/works/search?q=${encodeURIComponent(val)}&limit=8`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (!data.ok || !data.data?.length) {
+      results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted)">검색 결과가 없습니다</div>';
+      return;
+    }
+    results.innerHTML = data.data.map(w => `
+      <div class="search-result-item" onclick="selectRtsWork(${w.tmdb_id})">
+        <div class="sri-poster">
+          ${w.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${w.poster_path}" alt="${w.title_ko||''}" loading="lazy">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`}
+        </div>
+        <div>
+          <div class="sri-title">${w.title_ko || ''}</div>
+          <div class="sri-sub">${[w.title_en, `tmdb: ${w.tmdb_id}`].filter(Boolean).join(' · ')}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    results.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--accent)">검색 오류</div>';
+  }
+}
+
+async function loadRtsWork() {
+  const id = parseInt(document.getElementById('rtsTmdbInput').value.trim());
+  if (!id) { showToast('tmdb_id를 입력해주세요'); return; }
+  await loadRtsWorkById(id);
+}
+async function selectRtsWork(tmdbId) {
+  document.getElementById('rtsSearchResults').classList.remove('show');
+  await loadRtsWorkById(tmdbId);
+}
+
+async function loadRtsWorkById(tmdbId) {
+  rtsCurrentTmdbId = tmdbId;
+  document.getElementById('rtsStatusLine').style.display = 'none';
+  try {
+    const res  = await fetch(`${API}/admin/works/${tmdbId}/rating-status`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if (!data.ok) { showToast(data.message || '작품을 찾을 수 없어요'); return; }
+
+    const w = data.works;
+    document.getElementById('rtsWorkPoster').innerHTML = ''; // works API가 poster_path를 안 주므로 비워둠
+    document.getElementById('rtsWorkTitle').textContent = w.title_ko || '';
+    document.getElementById('rtsWorkSub').textContent =
+      `tmdb: ${w.tmdb_id} · works 평점: ${w.tmdb_rating ?? '없음'} · 마지막 확인: ${w.rating_updated_at ? w.rating_updated_at.slice(0,16).replace('T',' ') : '없음'}`;
+
+    // rankings 행별로 works 평점과 다른지 표시
+    const rows = data.rankings || [];
+    const rowsHtml = rows.length
+      ? rows.map(r => {
+          const mismatch = String(r.tmdb_rating) !== String(w.tmdb_rating);
+          const color = mismatch ? 'var(--red)' : 'var(--green)';
+          const mark  = mismatch ? '⚠️ 다름' : '✓ 일치';
+          return `<div>· ${r.platform} · ${r.date} · ${r.tmdb_rating ?? '없음'} <span style="color:${color}">${mark}</span></div>`;
+        }).join('')
+      : '<div style="color:var(--muted)">rankings에 이 작품이 없습니다</div>';
+    document.getElementById('rtsRankingRows').innerHTML = rowsHtml;
+
+    document.getElementById('rtsResultArea').style.display = 'block';
+  } catch(e) {
+    showToast('작품 정보를 불러오지 못했어요');
+  }
+}
+
+async function syncRtsRating(refresh) {
+  if (!rtsCurrentTmdbId) { showToast('작품을 먼저 선택해주세요'); return; }
+  const refreshBtn = document.getElementById('rtsRefreshBtn');
+  const applyBtn   = document.getElementById('rtsApplyBtn');
+  const statusLine = document.getElementById('rtsStatusLine');
+  refreshBtn.disabled = true;
+  applyBtn.disabled   = true;
+  statusLine.style.display = 'block';
+  statusLine.textContent = refresh ? 'TMDB에서 최신값 조회 중...' : '반영 중...';
+  try {
+    const res = await fetch(`${API}/admin/works/sync-rating-single`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: rtsCurrentTmdbId, refresh }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      statusLine.textContent = `✅ 완료! works 평점 ${data.tmdb_rating ?? '없음'} → rankings ${data.rankings_updated}개 행 반영`;
+      showToast('✅ 평점 동기화 완료!');
+      await loadRtsWorkById(rtsCurrentTmdbId); // 미리보기 갱신
+    } else {
+      statusLine.textContent = `❌ ${data.message || '실패'}`;
+      showToast(data.message || '동기화 실패');
+    }
+  } catch(e) {
+    statusLine.textContent = '❌ 네트워크 오류';
+    showToast('네트워크 오류');
+  } finally {
+    refreshBtn.disabled = false;
+    applyBtn.disabled   = false;
   }
 }
 
