@@ -167,6 +167,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ac-title{font-size:11px;margin-top:6px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .crawl-result{font-size:13px;padding:10px 14px;border-radius:var(--r);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);color:#34d399;font-family:var(--mono);margin-bottom:16px;display:none}
 
+/* ── 확정된 성인물 리스트(works 관리와 동일한 표 스타일, 2026-07-13 신설) ── */
+.btn-sm{padding:6px 14px;border-radius:6px;border:none;font-family:var(--mono);font-size:12px;cursor:pointer;font-weight:500;background:var(--bg3);color:var(--text)}
+.btn-load{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 16px;border-radius:6px;font-family:var(--sans);font-size:13px;cursor:pointer}
+.table-wrap{background:var(--card,var(--bg2));border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table-wrap table{width:100%;border-collapse:collapse}
+.table-wrap th{background:var(--bg3);padding:10px 14px;text-align:left;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+.table-wrap td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+.table-wrap tr:last-child td{border-bottom:none}
+.table-wrap tr:hover td{background:rgba(255,255,255,.02)}
+.table-wrap .poster-thumb{width:36px;height:54px;object-fit:cover;border-radius:4px;background:var(--bg3);display:block}
+.table-wrap .poster-ph{width:36px;height:54px;border-radius:4px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px}
+.table-wrap .loading,.table-wrap .empty{text-align:center;padding:40px;color:var(--muted);font-family:var(--mono)}
+.filter-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.ftab{padding:6px 16px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)}
+.ftab.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+
 /* ── MBTI 관리 ── */
 .mbti-add-chip{
   padding:6px 14px;border-radius:20px;border:1px solid var(--border);
@@ -1015,53 +1031,104 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <!-- ══ 성인물 정리 섹션 ══ -->
   <div class="wrap" id="adultWrap" style="display:none">
 
-    <!-- 안내 메시지 -->
-    <div style="background:rgba(240,68,68,.08);border:1px solid rgba(240,68,68,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
-      💡 제목·줄거리·TMDB키워드에 성인물 의심 단어가 포함된 작품을 찾아 보여줍니다. <span style="color:var(--red)">전부 기본 체크해제 상태이니, 진짜 성인물인 걸 발견하면 체크</span>해주세요.<br>
-      아래 "선택 삭제" 누르면 체크된 것만 삭제되고, 체크 안 한 것은 "정상 확인됨"으로 표시되어 다음부터 목록에 안 나옵니다.<br>
-      검색창에 단어를 넣으면 그 단어로만 찾아봅니다. 이미 검사한 단어는 아래 태그로 표시되니 참고해서 겹치지 않는 단어로 검색해주세요.
+    <!-- 서브탭 전환: [확정된 성인물 리스트](기본) ↔ [단어검색으로 후보 찾기] -->
+    <div class="filter-tabs" id="adultSubTabs" style="margin-bottom:20px">
+      <button class="ftab on" id="subTabConfirmed" onclick="switchAdultSubTab('confirmed')">📋 확정된 성인물 리스트</button>
+      <button class="ftab" id="subTabSearch" onclick="switchAdultSubTab('search')">🔍 단어검색으로 후보 찾기</button>
     </div>
 
-    <!-- 직접 단어 검색 -->
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
-      <div style="display:flex;gap:10px;margin-bottom:12px">
-        <input class="search-input" id="acWordInput" type="text" placeholder="직접 검색할 단어 입력 (비워두면 기본 단어 목록으로 검색)"
-          style="flex:1" onkeydown="if(event.key==='Enter')acSearchWord()">
-        <button class="btn-primary" onclick="acSearchWord()" style="padding:0 20px">검색</button>
+    <!-- ══ 서브탭 ①: 확정된 성인물 리스트 (기본 화면) ══ -->
+    <div id="adultConfirmedWrap" style="display:block">
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="font-size:15px;font-weight:600">🔞 확정된 성인물 목록</div>
+        <input class="search-input" id="acConfirmedSearchInp" type="text" placeholder="제목 검색..."
+          style="width:200px" oninput="acConfirmedSearch(this.value)">
+        <button class="btn-sm" onclick="acConfirmedSelectAll()">☑ 전체선택</button>
+        <button class="btn-load" onclick="acConfirmedLoad()" style="margin-left:auto">새로고침</button>
+        <span id="acConfirmedStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
       </div>
-      <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:6px">지금까지 검색해본 단어 (겹치는 단어는 검색해도 새로운 결과 없음)</div>
-      <div id="acWordHistory" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <span>💡 works 관리 표에서 🔞 체크된(adult_flag=1) 작품 전체 목록입니다. 여기서 삭제하면 works에서 완전히 삭제됩니다.</span>
+        <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3);flex-shrink:0"
+          onclick="acConfirmedDeleteChecked()">🗑 체크 삭제</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>포스터</th><th>TMDB ID</th><th>한글 제목</th><th>영어 제목</th>
+              <th>매칭 출처</th><th>신뢰도</th><th>삭제</th>
+            </tr>
+          </thead>
+          <tbody id="acConfirmedTableBody">
+            <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+        <button class="btn-load" id="acConfirmedPrevBtn" onclick="acConfirmedChangePage(-1)">◀ 이전 페이지</button>
+        <span style="font-family:var(--mono);font-size:13px;color:var(--muted2)" id="acConfirmedPageLabel">1페이지</span>
+        <button class="btn-load" id="acConfirmedNextBtn" onclick="acConfirmedChangePage(1)">다음 페이지 ▶</button>
+      </div>
+
     </div>
 
-    <!-- 상태 카드 -->
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
-      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">이번 세션 삭제</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--red)" id="acDeleted">0</div>
+    <!-- ══ 서브탭 ②: 단어검색으로 후보 찾기 ══ -->
+    <div id="adultSearchWrap" style="display:none">
+
+      <!-- 안내 메시지 -->
+      <div style="background:rgba(240,68,68,.08);border:1px solid rgba(240,68,68,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 제목·줄거리·TMDB키워드에 성인물 의심 단어가 포함된 작품을 찾아 보여줍니다. <span style="color:var(--red)">전부 기본 체크해제 상태이니, 진짜 성인물인 걸 발견하면 체크</span>해주세요.<br>
+        아래 "선택 삭제" 누르면 체크된 것만 삭제되고, 체크 안 한 것은 "정상 확인됨"으로 표시되어 다음부터 목록에 안 나옵니다.<br>
+        검색창에 단어를 넣으면 그 단어로만 찾아봅니다. 이미 검사한 단어는 아래 태그로 표시되니 참고해서 겹치지 않는 단어로 검색해주세요.
+      </div>
+
+      <!-- 직접 단어 검색 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:flex;gap:10px;margin-bottom:12px">
+          <input class="search-input" id="acWordInput" type="text" placeholder="직접 검색할 단어 입력 (비워두면 기본 단어 목록으로 검색)"
+            style="flex:1" onkeydown="if(event.key==='Enter')acSearchWord()">
+          <button class="btn-primary" onclick="acSearchWord()" style="padding:0 20px">검색</button>
         </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">정상 확인됨</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="acCleared">0</div>
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:6px">지금까지 검색해본 단어 (겹치는 단어는 검색해도 새로운 결과 없음)</div>
+        <div id="acWordHistory" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+
+      <!-- 상태 카드 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">이번 세션 삭제</div>
+            <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--red)" id="acDeleted">0</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">정상 확인됨</div>
+            <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="acCleared">0</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남은 후보</div>
+            <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="acRemaining">-</div>
+          </div>
         </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남은 후보</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="acRemaining">-</div>
+
+        <div style="display:flex;gap:10px">
+          <button class="btn-crawl" id="acLoadBtn" onclick="acLoadBatch()" style="flex:1;padding:13px;font-size:15px">
+            ▶ 다음 50개 불러오기
+          </button>
+          <button class="btn-crawl" id="acSaveBtn" onclick="acSaveBatch()" style="display:none;padding:13px 20px;background:var(--red)">
+            🗑 선택 삭제 + 나머지 정상표시
+          </button>
         </div>
       </div>
 
-      <div style="display:flex;gap:10px">
-        <button class="btn-crawl" id="acLoadBtn" onclick="acLoadBatch()" style="flex:1;padding:13px;font-size:15px">
-          ▶ 다음 50개 불러오기
-        </button>
-        <button class="btn-crawl" id="acSaveBtn" onclick="acSaveBatch()" style="display:none;padding:13px 20px;background:var(--red)">
-          🗑 선택 삭제 + 나머지 정상표시
-        </button>
-      </div>
+      <!-- 포스터 그리드 -->
+      <div id="acGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"></div>
+
     </div>
-
-    <!-- 포스터 그리드 -->
-    <div id="acGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"></div>
 
   </div>
 
@@ -1640,7 +1707,7 @@ function switchPageTab(tab) {
     if (isOn) document.getElementById('adminHeaderTitle').textContent = t.title;
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
-  if (tab === 'adult') acRenderWordHistory();
+  if (tab === 'adult') { acRenderWordHistory(); acConfirmedLoad(); }
 }
 
 /* ══ MBTI 관리 — 상태 ══ */
@@ -3732,6 +3799,154 @@ async function acSaveBatch() {
     btn.disabled = false;
     btn.textContent = '🗑 선택 삭제 + 나머지 정상표시';
   }
+}
+
+/* ══════════════════════════════════════════════════════
+   확정된 성인물 리스트 — works.adult_flag=1 전체 목록 (2026-07-13 신설)
+   "🔞 성인물 정리" 탭의 기본 서브탭. works 관리 표와 동일한 UI/동작 패턴을 그대로 따름
+   (검색 → 400ms 디바운스, 페이지당 50개, 삭제는 체크박스+선택삭제 방식).
+   ⚠️ TMDB ID 링크는 이 리스트에 뜨는 작품이 전부 성인비디오(movie)라는 전제 하에
+      media_type 값과 무관하게 항상 /movie/ 로 고정(사용자 지시) — tv로 잘못 매칭된
+      경우도 있어 media_type을 그대로 믿으면 TMDB 링크가 깨짐.
+══════════════════════════════════════════════════════ */
+let acConfirmedPage = 1;
+let acConfirmedTimer = null;
+
+/* ── 서브탭 전환: confirmed(기본) ↔ search ── */
+function switchAdultSubTab(tab) {
+  const isConfirmed = tab === 'confirmed';
+  document.getElementById('adultConfirmedWrap').style.display = isConfirmed ? 'block' : 'none';
+  document.getElementById('adultSearchWrap').style.display    = isConfirmed ? 'none'  : 'block';
+  document.getElementById('subTabConfirmed').classList.toggle('on', isConfirmed);
+  document.getElementById('subTabSearch').classList.toggle('on', !isConfirmed);
+  if (isConfirmed) acConfirmedLoad();
+}
+
+async function acConfirmedLoad() {
+  const tbody = document.getElementById('acConfirmedTableBody');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  try {
+    const q = document.getElementById('acConfirmedSearchInp')?.value || '';
+    const params = new URLSearchParams({ filter: 'adult_confirmed', page: acConfirmedPage });
+    if (q) params.set('q', q);
+    const res = await fetch(`${API}/admin/works?${params}`, { headers: { Authorization: `Bearer ${ADMIN_SECRET}` } });
+    const json = await res.json();
+    const rows = json.data || [];
+    document.getElementById('acConfirmedStat').textContent = `${rows.length}개`;
+    document.getElementById('acConfirmedPageLabel').textContent = `${acConfirmedPage}페이지`;
+    document.getElementById('acConfirmedPrevBtn').disabled = acConfirmedPage <= 1;
+    document.getElementById('acConfirmedNextBtn').disabled = rows.length < 50;
+    acConfirmedRender(rows);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function acConfirmedSearch(val) {
+  clearTimeout(acConfirmedTimer);
+  acConfirmedPage = 1;
+  acConfirmedTimer = setTimeout(acConfirmedLoad, 400);
+}
+
+function acConfirmedChangePage(delta) {
+  const next = acConfirmedPage + delta;
+  if (next < 1) return;
+  acConfirmedPage = next;
+  acConfirmedLoad();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function acConfirmedRender(rows) {
+  const tbody = document.getElementById('acConfirmedTableBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">확정된 성인물이 없습니다</td></tr>';
+    return;
+  }
+  const srcColor = { admin: 'var(--green)', auto_claude: 'var(--info,var(--muted2))', auto_tmdb: 'var(--muted2)' };
+  tbody.innerHTML = rows.map(r => {
+    const ottYear = r.release_year || new Date().getFullYear();
+    const ottUrl  = `/title/1-${ottYear}${r.tmdb_id}`;
+    // ⚠️ media_type과 무관하게 항상 movie 고정(이 리스트는 전부 성인비디오라는 전제)
+    const tmdbUrl = `https://www.themoviedb.org/movie/${r.tmdb_id}`;
+    const titleKo = (r.title_ko || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const titleEn = (r.title_en || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return `
+    <tr>
+      <td><input type="checkbox" class="ac-confirmed-check" data-tmdb-id="${r.tmdb_id}"></td>
+      <td>
+        <a href="${ottUrl}" target="_blank" rel="noopener" title="오뜨랑 작품페이지로 이동">
+          ${r.poster_path
+            ? `<img class="poster-thumb" src="${IMG}${r.poster_path}" alt="" loading="lazy">`
+            : `<div class="poster-ph">🎬</div>`}
+        </a>
+      </td>
+      <td>
+        <a href="${tmdbUrl}" target="_blank" rel="noopener"
+           style="font-family:var(--mono);font-size:12px;color:var(--muted2);text-decoration:underline"
+           title="TMDB 페이지로 이동(movie 고정)">${r.tmdb_id}</a>
+      </td>
+      <td style="font-size:13px">${titleKo || '-'}</td>
+      <td style="font-size:13px">${titleEn || '-'}</td>
+      <td><span style="font-size:11px;color:${srcColor[r.match_source] || 'var(--muted)'}">${r.match_source || 'admin'}</span></td>
+      <td><span style="font-family:var(--mono);font-size:12px">${r.confidence_score || 100}</span></td>
+      <td>
+        <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)"
+          onclick="acConfirmedDeleteOne(${r.tmdb_id},'${(r.title_ko || r.title_en || '').replace(/'/g, "\\'")}')">삭제</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── 전체선택: 현재 페이지에 보이는 것만(최대 50개, 페이지네이션 그대로 유지) ── */
+function acConfirmedSelectAll() {
+  document.querySelectorAll('.ac-confirmed-check').forEach(el => { el.checked = true; });
+}
+
+async function acConfirmedDeleteOne(tmdbId, title) {
+  if (!confirm(`⚠️ works에서 삭제합니다.\n"${title}" (tmdb_id: ${tmdbId})\n\n계속하시겠습니까?`)) return;
+  try {
+    const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id: tmdbId }),
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '삭제 실패'); return; }
+    showToast(`🗑️ 삭제 완료 (${tmdbId})`);
+    acConfirmedLoad();
+  } catch (e) { showToast(e.message); }
+}
+
+// [2026-07-13 추가] 체크된 항목 일괄삭제 — 오작동으로 전체 삭제되는 사고 방지 위해
+// 한 번에 50개 초과 삭제 차단(페이지당 50개씩만 보여주므로 정상적으로는 못 넘지만 안전핀).
+async function acConfirmedDeleteChecked() {
+  const checked = Array.from(document.querySelectorAll('.ac-confirmed-check:checked'));
+  if (!checked.length) { showToast('체크된 항목이 없습니다'); return; }
+
+  const ids = checked.map(el => el.dataset.tmdbId);
+  if (ids.length > 50) {
+    showToast(`⚠️ 한 번에 최대 50개까지만 삭제할 수 있습니다 (현재 ${ids.length}개 선택됨)`);
+    return;
+  }
+  if (!confirm(`⚠️ 체크된 ${ids.length}개 작품을 works에서 삭제합니다.\n\n계속하시겠습니까?`)) return;
+
+  let success = 0, fail = 0;
+  for (const tmdbId of ids) {
+    try {
+      const res = await fetch(`${API}/admin/works/${tmdbId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${ADMIN_SECRET}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tmdb_id: tmdbId }),
+      });
+      const json = await res.json();
+      if (json.ok) success++; else fail++;
+    } catch (e) { fail++; }
+  }
+
+  if (fail === 0) showToast(`🗑️ ${success}개 삭제 완료`);
+  else showToast(`⚠️ ${success}개 성공 / ${fail}개 실패`);
+  acConfirmedLoad();
 }
 
 /* ══════════════════════════════════════════════════════
