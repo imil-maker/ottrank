@@ -238,9 +238,9 @@ function $(o,i,t){if(!i.length)return o.slice(0,t).map((a,r)=>({...a,rank:r+1}))
         SELECT DISTINCT wk.tmdb_id
         FROM keyword_translation kt
         CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
-        WHERE kt.keyword_ko LIKE ?
+        WHERE (' ' || kt.keyword_ko || ' ') LIKE ('% ' || ? || ' %')
         LIMIT ?
-      `).bind(`%${n}%`,a).all(),_=new Map;d.results.forEach(b=>_.set(b.tmdb_id,0)),p.results.forEach(b=>{_.has(b.tmdb_id)||_.set(b.tmdb_id,1)});let g=[..._.keys()].slice(0,a);if(!g.length)return new Response(JSON.stringify({ok:!0,data:[],has_more:!1,limit:c,offset:e}),{headers:l});let m=g.map(()=>"?").join(","),{results:f}=await t.DB.prepare(`
+      `).bind(n,a).all(),_=new Map;d.results.forEach(b=>_.set(b.tmdb_id,0)),p.results.forEach(b=>{_.has(b.tmdb_id)||_.set(b.tmdb_id,1)});let g=[..._.keys()].slice(0,a);if(!g.length)return new Response(JSON.stringify({ok:!0,data:[],has_more:!1,limit:c,offset:e}),{headers:l});let m=g.map(()=>"?").join(","),{results:f}=await t.DB.prepare(`
         SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
         FROM works
         WHERE tmdb_id IN (${m})
