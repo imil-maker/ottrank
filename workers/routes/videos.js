@@ -76,8 +76,11 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   }
 
   // ── POST /admin/videos/batch-crawl ───────────────────────────
-  // [2026-07-08 신설 / 2026-07-09 수정]
+  // [2026-07-08 신설 / 2026-07-09 수정 / 2026-07-13 수정]
   //   대상: title_videos 개수 0~1개 AND (yt_crawl_attempted_at NULL 또는 3일 경과)
+  //         AND adult_flag != 1 (2026-07-13 추가 — 성인물로 표시된 작품은
+  //         관련영상 자동수집 대상에서 제외. 이미 저장된 영상은 안 건드림,
+  //         앞으로의 신규 크롤링만 막음)
   //   우선순위: 오늘 rankings에 존재하는 작품 → works.created_at 최신순
   //   개별 작품 실패가 배치 전체를 중단시키지 않도록 각 건마다 try/catch
   //
@@ -128,6 +131,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             w.yt_crawl_attempted_at IS NULL
             OR w.yt_crawl_attempted_at < datetime('now', '-3 days')
           )
+          AND (w.adult_flag IS NULL OR w.adult_flag != 1)
         `).first();
         return new Response(JSON.stringify({
           ok: true, attempted: 0, filled: 0, remaining: eligibleRow?.cnt || 0,
@@ -158,6 +162,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           w.yt_crawl_attempted_at IS NULL
           OR w.yt_crawl_attempted_at < datetime('now', '-3 days')
         )
+        AND (w.adult_flag IS NULL OR w.adult_flag != 1)
         ORDER BY
           (
             EXISTS (
@@ -205,6 +210,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           w.yt_crawl_attempted_at IS NULL
           OR w.yt_crawl_attempted_at < datetime('now', '-3 days')
         )
+        AND (w.adult_flag IS NULL OR w.adult_flag != 1)
       `).first();
       const remaining = afterRow?.cnt || 0;
 
