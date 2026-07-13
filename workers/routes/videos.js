@@ -486,13 +486,19 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       //   잘못 선택해 검색어와 무관하게 매번 거의 전체를 스캔하는 문제 발견(D1 Rows read로 확인,
       //   EXPLAIN QUERY PLAN으로 원인 확정). CROSS JOIN은 SQLite에게 "적은 순서 그대로 실행"을
       //   강제하므로, 작은 테이블(keyword_translation, 4,443행)을 먼저 훑도록 고정.
+      //   2026-07-14 수정: 단순 LIKE '%공포%'는 "공포증"(phobia류, 캐릭터 설정 태그)까지 같이
+      //   걸려서 "공포"(장르 태그)와 섞이는 문제 발견(사용자 확인). 한글은 띄어쓰기가 단어 경계이므로,
+      //   keyword_ko/검색어 양쪽 앞뒤에 공백을 붙여 "독립된 단어로 일치할 때만" 매칭되도록 강제.
+      //   예) "개 공포증" → " 개 공포증 " 안에 " 공포 "(공백포함)가 없어 제외됨 (원하는 동작)
+      //       "오컬트 공포" → " 오컬트 공포 " 안에 " 공포 "가 있어 매칭됨
+      //   한계: "일본공포"처럼 띄어쓰기 없이 합성된 키워드는 못 잡음 — 발견 시 어드민에서 띄어쓰기 보정
       const keywordMatch = await env.DB.prepare(`
         SELECT DISTINCT wk.tmdb_id
         FROM keyword_translation kt
         CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
-        WHERE kt.keyword_ko LIKE ?
+        WHERE (' ' || kt.keyword_ko || ' ') LIKE ('% ' || ? || ' %')
         LIMIT ?
-      `).bind(`%${q}%`, MAX_MATCH_IDS).all();
+      `).bind(q, MAX_MATCH_IDS).all();
 
       // ③ 두 결과 합치기 (중복 제거). matchType: 0=제목매칭(우선), 1=키워드매칭
       const matchType = new Map();
