@@ -1553,6 +1553,9 @@ export async function handleAdmin(path, request, env, url, headers) {
   // keywords가 비어있는 works를 대상으로 TMDB에서 일괄 수집
   // Workers 실행시간 제한 때문에 요청당 limit(기본 20, 최대 50)개씩만 처리 —
   // 어드민 화면에서 remaining이 0이 될 때까지 반복 호출하는 방식으로 사용
+  // [2026-07-14 추가] adult_flag=1(성인물로 표시됨) 작품은 수집 대상에서 제외.
+  //   대상 조회 + remaining 카운트 두 쿼리 모두 동일 조건 적용(안 맞추면 remaining이
+  //   실제보다 부풀려져서 배치를 반복 호출해도 안 줄어드는 상태가 됨).
   if (path === "/admin/works/collect-keywords" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -1563,7 +1566,8 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const { results: targets } = await env.DB.prepare(`
         SELECT tmdb_id, media_type FROM works
-        WHERE keywords IS NULL OR keywords = ''
+        WHERE (keywords IS NULL OR keywords = '')
+        AND (adult_flag IS NULL OR adult_flag != 1)
         LIMIT ?
       `).bind(limit).all();
 
@@ -1615,7 +1619,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (updates.length) await env.DB.batch(updates);
 
       const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM works WHERE keywords IS NULL OR keywords = ''"
+        "SELECT COUNT(*) as cnt FROM works WHERE (keywords IS NULL OR keywords = '') AND (adult_flag IS NULL OR adult_flag != 1)"
       ).first();
 
       return new Response(JSON.stringify({
