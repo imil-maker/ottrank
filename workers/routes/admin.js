@@ -29,6 +29,8 @@
    GET    /admin/rankings/main
    PATCH  /admin/rankings/reorder
    PATCH  /admin/sync-ratings
+   GET    /admin/works/:tmdb_id/rating-status   ← 특정 작품 works↔rankings 평점 불일치 미리보기(2026-07-13 신설)
+   POST   /admin/works/sync-rating-single       ← 특정 작품 평점 강제 동기화(2026-07-13 신설)
    GET    /admin/grade-settings
    PUT    /admin/grade-settings
    POST   /admin/grade-settings/assign
@@ -1377,6 +1379,134 @@ export async function handleAdmin(path, request, env, url, headers) {
       );
       await env.DB.batch(updates);
       return new Response(JSON.stringify({ ok: true, updated: results.length }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/works/:tmdb_id/rating-status ────────────────────
+  // [2026-07-13 신설] 특정 작품 하나의 works.tmdb_rating과, rankings에 흩어진
+  // 행들(플랫폼/날짜별로 여러 개일 수 있음)의 tmdb_rating을 나란히 보여줌.
+  // sync-rating-single로 실제 반영하기 전에 "뭐가 얼마나 다른지" 미리 확인하는 용도.
+  // 읽기 전용이라 _checkAuth 없이도 큰 문제는 없으나, 어드민 화면 전용이므로 통일성 위해 체크함.
+  if (path.startsWith("/admin/works/") && path.endsWith("/rating-status") && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(path.split("/admin/works/")[1].split("/rating-status")[0]);
+      if (!tmdb_id) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+      }
+
+      const work = await env.DB.prepare(
+        "SELECT tmdb_id, title_ko, title_en, tmdb_rating, rating_updated_at FROM works WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+
+      if (!work) {
+        return new Response(JSON.stringify({ ok: false, message: "works에 없는 작품입니다" }), { status: 404, headers });
+      }
+
+      const { results: rankingRows } = await env.DB.prepare(`
+        SELECT id, platform, category_slot, date, tmdb_rating
+        FROM rankings
+        WHERE tmdb_id = ?
+        ORDER BY date DESC, platform ASC
+        LIMIT 50
+      `).bind(tmdb_id).all();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        works: {
+          tmdb_id: work.tmdb_id,
+          title_ko: work.title_ko,
+          title_en: work.title_en,
+          tmdb_rating: work.tmdb_rating,
+          rating_updated_at: work.rating_updated_at,
+        },
+        rankings: rankingRows, // 각 행: { id, platform, category_slot, date, tmdb_rating }
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/sync-rating-single ───────────────────────
+  // [2026-07-13 신설] 특정 작품 하나만 급하게 맞춰야 할 때 쓰는 수동 동기화.
+  // 기존 /admin/sync-ratings(PATCH)는 "rankings.tmdb_rating이 NULL인 것만" 채우는
+  // 대량 배치용이라, 이미 값이 들어있는데 "값이 틀린" 경우는 못 고침 — 그 사각지대를 메움.
+  // body.refresh=true면 TMDB에서 강제로 새로 조회해 works부터 갱신한 뒤(방문 시 자동
+  // 새로고침의 1일/5일 주기 제한을 무시하고 즉시 실행), 그 works 값을 rankings 전체 행에
+  // 조건 없이(NULL 여부 무관) 강제로 덮어씀. refresh=false/생략이면 TMDB 재조회 없이
+  // 지금 works에 있는 값을 그대로 rankings에 반영만 함(가장 빠른 경로).
+  if (path === "/admin/works/sync-rating-single" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdb_id = parseInt(body.tmdb_id);
+      const refresh = !!body.refresh;
+
+      if (!tmdb_id) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+      }
+
+      const work = await env.DB.prepare(
+        "SELECT tmdb_id, media_type, tmdb_rating FROM works WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+
+      if (!work) {
+        return new Response(JSON.stringify({ ok: false, message: "works에 없는 작품입니다" }), { status: 404, headers });
+      }
+
+      let finalRating = work.tmdb_rating ?? null;
+
+      // ── refresh=true: TMDB에서 강제로 새로 조회 (backfill-rating과 동일한 tv/movie 폴백 패턴) ──
+      if (refresh) {
+        const mtypes = work.media_type ? [work.media_type] : ["tv", "movie"];
+        let matched = false;
+        let rating = null;
+        let releaseDate = null;
+
+        for (const mtype of mtypes) {
+          try {
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${tmdb_id}?api_key=${env.TMDB_API_KEY}`
+            );
+            if (!resp.ok) continue;
+            const data = await resp.json();
+            matched = true;
+            rating      = data.vote_average ?? null; // 0점(투표수 부족)도 유효값 — ?? 사용
+            releaseDate = data.release_date || data.first_air_date || null;
+            break;
+          } catch (e) { /* 다음 media_type 시도 */ }
+        }
+
+        if (!matched) {
+          return new Response(JSON.stringify({
+            ok: false, message: "TMDB 조회 실패 — 잠시 후 다시 시도해주세요",
+          }), { status: 502, headers });
+        }
+
+        const nowIso = new Date().toISOString();
+        await env.DB.prepare(
+          "UPDATE works SET tmdb_rating = ?, release_date = ?, rating_updated_at = ? WHERE tmdb_id = ?"
+        ).bind(rating, releaseDate, nowIso, tmdb_id).run();
+
+        finalRating = rating;
+      }
+
+      // ── rankings 전체 행에 강제 반영 (NULL 조건 없음 — 값이 있어도 무조건 덮어씀) ──
+      const result = await env.DB.prepare(
+        "UPDATE rankings SET tmdb_rating = ? WHERE tmdb_id = ?"
+      ).bind(finalRating, tmdb_id).run();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        tmdb_rating: finalRating,
+        rankings_updated: result.meta?.changes ?? 0,
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
