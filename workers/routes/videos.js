@@ -9,7 +9,7 @@
    GET    /imdb/:imdbId             IMDb 평점 조회
    POST   /imdb/save                IMDb ID 저장
    GET    /youtube/trending         YouTube 한국 급상승 TOP50
-   GET    /works/search             작품 검색 (공개)
+   GET    /works/search             작품 검색 (공개) — 제목+키워드(한글) 통합검색, 15개 페이징(offset), 년도/평점/OTT순위 포함
    GET    /works/variety-similar/:tmdb_id  예능 태그 기반 비슷한 작품 (공개, % 계산 포함)
    GET    /works/:tmdb_id           작품 단건 조회
    GET    /search/keyword           키워드로 작품 검색 (공개, 한국작품 우선)
@@ -444,28 +444,105 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   }
 
   // ── GET /works/search ────────────────────────────────────────
-  // 공개 API — 인증 없이 works 검색 가능 (헤더 검색창 등에서 사용)
+  // 공개 API — 인증 없이 works 검색 가능 (헤더 검색창, 검색결과 페이지 등에서 사용)
+  // 2026-07-14 확장: 검색 결과 페이지(search-results.html) 신설에 맞춰 기능 추가
+  //   ① 제목(title_ko/title_en) 매칭 + 키워드(한글) 매칭을 합쳐서 검색
+  //      - 키워드는 work_keywords(영문, 정규화 테이블)에 저장되어 있어서,
+  //        한글 검색어는 keyword_translation.keyword_ko로 먼저 영문 키워드를 찾은 뒤 조인한다.
+  //   ② limit 기본값 10→15, offset 페이징 추가 ("더보기" 버튼용). has_more로 다음 페이지 존재 여부 알려줌
+  //   ③ release_year, tmdb_rating 응답에 추가 (기존엔 응답에서 빠져있어 프론트에서 년도 표시가 안 되던 문제)
+  //   ④ 오늘자 rankings를 조인해서 이번 페이지에 뜬 작품들의 플랫폼별 순위(ott_ranks)를 같이 내려줌
+  //      - "지금 이 작품이 이 OTT에서 서비스되는지"는 이 API로는 알 수 없음(순위표 = 랭킹 데이터일 뿐).
+  //        서비스 여부는 TMDB Watch Providers를 프론트에서 별도로 조회해서 보완한다 (트래픽 이슈로 캐싱은 추후 과제).
+  //   ⑤ /search/keyword와 동일하게 성인물(adult_flag=1) 제외
+  //   ⑥ 매칭 대상이 과도하게 많아지는 것(흔한 단어 검색 등) 방지 위해 매칭 tmdb_id 상한 300개
   if (path === "/works/search" && request.method === "GET") {
-    const q     = url.searchParams.get("q") || "";
-    const limit = Math.min(parseInt(url.searchParams.get("limit") || "10"), 20);
+    const q      = url.searchParams.get("q") || "";
+    const limit  = Math.min(parseInt(url.searchParams.get("limit") || "15"), 30);
+    const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
+    const MAX_MATCH_IDS = 300;
+
     if (!q.trim()) {
       return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
     }
-    // 2026-07-08 수정: 띄어쓰기 무시 검색
-    // 사용자가 띄어쓰기 없이 검색해도("멜로는체질") DB 값("멜로는 체질")과 매칭되도록
-    // title_ko/title_en, 검색어 양쪽 모두 공백을 제거한 뒤 비교한다 (REPLACE, 별도 컬럼/마이그레이션 불필요)
+    // 2026-07-08 수정: 띄어쓰기 무시 검색 (기존 유지)
     const qNoSpace = q.replace(/\s+/g, "");
+
     try {
-      const { results } = await env.DB.prepare(`
-        SELECT tmdb_id, title_ko, title_en, poster_path, media_type
+      // ① 제목 매칭 tmdb_id (기존 로직과 동일한 WHERE, id만 우선 추출)
+      const titleMatch = await env.DB.prepare(`
+        SELECT tmdb_id
         FROM works
         WHERE REPLACE(title_ko, ' ', '') LIKE ? OR REPLACE(title_en, ' ', '') LIKE ?
-        ORDER BY
-          CASE WHEN REPLACE(title_ko, ' ', '') LIKE ? THEN 0 ELSE 1 END,
-          title_ko ASC
         LIMIT ?
-      `).bind(`%${qNoSpace}%`, `%${qNoSpace}%`, `${qNoSpace}%`, limit).all();
-      return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+      `).bind(`%${qNoSpace}%`, `%${qNoSpace}%`, MAX_MATCH_IDS).all();
+
+      // ② 키워드(한글) 매칭 tmdb_id — keyword_translation.keyword_ko로 검색 → work_keywords 조인
+      const keywordMatch = await env.DB.prepare(`
+        SELECT DISTINCT wk.tmdb_id
+        FROM keyword_translation kt
+        JOIN work_keywords wk ON wk.keyword = kt.keyword_en
+        WHERE kt.keyword_ko LIKE ?
+        LIMIT ?
+      `).bind(`%${q}%`, MAX_MATCH_IDS).all();
+
+      // ③ 두 결과 합치기 (중복 제거). matchType: 0=제목매칭(우선), 1=키워드매칭
+      const matchType = new Map();
+      titleMatch.results.forEach(r => matchType.set(r.tmdb_id, 0));
+      keywordMatch.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
+
+      const allIds = [...matchType.keys()].slice(0, MAX_MATCH_IDS);
+      if (!allIds.length) {
+        return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset }), { headers });
+      }
+
+      // ④ 상세 정보 조회 (성인물 제외)
+      const idPlaceholders = allIds.map(() => "?").join(",");
+      const { results: workRows } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating
+        FROM works
+        WHERE tmdb_id IN (${idPlaceholders})
+          AND (adult_flag IS NULL OR adult_flag != 1)
+      `).bind(...allIds).all();
+
+      // ⑤ 정렬: 제목매칭 우선 → 평점 내림차순 (결과 규모가 작아 JS 정렬로 처리)
+      workRows.sort((a, b) => {
+        const ta = matchType.get(a.tmdb_id) ?? 1;
+        const tb = matchType.get(b.tmdb_id) ?? 1;
+        if (ta !== tb) return ta - tb;
+        return (b.tmdb_rating || 0) - (a.tmdb_rating || 0);
+      });
+
+      // ⑥ 페이징 (offset~offset+limit, 다음 페이지 존재 여부는 전체 길이로 판단)
+      const pageRows = workRows.slice(offset, offset + limit);
+      const hasMore  = workRows.length > offset + limit;
+
+      if (!pageRows.length) {
+        return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset }), { headers });
+      }
+
+      // ⑦ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
+      const pageIds = pageRows.map(w => w.tmdb_id);
+      const pagePlaceholders = pageIds.map(() => "?").join(",");
+      const { results: rankRows } = await env.DB.prepare(`
+        SELECT tmdb_id, platform, rank
+        FROM rankings
+        WHERE tmdb_id IN (${pagePlaceholders})
+          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+      `).bind(...pageIds).all();
+
+      const rankMap = {};
+      rankRows.forEach(r => {
+        if (!rankMap[r.tmdb_id]) rankMap[r.tmdb_id] = {};
+        rankMap[r.tmdb_id][r.platform] = r.rank;
+      });
+
+      const data = pageRows.map(w => ({
+        ...w,
+        ott_ranks: rankMap[w.tmdb_id] || {},
+      }));
+
+      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
