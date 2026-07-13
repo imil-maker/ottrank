@@ -640,6 +640,30 @@ export async function handleRankings(path, request, env, url, headers) {
   //             사이트맵에서는 시즌1(대표) 페이지만 등록 → 항상 1
   //   - year:   슬러그 파싱 시 폴백값인 "현재 연도"를 그대로 사용
   if (path === "/sitemap.xml") {
+    // ── KV 캐시 우선 조회 (신규 2026-07-13) ──────────────────
+    // ⚠️ 안전 원칙: 캐시 조회가 실패하거나, 캐시가 비어있거나,
+    // env.SITEMAP_CACHE 바인딩 자체가 없어도 절대 에러 내지 않고
+    // 아래 기존 D1 생성 로직으로 그대로 넘어감(폴백).
+    // 검색봇이 sitemap을 못 받는 상황이 생기면 안 되므로,
+    // 캐시는 "있으면 빠르고, 없어도 기존과 동일하게 100% 동작"해야 함.
+    try {
+      if (env.SITEMAP_CACHE) {
+        const cached = await env.SITEMAP_CACHE.get("sitemap_xml");
+        if (cached) {
+          return new Response(cached, {
+            headers: {
+              ...headers,
+              "Content-Type": "application/xml; charset=utf-8",
+              "X-Sitemap-Cache": "HIT", // 디버깅용 — 캐시가 실제로 쓰였는지 확인 가능
+            },
+          });
+        }
+      }
+    } catch (e) {
+      // 캐시 조회 실패 — 조용히 무시하고 아래에서 정상 생성으로 진행
+      console.log("sitemap cache read failed, falling back to D1:", e.message);
+    }
+
     try {
       const baseUrl = "https://ottrank.kr";
       const year    = new Date().getFullYear();
@@ -724,10 +748,25 @@ export async function handleRankings(path, request, env, url, headers) {
         urls.join("\n") + `\n` +
         `</urlset>`;
 
+      // ── KV에 캐시 저장 (신규 2026-07-13) ──────────────────
+      // ⚠️ 여기서 실패해도 이번 요청의 응답(xml)에는 전혀 영향 없음.
+      // 저장만 안 될 뿐, 방금 D1에서 만든 정확한 xml은 정상적으로 응답됨.
+      // 다음 요청이 왔을 때 다시 저장을 시도하므로 영구적으로 막히지 않음.
+      // 유효기간 1시간 = 기존 sitemap.xml.js 주석에 있던 원래 의도값과 동일
+      // (사이트 초기 단계라 검색 반영 지연을 최소화하기 위해 보수적으로 설정)
+      try {
+        if (env.SITEMAP_CACHE) {
+          await env.SITEMAP_CACHE.put("sitemap_xml", xml, { expirationTtl: 3600 });
+        }
+      } catch (e) {
+        console.log("sitemap cache write failed (non-fatal):", e.message);
+      }
+
       return new Response(xml, {
         headers: {
           ...headers,
           "Content-Type": "application/xml; charset=utf-8",
+          "X-Sitemap-Cache": "MISS", // 디버깅용 — 이번엔 D1에서 새로 만들었다는 표시
         },
       });
     } catch (e) {
