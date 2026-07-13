@@ -285,37 +285,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .p-title{flex:1;font-size:16px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .p-score{font-family:var(--font);font-size:11px;color:var(--muted);flex-shrink:0}
 
-/* ══ 오늘의 AI 추천 ══ */
-.ai-box{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:20px}
-.ai-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.ai-title{font-size:18px;font-weight:500;color:var(--text);display:flex;align-items:center;gap:10px}
-.ai-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(55,138,221,.15);color:#7ec8e3;border:1px solid rgba(55,138,221,.25)}
-.ai-reset{font-size:13px;color:var(--muted);background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:5px}
-.ai-reset:hover{color:var(--text)}
-.ai-filters{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
-.ai-filter-row{display:flex;align-items:flex-start;gap:16px}
-.ai-flabel{font-size:14px;color:var(--muted2);font-weight:500;width:90px;flex-shrink:0;padding-top:7px}
-.ai-chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{padding:6px 14px;border-radius:22px;border:1px solid var(--border);font-size:13px;color:var(--muted2);cursor:pointer;background:transparent;transition:all .15s;white-space:nowrap}
-.chip:hover:not(.on):not(.type-on){background:var(--bg3);color:var(--text)}
-.chip.on{background:rgba(55,138,221,.12);color:#7ec8e3;border-color:rgba(55,138,221,.3)}
-.chip.type-on{background:var(--bg3);color:var(--text);border-color:var(--border2);font-weight:500}
-.ai-btn{width:100%;padding:13px;border-radius:9px;border:1px solid var(--border2);background:var(--bg3);font-size:15px;font-weight:500;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;transition:background .15s}
-.ai-btn:hover{background:var(--bg2)}
-.ai-result{display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px}
-.ai-result.show{display:block}
-.ai-result-lbl{font-size:13px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:6px}
-.picks-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.pick-card{background:var(--bg3);border-radius:9px;padding:14px;display:flex;flex-direction:column;gap:8px;border:1px solid var(--border)}
-.pick-no{font-size:12px;font-family:var(--mono);color:var(--muted)}
-.pick-title{font-size:16px;font-weight:500;color:var(--text);line-height:1.3}
-.pick-pf{font-size:11px;padding:3px 8px;border-radius:4px;color:#fff;font-weight:600;width:fit-content}
-.pick-reason{font-size:13px;color:var(--muted2);line-height:1.6;border-left:2px solid var(--border2);padding-left:10px}
-.pick-rating{font-size:13px;color:var(--muted);font-family:var(--mono)}
-.ai-loading{padding:28px;text-align:center;font-size:14px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:12px;grid-column:1/-1}
-.spin{width:18px;height:18px;border:2px solid var(--border2);border-top-color:#7ec8e3;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-@keyframes spin{to{transform:rotate(360deg)}}
-
 /* ══ 오늘의 신작 & 예정작 ══ */
 .ct-preview-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
   overflow:hidden;cursor:pointer;transition:all .2s}
@@ -945,67 +914,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <div class="yt-grid" id="ytGrid"></div>
 </div>
 
-  <!-- 오늘의 AI 추천 — 일단 비활성화 -->
-  <div style="display:none">
-  <div class="sec-hd">
-    <span class="sec-icon">✨</span>
-    <span class="sec-title">오늘의 AI 추천</span>
-    <span class="sec-sub">내 조건에 맞는 추천</span>
-  </div>
-  <div class="ai-box">
-    <div class="ai-hd">
-      <div class="ai-title">
-        내 취향으로 골라줘
-        <span class="ai-badge">매일 업데이트</span>
-      </div>
-      <button class="ai-reset" onclick="resetAI()">↺ 초기화</button>
-    </div>
-    <div class="ai-filters">
-      <div class="ai-filter-row">
-        <span class="ai-flabel">콘텐츠</span>
-        <div class="ai-chips" id="typeChips">
-          <button class="chip type-on" onclick="selType(this,&#39;all&#39;)">전체</button>
-          <button class="chip" onclick="selType(this,&#39;tv&#39;)">TV 시리즈</button>
-          <button class="chip" onclick="selType(this,&#39;movie&#39;)">영화</button>
-        </div>
-      </div>
-      <div class="ai-filter-row">
-        <span class="ai-flabel">내 OTT</span>
-        <div class="ai-chips" id="ottChips">
-          <button class="chip on" onclick="toggleChip(this)">넷플릭스</button>
-          <button class="chip" onclick="toggleChip(this)">티빙</button>
-          <button class="chip" onclick="toggleChip(this)">디즈니+</button>
-          <button class="chip" onclick="toggleChip(this)">쿠팡플레이</button>
-          <button class="chip" onclick="toggleChip(this)">웨이브</button>
-        </div>
-      </div>
-      <div class="ai-filter-row">
-        <span class="ai-flabel">장르</span>
-        <div class="ai-chips" id="genreChips">
-          <button class="chip on" onclick="toggleChip(this)">드라마</button>
-          <button class="chip" onclick="toggleChip(this)">로맨스</button>
-          <button class="chip" onclick="toggleChip(this)">스릴러</button>
-          <button class="chip" onclick="toggleChip(this)">액션</button>
-          <button class="chip" onclick="toggleChip(this)">SF</button>
-          <button class="chip" onclick="toggleChip(this)">공포</button>
-          <button class="chip" onclick="toggleChip(this)">코미디</button>
-          <button class="chip" onclick="toggleChip(this)">시대극</button>
-          <button class="chip" onclick="toggleChip(this)">뮤지컬</button>
-          <button class="chip" onclick="toggleChip(this)">애니메이션</button>
-          <button class="chip" onclick="toggleChip(this)">판타지</button>
-          <button class="chip" onclick="toggleChip(this)">예능</button>
-          <button class="chip" onclick="toggleChip(this)">다큐멘터리</button>
-        </div>
-      </div>
-    </div>
-    <button class="ai-btn" onclick="runAI()">✨ 오뜨랑 AI에게 추천받기</button>
-    <div class="ai-result" id="aiResult">
-      <div class="ai-result-lbl">🤖 <span id="aiDesc">조건 기반 오늘의 추천</span></div>
-      <div class="picks-grid" id="aiPicks"></div>
-    </div>
-  </div>
-  </div>
-
 <!-- ══ 공용 푸터 (footer.html에서 동적 로드) ══ -->
 <div id="ottrang-footer"></div>
 <script>
@@ -1119,20 +1027,6 @@ const RANKINGS = {
   },
 };
 
-const AI_DB=[
-  {title:'오징어 게임',platform:'넷플릭스',color:'#e50914',reason:'오늘 1위, 시즌3 공개 직후 전 세계 화제 집중',rating:'★ 9.1',type:'tv',genre:['드라마','스릴러'],ott:['넷플릭스']},
-  {title:'쇼군',platform:'디즈니+',color:'#06b6d4',reason:'에미상 수상작, 시대극+스릴러 정석',rating:'★ 8.9',type:'tv',genre:['시대극','드라마'],ott:['디즈니+']},
-  {title:'선재 업고 튀어',platform:'티빙',color:'#ff153c',reason:'이번 주 화제 1위, 로맨스+회귀물',rating:'★ 9.2',type:'tv',genre:['드라마','로맨스'],ott:['티빙']},
-  {title:'나의 아저씨',platform:'웨이브',color:'#0070f3',reason:'역대급 명작 재조명, 감동 드라마',rating:'★ 9.4',type:'tv',genre:['드라마'],ott:['웨이브']},
-  {title:'파묘',platform:'넷플릭스',color:'#e50914',reason:'올해 최고 화제 영화, 오컬트+스릴러',rating:'★ 7.8',type:'movie',genre:['스릴러','공포'],ott:['넷플릭스']},
-  {title:'가디언즈 오브 갤럭시 3',platform:'디즈니+',color:'#06b6d4',reason:'MCU 최고 완성도, 액션+판타지',rating:'★ 8.0',type:'movie',genre:['액션','판타지'],ott:['디즈니+']},
-  {title:'응답하라 1988',platform:'웨이브',color:'#0070f3',reason:'레전드 시대극, 정주행 최적',rating:'★ 9.3',type:'tv',genre:['드라마','시대극'],ott:['웨이브']},
-  {title:'서울의 봄',platform:'넷플릭스',color:'#e50914',reason:'역사 스릴러 영화의 새 기준',rating:'★ 8.5',type:'movie',genre:['스릴러','시대극'],ott:['넷플릭스']},
-  {title:'소울메이트',platform:'티빙',color:'#ff153c',reason:'감성 로맨스 영화, 주말 추천',rating:'★ 7.8',type:'movie',genre:['로맨스'],ott:['티빙']},
-  {title:'나쁜엄마',platform:'쿠팡플레이',color:'#1ac44d',reason:'가족 감동 드라마, 호평 일색',rating:'★ 8.1',type:'tv',genre:['드라마'],ott:['쿠팡플레이']},
-];
-
-
 const YT=Array.from({length:50},(_,i)=>({rank:i+1,title:['손흥민 멀티골 vs 아스날 4K','아이브 컴백 쇼케이스 LIVE','BTS 진 전역 후 첫 콘서트','뉴진스 Supernatural MV','롤드컵 결승 풀게임 4K','나영석 PD 신규 예능 공개','유퀴즈 역대급 게스트','런닝맨 20주년 스페셜','고든램지 한식 반응','세계 1위 바리스타 비법','강남 월세방 내부 공개','주식 10억 번 직장인','코인 불장 시나리오','부동산 폭락 시그널','MZ 픽 게임 TOP5','월드컵 한국 vs 일본','KBO 오늘 하이라이트','ChatGPT o4 후기','애플 WWDC 2025 요약','갤럭시 S26 유출','국밥 유명해진 식당','백종원 냉장고 레전드','혼밥 편의점 레시피','아이유 콘서트 비하인드','임영웅 신곡 첫 무대','방탄 정국 신보 반응','웹툰 원작 vs 드라마','역대급 반전 영화 TOP10','오늘의 영화 리뷰','숏폼 드라마 추천','유튜브 알고리즘 정복','구독자 100만 소감','심야 괴담 실화 시즌4','귀신보다 무서운 이웃','한국 영화 촬영장','드라마 NG 모음 레전드','배우들 성격 폭로','한국인 NASA 인터뷰','기후변화 한반도 예측','홈트레이닝 30분','건강검진 충격 결과','다이어트 100일 비교','피파 레전드 은퇴','엔씨 신작 공개','리니지 추억 모음','롤 신규 스킨 공개','마크 1.22 업데이트','스트리머 방송사고','새벽 감성 플리 3시간','자취방 인테리어'][i]||`급상승 ${i+1}위`,channel:['손흥민TV','HYBE','MBC','KBS','OGN','tvN','JTBC','SBS','채널A','EBS'][i%10],views:`${(Math.random()*900+100).toFixed(0)}만회`,dur:`${Math.floor(Math.random()*40+2)}:${String(Math.floor(Math.random()*60)).padStart(2,'0')}`,vid:['r_ooE1pij0c', 'dQw4w9WgXcQ', 'oHg5SJYRHA0', 'fJ9rUzIMcZQ', 'JGwWNGJdvx8', '9bZkp7q19f0', 'ktvTqknDobU', 'RgKAFK5djSk', 'LXb3EKWsInQ', 'HSaKMNAGiEs', 'XqZsoesa55w', 'xvFZjo5PgG0', 'C0DPdy98e4c', 'lYBUbBu4W08', 'x9_a2WNXFBA', 'OPf0YbXqDm0', 'jOfSMM4WQHM', 'kffacxfA7G4', '7wtfhZwyrcc', 'h9irHSMtVXI', 'VYOjWnS4cMY', '8UVNT4wvIGY', 'FTQbiNvZqaY', 'sNLNSRIHKOk', 'lFM83jBwFMg', 'z3B6cPQMJXQ', 'SXuS_bWURGY', 'bM7SZ5SBzyY', 'k6EQaoxK0Gs', 'u9VMfdG873E', 'sGkh1W5cbH4', 'eYSIgBBDNXc', 'ZZX8ZNliPuc', 'cHBR6g4vn7o', 'Adr0NMSsCRs', 'Mv_jHCS0VwI', 'yCjpiM1lFKc', 'XhzpxjjIoBM', 'Ks-_Mh1QhMc', 'u3v-DXroTfU', 'MXmSryGOOXM', 'F90Cw4l-8NY', 'Ud73fm4Uoq0', 'k2qgadSvNyU', 'GV-cHSLDfUQ', 'A_MjCqQoLLA', 'w4w1zFpGXeQ', 'jZhQOvn9vc4', '6Zbi0XmGtMw', 'x7LzLuCKfHo'][i]||''}));
 
 /* TMDB */
@@ -1227,17 +1121,6 @@ function fmtScore(r){
 }
 /* 채널명 7자 제한 */
 function truncCh(ch){ return ch&&ch.length>7 ? ch.slice(0,7)+'…' : (ch||''); }
-
-/* ── AI 추천 초기화 ── */
-function resetAI(){
-  document.querySelectorAll('#typeChips .chip').forEach(b=>{b.classList.remove('type-on','on');});
-  document.querySelector('#typeChips .chip')?.classList.add('type-on');
-  aiType='all';
-  document.querySelectorAll('#ottChips .chip, #genreChips .chip').forEach(b=>b.classList.remove('on'));
-  document.querySelector('#ottChips .chip')?.classList.add('on');
-  document.querySelector('#genreChips .chip')?.classList.add('on');
-  document.getElementById('aiResult')?.classList.remove('show');
-}
 
 function makeSlug(title){
   return title.replace(/\s+/g,'-').replace(/[^\uAC00-\uD7A3\uA960-\uA97F\u1100-\u11FF\u3130-\u318F\u0041-\u005A\u0061-\u007A\u0030-\u0039\-]/g,'');
@@ -1342,47 +1225,6 @@ function updateHomeItemListSEO(){
 }
 
 function renderYT(){document.getElementById('ytGrid').innerHTML=YT.map(v=>`<div class="yt-card" onclick="openYtPlayer('${v.vid}','${v.title.replace(/'/g,String.fromCharCode(8217))}','${v.channel}','${v.views}')"><div class="yt-th">${v.vid?`<img src="https://img.youtube.com/vi/${v.vid}/mqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}<div class="yt-th-ph" style="${v.vid?'display:none':''}">▶</div><span class="yt-rn ${v.rank<=3?'top3':''}">${v.rank}</span>${v.dur?`<span class="yt-dur">${v.dur}</span>`:''}</div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-meta">${truncCh(v.channel)}${v.views?' · '+v.views:''}</div></div></div>`).join('');}
-
-/* AI 추천 — 실제 랭킹 기반 규칙 필터링 */
-let aiType='all';
-function selType(btn,type){document.querySelectorAll('#typeChips .chip').forEach(b=>{b.classList.remove('type-on','on');});btn.classList.add('type-on');aiType=type;}
-function toggleChip(btn){btn.classList.toggle('on');}
-function getSelected(groupId){return[...document.getElementById(groupId).querySelectorAll('.chip.on')].map(b=>b.textContent.trim());}
-
-const OTT_MAP={'넷플릭스':'netflix','티빙':'tving','디즈니+':'disney','쿠팡플레이':'coupang','웨이브':'wavve'};
-function makeReason(rank,platformName){
-  const r=[`${platformName} ${rank}위 작품으로 지금 가장 많이 시청되고 있습니다.`,`현재 ${platformName}에서 인기 급상승 중인 작품입니다.`,`오늘 ${platformName} 랭킹 TOP ${rank}에 오른 화제작입니다.`];
-  return r[(rank-1)%3];
-}
-
-function runAI(){
-  const result=document.getElementById('aiResult');
-  const picks=document.getElementById('aiPicks');
-  result.classList.add('show');
-  picks.innerHTML='<div class="ai-loading"><div class="spin"></div>오늘 랭킹 기반 분석 중...</div>';
-  const selOtt=getSelected('ottChips'),selGenre=getSelected('genreChips');
-  const tLabel=aiType==='tv'?'TV 시리즈':aiType==='movie'?'영화':'전체';
-  document.getElementById('aiDesc').textContent=`${tLabel} · ${selOtt.join('·')||'전체 OTT'} · ${selGenre.join('·')||'전체 장르'}`;
-  setTimeout(()=>{
-    const selPids=selOtt.length?selOtt.map(o=>OTT_MAP[o]).filter(Boolean):Object.values(OTT_MAP);
-    const candidates=[];
-    selPids.forEach(pid=>{
-      const p=PLATFORMS.find(p=>p.id===pid)||MOVIE_PLATFORMS.find(p=>p.id===pid);
-      if(!p)return;
-      if(aiType!=='movie'){(RANKINGS.tv[pid]||[]).forEach((item,i)=>candidates.push({title:item.t,platform:p.name,color:p.color,rank:i+1,score:item.r||0,_poster:item._poster||null}));}
-      if(aiType!=='tv'){(RANKINGS.movie[pid]||[]).forEach((item,i)=>candidates.push({title:item.t,platform:p.name,color:p.color,rank:i+1,score:item.r||0,_poster:item._poster||null}));}
-    });
-    candidates.sort((a,b)=>a.rank-b.rank||b.score-a.score);
-    const seen=new Set(),top3=[];
-    for(const c of candidates){if(!seen.has(c.title)){seen.add(c.title);top3.push(c);}if(top3.length>=3)break;}
-    if(!top3.length){PLATFORMS.forEach(p=>{(RANKINGS.tv[p.id]||[]).slice(0,2).forEach((item,i)=>{if(top3.length<3)top3.push({title:item.t,platform:p.name,color:p.color,rank:i+1,score:item.r||0,_poster:item._poster||null});});});}
-    picks.innerHTML=top3.map((item,i)=>{
-      const posterEl=item._poster?`<img src="${item._poster}" alt="${item.title}" style="width:60px;height:90px;object-fit:cover;border-radius:6px;flex-shrink:0">`:`<div style="width:60px;height:90px;border-radius:6px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">🎬</div>`;
-      return`<div class="pick-card" style="display:flex;gap:12px;align-items:flex-start">${posterEl}<div style="flex:1;min-width:0"><div class="pick-no">추천 ${i+1}</div><div class="pick-title">${item.title}</div><span class="pick-pf" style="background:${item.color}">${item.platform}</span><div class="pick-reason" style="margin-top:8px">${makeReason(item.rank,item.platform)}</div>${item.score?`<div class="pick-rating">⭐ ${item.score}</div>`:''}</div></div>`;
-    }).join('');
-  },600);
-}
-
 
 let curPeriod='daily';
 async function setPeriod(p,btn){
