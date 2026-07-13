@@ -52,7 +52,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .work-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px 14px}
 .work-card{cursor:pointer}
 .work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
-.work-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.work-poster > img{width:100%;height:100%;object-fit:cover;display:block}
 .work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
 .work-rank{position:absolute;bottom:6px;left:6px;font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(0,0,0,.65);
   backdrop-filter:blur(2px);color:#f0b429;font-weight:700;font-family:var(--mono)}
@@ -63,10 +63,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 /* 포스터 우상단 OTT 서비스중 뱃지 — 크게, 최대 3개 + 나머지는 +N */
 .work-ott{position:absolute;top:6px;right:6px;display:flex;gap:3px}
-.ott-logo{width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-.ott-logo-ph{width:24px;height:24px;border-radius:6px;flex-shrink:0;font-size:11px;color:#fff;font-weight:700;
+.ott-logo{width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ott-logo-ph{width:24px;height:24px;border-radius:50%;flex-shrink:0;font-size:11px;color:#fff;font-weight:700;
   display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-.ott-more{width:24px;height:24px;border-radius:6px;flex-shrink:0;font-size:10px;color:#fff;font-weight:700;
+.ott-more{width:24px;height:24px;border-radius:50%;flex-shrink:0;font-size:10px;color:#fff;font-weight:700;
   display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7)}
 
 .more-wrap{grid-column:1/-1;display:flex;justify-content:center;margin-top:8px}
@@ -284,17 +284,16 @@ function personCard(p){
 }
 
 /* ── 상태 ── */
-let dbOffset   = 0;
-let dbHasMore  = false;
-let tmdbFixed  = [];   // TMDB 보충 결과 (최초 1회만 로드, 페이징 없음)
-let dbTmdbIds  = new Set();
+let dbOffset      = 0;
+let dbHasMore      = false;
+let tmdbFixed      = [];   // TMDB 보충 결과 (최초 1회 조회, DB 페이징 다 소진된 뒤에만 화면에 펼침)
+let tmdbRevealed   = false;
+let dbTmdbIds      = new Set();
 
 const workGrid = document.getElementById('workGrid');
-// 그리드 구조: [...DB카드][dbInsertMarker][더보기 버튼][tmdbMarker][...TMDB 보충카드]
-// dbInsertMarker: "더보기"로 불러온 새 DB카드가 항상 이 앞(=기존 DB카드 뒤, 버튼 앞)에 꽂히는 기준점
-// tmdbMarker: DB 영역과 TMDB 보충 영역의 경계 (더보기 버튼은 항상 이 앞쪽에 위치)
-let dbInsertMarker = null;
-let tmdbMarker     = null;
+// 그리드 구조: [...DB카드][더보기 버튼(있으면)]
+// 더보기 클릭 시: DB에 다음 페이지가 있으면 그걸 먼저 채우고, DB가 다 떨어지면 그다음 클릭부터 TMDB 보충 결과를 펼침
+let dbInsertMarker = null; // "더보기"로 불러온 새 DB카드가 항상 이 앞(=버튼 앞)에 꽂히는 기준점
 
 function hasPoster(w){ return !!w.poster_path; } // 포스터 없는 작품은 목록에서 제외
 
@@ -311,27 +310,45 @@ function appendDbWorks(list){
   });
 }
 
+function shouldShowMore(){
+  return dbHasMore || (!tmdbRevealed && tmdbFixed.length > 0);
+}
+
+function updateWorkCount(){
+  const shown = workGrid.querySelectorAll('.work-card').length;
+  document.getElementById('cntWorks').textContent = shown + (tmdbRevealed ? 0 : tmdbFixed.length);
+}
+
 async function loadMore(btn){
   btn.disabled = true;
   btn.textContent = '불러오는 중...';
-  dbOffset += PAGE_SIZE;
-  const j = await loadDbPage();
-  appendDbWorks(j.data || []);
-  dbHasMore = !!j.has_more;
+
+  if(dbHasMore){
+    // ① 우리 DB에 다음 페이지가 남아있으면 그것부터
+    dbOffset += PAGE_SIZE;
+    const j = await loadDbPage();
+    appendDbWorks(j.data || []);
+    dbHasMore = !!j.has_more;
+  } else if(!tmdbRevealed){
+    // ② DB가 다 떨어졌으면 그제서야 TMDB 보충 결과를 펼침
+    tmdbFixed.forEach(w=>workGrid.insertBefore(workCard(w), dbInsertMarker));
+    tmdbRevealed = true;
+  }
+
   btn.disabled = false;
   btn.textContent = '더보기';
-  if(!dbHasMore) btn.closest('.more-wrap')?.remove();
-  document.getElementById('cntWorks').textContent = workGrid.querySelectorAll('.work-card').length;
+  if(!shouldShowMore()) btn.closest('.more-wrap')?.remove();
+  updateWorkCount();
 }
 
 function renderMoreButton(){
   document.querySelector('.more-wrap')?.remove();
-  if(!dbHasMore) return;
+  if(!shouldShowMore()) return;
   const wrap = document.createElement('div');
   wrap.className = 'more-wrap';
   wrap.innerHTML = `<button class="more-btn">더보기</button>`;
   wrap.querySelector('.more-btn').onclick = (e)=>loadMore(e.target);
-  workGrid.insertBefore(wrap, tmdbMarker);
+  workGrid.insertBefore(wrap, dbInsertMarker.nextSibling);
 }
 
 async function runSearch(){
@@ -381,25 +398,21 @@ async function runSearch(){
       persons = (j.results||[]);
     }
 
-    // ── 작품 렌더링: DB 작품 → dbInsertMarker → 더보기 버튼 → tmdbMarker → TMDB 보충 작품 ──
+    // ── 작품 렌더링: DB 작품(15개)만 먼저 표시. TMDB 보충 결과는 "더보기"로 DB 소진 후에 펼침 ──
     workGrid.innerHTML = '';
     dbInsertMarker = document.createElement('span');
     dbInsertMarker.style.display = 'none';
     workGrid.appendChild(dbInsertMarker);
-    tmdbMarker = document.createElement('span');
-    tmdbMarker.style.display = 'none';
-    workGrid.appendChild(tmdbMarker);
 
     appendDbWorks(dbWorks);
-    tmdbFixed.forEach(w=>workGrid.appendChild(workCard(w)));
 
     const shownCount = workGrid.querySelectorAll('.work-card').length;
-    if(shownCount===0){
+    if(shownCount===0 && !tmdbFixed.length){
       workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
     } else {
       renderMoreButton();
     }
-    document.getElementById('cntWorks').textContent = shownCount;
+    updateWorkCount();
 
     // ── 인물 렌더링 ──
     personGrid.innerHTML = '';
