@@ -293,11 +293,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         </button>
         <button id="tabRating" onclick="switchPageTab('rating')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
-          ⭐ 평점 채우기
-        </button>
-        <button id="tabRatingCheck" onclick="switchPageTab('ratingCheck')"
-          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
-          📊 OTT 평점 반영
+          ⭐ TMDB 평점
         </button>
         <button id="tabImdb" onclick="switchPageTab('imdb')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
@@ -882,138 +878,149 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <!-- ══ 평점 채우기 섹션 ══ -->
   <div class="wrap" id="ratingWrap" style="display:none">
 
-    <!-- 안내 메시지 -->
-    <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
-      💡 <span style="color:var(--gold)">works.tmdb_rating</span>이 비어있는 작품들에 TMDB 평점(vote_average)과 개봉/방영일(release_date)을 한 번에 채웁니다.<br>
-      메인 슬라이더(수동 고정 랭킹)는 이 값을 그대로 쓰기 때문에, 여기가 비어있으면 별점이 화면에 안 뜹니다.<br>
-      평점이 <span style="color:var(--green)">0점(투표수 부족)인 경우도 정상값으로 저장</span>되도록 처리했습니다 (기존 버그 수정 포함).<br>
-      앞으로는 상세페이지 방문 시 오래된 것만 자동 새로고침되니, <span style="color:var(--gold)">이건 과거분 일회성 백필용</span>입니다.
+    <!-- 서브탭: OTT 평점 반영 ↔ 평점 채우기 -->
+    <div class="filter-tabs" id="ratingSubTabs" style="margin-bottom:20px">
+      <button class="ftab on" id="subTabOtt"  onclick="switchRatingSubTab('ott')">📊 OTT 평점 반영</button>
+      <button class="ftab"    id="subTabFill" onclick="switchRatingSubTab('fill')">⭐ 평점 채우기</button>
     </div>
 
-    <!-- 상태 카드 -->
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
-      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="rtAttempted">0</div>
+    <!-- ══ 서브탭①: OTT 평점 반영 (기본 화면) ══ -->
+    <div id="ratingSubOtt" style="display:block">
+
+      <!-- 안내 메시지 -->
+      <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 플랫폼·카테고리를 고르면 <span style="color:var(--gold)">가장 최근 크롤링 날짜</span> 순위 리스트를 불러와,
+        메인페이지(rankings) 평점과 작품페이지(works) 평점이 다른 작품만 골라서 보여줍니다.<br>
+        다른 작품 옆의 버튼을 누르면 TMDB에서 최신값을 받아와 즉시 반영합니다.
+      </div>
+
+      <!-- 플랫폼/카테고리 선택 -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        <select class="search-input" id="rcPlatformSelect" style="max-width:200px" onchange="onRcPlatformChange()">
+          <option value="">플랫폼 선택...</option>
+        </select>
+        <select class="search-input" id="rcCategorySelect" style="max-width:260px" disabled>
+          <option value="">카테고리 선택...</option>
+        </select>
+        <button class="btn-primary" id="rcLoadBtn" onclick="loadRcList()" disabled>불러오기</button>
+      </div>
+
+      <!-- 요약 + 일괄 버튼 -->
+      <div id="rcSummaryBar" style="display:none;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+        <div style="font-size:13px;font-family:var(--mono);color:var(--muted2)">
+          전체 <span id="rcTotalCount" style="color:#fff;font-weight:700">0</span>개 ·
+          불일치 <span id="rcMismatchCount" style="color:var(--red);font-weight:700">0</span>개
         </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">채워짐</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="rtFilled">0</div>
+        <button class="btn-crawl" id="rcBulkBtn" onclick="bulkSyncRc()" style="margin-left:auto;padding:9px 16px;font-size:13px">
+          🔄 다른 작품 전체 일괄 갱신
+        </button>
+        <div id="rcBulkStatus" style="font-size:12px;font-family:var(--mono);color:var(--muted);display:none"></div>
+      </div>
+
+      <!-- 결과 리스트 -->
+      <div id="rcListArea"></div>
+
+    </div>
+
+    <!-- ══ 서브탭②: 평점 채우기 (기존 배치+개별 강제동기화) ══ -->
+    <div id="ratingSubFill" style="display:none">
+
+      <!-- 안내 메시지 -->
+      <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 <span style="color:var(--gold)">works.tmdb_rating</span>이 비어있는 작품들에 TMDB 평점(vote_average)과 개봉/방영일(release_date)을 한 번에 채웁니다.<br>
+        메인 슬라이더(수동 고정 랭킹)는 이 값을 그대로 쓰기 때문에, 여기가 비어있으면 별점이 화면에 안 뜹니다.<br>
+        평점이 <span style="color:var(--green)">0점(투표수 부족)인 경우도 정상값으로 저장</span>되도록 처리했습니다 (기존 버그 수정 포함).<br>
+        앞으로는 상세페이지 방문 시 오래된 것만 자동 새로고침되니, <span style="color:var(--gold)">이건 과거분 일회성 백필용</span>입니다.
+      </div>
+
+      <!-- 상태 카드 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+            <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="rtAttempted">0</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">채워짐</div>
+            <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="rtFilled">0</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남음</div>
+            <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="rtRemaining">-</div>
+          </div>
         </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남음</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="rtRemaining">-</div>
+
+        <div style="display:flex;gap:10px">
+          <button class="btn-crawl" id="rtStartBtn" onclick="startRatingBackfill()" style="flex:1;padding:13px;font-size:15px">
+            ▶ 평점 채우기 시작
+          </button>
+          <button class="btn-secondary" id="rtStopBtn" onclick="stopRatingBackfill()" style="display:none;padding:13px 20px">
+            ⏸ 중단
+          </button>
         </div>
+
+        <div id="rtStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
       </div>
 
-      <div style="display:flex;gap:10px">
-        <button class="btn-crawl" id="rtStartBtn" onclick="startRatingBackfill()" style="flex:1;padding:13px;font-size:15px">
-          ▶ 평점 채우기 시작
-        </button>
-        <button class="btn-secondary" id="rtStopBtn" onclick="stopRatingBackfill()" style="display:none;padding:13px 20px">
-          ⏸ 중단
-        </button>
+      <!-- 최근 배치 로그 -->
+      <div id="rtLogWrap" style="display:none">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+        <div id="rtLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
       </div>
 
-      <div id="rtStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
-    </div>
+      <!-- 구분선 -->
+      <div style="height:1px;background:var(--border);margin:28px 0"></div>
 
-    <!-- 최근 배치 로그 -->
-    <div id="rtLogWrap" style="display:none">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
-      <div id="rtLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
-    </div>
-
-    <!-- 구분선 -->
-    <div style="height:1px;background:var(--border);margin:28px 0"></div>
-
-    <!-- ── 특정 작품 평점 강제 동기화 (2026-07-13 신설) ── -->
-    <div style="font-size:15px;font-weight:700;margin-bottom:4px">🎯 특정 작품 평점 강제 동기화</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
-      메인페이지(rankings)와 작품페이지(works) 평점이 다른 작품을 몇 개만 급하게 맞출 때 사용합니다.<br>
-      <span style="color:var(--gold)">주의:</span> 값이 이미 있어도 무조건 덮어씁니다 — 위 배치(빈 값만 채움)와 다른 동작입니다.
-    </div>
-
-    <div class="search-tabs">
-      <button class="search-tab" id="rtsTabId" onclick="switchRtsTab('id')">TMDB ID</button>
-      <button class="search-tab on" id="rtsTabName" onclick="switchRtsTab('name')">작품명 검색</button>
-    </div>
-    <div class="search-row">
-      <input class="search-input" id="rtsTmdbInput" type="number" placeholder="tmdb_id 입력 (예: 296206)"
-        onkeydown="if(event.key==='Enter')loadRtsWork()" style="display:none">
-      <div class="search-dropdown" id="rtsNameSearchWrap" style="display:block;flex:1">
-        <input class="search-input" id="rtsNameInput" type="text"
-          placeholder="한글 또는 영어 작품명 입력"
-          oninput="onRtsNameInput(this.value)"
-          onkeydown="if(event.key==='Enter')searchRtsByName()"
-          autocomplete="off" style="width:100%">
-        <div class="search-results" id="rtsSearchResults"></div>
+      <!-- ── 특정 작품 평점 강제 동기화 (2026-07-13 신설) ── -->
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">🎯 특정 작품 평점 강제 동기화</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+        메인페이지(rankings)와 작품페이지(works) 평점이 다른 작품을 몇 개만 급하게 맞출 때 사용합니다.<br>
+        <span style="color:var(--gold)">주의:</span> 값이 이미 있어도 무조건 덮어씁니다 — 위 배치(빈 값만 채움)와 다른 동작입니다.
       </div>
-      <button class="btn-primary" onclick="handleRtsSearch()">작품 조회</button>
-    </div>
 
-    <!-- 선택된 작품 + 불일치 미리보기 -->
-    <div id="rtsResultArea" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:16px">
-      <div class="work-info-box" id="rtsWorkInfoBox" style="margin-bottom:16px">
-        <div class="work-poster" id="rtsWorkPoster"></div>
-        <div>
-          <div class="work-title" id="rtsWorkTitle"></div>
-          <div class="work-sub" id="rtsWorkSub"></div>
+      <div class="search-tabs">
+        <button class="search-tab" id="rtsTabId" onclick="switchRtsTab('id')">TMDB ID</button>
+        <button class="search-tab on" id="rtsTabName" onclick="switchRtsTab('name')">작품명 검색</button>
+      </div>
+      <div class="search-row">
+        <input class="search-input" id="rtsTmdbInput" type="number" placeholder="tmdb_id 입력 (예: 296206)"
+          onkeydown="if(event.key==='Enter')loadRtsWork()" style="display:none">
+        <div class="search-dropdown" id="rtsNameSearchWrap" style="display:block;flex:1">
+          <input class="search-input" id="rtsNameInput" type="text"
+            placeholder="한글 또는 영어 작품명 입력"
+            oninput="onRtsNameInput(this.value)"
+            onkeydown="if(event.key==='Enter')searchRtsByName()"
+            autocomplete="off" style="width:100%">
+          <div class="search-results" id="rtsSearchResults"></div>
         </div>
+        <button class="btn-primary" onclick="handleRtsSearch()">작품 조회</button>
       </div>
 
-      <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">메인페이지(rankings)에 있는 값</div>
-      <div id="rtsRankingRows" style="font-size:13px;font-family:var(--mono);line-height:2;max-height:200px;overflow-y:auto"></div>
+      <!-- 선택된 작품 + 불일치 미리보기 -->
+      <div id="rtsResultArea" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:16px">
+        <div class="work-info-box" id="rtsWorkInfoBox" style="margin-bottom:16px">
+          <div class="work-poster" id="rtsWorkPoster"></div>
+          <div>
+            <div class="work-title" id="rtsWorkTitle"></div>
+            <div class="work-sub" id="rtsWorkSub"></div>
+          </div>
+        </div>
 
-      <div style="display:flex;gap:10px;margin-top:18px">
-        <button class="btn-crawl" id="rtsRefreshBtn" onclick="syncRtsRating(true)" style="flex:1;padding:12px;font-size:14px">
-          🔄 TMDB 갱신 후 반영
-        </button>
-        <button class="btn-secondary" id="rtsApplyBtn" onclick="syncRtsRating(false)" style="flex:1;padding:12px;font-size:14px">
-          ✅ 그대로 반영
-        </button>
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">메인페이지(rankings)에 있는 값</div>
+        <div id="rtsRankingRows" style="font-size:13px;font-family:var(--mono);line-height:2;max-height:200px;overflow-y:auto"></div>
+
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button class="btn-crawl" id="rtsRefreshBtn" onclick="syncRtsRating(true)" style="flex:1;padding:12px;font-size:14px">
+            🔄 TMDB 갱신 후 반영
+          </button>
+          <button class="btn-secondary" id="rtsApplyBtn" onclick="syncRtsRating(false)" style="flex:1;padding:12px;font-size:14px">
+            ✅ 그대로 반영
+          </button>
+        </div>
+        <div id="rtsStatusLine" style="margin-top:12px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
       </div>
-      <div id="rtsStatusLine" style="margin-top:12px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+
     </div>
-
-  </div>
-
-  <!-- ══ OTT 평점 반영 섹션 (2026-07-14 신설) ══ -->
-  <div class="wrap" id="ratingCheckWrap" style="display:none">
-
-    <!-- 안내 메시지 -->
-    <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
-      💡 플랫폼·카테고리를 고르면 <span style="color:var(--gold)">가장 최근 크롤링 날짜</span> 순위 리스트를 불러와,
-      메인페이지(rankings) 평점과 작품페이지(works) 평점이 다른 작품만 골라서 보여줍니다.<br>
-      다른 작품 옆의 버튼을 누르면 TMDB에서 최신값을 받아와 즉시 반영합니다.
-    </div>
-
-    <!-- 플랫폼/카테고리 선택 -->
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-      <select class="search-input" id="rcPlatformSelect" style="max-width:200px" onchange="onRcPlatformChange()">
-        <option value="">플랫폼 선택...</option>
-      </select>
-      <select class="search-input" id="rcCategorySelect" style="max-width:260px" disabled>
-        <option value="">카테고리 선택...</option>
-      </select>
-      <button class="btn-primary" id="rcLoadBtn" onclick="loadRcList()" disabled>불러오기</button>
-    </div>
-
-    <!-- 요약 + 일괄 버튼 -->
-    <div id="rcSummaryBar" style="display:none;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
-      <div style="font-size:13px;font-family:var(--mono);color:var(--muted2)">
-        전체 <span id="rcTotalCount" style="color:#fff;font-weight:700">0</span>개 ·
-        불일치 <span id="rcMismatchCount" style="color:var(--red);font-weight:700">0</span>개
-      </div>
-      <button class="btn-crawl" id="rcBulkBtn" onclick="bulkSyncRc()" style="margin-left:auto;padding:9px 16px;font-size:13px">
-        🔄 다른 작품 전체 일괄 갱신
-      </button>
-      <div id="rcBulkStatus" style="font-size:12px;font-family:var(--mono);color:var(--muted);display:none"></div>
-    </div>
-
-    <!-- 결과 리스트 -->
-    <div id="rcListArea"></div>
 
   </div>
 
@@ -1785,8 +1792,7 @@ const PAGE_TABS = [
   { key: 'lang',     wrapId: 'langWrap',     btnId: 'tabLang',     title: '🌐 원어 정보 채우기', onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
   { key: 'mediatype', wrapId: 'mediaTypeWrap', btnId: 'tabMediaType', title: '🎞 미디어타입 채우기', onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
   { key: 'variety',   wrapId: 'varietyWrap',   btnId: 'tabVariety',   title: '🎭 예능 태그',       onColor: 'rgba(236,72,153,.2)',  onText: '#f472b6' },
-  { key: 'rating',    wrapId: 'ratingWrap',    btnId: 'tabRating',    title: '⭐ 평점 채우기',      onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
-  { key: 'ratingCheck', wrapId: 'ratingCheckWrap', btnId: 'tabRatingCheck', title: '📊 OTT 평점 반영', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
+  { key: 'rating',    wrapId: 'ratingWrap',    btnId: 'tabRating',    title: '⭐ TMDB 평점',      onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
   { key: 'imdb',      wrapId: 'imdbWrap',      btnId: 'tabImdb',      title: '🎬 IMDb 매칭 채우기', onColor: 'rgba(245,197,24,.2)',  onText: '#F5C518' },
   { key: 'adult',     wrapId: 'adultWrap',     btnId: 'tabAdult',     title: '🔞 성인물 정리',      onColor: 'rgba(240,68,68,.2)',   onText: 'var(--red)' },
 ];
@@ -1803,7 +1809,7 @@ function switchPageTab(tab) {
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
   if (tab === 'adult') { acRenderWordHistory(); acConfirmedLoad(); }
-  if (tab === 'ratingCheck' && !rcCategoriesLoaded) loadRcCategories();
+  if (tab === 'rating' && !rcCategoriesLoaded) loadRcCategories();
 }
 
 /* ══ MBTI 관리 — 상태 ══ */
@@ -3672,6 +3678,13 @@ const RC_PLATFORM_LABELS = {
 let rcCategoriesLoaded = false;
 let rcAllCategories    = []; // /admin/categories 전체 캐시
 let rcCurrentRows      = []; // 마지막으로 불러온 리스트 (일괄 버튼용)
+
+function switchRatingSubTab(tab) {
+  document.getElementById('subTabOtt').classList.toggle('on', tab === 'ott');
+  document.getElementById('subTabFill').classList.toggle('on', tab === 'fill');
+  document.getElementById('ratingSubOtt').style.display  = tab === 'ott'  ? 'block' : 'none';
+  document.getElementById('ratingSubFill').style.display = tab === 'fill' ? 'block' : 'none';
+}
 
 async function loadRcCategories() {
   try {
