@@ -1059,13 +1059,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <table>
           <thead>
             <tr>
-              <th></th>
+              <th>🔞 19금</th>
               <th>포스터</th><th>TMDB ID</th><th>한글 제목</th><th>영어 제목</th>
-              <th>매칭 출처</th><th>신뢰도</th><th>삭제</th>
+              <th>매칭 출처</th><th>신뢰도</th><th></th><th>삭제</th>
             </tr>
           </thead>
           <tbody id="acConfirmedTableBody">
-            <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+            <tr><td colspan="9" class="loading">불러오는 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -3824,7 +3824,7 @@ function switchAdultSubTab(tab) {
 
 async function acConfirmedLoad() {
   const tbody = document.getElementById('acConfirmedTableBody');
-  tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" class="loading">불러오는 중...</td></tr>';
   try {
     const q = document.getElementById('acConfirmedSearchInp')?.value || '';
     const params = new URLSearchParams({ filter: 'adult_confirmed', page: acConfirmedPage });
@@ -3838,7 +3838,7 @@ async function acConfirmedLoad() {
     document.getElementById('acConfirmedNextBtn').disabled = rows.length < 50;
     acConfirmedRender(rows);
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">오류: ${e.message}</td></tr>`;
   }
 }
 
@@ -3859,7 +3859,7 @@ function acConfirmedChangePage(delta) {
 function acConfirmedRender(rows) {
   const tbody = document.getElementById('acConfirmedTableBody');
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">확정된 성인물이 없습니다</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">확정된 성인물이 없습니다</td></tr>';
     return;
   }
   const srcColor = { admin: 'var(--green)', auto_claude: 'var(--info,var(--muted2))', auto_tmdb: 'var(--muted2)' };
@@ -3873,7 +3873,13 @@ function acConfirmedRender(rows) {
 
     return `
     <tr>
-      <td><input type="checkbox" class="ac-confirmed-check" data-tmdb-id="${r.tmdb_id}"></td>
+      <td>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" class="ac-confirmed-adult-check" data-tmdb-id="${r.tmdb_id}"
+            checked onchange="acConfirmedToggleAdultFlag(${r.tmdb_id}, this)">
+          <span class="ac-confirmed-adult-badge" data-tmdb-id="${r.tmdb_id}" style="display:inline;font-size:14px" title="19금 표시됨">🔞</span>
+        </label>
+      </td>
       <td>
         <a href="${ottUrl}" target="_blank" rel="noopener" title="오뜨랑 작품페이지로 이동">
           ${r.poster_path
@@ -3890,12 +3896,39 @@ function acConfirmedRender(rows) {
       <td style="font-size:13px">${titleEn || '-'}</td>
       <td><span style="font-size:11px;color:${srcColor[r.match_source] || 'var(--muted)'}">${r.match_source || 'admin'}</span></td>
       <td><span style="font-family:var(--mono);font-size:12px">${r.confidence_score || 100}</span></td>
+      <td><input type="checkbox" class="ac-confirmed-check" data-tmdb-id="${r.tmdb_id}"></td>
       <td>
         <button class="btn-sm" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)"
           onclick="acConfirmedDeleteOne(${r.tmdb_id},'${(r.title_ko || r.title_en || '').replace(/'/g, "\\'")}')">삭제</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+/* ── 19금 토글 (works 관리 toggleAdultFlag()와 동일 로직) ──
+   체크 해제해도 목록에서 즉시 안 사라짐 — 다음에 새로고침/재접속할 때 adult_flag=1
+   조건에서 자연히 빠짐(사용자 지시: "중요한 거 아니야, DB에 데이터만 쌓이면 됨"). */
+async function acConfirmedToggleAdultFlag(tmdbId, checkboxEl) {
+  const checked = checkboxEl.checked;
+  const badge = document.querySelector(`.ac-confirmed-adult-badge[data-tmdb-id="${tmdbId}"]`);
+  if (badge) badge.style.display = checked ? 'inline' : 'none';
+  checkboxEl.disabled = true;
+  try {
+    const res = await fetch(`${API}/admin/works/${tmdbId}/adult-flag`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adult_flag: checked ? 1 : null }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.message || '저장 실패');
+    showToast(checked ? '🔞 19금으로 표시됨' : '19금 표시 해제됨');
+  } catch (e) {
+    checkboxEl.checked = !checked; // 원상복구
+    if (badge) badge.style.display = !checked ? 'inline' : 'none';
+    showToast(e.message);
+  } finally {
+    checkboxEl.disabled = false;
+  }
 }
 
 /* ── 전체선택: 현재 페이지에 보이는 것만(최대 50개, 페이지네이션 그대로 유지) ── */
