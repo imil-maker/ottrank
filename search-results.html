@@ -184,28 +184,46 @@ function goWork(tmdbId, type, title){
   location.href = slug(tmdbId);
 }
 
-/* ── OTT 서비스 여부 (TMDB Watch Providers 실시간 조회, 캐싱 없음 — 테스트용) ── */
-const _ottCache = new Map(); // tmdb_id -> ['netflix','tving', ...]
-async function fetchOttKeys(tmdbId, mediaType){
+/* ── OTT 서비스 여부 판단 — 오뜨랑 3단계 우선순위 원칙 (_title_detail.html과 동일 원칙) ──
+   Priority 1: 오뜨랑 DB 랭킹(ott_ranks) — 오늘 그 플랫폼 랭킹에 있으면 가장 신뢰도 높음
+   Priority 2: 쿠팡플레이는 TMDB Watch Providers에 데이터가 거의 없어서, TMDB Networks(id=5169)로 보완 (TV만 해당)
+   Priority 3: TMDB Watch Providers — 위 두 개로 못 채운 나머지 보완
+   ※ 캐싱 없이 매번 실시간 조회 — 트래픽 이슈로 추후 D1 캐싱 별도 검토 예정 (테스트 단계) */
+const _ottCache = new Map(); // `${mediaType}:${tmdbId}` -> ['netflix','tving', ...]
+async function fetchOttKeys(tmdbId, mediaType, rankKeys){
   const cacheKey = `${mediaType}:${tmdbId}`;
   if(_ottCache.has(cacheKey)) return _ottCache.get(cacheKey);
+
+  const keys = new Set(rankKeys || []); // Priority 1
+  const type = mediaType === 'movie' ? 'movie' : 'tv';
+
   try{
-    const type = mediaType === 'movie' ? 'movie' : 'tv';
-    const res  = await fetch(`${TMDB_PROXY}/${type}/${tmdbId}/watch/providers`);
-    if(!res.ok){ _ottCache.set(cacheKey, []); return []; }
-    const j = await res.json();
-    const flatrate = (j.results && j.results.KR && j.results.KR.flatrate) || [];
-    const keys = [];
-    flatrate.forEach(p=>{
-      const match = OTT_NAME_MATCH.find(([re])=>re.test(p.provider_name||''));
-      if(match && !keys.includes(match[1])) keys.push(match[1]);
-    });
-    _ottCache.set(cacheKey, keys);
-    return keys;
+    // Priority 2 — 쿠팡플레이 Network 보완 (TV만 해당, Watch Providers에 없는 경우가 많음)
+    if(type === 'tv' && !keys.has('coupang')){
+      const detRes = await fetch(`${TMDB_PROXY}/tv/${tmdbId}?language=ko-KR`);
+      if(detRes.ok){
+        const det = await detRes.json();
+        if((det.networks||[]).some(n=>n.id===5169)) keys.add('coupang');
+      }
+    }
+
+    // Priority 3 — TMDB Watch Providers (나머지 보완)
+    const wpRes = await fetch(`${TMDB_PROXY}/${type}/${tmdbId}/watch/providers`);
+    if(wpRes.ok){
+      const wp = await wpRes.json();
+      const flatrate = (wp.results && wp.results.KR && wp.results.KR.flatrate) || [];
+      flatrate.forEach(p=>{
+        const match = OTT_NAME_MATCH.find(([re])=>re.test(p.provider_name||''));
+        if(match) keys.add(match[1]);
+      });
+    }
   }catch(e){
-    _ottCache.set(cacheKey, []);
-    return [];
+    // 실패해도 Priority 1(랭킹) 결과는 그대로 반환
   }
+
+  const result = [...keys];
+  _ottCache.set(cacheKey, result);
+  return result;
 }
 
 function ottLogoHtml(key){
@@ -253,7 +271,7 @@ function workCard(w){
   // 서비스중 OTT 로고 — 비동기로 채워넣음 (포스터 우상단, 최대 3개 + 나머지는 +N)
   const ottBox = card.querySelector('.work-ott');
   if(tmdbId){
-    fetchOttKeys(tmdbId, mtype).then(keys=>{
+    fetchOttKeys(tmdbId, mtype, Object.keys(ranks)).then(keys=>{
       if(!keys.length) return;
       const shown = keys.slice(0, 3);
       let html = shown.map(ottLogoHtml).join('');
