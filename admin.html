@@ -2261,7 +2261,7 @@ async function loadData() {
   document.getElementById('btnNewMatch').style.display = '';
   try {
     const url = date ? `${API}/admin/rankings?date=${date}` : `${API}/admin/rankings`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
     if (res.status === 401) { showToast('인증 실패. 토큰을 확인하세요.', 'err'); return; }
     const json = await res.json();
     allData = json.data || [];
@@ -2285,7 +2285,7 @@ async function loadManualData() {
   document.getElementById('btnNewMatch').style.display = 'none';
   try {
     const url = `${API}/admin/rankings?manual=true`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
     if (res.status === 401) { showToast('인증 실패. 토큰을 확인하세요.', 'err'); return; }
     const json = await res.json();
     allData = json.data || [];
