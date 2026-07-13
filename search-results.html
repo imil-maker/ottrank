@@ -131,14 +131,15 @@ const IMG        = 'https://image.tmdb.org/t/p/w342';
 const IMG_PROFILE= 'https://image.tmdb.org/t/p/w185';
 const PAGE_SIZE  = 15;
 
-// OTT 로고/색상 — 메인사이트와 동일한 self-hosted 로고 경로(/img/{key}-icon.jpg) 사용
+// OTT 로고/색상 — 메인사이트와 동일한 self-hosted 로고 경로(/img/{file}-icon.jpg) 사용
+// file: 실제 GitHub에 올려둔 로고 파일명 (디즈니+/쿠팡플레이는 키와 파일명이 다름 — 2026-07-12 OTT 로고교체 세션 기준)
 const OTT_META = {
-  netflix: { name:'넷플릭스',   color:'#e50914' },
-  tving:   { name:'티빙',       color:'#ff153c' },
-  disney:  { name:'디즈니+',   color:'#06b6d4' },
-  coupang: { name:'쿠팡플레이', color:'#1ac44d' },
-  wavve:   { name:'웨이브',     color:'#0070f3' },
-  watcha:  { name:'왓챠',       color:'#ff0558' },
+  netflix: { name:'넷플릭스',   color:'#e50914', file:'netflix' },
+  tving:   { name:'티빙',       color:'#ff153c', file:'tving' },
+  disney:  { name:'디즈니+',   color:'#06b6d4', file:'disneyplus' },
+  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay' },
+  wavve:   { name:'웨이브',     color:'#0070f3', file:'wavve' },
+  watcha:  { name:'왓챠',       color:'#ff0558', file:'watcha' },
 };
 // TMDB Watch Providers의 provider_name → 우리 OTT 키 매칭용
 const OTT_NAME_MATCH = [
@@ -210,7 +211,7 @@ async function fetchOttKeys(tmdbId, mediaType){
 function ottLogoHtml(key){
   const meta = OTT_META[key];
   if(!meta) return '';
-  return `<img class="ott-logo" src="/img/${key}-icon.jpg" alt="${meta.name}" title="${meta.name}"
+  return `<img class="ott-logo" src="/img/${meta.file}-icon.jpg" alt="${meta.name}" title="${meta.name}"
     onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
 }
 
