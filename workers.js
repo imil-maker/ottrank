@@ -304,6 +304,7 @@ function $(n,i,t){if(!i.length)return n.slice(0,t).map((a,r)=>({...a,rank:r+1}))
                 JOIN works w ON w.tmdb_id = wk.tmdb_id
                 WHERE wk.keyword = ?
                   AND wk.tmdb_id != ?
+                  AND (w.adult_flag IS NULL OR w.adult_flag != 1)
                 ORDER BY
                   CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
                   w.tmdb_rating DESC
@@ -319,6 +320,7 @@ function $(n,i,t){if(!i.length)return n.slice(0,t).map((a,r)=>({...a,rank:r+1}))
         FROM work_keywords wk
         JOIN works w ON w.tmdb_id = wk.tmdb_id
         WHERE wk.keyword = ?
+          AND (w.adult_flag IS NULL OR w.adult_flag != 1)
         ORDER BY
           CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
           w.tmdb_rating DESC
