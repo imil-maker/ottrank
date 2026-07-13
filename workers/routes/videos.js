@@ -478,10 +478,14 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       `).bind(`%${qNoSpace}%`, `%${qNoSpace}%`, MAX_MATCH_IDS).all();
 
       // ② 키워드(한글) 매칭 tmdb_id — keyword_translation.keyword_ko로 검색 → work_keywords 조인
+      //   2026-07-14 수정: 일반 JOIN이면 SQLite가 큰 테이블(work_keywords, 13,710행)을 바깥 루프로
+      //   잘못 선택해 검색어와 무관하게 매번 거의 전체를 스캔하는 문제 발견(D1 Rows read로 확인,
+      //   EXPLAIN QUERY PLAN으로 원인 확정). CROSS JOIN은 SQLite에게 "적은 순서 그대로 실행"을
+      //   강제하므로, 작은 테이블(keyword_translation, 4,443행)을 먼저 훑도록 고정.
       const keywordMatch = await env.DB.prepare(`
         SELECT DISTINCT wk.tmdb_id
         FROM keyword_translation kt
-        JOIN work_keywords wk ON wk.keyword = kt.keyword_en
+        CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
         WHERE kt.keyword_ko LIKE ?
         LIMIT ?
       `).bind(`%${q}%`, MAX_MATCH_IDS).all();
