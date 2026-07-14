@@ -145,7 +145,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
       // 오늘 기준 최신 크롤링 날짜 조회 (rankings.date < 'manual' 중 최댓값)
       const latestDateRow = await env.DB.prepare(
-        "SELECT MAX(date) AS latest_date FROM rankings WHERE date < 'manual'"
+        "SELECT value AS latest_date FROM app_settings WHERE key = 'latest_ranking_date'"
       ).first();
       const latestDate = latestDateRow?.latest_date || null;
 
@@ -547,7 +547,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         SELECT tmdb_id, platform, rank
         FROM rankings
         WHERE tmdb_id IN (${pagePlaceholders})
-          AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+          AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
       `).bind(...pageIds).all();
 
       const rankMap = {};
@@ -743,7 +743,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const rankBonusMap = new Map();
       try {
         const latestRow = await env.DB.prepare(
-          "SELECT MAX(date) as d FROM rankings WHERE date < 'manual'"
+          "SELECT value as d FROM app_settings WHERE key = 'latest_ranking_date'"
         ).first();
         if (latestRow?.d) {
           const { results: rankRows } = await env.DB.prepare(`
@@ -837,7 +837,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     try {
       const { results: rankCheck } = await env.DB.prepare(`
         SELECT 1 FROM rankings
-        WHERE tmdb_id = ? AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+        WHERE tmdb_id = ? AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         LIMIT 1
       `).bind(parseInt(tmdb_id)).all();
       isRanked = !!(rankCheck && rankCheck.length);
