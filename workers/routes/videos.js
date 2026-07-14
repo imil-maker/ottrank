@@ -10,6 +10,7 @@
    POST   /imdb/save                IMDb ID 저장
    GET    /youtube/trending         YouTube 한국 급상승 TOP50
    GET    /works/search             작품 검색 (공개) — 제목+키워드(한글) 통합검색, 15개 페이징(offset), 년도/평점/OTT순위 포함
+   GET    /works/exists             tmdb_id 목록 중 DB 등록 여부 확인 (공개) — 검색결과 TMDB 보충결과 중복필터용
    GET    /works/variety-similar/:tmdb_id  예능 태그 기반 비슷한 작품 (공개, % 계산 포함)
    GET    /works/:tmdb_id           작품 단건 조회
    GET    /search/keyword           키워드로 작품 검색 (공개, 한국작품 우선)
@@ -561,6 +562,32 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       }));
 
       return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /works/exists ────────────────────────────────────────
+  // 공개 API — tmdb_id 목록을 받아 그중 우리 DB(works)에 이미 등록된 것만 반환
+  // 2026-07-14 신설: 검색결과 페이지(search-results.html)가 TMDB 보충 검색 결과를 보여줄 때,
+  //   "이미 우리 DB에 등록된 작품인데 이번 검색어로는 안 걸린 것"까지 TMDB 줄거리 매칭으로
+  //   새어 들어오는 문제 발견 (예: "닥터 섬보이"가 실제 키워드/제목엔 "공포"가 없는데도
+  //   TMDB 검색이 overview의 "공포이자"를 잡아서 "공포" 검색 결과에 섞여 나옴).
+  //   이미 등록된 작품은 우리 키워드 시스템이 "관련 없음"으로 이미 판단을 마친 것이므로,
+  //   TMDB 보충 결과에서는 무조건 제외한다 — 순수 미등록 신작만 보충 결과로 노출.
+  // tmdb_id는 기본키(PK)라 인덱스 조회라 트래픽 부담 거의 없음.
+  if (path === "/works/exists" && request.method === "GET") {
+    const idsParam = url.searchParams.get("ids") || "";
+    const ids = idsParam.split(",").map(s => parseInt(s.trim())).filter(n => Number.isInteger(n)).slice(0, 100);
+    if (!ids.length) {
+      return new Response(JSON.stringify({ ok: true, existing_ids: [] }), { headers });
+    }
+    try {
+      const placeholders = ids.map(() => "?").join(",");
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id FROM works WHERE tmdb_id IN (${placeholders})
+      `).bind(...ids).all();
+      return new Response(JSON.stringify({ ok: true, existing_ids: results.map(r => r.tmdb_id) }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
