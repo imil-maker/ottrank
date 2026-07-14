@@ -119,7 +119,7 @@ export async function handleRankings(path, request, env, url, headers) {
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date = COALESCE(?, (SELECT MAX(date) FROM rankings WHERE date != 'manual'))
+          AND r.date = COALESCE(?, (SELECT MAX(date) FROM rankings WHERE date < 'manual'))
           AND r.rank <= oc.main_limit + 20
         ORDER BY oc.main_section, oc.main_order, r.rank
       `).bind(date).all();
@@ -241,7 +241,7 @@ export async function handleRankings(path, request, env, url, headers) {
         WHERE r.platform = ?
           AND oc.platform_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date = COALESCE(?, (SELECT MAX(date) FROM rankings WHERE date != 'manual'))
+          AND r.date = COALESCE(?, (SELECT MAX(date) FROM rankings WHERE date < 'manual'))
           AND r.rank <= oc.platform_limit + 20
         ORDER BY oc.platform_order, r.rank
       `).bind(platform, date).all();
@@ -332,8 +332,8 @@ export async function handleRankings(path, request, env, url, headers) {
         JOIN ott_categories oc ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date >= date((SELECT MAX(date) FROM rankings WHERE date != 'manual'), '-6 days')
-          AND r.date != 'manual'
+          AND r.date >= date((SELECT MAX(date) FROM rankings WHERE date < 'manual'), '-6 days')
+          AND r.date < 'manual'
           AND r.rank <= 10
         GROUP BY r.platform, r.category_slot, r.title_ko
         ORDER BY oc.main_section, oc.main_order, rank
@@ -392,8 +392,8 @@ export async function handleRankings(path, request, env, url, headers) {
         JOIN ott_categories oc ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date >= date((SELECT MAX(date) FROM rankings WHERE date != 'manual'), '-29 days')
-          AND r.date != 'manual'
+          AND r.date >= date((SELECT MAX(date) FROM rankings WHERE date < 'manual'), '-29 days')
+          AND r.date < 'manual'
           AND r.rank <= 10
         GROUP BY r.platform, r.category_slot, r.title_ko
         ORDER BY oc.main_section, oc.main_order, rank
@@ -444,8 +444,8 @@ export async function handleRankings(path, request, env, url, headers) {
       SELECT date, platform, category_slot, rank
       FROM rankings
       WHERE tmdb_id = ?
-        AND date != 'manual'
-        AND date >= date((SELECT MAX(date) FROM rankings WHERE date != 'manual'), '-29 days')
+        AND date < 'manual'
+        AND date >= date((SELECT MAX(date) FROM rankings WHERE date < 'manual'), '-29 days')
       ORDER BY date ASC, platform ASC
     `).bind(tmdb_id).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
@@ -463,7 +463,7 @@ export async function handleRankings(path, request, env, url, headers) {
         SELECT DISTINCT platform, MIN(rank) as rank
         FROM rankings
         WHERE tmdb_id = ?
-          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+          AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
         GROUP BY platform
         ORDER BY rank ASC
       `).bind(tmdb_id).all();
@@ -504,7 +504,7 @@ export async function handleRankings(path, request, env, url, headers) {
         SELECT tmdb_id, platform, MIN(rank) as rank
         FROM rankings
         WHERE tmdb_id IN (${placeholders})
-          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+          AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
         GROUP BY tmdb_id, platform
         ORDER BY tmdb_id, rank ASC
       `).bind(...tmdbIds).all();
@@ -556,7 +556,7 @@ export async function handleRankings(path, request, env, url, headers) {
         FROM rankings r
         LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
         WHERE r.platform = ? AND r.category_slot = ?
-          AND r.date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+          AND r.date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
         ORDER BY r.rank ASC
       `).bind(slot.platform, slot.category_slot).all();
 
@@ -620,7 +620,7 @@ export async function handleRankings(path, request, env, url, headers) {
   // ── GET /latest-date ──────────────────────────────────────
   if (path === "/latest-date") {
     const { results } = await env.DB.prepare(
-      "SELECT MAX(date) as date FROM rankings WHERE date != 'manual'"
+      "SELECT MAX(date) as date FROM rankings WHERE date < 'manual'"
     ).all();
     return new Response(JSON.stringify({ ok: true, data: results[0] }), { headers });
   }
