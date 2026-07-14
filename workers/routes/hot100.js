@@ -132,7 +132,7 @@ export async function calcHot100(request, env, headers) {
     // date='manual'(수동 고정 데이터)은 날짜 비교 대상에서 제외하고,
     // 실제 크롤링 날짜 중 가장 최근 값을 기준으로 삼는다.
     const latestDateRow = await env.DB.prepare(
-      `SELECT MAX(date) AS latest_date FROM rankings WHERE date < 'manual'`
+      `SELECT value AS latest_date FROM app_settings WHERE key = 'latest_ranking_date'`
     ).first();
 
     // 데이터가 없을 때 예외 처리
