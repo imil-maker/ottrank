@@ -80,6 +80,39 @@ export function _mergeRankings(crawlRows, manualRows, limit) {
   return result;
 }
 
+/**
+ * [2026-07-15 추가] B안 안전망
+ * 노출 설정(is_active=1 + 각 섹션 필드)은 켜져 있는데, "오늘 날짜"로는 rankings에
+ * 데이터가 없는 카테고리(category10처럼 자동 크롤링이 아니라 수동 재계산이 필요한
+ * 카테고리가 그날 재계산을 놓친 경우 등)만 골라서 각자의 가장 최근 날짜 데이터로 보충한다.
+ * 평소(모든 카테고리가 오늘자 데이터를 갖고 있음)엔 missingCats가 비어있어서
+ * 이 함수 자체가 호출되지 않거나(호출돼도 즉시 빈 배열 반환) 추가 D1 호출이 발생하지 않는다.
+ *
+ * @param {Object} env
+ * @param {Array} missingCats - [{platform, category_slot, ...}] 오늘자 데이터가 없는 카테고리만
+ * @returns {Array} 보충된 랭킹 행 배열 (platform, category_slot, rank, date 등 포함)
+ */
+export async function _fetchFallbackForMissing(env, missingCats) {
+  if (!missingCats || !missingCats.length) return [];
+
+  const statements = missingCats.map(c =>
+    env.DB.prepare(`
+      SELECT platform, category_slot, rank, title_ko, title_en, tmdb_id,
+             poster_path, genre, tmdb_rating, release_year, memo, date
+      FROM rankings
+      WHERE platform = ? AND category_slot = ?
+        AND date = (
+          SELECT MAX(date) FROM rankings
+          WHERE platform = ? AND category_slot = ? AND date != 'manual'
+        )
+      ORDER BY rank ASC
+    `).bind(c.platform, c.category_slot, c.platform, c.category_slot)
+  );
+
+  const batchResults = await env.DB.batch(statements);
+  return batchResults.flatMap(r => r.results || []);
+}
+
 export async function handleRankings(path, request, env, url, headers) {
 
   // ── GET /rankings ─────────────────────────────────────────
@@ -108,12 +141,22 @@ export async function handleRankings(path, request, env, url, headers) {
     try {
       const date = url.searchParams.get("date") || null;
 
-      // 일반 크롤링 랭킹
+      // [2026-07-15 추가] 노출 설정된 전체 카테고리 목록 — 오늘자 데이터 유무와 무관하게
+      // "설정상 켜져있는" 카테고리를 먼저 확보해둬야, 아래에서 오늘자 데이터가 없는
+      // 카테고리를 가려낼 수 있다 (B안 안전망의 기준표 역할)
+      const { results: activeCats } = await env.DB.prepare(`
+        SELECT platform, category_slot, display_name, main_section, main_order, main_limit, memo_label
+        FROM ott_categories
+        WHERE main_section IS NOT NULL AND is_active = 1
+      `).all();
+      const catMeta = {};
+      for (const c of activeCats) catMeta[`${c.platform}__${c.category_slot}`] = c;
+
+      // 일반 크롤링 랭킹 (오늘자)
       const { results: crawlResults } = await env.DB.prepare(`
         SELECT
           r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
-          oc.display_name, oc.main_section, oc.main_order, oc.main_limit, oc.memo_label
+          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
         FROM rankings r
         JOIN ott_categories oc
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
@@ -128,8 +171,7 @@ export async function handleRankings(path, request, env, url, headers) {
       const { results: manualResults } = await env.DB.prepare(`
         SELECT
           r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
-          oc.display_name, oc.main_section, oc.main_order, oc.main_limit, oc.memo_label
+          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
         FROM rankings r
         JOIN ott_categories oc
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
@@ -140,29 +182,42 @@ export async function handleRankings(path, request, env, url, headers) {
         ORDER BY oc.main_section, oc.main_order, r.rank
       `).all();
 
-      // category_slot별 그룹화 후 병합
+      // category_slot별 그룹화
       const crawlBySlot  = {};
       const manualBySlot = {};
-      const slotMeta     = {};
 
       for (const row of crawlResults) {
         const key = `${row.platform}__${row.category_slot}`;
-        if (!crawlBySlot[key])  crawlBySlot[key]  = [];
-        if (!slotMeta[key])     slotMeta[key]      = row;
+        if (!crawlBySlot[key]) crawlBySlot[key] = [];
         crawlBySlot[key].push(row);
       }
       for (const row of manualResults) {
         const key = `${row.platform}__${row.category_slot}`;
-        if (!manualBySlot[key]) manualBySlot[key]  = [];
-        if (!slotMeta[key])     slotMeta[key]      = row;
+        if (!manualBySlot[key]) manualBySlot[key] = [];
         manualBySlot[key].push(row);
+      }
+
+      // [2026-07-15 추가] B안 안전망 — 날짜 파라미터를 직접 지정한 조회(과거 특정일 조회)는
+      // "그날 데이터가 없으면 없는 게 맞다"이므로 안전망 대상에서 제외하고, 기본(오늘자) 조회일 때만 적용
+      if (!date) {
+        const missingCats = activeCats.filter(
+          c => !crawlBySlot[`${c.platform}__${c.category_slot}`]
+        );
+        if (missingCats.length) {
+          const fallbackRows = await _fetchFallbackForMissing(env, missingCats);
+          for (const row of fallbackRows) {
+            const key = `${row.platform}__${row.category_slot}`;
+            if (!crawlBySlot[key]) crawlBySlot[key] = [];
+            crawlBySlot[key].push(row);
+          }
+        }
       }
 
       const tv = {}, movie = {}, featured = {};
       const allKeys = new Set([...Object.keys(crawlBySlot), ...Object.keys(manualBySlot)]);
 
       for (const key of allKeys) {
-        const meta    = slotMeta[key];
+        const meta    = catMeta[key];
         if (!meta) continue;
         const limit   = meta.main_limit || 10;
         const merged  = _mergeRankings(
@@ -229,12 +284,21 @@ export async function handleRankings(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "platform required" }), { status: 400, headers });
       }
 
+      // [2026-07-15 추가] 노출 설정된 전체 카테고리 목록(이 플랫폼 한정) — 오늘자 데이터
+      // 유무와 무관하게 "설정상 켜져있는" 카테고리를 먼저 확보 (B안 안전망의 기준표)
+      const { results: activeCats } = await env.DB.prepare(`
+        SELECT platform, category_slot, display_name, platform_section, platform_order, platform_limit, memo_label
+        FROM ott_categories
+        WHERE platform = ? AND platform_section IS NOT NULL AND is_active = 1
+      `).bind(platform).all();
+      const catMeta = {};
+      for (const c of activeCats) catMeta[c.category_slot] = c;
+
       // 일반 크롤링 랭킹
       const { results: crawlResults } = await env.DB.prepare(`
         SELECT
           r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
-          oc.display_name, oc.platform_section, oc.platform_order, oc.platform_limit, oc.memo_label
+          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
         FROM rankings r
         JOIN ott_categories oc
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
@@ -250,8 +314,7 @@ export async function handleRankings(path, request, env, url, headers) {
       const { results: manualResults } = await env.DB.prepare(`
         SELECT
           r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
-          oc.display_name, oc.platform_section, oc.platform_order, oc.platform_limit, oc.memo_label
+          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
         FROM rankings r
         JOIN ott_categories oc
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
@@ -263,29 +326,40 @@ export async function handleRankings(path, request, env, url, headers) {
         ORDER BY oc.platform_order, r.rank
       `).bind(platform).all();
 
-      // category_slot별 그룹화 후 병합
+      // category_slot별 그룹화
       const crawlBySlot  = {};
       const manualBySlot = {};
-      const slotMeta     = {};
 
       for (const row of crawlResults) {
         const key = row.category_slot;
-        if (!crawlBySlot[key])  crawlBySlot[key]  = [];
-        if (!slotMeta[key])     slotMeta[key]      = row;
+        if (!crawlBySlot[key]) crawlBySlot[key] = [];
         crawlBySlot[key].push(row);
       }
       for (const row of manualResults) {
         const key = row.category_slot;
-        if (!manualBySlot[key]) manualBySlot[key]  = [];
-        if (!slotMeta[key])     slotMeta[key]      = row;
+        if (!manualBySlot[key]) manualBySlot[key] = [];
         manualBySlot[key].push(row);
+      }
+
+      // [2026-07-15 추가] B안 안전망 — 특정 날짜를 직접 지정한 조회는 대상에서 제외,
+      // 기본(오늘자) 조회일 때만 "오늘자 없는 카테고리"를 최근 날짜로 보충
+      if (!date) {
+        const missingCats = activeCats.filter(c => !crawlBySlot[c.category_slot]);
+        if (missingCats.length) {
+          const fallbackRows = await _fetchFallbackForMissing(env, missingCats);
+          for (const row of fallbackRows) {
+            const key = row.category_slot;
+            if (!crawlBySlot[key]) crawlBySlot[key] = [];
+            crawlBySlot[key].push(row);
+          }
+        }
       }
 
       const groups  = {};
       const allKeys = new Set([...Object.keys(crawlBySlot), ...Object.keys(manualBySlot)]);
 
       for (const key of allKeys) {
-        const meta   = slotMeta[key];
+        const meta   = catMeta[key];
         if (!meta) continue;
         const limit  = meta.platform_limit || 20;
         const merged = _mergeRankings(
@@ -550,7 +624,7 @@ export async function handleRankings(path, request, env, url, headers) {
       // media_type이 없는데, 영화/TV는 TMDB 숫자 tmdb_id를 공유하므로 이게 없으면
       // 프론트에서 작품 상세페이지로 이동할 때 완전히 다른(엉뚱한) 작품으로
       // 잘못 연결될 수 있음(works 3키 원칙과 같은 계열의 위험).
-      const { results: crawlResults } = await env.DB.prepare(`
+      let { results: crawlResults } = await env.DB.prepare(`
         SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
                r.tmdb_rating, r.release_year, w.media_type
         FROM rankings r
@@ -559,6 +633,25 @@ export async function handleRankings(path, request, env, url, headers) {
           AND r.date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         ORDER BY r.rank ASC
       `).bind(slot.platform, slot.category_slot).all();
+
+      // [2026-07-15 추가] B안 안전망 — 오늘자로 이 카테고리 데이터가 하나도 없으면
+      // (예: category10처럼 그날 재계산을 못 돌린 경우), 이 카테고리의 가장 최근 날짜로 대체.
+      // 노출 카테고리가 1개뿐인 위젯이라 매번 별도 쿼리라도 부담이 크지 않음.
+      if (!crawlResults.length) {
+        const { results: fallbackResults } = await env.DB.prepare(`
+          SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
+                 r.tmdb_rating, r.release_year, w.media_type
+          FROM rankings r
+          LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+          WHERE r.platform = ? AND r.category_slot = ?
+            AND r.date = (
+              SELECT MAX(date) FROM rankings
+              WHERE platform = ? AND category_slot = ? AND date != 'manual'
+            )
+          ORDER BY r.rank ASC
+        `).bind(slot.platform, slot.category_slot, slot.platform, slot.category_slot).all();
+        crawlResults = fallbackResults;
+      }
 
       // 수동고정 랭킹 (다른 엔드포인트와 동일한 규칙: is_manual=1 AND date='manual')
       const { results: manualResults } = await env.DB.prepare(`
