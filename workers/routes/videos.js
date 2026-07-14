@@ -143,9 +143,9 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // 오늘 남은 예산과 요청 limit 중 작은 값만 처리
       const effectiveLimit = Math.min(limit, DAILY_BUDGET - todayCount);
 
-      // 오늘 기준 최신 크롤링 날짜 조회 (rankings.date != 'manual' 중 최댓값)
+      // 오늘 기준 최신 크롤링 날짜 조회 (rankings.date < 'manual' 중 최댓값)
       const latestDateRow = await env.DB.prepare(
-        "SELECT MAX(date) AS latest_date FROM rankings WHERE date != 'manual'"
+        "SELECT MAX(date) AS latest_date FROM rankings WHERE date < 'manual'"
       ).first();
       const latestDate = latestDateRow?.latest_date || null;
 
@@ -547,7 +547,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         SELECT tmdb_id, platform, rank
         FROM rankings
         WHERE tmdb_id IN (${pagePlaceholders})
-          AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+          AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
       `).bind(...pageIds).all();
 
       const rankMap = {};
@@ -708,7 +708,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   // % 계산 (고정 티어 + 오늘 랭킹 가산점, 랜덤 아님 — 방문할 때마다 % 흔들리는 걸 방지):
   //   기본 티어: 태그 2개 중 2개 일치 → 92%   |   태그 2개 중 1개 일치 → 82%
   //             태그 1개 중 1개 일치 → 87%   |   일치 0개 → 후보에서 제외
-  //   + 오늘(date != 'manual') 랭킹에 걸린 플랫폼 개수만큼 1%p씩 가산
+  //   + 오늘(date < 'manual') 랭킹에 걸린 플랫폼 개수만큼 1%p씩 가산
   //     예) "나는 솔로"가 오늘 넷플릭스·웨이브·티빙 3곳에 랭킹 → 92%+3 = 98%
   //   상한선 99% (100%는 "완전히 동일한 작품"이라는 오해를 줄 수 있어 안 씀)
   //   랭킹 가산점 계산이 실패해도 기본 % 매칭 자체는 죽지 않도록 별도 try/catch로 분리
@@ -743,7 +743,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const rankBonusMap = new Map();
       try {
         const latestRow = await env.DB.prepare(
-          "SELECT MAX(date) as d FROM rankings WHERE date != 'manual'"
+          "SELECT MAX(date) as d FROM rankings WHERE date < 'manual'"
         ).first();
         if (latestRow?.d) {
           const { results: rankRows } = await env.DB.prepare(`
@@ -837,7 +837,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     try {
       const { results: rankCheck } = await env.DB.prepare(`
         SELECT 1 FROM rankings
-        WHERE tmdb_id = ? AND date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+        WHERE tmdb_id = ? AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
         LIMIT 1
       `).bind(parseInt(tmdb_id)).all();
       isRanked = !!(rankCheck && rankCheck.length);
