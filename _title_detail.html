@@ -2069,11 +2069,15 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   // 순위 정보가 있을 때만 "N위" 문구 포함 — 랭킹 미진입작/직접 진입 시(플랫폼·순위 미확정) "OTT -위" 노출 방지
   const hasRank=rank&&rank!=='-'&&rank!=='0';
   const pName=hasRank?(PC[platform]||platform||'OTT'):'';
-  // [2026-07-08 추가] IMDb 평점 — extIdsRes 처리(§IMDb 블록) 이후 WORK.imdbRating이 채워지면
+  // [2026-07-08 추가, 2026-07-14 수정] IMDb 평점 — extIdsRes 처리(§IMDb 블록) 이후 WORK.imdbRating이 채워지면
   //   updateSEO()가 재호출되어 여기 반영됨. 최초 호출 시점엔 아직 없을 수 있어 없으면 생략.
+  //   [2026-07-14] 검색결과(타이틀·요약문)에 실제 평점 숫자를 노출하면 클릭율이 떨어져서
+  //   숫자는 빼고 "IMDb 평점" 문구만 노출 — 궁금증을 유발해 사이트 방문을 유도. 실제 숫자는
+  //   사이트 내 IMDb 카드에서 확인 가능. (JSON-LD 구조화 데이터의 실제 평점 값은 검색엔진용
+  //   정보이며 화면에 노출되지 않으므로 그대로 유지)
   const hasImdb=!!WORK.imdbRating;
-  const titleMid=['평점',hasImdb?`IMDb ${WORK.imdbRating}`:null,hasRank?'순위':'후기','추천'].filter(Boolean).join('·');
-  const imdbDescPart=hasImdb?`, IMDb 평점 ${WORK.imdbRating}점`:'';
+  const titleMid=['평점',hasImdb?'IMDb 평점':null,hasRank?'순위':'후기','추천'].filter(Boolean).join('·');
+  const imdbDescPart=hasImdb?', IMDb 평점':'';
   const seoT=hasRank
     ? `${t} ${titleMid} | ${typeLabel} ${pName} ${rank}위 | 오뜨랑`
     : `${t} ${titleMid} | ${typeLabel} 오뜨랑`;
