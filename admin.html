@@ -416,10 +416,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <!-- 인물페이지 설정 -->
   <div style="display:flex;align-items:center;gap:12px;margin:24px 0 12px">
     <div style="font-size:14px;font-weight:600;color:var(--gold)">👤 인물페이지 설정</div>
-    <button class="btn-save" onclick="saveAllPersonCat()" style="margin-left:auto;padding:8px 20px;font-size:13px">💾 인물페이지 저장</button>
   </div>
   <div style="font-size:12px;color:var(--muted2);margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
-    💡 인물페이지 상단 위젯에 노출할 카테고리를 <b>하나만</b> "✅ 노출"로 선택하세요. 2개 이상 선택 시 저장되지 않습니다. 메인페이지·OTT페이지 설정과는 별개로 저장됩니다.
+    💡 인물페이지 상단 위젯에는 카테고리를 <b>하나만</b> 노출할 수 있습니다. 원하는 줄에서 "✅ 노출" 선택 후 그 줄의 "저장" 버튼을 누르세요.
+    이미 다른 카테고리가 노출 중이면 교체 여부를 물어보고, 확인하면 기존 카테고리는 자동으로 미노출 처리됩니다. 메인페이지·OTT페이지 설정과는 별개로 저장됩니다.
   </div>
   <!-- [2026-07-12 추가] 메인페이지 스위치와 동일한 원리 -->
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:12px 16px">
@@ -432,11 +432,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <thead>
         <tr>
           <th>플랫폼</th><th>슬롯</th><th>크롤링 원본명</th><th>프론트 표시명</th>
-          <th>인물페이지 노출</th><th>순서</th><th>노출 개수</th>
+          <th>인물페이지 노출</th><th>순서</th><th>노출 개수</th><th>저장</th>
         </tr>
       </thead>
       <tbody id="pagecatPersonBody">
-        <tr><td colspan="7" class="loading">불러오는 중...</td></tr>
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -4567,7 +4567,7 @@ function renderPageCatMain() {
       </td>
       <td>
         <input class="date-inp" type="number" id="pmc-limit-${r.id}" data-field="main_limit"
-          value="${r.main_limit||10}" style="width:50px;font-size:12px" min="1" max="50">
+          value="${r.main_limit||10}" style="width:100px;font-size:12px" min="1" max="50">
       </td>
       <td>
         <button class="btn-sm btn-save" onclick="savePageCatMain(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
@@ -4600,7 +4600,7 @@ function renderPageCatPlatform() {
       </td>
       <td>
         <input class="date-inp" type="number" id="ppp-limit-${r.id}" data-field="platform_limit"
-          value="${r.platform_limit||20}" style="width:50px;font-size:12px" min="1" max="50">
+          value="${r.platform_limit||20}" style="width:100px;font-size:12px" min="1" max="50">
       </td>
       <td>
         <button class="btn-sm btn-save" onclick="savePageCatPlatform(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
@@ -4657,7 +4657,7 @@ async function savePageCatPlatform(id) {
 function renderPageCatPerson() {
   const rows = allPageCatData;
   if (!rows.length) {
-    document.getElementById('pagecatPersonBody').innerHTML = '<tr><td colspan="7" class="empty">데이터 없음</td></tr>';
+    document.getElementById('pagecatPersonBody').innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
     return;
   }
   document.getElementById('pagecatPersonBody').innerHTML = rows.map(r => `
@@ -4678,66 +4678,74 @@ function renderPageCatPerson() {
       </td>
       <td>
         <input class="date-inp" type="number" id="ppn-limit-${r.id}" data-field="person_limit"
-          value="${r.person_limit||20}" style="width:50px;font-size:12px" min="1" max="50">
+          value="${r.person_limit||20}" style="width:100px;font-size:12px" min="1" max="50">
+      </td>
+      <td>
+        <button class="btn-sm btn-save" onclick="savePagePerson(${r.id})" style="padding:5px 12px;font-size:11px">저장</button>
       </td>
     </tr>
   `).join('');
 }
 
-async function saveAllPersonCat() {
-  // 메인페이지/OTT페이지 저장(saveAllPageCat)과 완전히 분리된 별도 함수 — 서로 영향 없음
-  const rows = document.querySelectorAll('#pagecatPersonBody [data-catid]');
-  if (!rows.length) return;
+/* [2026-07-14 개선] 일괄저장(saveAllPersonCat) 대신 행 단위 개별저장으로 변경.
+   인물페이지 위젯은 카테고리 1개만 연결 가능한 구조라, "노출"로 저장할 때
+   이미 다른 카테고리가 노출 중이면 확인창을 띄우고, 확인 시 기존 카테고리를
+   자동으로 미노출 처리한 뒤 이번 카테고리를 노출로 저장(교체)한다. */
+async function savePagePerson(id) {
+  id = parseInt(id);
+  const row = document.querySelector(`#pagecatPersonBody tr[data-catid="${id}"]`);
+  if (!row) return;
 
-  // 저장 전 검증: 화면상 "✅ 노출"이 2개 이상이면 API 호출 없이 즉시 중단
-  let exposedCount = 0;
-  rows.forEach(row => {
-    const val = row.querySelector('[data-field="person_section"]')?.value || '';
-    if (val === 'person') exposedCount++;
-  });
-  if (exposedCount >= 2) {
-    showToast(`⚠️ 인물페이지 노출은 1개만 선택해주세요 (현재 ${exposedCount}개 선택됨)`, 'err');
-    return;
+  const personSection = row.querySelector('[data-field="person_section"]')?.value || null;
+  const personOrder   = parseInt(row.querySelector('[data-field="person_order"]')?.value) || 0;
+  const personLimit   = parseInt(row.querySelector('[data-field="person_limit"]')?.value) || 20;
+
+  // "노출"로 저장하려는 경우에만 기존 노출 카테고리와 충돌 여부 확인
+  if (personSection === 'person') {
+    const prevExposed = allPageCatData.find(r => r.id !== id && r.person_section === 'person');
+    if (prevExposed) {
+      const label = prevExposed.display_name || prevExposed.category_slot;
+      const proceed = confirm(`현재 "${label}"이(가) 이미 노출 중입니다.\n이 카테고리로 교체하시겠습니까?`);
+      if (!proceed) return;
+
+      // 기존 노출 카테고리를 미노출로 먼저 전환
+      try {
+        const res1 = await fetch(`${API}/admin/categories/${prevExposed.id}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            person_section: null,
+            person_order:   prevExposed.person_order || 0,
+            person_limit:   prevExposed.person_limit || 20,
+          }),
+        });
+        const json1 = await res1.json();
+        if (!json1.ok) { showToast(json1.message || '기존 카테고리 미노출 전환 실패', 'err'); return; }
+        prevExposed.person_section = null;
+        // 화면에 그 행이 보이고 있으면 드롭다운도 즉시 갱신
+        const prevRow = document.querySelector(`#pagecatPersonBody tr[data-catid="${prevExposed.id}"]`);
+        const prevSelect = prevRow?.querySelector('[data-field="person_section"]');
+        if (prevSelect) prevSelect.value = '';
+      } catch(e) { showToast(e.message, 'err'); return; }
+    }
   }
 
-  const btn = document.querySelector('[onclick="saveAllPersonCat()"]');
-  const orig = btn.textContent;
-  btn.textContent = '저장 중...';
-  btn.disabled = true;
-
-  let ok = 0, fail = 0;
-  for (const row of rows) {
-    const id            = row.dataset.catid;
-    const personSection = row.querySelector('[data-field="person_section"]')?.value || null;
-    const personOrder   = parseInt(row.querySelector('[data-field="person_order"]')?.value) || 0;
-    const personLimit   = parseInt(row.querySelector('[data-field="person_limit"]')?.value) || 20;
-    try {
-      const res = await fetch(`${API}/admin/categories/${id}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          person_section: personSection || null,
-          person_order:   personOrder,
-          person_limit:   personLimit,
-        }),
-      });
-      const json = await res.json();
-      if (json.ok) {
-        ok++;
-        const item = allPageCatData.find(r => r.id === parseInt(id));
-        if (item) { item.person_section = personSection || null; item.person_order = personOrder; item.person_limit = personLimit; }
-      } else fail++;
-    } catch(e) { fail++; }
-  }
-
-  btn.textContent = orig;
-  btn.disabled = false;
-
-  if (fail === 0) {
-    showToast(`✅ 인물페이지 설정 ${ok}개 저장 완료!`, 'ok');
-  } else {
-    showToast(`⚠️ ${ok}개 성공 / ${fail}개 실패`, 'err');
-  }
+  try {
+    const res = await fetch(`${API}/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        person_section: personSection || null,
+        person_order:   personOrder,
+        person_limit:   personLimit,
+      }),
+    });
+    const json = await res.json();
+    if (!json.ok) { showToast(json.message || '저장 실패', 'err'); return; }
+    const item = allPageCatData.find(r => r.id === id);
+    if (item) { item.person_section = personSection || null; item.person_order = personOrder; item.person_limit = personLimit; }
+    showToast('✅ 인물페이지 설정 저장 완료', 'ok');
+  } catch(e) { showToast(e.message, 'err'); }
 }
 
 // ════════════════════════════════════════════════════
