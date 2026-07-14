@@ -527,6 +527,44 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
+  // ── DELETE /admin/rankings/:id ────────────────────────────
+  // [2026-07-14 신설] "랭킹 관리" 표에서 개별 항목 즉시 삭제.
+  // upload_to_d1.py::upload_rankings()가 크롤링 개수를 초과하는 옛 순위(예:
+  // 티빙 16~20위)를 지우지 않고 그대로 두는 구조적 문제의 임시 대응책 —
+  // 관리자가 눈에 보이는 찌꺼기 데이터를 손으로 바로 정리할 수 있게 함.
+  const rankingDeleteMatch = path.match(/^\/admin\/rankings\/(\d+)$/);
+  if (rankingDeleteMatch && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const rankingId = parseInt(rankingDeleteMatch[1]);
+
+      // 대상 행 존재 여부 확인 (로그 기록용 정보도 같이 확보)
+      const row = await env.DB.prepare(
+        "SELECT id, platform, category_slot, title_ko, rank, is_manual FROM rankings WHERE id = ?"
+      ).bind(rankingId).first();
+
+      if (!row) {
+        return new Response(JSON.stringify({ ok: false, message: "해당 랭킹을 찾을 수 없습니다." }), { status: 404, headers });
+      }
+
+      await env.DB.prepare("DELETE FROM rankings WHERE id = ?").bind(rankingId).run();
+
+      // 관리자 로그 기록
+      await env.DB.prepare(
+        "INSERT INTO admin_logs (action, platform, category_slot, target_id, after_value) VALUES ('ranking_delete', ?, ?, ?, ?)"
+      ).bind(
+        row.platform, row.category_slot, String(rankingId),
+        JSON.stringify({ title_ko: row.title_ko, rank: row.rank, is_manual: row.is_manual })
+      ).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /admin/categories ────────────────────────────────────
   if (path === "/admin/categories" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
