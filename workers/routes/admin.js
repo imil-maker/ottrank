@@ -319,7 +319,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       query    = "SELECT * FROM rankings WHERE date = ? ORDER BY platform, category_slot, rank";
       bindVal  = date;
     } else {
-      query    = "SELECT * FROM rankings WHERE date = (SELECT MAX(date) FROM rankings WHERE date < 'manual') ORDER BY platform, category_slot, rank";
+      query    = "SELECT * FROM rankings WHERE date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date') ORDER BY platform, category_slot, rank";
       bindVal  = null;
     }
     const { results } = bindVal
@@ -1577,7 +1577,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         FROM rankings r
         LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
         WHERE r.platform = ? AND r.category_slot = ?
-          AND r.date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+          AND r.date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         ORDER BY r.rank ASC
       `).bind(platform, category_slot).all();
 
@@ -3005,7 +3005,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       // 오늘 기준 최신 크롤링 날짜 조회 (batch-crawl과 동일 패턴)
       const latestDateRow = await env.DB.prepare(
-        "SELECT MAX(date) AS latest_date FROM rankings WHERE date < 'manual'"
+        "SELECT value AS latest_date FROM app_settings WHERE key = 'latest_ranking_date'"
       ).first();
       const latestDate = latestDateRow?.latest_date || null;
 
