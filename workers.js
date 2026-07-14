@@ -195,7 +195,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
             OR w.yt_crawl_attempted_at < datetime('now', '-3 days')
           )
           AND (w.adult_flag IS NULL OR w.adult_flag != 1)
-        `).first();return new Response(JSON.stringify({ok:!0,attempted:0,filled:0,remaining:w?.cnt||0,message:`\uC624\uB298 \uC608\uC0B0(${c}\uAC1C) \uC18C\uC9C4 \u2014 \uB0B4\uC77C \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694`}),{headers:l})}let a=Math.min(n,c-e),_=(await t.DB.prepare("SELECT MAX(date) AS latest_date FROM rankings WHERE date < 'manual'").first())?.latest_date||null,{results:p}=await t.DB.prepare(`
+        `).first();return new Response(JSON.stringify({ok:!0,attempted:0,filled:0,remaining:w?.cnt||0,message:`\uC624\uB298 \uC608\uC0B0(${c}\uAC1C) \uC18C\uC9C4 \u2014 \uB0B4\uC77C \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694`}),{headers:l})}let a=Math.min(n,c-e),_=(await t.DB.prepare("SELECT value AS latest_date FROM app_settings WHERE key = 'latest_ranking_date'").first())?.latest_date||null,{results:p}=await t.DB.prepare(`
         SELECT w.tmdb_id
         FROM works w
         WHERE (
@@ -249,7 +249,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
         SELECT tmdb_id, platform, rank
         FROM rankings
         WHERE tmdb_id IN (${y})
-          AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+          AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
       `).bind(...k).all(),N={};R.forEach(S=>{N[S.tmdb_id]||(N[S.tmdb_id]={}),N[S.tmdb_id][S.platform]=S.rank});let T=E.map(S=>({...S,ott_ranks:N[S.tmdb_id]||{}}));return new Response(JSON.stringify({ok:!0,data:T,has_more:w,limit:c,offset:d}),{headers:l})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:l})}}if(r==="/works/exists"&&i.method==="GET"){let c=(s.searchParams.get("ids")||"").split(",").map(d=>parseInt(d.trim())).filter(d=>Number.isInteger(d)).slice(0,100);if(!c.length)return new Response(JSON.stringify({ok:!0,existing_ids:[]}),{headers:l});try{let d=c.map(()=>"?").join(","),{results:e}=await t.DB.prepare(`
         SELECT tmdb_id FROM works WHERE tmdb_id IN (${d})
       `).bind(...c).all();return new Response(JSON.stringify({ok:!0,existing_ids:e.map(a=>a.tmdb_id)}),{headers:l})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:l})}}if(r==="/works/register"&&i.method==="POST")try{let n=await i.json(),{tmdb_id:c,title_ko:d,title_en:e,poster_path:a,media_type:o,genre:_,original_language:p,tmdb_rating:u,release_date:m}=n;if(!c||!d)return new Response(JSON.stringify({ok:!1,message:"tmdb_id, title_ko required"}),{status:400,headers:l});let f=e&&/[\uAC00-\uD7A3]/.test(e),w=e&&/[a-zA-Z]/.test(e)&&!f?e:null,k=u??null,y=m||null,R=new Date().toISOString();return await t.DB.prepare(`
@@ -304,14 +304,14 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
         SELECT tmdb_id, title_ko, title_en, poster_path, tmdb_rating, release_year, variety_genre, media_type
         FROM works
         WHERE variety_genre IS NOT NULL AND variety_genre != '' AND tmdb_id != ?
-      `).bind(n).all(),o=new Map;try{let p=await t.DB.prepare("SELECT MAX(date) as d FROM rankings WHERE date < 'manual'").first();if(p?.d){let{results:u}=await t.DB.prepare(`
+      `).bind(n).all(),o=new Map;try{let p=await t.DB.prepare("SELECT value as d FROM app_settings WHERE key = 'latest_ranking_date'").first();if(p?.d){let{results:u}=await t.DB.prepare(`
             SELECT tmdb_id, COUNT(DISTINCT platform) as cnt
             FROM rankings
             WHERE date = ?
             GROUP BY tmdb_id
           `).bind(p.d).all();for(let m of u)o.set(m.tmdb_id,m.cnt)}}catch{}let _=[];for(let p of a){let u=(p.variety_genre||"").split(",").map(k=>k.trim()).filter(Boolean),m=e.filter(k=>u.includes(k)).length;if(!m)continue;let f=null;if(e.length===2?f=m===2?92:82:e.length===1&&(f=m===1?87:null),!f)continue;let E=o.get(p.tmdb_id)||0,w=Math.min(f+E,99);_.push({tmdb_id:p.tmdb_id,title_ko:p.title_ko,title_en:p.title_en,poster_path:p.poster_path,tmdb_rating:p.tmdb_rating,release_year:p.release_year,match_pct:w,media_type:p.media_type||null})}return _.sort((p,u)=>u.match_pct-p.match_pct||(u.release_year||0)-(p.release_year||0)||(u.tmdb_rating||0)-(p.tmdb_rating||0)),new Response(JSON.stringify({ok:!0,data:_.slice(0,c)}),{headers:l})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:l})}}if(r.startsWith("/works/")&&i.method==="GET"){let n=r.split("/works/")[1];if(!n)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:l});let{results:c}=await t.DB.prepare("SELECT * FROM works WHERE tmdb_id = ?").bind(parseInt(n)).all();if(!c.length)return new Response(JSON.stringify({ok:!1,message:"Not found"}),{status:404,headers:l});let d={...c[0]};if(!d.mbti_tags&&d.genre){let m=Lt(d.genre);m&&(g.waitUntil(t.DB.prepare("UPDATE works SET mbti_tags = ? WHERE tmdb_id = ?").bind(m,parseInt(n)).run()),d.mbti_tags=m)}let e=7200*60*1e3,a=2400*60*60*1e3,o=!1;try{let{results:m}=await t.DB.prepare(`
         SELECT 1 FROM rankings
-        WHERE tmdb_id = ? AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+        WHERE tmdb_id = ? AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         LIMIT 1
       `).bind(parseInt(n)).all();o=!!(m&&m.length)}catch{o=!1}let _=o?e:a;if(!d.keyword_preview_updated_at||Date.now()-new Date(d.keyword_preview_updated_at).getTime()>_){let m={keyword:null,items:[]};if(d.keywords&&d.keywords!=="__NONE__"){let E=d.keywords.split(",").map(w=>w.trim()).filter(Boolean).slice(0,10);if(E.length)try{let w=E.map(y=>t.DB.prepare(`
                 SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.original_language, w.tmdb_rating
