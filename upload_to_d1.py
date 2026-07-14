@@ -466,6 +466,28 @@ def upload_title_map(conn: sqlite3.Connection) -> int:
     return success
 
 
+def _update_latest_ranking_date() -> None:
+    """
+    [2026-07-14 신설] 'latest_ranking_date' 설정값을 오늘 날짜로 갱신.
+
+    videos.js/rankings.js/hot100.js/admin.js가 방문마다 각자
+    `(SELECT MAX(date) FROM rankings WHERE date < 'manual')`를 재계산하던 것을,
+    이 한 줄로 미리 계산해두고 app_settings에서 읽어가도록 바꾸기 위한 것.
+    rankings 업로드가 끝난 직후(=오늘 날짜 데이터가 실제로 D1에 반영된 시점)에만 호출.
+    """
+    try:
+        d1_execute(f"""
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES ('latest_ranking_date', {esc(TODAY)}, datetime('now'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        """)
+        print(f"  ✅ app_settings: latest_ranking_date → {TODAY}")
+    except Exception as e:
+        print(f"  ⚠️ app_settings 갱신 실패: {e}")
+
+
 def upload():
     """전체 D1 업로드 실행"""
 
@@ -479,6 +501,7 @@ def upload():
 
     try:
         upload_rankings(conn)
+        _update_latest_ranking_date()
         upload_works(conn)
         upload_review_queue(conn)
         upload_title_map(conn)
