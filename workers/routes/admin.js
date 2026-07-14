@@ -319,7 +319,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       query    = "SELECT * FROM rankings WHERE date = ? ORDER BY platform, category_slot, rank";
       bindVal  = date;
     } else {
-      query    = "SELECT * FROM rankings WHERE date = (SELECT MAX(date) FROM rankings WHERE date != 'manual') ORDER BY platform, category_slot, rank";
+      query    = "SELECT * FROM rankings WHERE date = (SELECT MAX(date) FROM rankings WHERE date < 'manual') ORDER BY platform, category_slot, rank";
       bindVal  = null;
     }
     const { results } = bindVal
@@ -1556,7 +1556,7 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 가장 최근 크롤링 날짜 순위 리스트를 뽑아서, 각 행마다 rankings.tmdb_rating과
   // works.tmdb_rating을 나란히 붙여서 반환. 프론트가 이 응답 하나로 "뭐가 몇 개나
   // 다른지"를 한 번에 렌더링할 수 있음(작품마다 별도 API 호출 불필요).
-  // 날짜는 항상 "가장 최근 크롤링 날짜"(date != 'manual' 중 MAX) 고정 — 수동고정(is_manual=2)
+  // 날짜는 항상 "가장 최근 크롤링 날짜"(date < 'manual' 중 MAX) 고정 — 수동고정(is_manual=2)
   // 작품도 크롤링 시점에 그날 날짜로 복사되는 기존 구조라 별도 처리 불필요.
   if (path === "/admin/rankings/rating-check" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
@@ -1577,7 +1577,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         FROM rankings r
         LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
         WHERE r.platform = ? AND r.category_slot = ?
-          AND r.date = (SELECT MAX(date) FROM rankings WHERE date != 'manual')
+          AND r.date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
         ORDER BY r.rank ASC
       `).bind(platform, category_slot).all();
 
@@ -3005,7 +3005,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       // 오늘 기준 최신 크롤링 날짜 조회 (batch-crawl과 동일 패턴)
       const latestDateRow = await env.DB.prepare(
-        "SELECT MAX(date) AS latest_date FROM rankings WHERE date != 'manual'"
+        "SELECT MAX(date) AS latest_date FROM rankings WHERE date < 'manual'"
       ).first();
       const latestDate = latestDateRow?.latest_date || null;
 
