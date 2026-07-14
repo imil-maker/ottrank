@@ -349,6 +349,24 @@ async function runSearch(){
     }
     tmdbFixed = [...tmdbTv, ...tmdbMv].filter(hasPoster);
 
+    // TMDB 보충 결과 중 "이번 검색어로는 안 걸렸지만 사실 이미 우리 DB에 등록된 작품"은
+    // TMDB의 줄거리(overview) 매칭으로 새어 들어온 것일 수 있어 한 번 더 걸러냄
+    // (예: "닥터 섬보이" — 키워드/제목엔 "공포"가 없는데 overview의 "공포이자"로 TMDB에 걸림).
+    // 이미 등록된 작품은 우리 키워드 시스템이 "이 검색어와 관련 없음"을 이미 판단한 것이므로 제외.
+    if(tmdbFixed.length){
+      try{
+        const idsParam = tmdbFixed.map(w=>w.tmdb_id).join(',');
+        const existsRes = await fetch(`${API}/works/exists?ids=${idsParam}`);
+        if(existsRes.ok){
+          const existsJson = await existsRes.json();
+          const existingIds = new Set(existsJson.existing_ids || []);
+          tmdbFixed = tmdbFixed.filter(w=>!existingIds.has(w.tmdb_id));
+        }
+      }catch(e){
+        // 확인 실패해도 검색 자체는 계속 진행 (TMDB 보충 결과만 필터링 스킵)
+      }
+    }
+
     // ── 작품 렌더링: DB 작품(15개)만 먼저 표시. TMDB 보충 결과는 "더보기"로 DB 소진 후에 펼침 ──
     workGrid.innerHTML = '';
     dbInsertMarker = document.createElement('span');
