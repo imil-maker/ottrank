@@ -1,4 +1,4 @@
-function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}));let g=new Set(i.map(e=>e.tmdb_id).filter(Boolean)),s=r.filter(e=>!g.has(e.tmdb_id)),l={};for(let e of i){let a=Math.max(1,parseInt(e.rank)||1);l[a]||(l[a]=[]),l[a].push(e)}let n=[],c=0,d=1;for(;n.length<t;){if(l[d]&&l[d].length){let e=l[d].shift();n.push({...e,rank:n.length+1})}else if(c<s.length)n.push({...s[c],rank:n.length+1}),c++;else{let e=Object.values(l).flat();for(let a of e){if(n.length>=t)break;n.push({...a,rank:n.length+1})}break}d++}return n}async function V(r,i,t,g,s){if(r==="/rankings"&&i.method==="GET"){let l=g.searchParams.get("platform"),n=g.searchParams.get("category"),c=g.searchParams.get("date"),d="SELECT * FROM rankings WHERE 1=1",e=[];l&&(d+=" AND platform = ?",e.push(l)),n&&(d+=" AND category = ?",e.push(n)),c?(d+=" AND date = ?",e.push(c)):d+=" AND date = (SELECT MAX(date) FROM rankings)",d+=" ORDER BY platform, category, rank";let{results:a}=await t.DB.prepare(d).bind(...e).all();return new Response(JSON.stringify({ok:!0,data:a}),{headers:s})}if(r==="/rankings/main"&&i.method==="GET")try{let l=g.searchParams.get("date")||null,{results:n}=await t.DB.prepare(`
+function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}));let g=new Set(i.map(e=>e.tmdb_id).filter(Boolean)),s=r.filter(e=>!g.has(e.tmdb_id)),l={};for(let e of i){let a=Math.max(1,parseInt(e.rank)||1);l[a]||(l[a]=[]),l[a].push(e)}let n=[],c=0,d=1;for(;n.length<t;){if(l[d]&&l[d].length){let e=l[d].shift();n.push({...e,rank:n.length+1})}else if(c<s.length)n.push({...s[c],rank:n.length+1}),c++;else{let e=Object.values(l).flat();for(let a of e){if(n.length>=t)break;n.push({...a,rank:n.length+1})}break}d++}return n}async function V(r,i,t,g,s){if(r==="/rankings"&&i.method==="GET"){let l=g.searchParams.get("platform"),n=g.searchParams.get("category"),c=g.searchParams.get("date"),d="SELECT * FROM rankings WHERE 1=1",e=[];l&&(d+=" AND platform = ?",e.push(l)),n&&(d+=" AND category = ?",e.push(n)),c?(d+=" AND date = ?",e.push(c)):d+=" AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')",d+=" ORDER BY platform, category, rank";let{results:a}=await t.DB.prepare(d).bind(...e).all();return new Response(JSON.stringify({ok:!0,data:a}),{headers:s})}if(r==="/rankings/main"&&i.method==="GET")try{let l=g.searchParams.get("date")||null,{results:n}=await t.DB.prepare(`
         SELECT
           r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
           r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
@@ -8,7 +8,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date = COALESCE(?, (SELECT MAX(date) FROM rankings WHERE date < 'manual'))
+          AND r.date = COALESCE(?, (SELECT value FROM app_settings WHERE key = 'latest_ranking_date'))
           AND r.rank <= oc.main_limit + 20
         ORDER BY oc.main_section, oc.main_order, r.rank
       `).bind(l).all(),{results:c}=await t.DB.prepare(`
@@ -35,7 +35,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
         WHERE r.platform = ?
           AND oc.platform_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date = COALESCE(?, (SELECT MAX(date) FROM rankings WHERE date < 'manual'))
+          AND r.date = COALESCE(?, (SELECT value FROM app_settings WHERE key = 'latest_ranking_date'))
           AND r.rank <= oc.platform_limit + 20
         ORDER BY oc.platform_order, r.rank
       `).bind(l,n).all(),{results:d}=await t.DB.prepare(`
@@ -67,7 +67,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
         JOIN ott_categories oc ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date >= date((SELECT MAX(date) FROM rankings WHERE date < 'manual'), '-6 days')
+          AND r.date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-6 days')
           AND r.date < 'manual'
           AND r.rank <= 10
         GROUP BY r.platform, r.category_slot, r.title_ko
@@ -87,7 +87,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
         JOIN ott_categories oc ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE oc.main_section IS NOT NULL
           AND oc.is_active = 1
-          AND r.date >= date((SELECT MAX(date) FROM rankings WHERE date < 'manual'), '-29 days')
+          AND r.date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-29 days')
           AND r.date < 'manual'
           AND r.rank <= 10
         GROUP BY r.platform, r.category_slot, r.title_ko
@@ -97,20 +97,20 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
       FROM rankings
       WHERE tmdb_id = ?
         AND date < 'manual'
-        AND date >= date((SELECT MAX(date) FROM rankings WHERE date < 'manual'), '-29 days')
+        AND date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-29 days')
       ORDER BY date ASC, platform ASC
     `).bind(l).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:s})}if(r.startsWith("/rankings/platforms/")&&i.method==="GET"){let l=parseInt(r.split("/rankings/platforms/")[1]);if(!l)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:s});try{let{results:n}=await t.DB.prepare(`
         SELECT DISTINCT platform, MIN(rank) as rank
         FROM rankings
         WHERE tmdb_id = ?
-          AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+          AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         GROUP BY platform
         ORDER BY rank ASC
       `).bind(l).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:s})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:s})}}if(r==="/rankings/platforms-batch"&&i.method==="GET"){let l=(g.searchParams.get("tmdb_ids")||"").trim();if(!l)return new Response(JSON.stringify({ok:!1,message:"tmdb_ids required"}),{status:400,headers:s});let n=[...new Set(l.split(",").map(c=>parseInt(c.trim())).filter(c=>Number.isInteger(c)&&c>0))].slice(0,50);if(!n.length)return new Response(JSON.stringify({ok:!1,message:"\uC720\uD6A8\uD55C tmdb_ids\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"}),{status:400,headers:s});try{let c=n.map(()=>"?").join(","),{results:d}=await t.DB.prepare(`
         SELECT tmdb_id, platform, MIN(rank) as rank
         FROM rankings
         WHERE tmdb_id IN (${c})
-          AND date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+          AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         GROUP BY tmdb_id, platform
         ORDER BY tmdb_id, rank ASC
       `).bind(...n).all(),e={};for(let a of d)e[a.tmdb_id]||(e[a.tmdb_id]=[]),e[a.tmdb_id].push({platform:a.platform,rank:a.rank});return new Response(JSON.stringify({ok:!0,data:e}),{headers:s})}catch(c){return new Response(JSON.stringify({ok:!1,message:c.message}),{status:500,headers:s})}}if(r==="/rankings/person-widget"&&i.method==="GET")try{let l=await t.DB.prepare(`
@@ -126,7 +126,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
         FROM rankings r
         LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
         WHERE r.platform = ? AND r.category_slot = ?
-          AND r.date = (SELECT MAX(date) FROM rankings WHERE date < 'manual')
+          AND r.date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         ORDER BY r.rank ASC
       `).bind(l.platform,l.category_slot).all(),{results:d}=await t.DB.prepare(`
         SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
@@ -145,7 +145,7 @@ function x(r,i,t){if(!i.length)return r.slice(0,t).map((e,a)=>({...e,rank:a+1}))
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE r.tmdb_id = ? AND r.date = 'manual'
         ORDER BY r.rank ASC
-      `).bind(l).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:s})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:s})}}if(r==="/latest-date"){let{results:l}=await t.DB.prepare("SELECT MAX(date) as date FROM rankings WHERE date < 'manual'").all();return new Response(JSON.stringify({ok:!0,data:l[0]}),{headers:s})}if(r==="/platforms"){let{results:l}=await t.DB.prepare("SELECT DISTINCT platform FROM rankings ORDER BY platform").all();return new Response(JSON.stringify({ok:!0,data:l}),{headers:s})}if(r==="/sitemap.xml"){try{if(t.SITEMAP_CACHE){let l=await t.SITEMAP_CACHE.get("sitemap_xml");if(l)return new Response(l,{headers:{...s,"Content-Type":"application/xml; charset=utf-8","X-Sitemap-Cache":"HIT"}})}}catch(l){console.log("sitemap cache read failed, falling back to D1:",l.message)}try{let l="https://ottrank.kr",n=new Date().getFullYear(),c=[{path:"/",changefreq:"daily",priority:"1.0"},{path:"/netflix",changefreq:"daily",priority:"0.9"},{path:"/tving",changefreq:"daily",priority:"0.9"},{path:"/disneyplus",changefreq:"daily",priority:"0.9"},{path:"/wavve",changefreq:"daily",priority:"0.9"},{path:"/coupangplay",changefreq:"daily",priority:"0.9"},{path:"/boxoffice",changefreq:"daily",priority:"0.9"},{path:"/community",changefreq:"daily",priority:"0.8"},{path:"/review",changefreq:"daily",priority:"0.8"},{path:"/reactions",changefreq:"daily",priority:"0.8"},{path:"/contents",changefreq:"daily",priority:"0.8"},{path:"/mypage",changefreq:"weekly",priority:"0.6"},{path:"/my_review",changefreq:"weekly",priority:"0.6"},{path:"/ott_intro.html",changefreq:"monthly",priority:"0.6"},{path:"/privacy",changefreq:"monthly",priority:"0.4"},{path:"/terms",changefreq:"monthly",priority:"0.4"}],{results:d}=await t.DB.prepare("SELECT tmdb_id FROM works WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id").all(),{results:e}=await t.DB.prepare("SELECT tmdb_id FROM persons WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id").all(),a=[];for(let _ of c)a.push(`  <url>
+      `).bind(l).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:s})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:s})}}if(r==="/latest-date"){let{results:l}=await t.DB.prepare("SELECT value as date FROM app_settings WHERE key = 'latest_ranking_date'").all();return new Response(JSON.stringify({ok:!0,data:l[0]}),{headers:s})}if(r==="/platforms"){let{results:l}=await t.DB.prepare("SELECT DISTINCT platform FROM rankings ORDER BY platform").all();return new Response(JSON.stringify({ok:!0,data:l}),{headers:s})}if(r==="/sitemap.xml"){try{if(t.SITEMAP_CACHE){let l=await t.SITEMAP_CACHE.get("sitemap_xml");if(l)return new Response(l,{headers:{...s,"Content-Type":"application/xml; charset=utf-8","X-Sitemap-Cache":"HIT"}})}}catch(l){console.log("sitemap cache read failed, falling back to D1:",l.message)}try{let l="https://ottrank.kr",n=new Date().getFullYear(),c=[{path:"/",changefreq:"daily",priority:"1.0"},{path:"/netflix",changefreq:"daily",priority:"0.9"},{path:"/tving",changefreq:"daily",priority:"0.9"},{path:"/disneyplus",changefreq:"daily",priority:"0.9"},{path:"/wavve",changefreq:"daily",priority:"0.9"},{path:"/coupangplay",changefreq:"daily",priority:"0.9"},{path:"/boxoffice",changefreq:"daily",priority:"0.9"},{path:"/community",changefreq:"daily",priority:"0.8"},{path:"/review",changefreq:"daily",priority:"0.8"},{path:"/reactions",changefreq:"daily",priority:"0.8"},{path:"/contents",changefreq:"daily",priority:"0.8"},{path:"/mypage",changefreq:"weekly",priority:"0.6"},{path:"/my_review",changefreq:"weekly",priority:"0.6"},{path:"/ott_intro.html",changefreq:"monthly",priority:"0.6"},{path:"/privacy",changefreq:"monthly",priority:"0.4"},{path:"/terms",changefreq:"monthly",priority:"0.4"}],{results:d}=await t.DB.prepare("SELECT tmdb_id FROM works WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id").all(),{results:e}=await t.DB.prepare("SELECT tmdb_id FROM persons WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id").all(),a=[];for(let _ of c)a.push(`  <url>
     <loc>${l}${_.path}</loc>
     <changefreq>${_.changefreq}</changefreq>
     <priority>${_.priority}</priority>
