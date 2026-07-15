@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>웨이브 평점 순위 오늘 TOP10 — 드라마·예능·영화 순위 | 오뜨랑</title>
-<meta name="description" content="오늘 웨이브 평점 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요. 웨이브 오리지널, 독점 콘텐츠 인기 순위를 오뜨랑에서 매일 업데이트합니다.">
+<meta name="description" content="오늘 웨이브 평점 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요. 웨이브 오리지널, 독점 콘텐츠 인기 순위를 오뜨랑에서 매일 오전 9시에 업데이트합니다.">
 <meta name="keywords" content="웨이브 평점, 웨이브 순위, 웨이브 TOP10, 웨이브 드라마 순위, 웨이브 예능 순위, 웨이브 오리지널, 오늘 웨이브 추천, wavve 순위">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://ottrank.kr/wavve">
@@ -19,7 +19,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="오뜨랑">
 <meta property="og:title" content="웨이브 평점 오늘 TOP10 — 드라마·예능·영화 순위 | 오뜨랑">
-<meta property="og:description" content="오늘 웨이브 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요. 웨이브 오리지널 인기 순위를 매일 업데이트합니다.">
+<meta property="og:description" content="오늘 웨이브 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요. 웨이브 오리지널 인기 순위를 매일 오전 9시에 업데이트합니다.">
 <meta property="og:url" content="https://ottrank.kr/wavve">
 <meta property="og:image" content="https://ottrank.kr/img/og-image.png">
 <meta property="og:locale" content="ko_KR">
@@ -378,7 +378,7 @@ fetch('/header.html')
           <span class="faq-arrow">⌄</span>
         </button>
         <div class="faq-a">
-          <p>웨이브가 공식 발표하는 TOP20 순위를 FlixPatrol 집계 기준으로 반영합니다.</p>
+          <p>웨이브가 공식 발표하는 TOP10 순위를 FlixPatrol 집계 기준으로 반영합니다.</p>
         </div>
       </div>
       <div class="faq-item">
@@ -472,6 +472,15 @@ fetch('/footer.html')
    - ott_categories의 platform_section/platform_order/platform_limit 반영
    - 어드민에서 노출/순서/개수 변경 시 자동 반영 (하드코딩 없음)
 ════════════════════════════════════════════════════ */
+
+/* ── 타이틀에 오늘 날짜 자동 삽입 (GEO 대응) ──
+   검색엔진·AI가 "최신 정보"임을 바로 인식하도록, 정적 title 뒤에 오늘 날짜를 붙인다.
+   기존에 검색 데이터 기반으로 튜닝해둔 키워드 순서는 그대로 두고 날짜만 추가. */
+(function () {
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+  document.title = document.title.replace(' | 오뜨랑', ` (${dateStr}) | 오뜨랑`);
+})();
 
 const API      = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
