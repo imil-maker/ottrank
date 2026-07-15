@@ -584,20 +584,20 @@ async function loadAll() {
 /* ── 구조화 데이터 (JSON-LD) — TOP10 목록 페이지용 ItemList ──
    개별 작품 상세페이지의 Movie/TVSeries 단독 마크업과 달리, 구글이 실제로
    지원하는 "영화/시리즈 목록" 리치 결과 패턴(ItemList)에 맞춰 작성한다.
-   여러 카테고리 섹션(예: "TV 시리즈", "영화")이 있으므로, 섹션마다
-   ItemList를 하나씩 만들어 @graph 배열로 한 번에 담는다. */
+   ⚠️ 카테고리(그룹)마다 ItemList를 따로 만들거나(@graph로 묶든, 별도 <script> 태그로
+   쪼개든 둘 다) 구글이 "이 페이지의 진짜 캐러셀이 무엇인지" 헷갈려해 "페이지에 여러
+   ListItem 요소가 정의됨" 오류가 난다 (boxoffice.html에서 두 방식 모두 실패로 실제 확인됨).
+   지금은 "영화" 카테고리가 1개뿐이라 문제가 없지만, 나중에 어드민이 카테고리를 추가해도
+   안전하도록 처음부터 하나의 ItemList로 합치는 방식으로 작성한다(화면의 카테고리별 섹션은
+   그대로 유지, SEO 마크업만 합침). */
 function updateItemListSEO(groups) {
   const y = new Date().getFullYear();
-  const graph = [];
-  // 캐러셀 position은 "이 그룹 안에서 몇 번째"가 아니라 "페이지 전체에서 몇 번째"여야 함 —
-  // 그룹(카테고리)마다 1부터 다시 세면 서로 다른 그룹의 항목이 같은 position(예: 1)을 갖게 되어
-  // 구글이 "여러 ListItem 요소가 정의됨" 오류로 판정한다. 그룹이 바뀌어도 리셋하지 않는 전역 카운터 사용.
-  // 영화 카테고리가 몇 개든(현재 개수와 무관하게, 어드민이 나중에 추가해도) 자동으로 이어짐.
+  // 카테고리가 몇 개든 하나의 ItemList로 합치기 위해, itemListElement를 그룹 바깥에서 누적한다.
+  const itemListElement = [];
   let globalPos = 0;
   // 구글 캐러셀은 모든 ListItem이 "고유한 URL"을 가리켜야 함 — 같은 작품이 "TV 시리즈"와
   // "영화" 등 여러 카테고리에 동시에 있으면 URL(/title/1-{연도}{tmdb_id})이 똑같아져서
-  // "여러 ListItem 요소가 정의됨" 오류가 남 (netflix.html에서 실제 테스트로 확인됨). 페이지
-  // 전체에서 이미 나온 tmdb_id는 뒤 카테고리에서 또 나와도 건너뛴다 — 먼저 등장한 것만 유지.
+  // 중복이 생긴다. 먼저 등장한 것만 남기고 뒤 카테고리의 중복 작품은 건너뛴다.
   const seenTmdbIds = new Set();
 
   (groups || []).forEach(group => {
@@ -608,39 +608,33 @@ function updateItemListSEO(groups) {
     // TVSeries는 지원 대상이 아니라서 마크업해봐야 Search Console에 오류로만 잡힘. 영화 카테고리만 생성.
     if (!isMovie) return;
 
-    // ⚠️ filter()로 먼저 거르고 map()에서 나중에 seenTmdbIds에 등록하면, "같은 카테고리
-    // 배열 안에 처음부터 같은 tmdb_id가 2번 들어있는" 경우(예: 크롤러 오매칭으로 같은 작품이
-    // 한 카테고리에 중복 랭크됨)를 못 잡는다 — filter 시점엔 둘 다 아직 "안 본 것"이라 통과해버림.
-    // 실제로 이 케이스가 발생해 구글 리치 결과 오류로 확인됨. 배열을 한 번만 훑으면서 그 자리에서
-    // "봤는지 확인 → 등록 → 채택" 순서로 처리해 그룹 내부 중복까지 원천 차단한다.
-    const items = [];
     (group.items || []).forEach(it => {
       if (!it.tmdb_id || seenTmdbIds.has(it.tmdb_id)) return; // 링크 없거나 이미 마크업된 작품 제외
       seenTmdbIds.add(it.tmdb_id);
-      items.push(it);
-    });
-    if (!items.length) return;
-
-    graph.push({
-      '@type': 'ItemList',
-      'name' : `${PLATFORM_LABEL} ${group.display_name || 'TOP10'} 순위 — 오뜨랑`,
-      'itemListElement': items.map((it) => {
-        globalPos += 1;
-        const entry = {
-          '@type': 'Movie',
-          'name' : it.title_ko || it.title_en || '',
-          'url'  : `https://ottrank.kr/title/1-${y}${it.tmdb_id}`,
-        };
-        // 평점(aggregateRating)은 이 API에 투표수(vote_count)가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
-        if (it.poster_path) entry.image = `${TMDB_IMG}${it.poster_path}`;
-        return { '@type': 'ListItem', 'position': globalPos, 'item': entry };
-      }),
+      globalPos += 1;
+      const entry = {
+        '@type': 'Movie',
+        'name' : it.title_ko || it.title_en || '',
+        'url'  : `https://ottrank.kr/title/1-${y}${it.tmdb_id}`,
+      };
+      // 평점(aggregateRating)은 이 API에 투표수(vote_count)가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
+      if (it.poster_path) entry.image = `${TMDB_IMG}${it.poster_path}`;
+      itemListElement.push({ '@type': 'ListItem', 'position': globalPos, 'item': entry });
     });
   });
 
-  const ld   = { '@context': 'https://schema.org', '@graph': graph };
   const ldEl = document.getElementById('ldJsonList');
-  if (ldEl) ldEl.textContent = JSON.stringify(ld);
+  if (!ldEl) return;
+  if (!itemListElement.length) { ldEl.textContent = '{}'; return; }
+
+  // ItemList를 항상 1개만(최상위 @type)로 출력 — @graph나 별도 script 태그로 쪼개지 않음
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type'   : 'ItemList',
+    'name'    : `${PLATFORM_LABEL} 영화 순위 — 오뜨랑`,
+    'itemListElement': itemListElement,
+  };
+  ldEl.textContent = JSON.stringify(ld);
 }
 
 /* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
