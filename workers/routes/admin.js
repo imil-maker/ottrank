@@ -2082,12 +2082,12 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
       const like = `%${q}%`;
       const { results: items } = await env.DB.prepare(`
-        SELECT id, keyword_en, keyword_ko, source
+        SELECT id, keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3, source
         FROM keyword_translation
-        WHERE keyword_en LIKE ? OR keyword_ko LIKE ?
+        WHERE keyword_en LIKE ? OR keyword_ko LIKE ? OR keyword_ko_2 LIKE ? OR keyword_ko_3 LIKE ?
         ORDER BY keyword_en ASC
         LIMIT 50
-      `).bind(like, like).all();
+      `).bind(like, like, like, like).all();
 
       return new Response(JSON.stringify({ ok: true, items }), { headers });
     } catch (e) {
@@ -2098,6 +2098,9 @@ export async function handleAdmin(path, request, env, url, headers) {
   // ── POST /admin/keywords/update ─────────────────────────────
   // 검색 결과에서 개별 키워드의 한글 번역만 수정. source는 항상 'admin'으로 고정
   // (검토 대기 중이던 항목을 여기서 먼저 고쳐도 확정 처리되도록).
+  // [2026-07-15 확장] 영어 키워드 1개당 한글 번역을 최대 3개(keyword_ko/ko_2/ko_3)까지 등록.
+  //   예) "romantic comedy" → "로맨틱 코미디"(1) / "로코"(2) / "로맨틱코미디"(3, 띄어쓰기 변형)
+  //   1번(keyword_ko)은 필수, 2·3번은 선택 — 빈 문자열로 오면 NULL로 정리(비워서 저장).
   // 주의: 이 API로 수정해도 이미 캐싱된 작품페이지(keyword_ko_map, 5~100일 TTL)엔
   // 즉시 반영 안 됨 — 특정 작품에 바로 반영하려면 어드민 화면 ③번 SQL로 그 작품 캐시를 초기화할 것.
   if (path === "/admin/keywords/update" && request.method === "POST") {
@@ -2106,14 +2109,16 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
     try {
       const body = await request.json().catch(() => ({}));
-      const keyword_en = (body.keyword_en || "").trim();
-      const keyword_ko = (body.keyword_ko || "").trim();
+      const keyword_en   = (body.keyword_en || "").trim();
+      const keyword_ko   = (body.keyword_ko || "").trim();
+      const keyword_ko_2 = (body.keyword_ko_2 || "").trim() || null;
+      const keyword_ko_3 = (body.keyword_ko_3 || "").trim() || null;
       if (!keyword_en || !keyword_ko) {
         return new Response(JSON.stringify({ ok: false, message: "keyword_en, keyword_ko 모두 필요해요" }), { status: 400, headers });
       }
       const result = await env.DB.prepare(
-        "UPDATE keyword_translation SET keyword_ko = ?, source = 'admin' WHERE keyword_en = ?"
-      ).bind(keyword_ko, keyword_en).run();
+        "UPDATE keyword_translation SET keyword_ko = ?, keyword_ko_2 = ?, keyword_ko_3 = ?, source = 'admin' WHERE keyword_en = ?"
+      ).bind(keyword_ko, keyword_ko_2, keyword_ko_3, keyword_en).run();
 
       if (!result.meta || result.meta.changes === 0) {
         return new Response(JSON.stringify({ ok: false, message: "해당 keyword_en을 찾지 못했어요" }), { status: 404, headers });
