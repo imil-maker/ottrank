@@ -2573,8 +2573,17 @@ async function searchKeywords() {
       row.innerHTML = `
         <div style="flex:1;font-family:var(--mono);font-size:13px;color:var(--muted2)">${item.keyword_en}</div>
         <div style="color:var(--muted)">→</div>
-        <input class="form-input" data-en="${item.keyword_en.replace(/"/g, '&quot;')}"
+        <input class="form-input" data-en="${item.keyword_en.replace(/"/g, '&quot;')}" data-slot="1"
                value="${(item.keyword_ko || '').replace(/"/g, '&quot;')}"
+               placeholder="한글 번역 (필수)"
+               style="flex:1;padding:7px 10px;font-size:13px">
+        <input class="form-input" data-slot="2"
+               value="${(item.keyword_ko_2 || '').replace(/"/g, '&quot;')}"
+               placeholder="유사어2 (선택)"
+               style="flex:1;padding:7px 10px;font-size:13px">
+        <input class="form-input" data-slot="3"
+               value="${(item.keyword_ko_3 || '').replace(/"/g, '&quot;')}"
+               placeholder="유사어3 (선택)"
                style="flex:1;padding:7px 10px;font-size:13px">
         <button class="btn-secondary" onclick="saveKeywordItem(this)" style="padding:7px 14px;font-size:12px;white-space:nowrap">저장</button>
       `;
@@ -2587,10 +2596,14 @@ async function searchKeywords() {
 
 async function saveKeywordItem(btn) {
   const row = btn.closest('div');
-  const input = row.querySelector('input[data-en]');
-  const keyword_en = input.dataset.en;
-  const keyword_ko = input.value.trim();
-  if (!keyword_ko) { showToast('⚠️ 한글 번역을 입력해주세요'); return; }
+  const input   = row.querySelector('input[data-en]');
+  const input2  = row.querySelector('input[data-slot="2"]');
+  const input3  = row.querySelector('input[data-slot="3"]');
+  const keyword_en   = input.dataset.en;
+  const keyword_ko   = input.value.trim();
+  const keyword_ko_2 = input2.value.trim();
+  const keyword_ko_3 = input3.value.trim();
+  if (!keyword_ko) { showToast('⚠️ 한글 번역(1번, 필수)을 입력해주세요'); return; }
 
   btn.disabled = true;
   btn.textContent = '저장 중...';
@@ -2598,7 +2611,7 @@ async function saveKeywordItem(btn) {
     const res  = await fetch(`${API}/admin/keywords/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
-      body: JSON.stringify({ keyword_en, keyword_ko }),
+      body: JSON.stringify({ keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3 }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.message || res.status);
