@@ -225,19 +225,22 @@ export async function onRequest(context) {
        * 플랫폼 정보 있으면: "참교육 평점·후기 | 넷플릭스 드라마 | 오뜨랑"
        * 플랫폼 정보 없으면: "참교육 평점·후기·줄거리 | 드라마 OTT 순위 | 오뜨랑"
        */
+      /* [2026-07-16 수정] 공유 카드(카카오톡/블로그) 클릭률용 —
+       * "평점"을 항상 맨 앞에 배치, 이어서 후기·리뷰·순위·등장인물·몇부작
+       * (실제 배우명/화수 숫자는 여전히 노출 안 함 — 궁금증 유발 목적)
+       */
       seoTitle = platforms.length
-        ? `${title} 평점·후기·줄거리 | ${platformStr} ${typeLabel} | 오뜨랑`
-        : `${title} 평점·후기·줄거리 | ${typeLabel} OTT 순위 | 오뜨랑`;
+        ? `${title} 평점·후기·리뷰·순위·등장인물·몇부작 | ${platformStr} ${typeLabel} | 오뜨랑`
+        : `${title} 평점·후기·리뷰·순위·등장인물·몇부작 | ${typeLabel} OTT | 오뜨랑`;
 
       /* ── 10. description 태그 ── */
       const overviewSnippet = overview
         ? `${overview.slice(0, 80)}... `
         : '';
-      // [2026-07-15 추가] "등장인물"/"몇부작" 검색 의도 대응 — 실제 배우명이나
-      // 화수 숫자는 그대로 노출하지 않고 "궁금증 유발" 단어만 추가 (IMDb 평점 노출 방식과 동일 원칙)
+      // "평점"을 맨 앞에 배치해 카카오톡/블로그 카드에서 잘리기 전에 노출되도록 함
       seoDesc = platforms.length
-        ? `${overviewSnippet}${title} ${platformStr} 평점, 등장인물, 몇부작인지, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. ${platformStr} 추천 ${typeLabel}.`
-        : `${overviewSnippet}${title} 평점, 등장인물, 몇부작인지, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. 넷플릭스·티빙·디즈니+ 추천 ${typeLabel}.`;
+        ? `${title} 평점, 후기, 리뷰, 순위, 등장인물, 몇부작인지 오뜨랑에서 한번에 확인하세요. ${overviewSnippet}${platformStr} 추천 ${typeLabel}.`
+        : `${title} 평점, 후기, 리뷰, 순위, 등장인물, 몇부작인지 오뜨랑에서 한번에 확인하세요. ${overviewSnippet}넷플릭스·티빙·디즈니+ 추천 ${typeLabel}.`;
 
       /* ── 11. keywords 태그 ── */
       const origTitle = det?.original_name || det?.original_title || '';
