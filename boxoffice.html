@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>박스오피스 순위 이번 주 TOP10 — 극장 영화 흥행 순위 | 오뜨랑</title>
-<meta name="description" content="이번 주 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요. 주간 박스오피스 TOP10, 현재 상영작 순위를 오뜨랑에서 매일 업데이트합니다.">
+<meta name="description" content="이번 주 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요. 주간 박스오피스 TOP10, 현재 상영작 순위를 오뜨랑에서 매일 오전 9시에 업데이트합니다.">
 <meta name="keywords" content="박스오피스 순위, 박스오피스 순위, 주간 박스오피스, 한국영화 흥행 순위, 현재 상영 영화, 극장 영화 순위, 역대 한국영화 흥행, 오늘 영화 추천">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://ottrank.kr/boxoffice">
@@ -419,6 +419,15 @@ fetch('/footer.html')
    - 어드민에서 노출/순서/개수 변경 시 자동 반영 (하드코딩 없음)
    - 카드 그리드 나열 방식 (슬라이드 X)
 ════════════════════════════════════════════════════ */
+
+/* ── 타이틀에 오늘 날짜 자동 삽입 (GEO 대응) ──
+   검색엔진·AI가 "최신 정보"임을 바로 인식하도록, 정적 title 뒤에 오늘 날짜를 붙인다.
+   기존에 검색 데이터 기반으로 튜닝해둔 키워드 순서는 그대로 두고 날짜만 추가. */
+(function () {
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+  document.title = document.title.replace(' | 오뜨랑', ` (${dateStr}) | 오뜨랑`);
+})();
 
 const API      = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
