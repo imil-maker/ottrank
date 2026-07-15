@@ -1197,14 +1197,22 @@ function updateHomeItemListSEO(){
   // platformArr: PLATFORMS 또는 MOVIE_PLATFORMS, dataMap: RANKINGS.tv 또는 RANKINGS.movie
   const buildList=(platformArr,dataMap,itemType,labelSuffix)=>{
     platformArr.forEach(p=>{
-      // 상세페이지 링크가 없는(tmdb_id 없는) 항목 + 이미 다른 플랫폼에서 마크업된 항목(중복 URL) 제외
-      const items=(dataMap[p.id]||[]).filter(it=>it.tmdb_id && !seenTmdbIds.has(it.tmdb_id));
+      // ⚠️ filter()로 먼저 거르고 map()에서 나중에 seenTmdbIds에 등록하면, "같은 플랫폼
+      // 리스트 안에 처음부터 같은 tmdb_id가 2번 들어있는" 경우(예: 크롤러 오매칭으로 같은
+      // 작품이 한 카테고리에 중복 랭크됨)를 못 잡는다 — filter 시점엔 둘 다 아직 "안 본 것"이라
+      // 통과해버림. 실제로 이 케이스가 발생해 구글 리치 결과 오류로 확인됨. 배열을 한 번만
+      // 훑으면서 그 자리에서 "봤는지 확인 → 등록 → 채택" 순서로 처리해 리스트 내부 중복까지 차단한다.
+      const items=[];
+      (dataMap[p.id]||[]).forEach(it=>{
+        if(!it.tmdb_id || seenTmdbIds.has(it.tmdb_id))return; // 링크 없거나 이미 마크업된 작품 제외
+        seenTmdbIds.add(it.tmdb_id);
+        items.push(it);
+      });
       if(!items.length)return;
       graph.push({
         '@type':'ItemList',
         'name':`${p.name} ${labelSuffix} 순위 — 오뜨랑`,
         'itemListElement':items.map((it)=>{
-          seenTmdbIds.add(it.tmdb_id); // 이 작품은 이제부터 "이미 마크업됨"으로 기록
           globalPos+=1;
           const y=it._year||new Date().getFullYear();
           const s=it._season||1;
