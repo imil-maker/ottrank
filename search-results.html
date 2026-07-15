@@ -39,7 +39,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 /* 콘텐츠 */
 .sec-title{font-size:17px;font-weight:700;margin-bottom:14px}
 
-.work-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px 14px}
+.work-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 14px}
+@media (max-width:768px){
+  .work-grid{grid-template-columns:repeat(2,1fr);gap:12px 10px}
+}
 .work-card{cursor:pointer}
 .work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
 .work-poster > img{width:100%;height:100%;object-fit:cover;display:block}
@@ -98,7 +101,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 const API        = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const IMG        = 'https://image.tmdb.org/t/p/w342';
-const PAGE_SIZE  = 15;
+// [2026-07-15] 더보기 기준 개수 — PC 15개 / 모바일(768px 이하) 10개
+// (header.html의 모바일 분기 기준과 동일하게 768px 사용)
+const PAGE_SIZE  = window.innerWidth <= 768 ? 10 : 15;
 
 // OTT 로고/색상 — 메인사이트와 동일한 self-hosted 로고 경로(/img/{file}-icon.jpg) 사용
 // file: 실제 GitHub에 올려둔 로고 파일명 (디즈니+/쿠팡플레이는 키와 파일명이 다름 — 2026-07-12 OTT 로고교체 세션 기준)
@@ -243,57 +248,115 @@ function workCard(w){
   return card;
 }
 
-/* ── 상태 ── */
-let dbOffset      = 0;
-let dbHasMore      = false;
-let tmdbFixed      = [];   // TMDB 보충 결과 (최초 1회 조회, DB 페이징 다 소진된 뒤에만 화면에 펼침)
-let tmdbRevealed   = false;
-let dbTmdbIds      = new Set();
+/* ── 상태 ──
+   [2026-07-15 재설계] 우리DB와 TMDB 보충결과를 처음부터 하나의 풀(pool)로 합쳐서 관리.
+   화면엔 이 풀에서 PAGE_SIZE개씩 순서대로("더보기"마다) 꺼내서 보여준다.
+   순서는 항상 "우리DB 먼저 → TMDB 나중"을 지킨다(신뢰도 높은 DB 매칭 우선 노출).
+   TMDB는 최초 1회만 조회(페이지네이션 없음, 최대 약 40개) — 우리DB는 "더보기"로
+   모자라면 그때그때 다음 페이지를 추가로 불러온다(최대 100개, 백엔드 상한). */
+let dbPool      = [];      // 우리DB 결과 누적 (더보기 시 계속 늘어남)
+let tmdbPool    = [];      // TMDB 보충 결과 (최초 1회 고정)
+let seenIds     = new Set(); // 풀 전체 중복 제거용(tmdb_id 기준)
+let dbOffset    = 0;
+let dbHasMore   = false;
+let renderedCount = 0;     // 지금까지 화면에 실제로 렌더링한 개수
 
 const workGrid = document.getElementById('workGrid');
-// 그리드 구조: [...DB카드][더보기 버튼(있으면)]
-// 더보기 클릭 시: DB에 다음 페이지가 있으면 그걸 먼저 채우고, DB가 다 떨어지면 그다음 클릭부터 TMDB 보충 결과를 펼침
-let dbInsertMarker = null; // "더보기"로 불러온 새 DB카드가 항상 이 앞(=버튼 앞)에 꽂히는 기준점
+let dbInsertMarker = null; // 카드들이 항상 이 앞(="더보기" 버튼 앞)에 꽂히는 기준점
 
 function hasPoster(w){ return !!w.poster_path; } // 포스터 없는 작품은 목록에서 제외
 
-async function loadDbPage(){
-  const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${dbOffset}`);
-  if(!res.ok) return { data: [], has_more: false };
-  return res.json();
+// list를 pool에 추가하되, seenIds에 이미 있는 tmdb_id는 건너뜀(전역 중복 제거)
+function addUnique(pool, list){
+  list.filter(hasPoster).forEach(w=>{
+    const id = w.tmdb_id || w.id;
+    if(!id || seenIds.has(id)) return;
+    seenIds.add(id);
+    pool.push(w);
+  });
 }
 
-function appendDbWorks(list){
-  list.filter(hasPoster).forEach(w=>{
-    dbTmdbIds.add(w.tmdb_id);
+// 우리DB 다음 페이지를 가져와서 dbPool에 추가 (호출 시마다 dbOffset 전진)
+async function fetchDbPage(){
+  const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${dbOffset}`);
+  dbOffset += PAGE_SIZE;
+  if(!res.ok){ dbHasMore = false; return; }
+  const j = await res.json();
+  dbHasMore = !!j.has_more;
+  addUnique(dbPool, j.data || []);
+}
+
+// TMDB TV/영화를 조회해서 "이미 우리DB에 등록된 작품"만 걸러낸, 아직 병합 전인 원본 배열을 반환
+// (dbPool과의 중복 제거는 호출부에서 DB를 먼저 병합한 뒤에 진행 — 우선순위 보장을 위해 순서 중요)
+async function fetchTmdbRaw(){
+  const [tvRes, mvRes] = await Promise.allSettled([
+    fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+    fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+  ]);
+  let tmdbTv = [];
+  if(tvRes.status==='fulfilled' && tvRes.value.ok){
+    const j = await tvRes.value.json();
+    tmdbTv = (j.results||[]).filter(r=>!r.adult).map(r=>({...r, _type:'tv', tmdb_id:r.id}));
+  }
+  let tmdbMv = [];
+  if(mvRes.status==='fulfilled' && mvRes.value.ok){
+    const j = await mvRes.value.json();
+    tmdbMv = (j.results||[]).filter(r=>!r.adult).map(r=>({...r, _type:'movie', tmdb_id:r.id}));
+  }
+  let combined = [...tmdbTv, ...tmdbMv].filter(hasPoster);
+
+  // "이미 우리 DB에 등록된 작품인데 이번 검색어로는 안 걸린 것"은 TMDB 줄거리 매칭으로
+  // 새어 들어온 것일 수 있어 제외 (기존 로직 그대로 유지)
+  if(combined.length){
+    try{
+      const idsParam = combined.map(w=>w.tmdb_id).join(',');
+      const existsRes = await fetch(`${API}/works/exists?ids=${idsParam}`);
+      if(existsRes.ok){
+        const existsJson = await existsRes.json();
+        const existingIds = new Set(existsJson.existing_ids || []);
+        combined = combined.filter(w=>!existingIds.has(w.tmdb_id));
+      }
+    }catch(e){
+      // 확인 실패해도 검색 자체는 계속 진행 (TMDB 보충 결과만 필터링 스킵)
+    }
+  }
+  return combined;
+}
+
+function combinedAvailable(){ return dbPool.length + tmdbPool.length; }
+
+// 풀에서 [from, to) 구간을 화면에 새로 추가 렌더링 (DB 먼저, TMDB 나중 순서 유지)
+function renderRange(from, to){
+  const combined = [...dbPool, ...tmdbPool];
+  combined.slice(from, to).forEach(w=>{
     workGrid.insertBefore(workCard(w), dbInsertMarker);
   });
 }
 
 function shouldShowMore(){
-  return dbHasMore || (!tmdbRevealed && tmdbFixed.length > 0);
+  return renderedCount < combinedAvailable() || dbHasMore;
 }
 
 function updateWorkCount(){
-  const shown = workGrid.querySelectorAll('.work-card').length;
-  document.getElementById('cntWorks').textContent = shown + (tmdbRevealed ? 0 : tmdbFixed.length);
+  // [2026-07-15] "화면에 실제로 보이는 개수"를 표시 — 총 매칭 개수(아직 안 펼친 것 포함)를
+  // 보여주던 기존 방식은 "N개라며 왜 이것밖에 안 보이냐"는 혼란의 원인이었음
+  document.getElementById('cntWorks').textContent = renderedCount;
 }
 
 async function loadMore(btn){
   btn.disabled = true;
   btn.textContent = '불러오는 중...';
 
-  if(dbHasMore){
-    // ① 우리 DB에 다음 페이지가 남아있으면 그것부터
-    dbOffset += PAGE_SIZE;
-    const j = await loadDbPage();
-    appendDbWorks(j.data || []);
-    dbHasMore = !!j.has_more;
-  } else if(!tmdbRevealed){
-    // ② DB가 다 떨어졌으면 그제서야 TMDB 보충 결과를 펼침
-    tmdbFixed.forEach(w=>workGrid.insertBefore(workCard(w), dbInsertMarker));
-    tmdbRevealed = true;
+  const target = renderedCount + PAGE_SIZE;
+
+  // 풀에 목표 개수만큼 없으면, 우리DB에 다음 페이지가 남아있는 동안 계속 보충
+  while(combinedAvailable() < target && dbHasMore){
+    await fetchDbPage();
   }
+
+  const newRenderedCount = Math.min(target, combinedAvailable());
+  renderRange(renderedCount, newRenderedCount);
+  renderedCount = newRenderedCount;
 
   btn.disabled = false;
   btn.textContent = '더보기';
@@ -319,68 +382,37 @@ async function runSearch(){
   }
 
   try{
-    const [dbRes, tvRes, mvRes] = await Promise.allSettled([
-      fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=0`),
-      fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
-      fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+    // 우리DB 1페이지 + TMDB(TV/영화)를 동시에 네트워크 요청 (속도를 위해 병렬)
+    // 단, 풀에 합치는 순서는 반드시 DB 먼저 → TMDB 나중이어야 중복 시 DB가 우선함
+    const [dbJson, tmdbRaw] = await Promise.all([
+      (async ()=>{
+        const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=0`);
+        dbOffset = PAGE_SIZE;
+        if(!res.ok) return { data: [], has_more: false };
+        return res.json();
+      })(),
+      fetchTmdbRaw(),
     ]);
 
-    // 우리 DB 작품 (제목+키워드 통합검색, 15개)
-    let dbWorks = [];
-    if(dbRes.status==='fulfilled' && dbRes.value.ok){
-      const j = await dbRes.value.json();
-      dbWorks  = j.data || [];
-      dbHasMore = !!j.has_more;
-    }
-    dbTmdbIds = new Set(dbWorks.map(w=>w.tmdb_id));
+    dbHasMore = !!dbJson.has_more;
+    addUnique(dbPool, dbJson.data || []);   // ① DB 먼저 풀에 채움 (우선순위 확보)
+    addUnique(tmdbPool, tmdbRaw);           // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
 
-    // TMDB TV/영화 (DB에 이미 있는 건 제외, 성인물 제외) — 보충 결과, 페이징 없음
-    let tmdbTv = [];
-    if(tvRes.status==='fulfilled' && tvRes.value.ok){
-      const j = await tvRes.value.json();
-      tmdbTv = (j.results||[]).filter(r=>!r.adult).filter(r=>!dbTmdbIds.has(r.id))
-        .map(r=>({...r, _type:'tv', tmdb_id:r.id}));
-    }
-    let tmdbMv = [];
-    if(mvRes.status==='fulfilled' && mvRes.value.ok){
-      const j = await mvRes.value.json();
-      tmdbMv = (j.results||[]).filter(r=>!r.adult).filter(r=>!dbTmdbIds.has(r.id))
-        .map(r=>({...r, _type:'movie', tmdb_id:r.id}));
-    }
-    tmdbFixed = [...tmdbTv, ...tmdbMv].filter(hasPoster);
-
-    // TMDB 보충 결과 중 "이번 검색어로는 안 걸렸지만 사실 이미 우리 DB에 등록된 작품"은
-    // TMDB의 줄거리(overview) 매칭으로 새어 들어온 것일 수 있어 한 번 더 걸러냄
-    // (예: "닥터 섬보이" — 키워드/제목엔 "공포"가 없는데 overview의 "공포이자"로 TMDB에 걸림).
-    // 이미 등록된 작품은 우리 키워드 시스템이 "이 검색어와 관련 없음"을 이미 판단한 것이므로 제외.
-    if(tmdbFixed.length){
-      try{
-        const idsParam = tmdbFixed.map(w=>w.tmdb_id).join(',');
-        const existsRes = await fetch(`${API}/works/exists?ids=${idsParam}`);
-        if(existsRes.ok){
-          const existsJson = await existsRes.json();
-          const existingIds = new Set(existsJson.existing_ids || []);
-          tmdbFixed = tmdbFixed.filter(w=>!existingIds.has(w.tmdb_id));
-        }
-      }catch(e){
-        // 확인 실패해도 검색 자체는 계속 진행 (TMDB 보충 결과만 필터링 스킵)
-      }
-    }
-
-    // ── 작품 렌더링: DB 작품(15개)만 먼저 표시. TMDB 보충 결과는 "더보기"로 DB 소진 후에 펼침 ──
     workGrid.innerHTML = '';
     dbInsertMarker = document.createElement('span');
     dbInsertMarker.style.display = 'none';
     workGrid.appendChild(dbInsertMarker);
 
-    appendDbWorks(dbWorks);
-
-    const shownCount = workGrid.querySelectorAll('.work-card').length;
-    if(shownCount===0 && !tmdbFixed.length){
+    if(!combinedAvailable()){
       workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
-    } else {
-      renderMoreButton();
+      return;
     }
+
+    const initialCount = Math.min(PAGE_SIZE, combinedAvailable());
+    renderRange(0, initialCount);
+    renderedCount = initialCount;
+
+    renderMoreButton();
     updateWorkCount();
 
   }catch(e){
