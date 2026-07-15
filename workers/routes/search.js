@@ -137,8 +137,9 @@ export async function handleSearch(path, request, env, url, headers) {
   //   ⑥ 매칭 대상이 과도하게 많아지는 것(흔한 단어 검색 등) 방지 위해 매칭 tmdb_id 상한 100개
   //   ⑦ 포스터 없는 작품은 상세조회 단계에서 미리 제외 — has_more/total이 실제 노출 개수와 항상 일치하도록 함
   //   ⑧ [2026-07-15 추가] total(전체 매칭 개수), capped(100개 상한 도달 여부) 응답에 포함
-  //   ⑨ [2026-07-15 추가] related — 메인 결과가 빈약하고 검색어가 여러 단어면, 단어별로
-  //      DB+TMDB를 서버에서 병렬 재조회해서 "관련 작품 추천"용으로 같이 내려줌 (프론트 추가 호출 불필요)
+  //   ⑨ [2026-07-15 추가] 결과가 빈약하고(RELATED_THRESHOLD 미만) 검색어가 여러 단어면,
+  //      단어별로 DB+TMDB를 서버에서 병렬 재조회해서 메인 결과(data/total)에 자연스럽게
+  //      합침 — "검색결과 0개" 같은 문구로 재검색을 막지 않기 위해 별도 섹션으로 분리하지 않음
   //   ⑩ [2026-07-15 추가] 제목/키워드/장르 매칭 3개 쿼리를 env.DB.batch()로 묶어서 한 번에 실행
   //      (기존엔 순차 await 3번 — D1 왕복 3회였던 걸 1회로 줄여서 검색 응답속도 개선)
   if (path === "/works/search" && request.method === "GET") {
@@ -187,10 +188,27 @@ export async function handleSearch(path, request, env, url, headers) {
         workRows = res.results;
       }
 
-      // total — 포스터 필터링까지 반영한, 이번 검색어의 전체 매칭 개수
+      // ④ [2026-07-15 변경] 결과가 빈약하고 검색어가 여러 단어로 쪼개질 때, 단어별
+      //   재검색 결과를 "관련 작품 추천"이라는 별도 섹션이 아니라 메인 결과 자체에
+      //   자연스럽게 합친다 — "검색결과 0개"라는 문구가 재검색을 막는 걸 방지하기 위함.
+      //   matchType에 3(=검색어 단어분리 매칭)으로 표시해서, 정렬 시 정확매칭(0,1)
+      //   보다는 뒤로 가되 화면상으로는 구분 없이 하나의 결과 목록으로 보이게 함.
+      if (workRows.length < RELATED_THRESHOLD) {
+        const words = [...new Set(q.split(/\s+/).filter(w => w.length >= 2))];
+        if (words.length >= 2) {
+          const related = await _fetchRelated(env, words, new Set(matchType.keys()), MAX_RELATED);
+          related.forEach(w => {
+            matchType.set(w.tmdb_id, 3);
+            workRows.push(w);
+          });
+        }
+      }
+
+      // total — 포스터 필터링 + 관련 작품 병합까지 반영한, 이번 검색어의 최종 노출 개수
       const total = workRows.length;
 
-      // ④ 정렬: 제목매칭 우선 → 한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
+      // ⑤ 정렬: 제목매칭 우선 → 키워드/장르매칭 → 단어분리 관련매칭 순 → 그 안에서
+      //   한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
       workRows.sort((a, b) => {
         const ta = matchType.get(a.tmdb_id) ?? 1;
         const tb = matchType.get(b.tmdb_id) ?? 1;
@@ -201,11 +219,11 @@ export async function handleSearch(path, request, env, url, headers) {
         return (b.tmdb_rating || 0) - (a.tmdb_rating || 0);
       });
 
-      // ⑤ 페이징 (offset~offset+limit, 다음 페이지 존재 여부는 전체 길이로 판단)
+      // ⑥ 페이징 (offset~offset+limit, 다음 페이지 존재 여부는 전체 길이로 판단)
       const pageRows = workRows.slice(offset, offset + limit);
       const hasMore  = workRows.length > offset + limit;
 
-      // ⑥ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
+      // ⑦ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
       let data = [];
       if (pageRows.length) {
         const pageIds = pageRows.map(w => w.tmdb_id);
@@ -226,14 +244,7 @@ export async function handleSearch(path, request, env, url, headers) {
         data = pageRows.map(w => ({ ...w, ott_ranks: rankMap[w.tmdb_id] || {} }));
       }
 
-      // ⑦ 관련 작품 추천 — 메인 결과가 빈약하고 검색어가 여러 단어로 쪼개질 때만 실행
-      let related = [];
-      const words = [...new Set(q.split(/\s+/).filter(w => w.length >= 2))];
-      if (total < RELATED_THRESHOLD && words.length >= 2) {
-        related = await _fetchRelated(env, words, new Set(matchType.keys()), MAX_RELATED);
-      }
-
-      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset, total, capped, related }), { headers });
+      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset, total, capped }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
