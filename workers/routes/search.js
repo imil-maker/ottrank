@@ -56,12 +56,12 @@ export async function handleSearch(path, request, env, url, headers) {
       //   잘못 선택해 검색어와 무관하게 매번 거의 전체를 스캔하는 문제 발견(D1 Rows read로 확인,
       //   EXPLAIN QUERY PLAN으로 원인 확정). CROSS JOIN은 SQLite에게 "적은 순서 그대로 실행"을
       //   강제하므로, 작은 테이블(keyword_translation, 4,443행)을 먼저 훑도록 고정.
-      //   2026-07-14 수정: 단순 LIKE '%공포%'는 "공포증"(phobia류, 캐릭터 설정 태그)까지 같이
-      //   걸려서 "공포"(장르 태그)와 섞이는 문제 발견(사용자 확인). 한글은 띄어쓰기가 단어 경계이므로,
-      //   keyword_ko/검색어 양쪽 앞뒤에 공백을 붙여 "독립된 단어로 일치할 때만" 매칭되도록 강제.
-      //   예) "개 공포증" → " 개 공포증 " 안에 " 공포 "(공백포함)가 없어 제외됨 (원하는 동작)
-      //       "오컬트 공포" → " 오컬트 공포 " 안에 " 공포 "가 있어 매칭됨
-      //   한계: "일본공포"처럼 띄어쓰기 없이 합성된 키워드는 못 잡음 — 발견 시 어드민에서 띄어쓰기 보정
+      //   [2026-07-15 제거] 이전엔 "공포증"이 "공포"에 같이 걸리는 오탐을 막으려고 양쪽에
+      //   공백을 붙여 "독립된 단어일 때만" 매칭되도록 강제했었음. 하지만 그 방식은
+      //   "일본공포"처럼 띄어쓰기 없이 합성된 키워드를 못 잡는 부작용이 있었고, 이제
+      //   영어 키워드 1개당 한글 번역을 최대 3개(keyword_ko/ko_2/ko_3)까지 등록할 수
+      //   있게 되면서 오탐 케이스는 어드민에서 개별적으로 정리할 수 있게 됐으므로,
+      //   자동 단어경계 강제는 없애고 단순 부분일치(LIKE '%검색어%')로 전환.
       //   [2026-07-15 확장] 영어 키워드 1개당 한글 번역을 최대 3개(keyword_ko/ko_2/ko_3)까지 등록 가능.
       //   예) romantic comedy → "로맨틱 코미디"(1) / "로코"(2) / "로맨틱코미디"(3) — 셋 중 뭘 검색해도 매칭.
       //   ko_2/ko_3가 비어있는(NULL) 행은 그 조건이 자연히 매칭 안 되므로 별도 분기 불필요.
@@ -69,16 +69,38 @@ export async function handleSearch(path, request, env, url, headers) {
         SELECT DISTINCT wk.tmdb_id
         FROM keyword_translation kt
         CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
-        WHERE (' ' || kt.keyword_ko || ' ') LIKE ('% ' || ? || ' %')
-           OR (' ' || COALESCE(kt.keyword_ko_2, '') || ' ') LIKE ('% ' || ? || ' %')
-           OR (' ' || COALESCE(kt.keyword_ko_3, '') || ' ') LIKE ('% ' || ? || ' %')
+        WHERE kt.keyword_ko LIKE ('%' || ? || '%')
+           OR kt.keyword_ko_2 LIKE ('%' || ? || '%')
+           OR kt.keyword_ko_3 LIKE ('%' || ? || '%')
         LIMIT ?
       `).bind(q, q, q, MAX_MATCH_IDS).all();
 
-      // ③ 두 결과 합치기 (중복 제거). matchType: 0=제목매칭(우선), 1=키워드매칭
+      // ③ 장르 매칭 tmdb_id — works.genre는 TMDB를 language=ko-KR로 조회해서 채운 컬럼이라
+      //   이미 한글로 저장되어 있음("액션, 드라마, 스릴러" 형태의 콤마 구분 문자열, 실측 27종).
+      //   [2026-07-15 추가] 지금까지는 제목/키워드만 매칭 대상이라, "액션"처럼 장르 자체를
+      //   검색하면 제목에 "액션"이 실제로 들어간 작품만 잡히던 문제 해결.
+      //   TMDB 장르는 고정된 짧은 목록(액션/코미디/드라마/스릴러 등)이라 "공포증" 같은
+      //   부분일치 오탐 걱정이 적지만, 안전하게 콤마로 감싸서 완전 일치만 매칭.
+      //   [2026-07-15 추가] "드라마"(1,460개) 같은 큰 장르는 MAX_MATCH_IDS(100) 상한에
+      //   바로 걸리는데, 정렬 없이 자르면 SQLite가 우연히 먼저 돌려주는 100개(대략 저장
+      //   순서)만 담기고 정작 좋은 작품이 정렬 적용도 못 받고 잘려나감. 그래서 이 쿼리
+      //   자체에 성인물/포스터없음을 미리 걸러내고, 한국작품 우선 → 평점 내림차순으로
+      //   정렬해서 100개 예산 안에 품질 좋은 작품부터 채워지도록 함.
+      const genreMatch = await env.DB.prepare(`
+        SELECT tmdb_id
+        FROM works
+        WHERE (',' || REPLACE(genre, ', ', ',') || ',') LIKE ('%,' || ? || ',%')
+          AND (adult_flag IS NULL OR adult_flag != 1)
+          AND poster_path IS NOT NULL AND poster_path != ''
+        ORDER BY (original_language = 'ko') DESC, tmdb_rating DESC
+        LIMIT ?
+      `).bind(q, MAX_MATCH_IDS).all();
+
+      // ④ 세 결과 합치기 (중복 제거). matchType: 0=제목매칭(우선), 1=키워드/장르매칭
       const matchType = new Map();
       titleMatch.results.forEach(r => matchType.set(r.tmdb_id, 0));
       keywordMatch.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
+      genreMatch.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
 
       // [2026-07-15 추가] capped — MAX_MATCH_IDS(100) 상한에 걸려서 실제로는 더 있는데
       // 여기서부터 이미 잘려나간 경우. 이럴 땐 total이 "정확한 전체 개수"가 아니라
@@ -89,7 +111,7 @@ export async function handleSearch(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset, total: 0, capped: false }), { headers });
       }
 
-      // ④ 상세 정보 조회 (성인물 제외 + 포스터 없는 작품 제외)
+      // ⑤ 상세 정보 조회 (성인물 제외 + 포스터 없는 작품 제외)
       //    2026-07-15 추가: poster_path 조건 — 화면에서 어차피 안 보여줄 작품을
       //    개수/페이징 계산에서부터 제외해야 has_more가 실제 노출 개수와 일치함
       const idPlaceholders = allIds.map(() => "?").join(",");
@@ -105,7 +127,7 @@ export async function handleSearch(path, request, env, url, headers) {
       // (capped=true면 MAX_MATCH_IDS 상한 안에서만 집계된 것이라 실제로는 더 있을 수 있음)
       const total = workRows.length;
 
-      // ⑤ 정렬: 제목매칭 우선 → 한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
+      // ⑥ 정렬: 제목매칭 우선 → 한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
       //   (결과 규모가 작아 JS 정렬로 처리)
       workRows.sort((a, b) => {
         const ta = matchType.get(a.tmdb_id) ?? 1;
@@ -117,7 +139,7 @@ export async function handleSearch(path, request, env, url, headers) {
         return (b.tmdb_rating || 0) - (a.tmdb_rating || 0);
       });
 
-      // ⑥ 페이징 (offset~offset+limit, 다음 페이지 존재 여부는 전체 길이로 판단)
+      // ⑦ 페이징 (offset~offset+limit, 다음 페이지 존재 여부는 전체 길이로 판단)
       const pageRows = workRows.slice(offset, offset + limit);
       const hasMore  = workRows.length > offset + limit;
 
@@ -125,7 +147,7 @@ export async function handleSearch(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset, total, capped }), { headers });
       }
 
-      // ⑦ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
+      // ⑧ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
       const pageIds = pageRows.map(w => w.tmdb_id);
       const pagePlaceholders = pageIds.map(() => "?").join(",");
       const { results: rankRows } = await env.DB.prepare(`
