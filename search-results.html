@@ -272,6 +272,8 @@ let tmdbPool    = [];      // TMDB 보충 결과 (최초 1회 고정)
 let seenIds     = new Set(); // 풀 전체 중복 제거용(tmdb_id 기준)
 let dbOffset    = 0;
 let dbHasMore   = false;
+let dbTotal     = 0;       // 이번 검색어의 우리DB 전체 매칭 개수 (포스터 필터링 반영, 서버가 계산)
+let dbCapped    = false;   // true면 dbTotal이 상한(100개) 안에서만 집계된 하한선일 뿐, 실제로는 더 있을 수 있음
 let renderedCount = 0;     // 지금까지 화면에 실제로 렌더링한 개수
 
 const workGrid = document.getElementById('workGrid');
@@ -351,9 +353,14 @@ function shouldShowMore(){
 }
 
 function updateWorkCount(){
-  // [2026-07-15] "화면에 실제로 보이는 개수"를 표시 — 총 매칭 개수(아직 안 펼친 것 포함)를
-  // 보여주던 기존 방식은 "N개라며 왜 이것밖에 안 보이냐"는 혼란의 원인이었음
-  document.getElementById('cntWorks').textContent = renderedCount;
+  // [2026-07-15 변경] "화면에 실제로 보이는 개수" 대신 "전체 매칭 개수"를 표시.
+  // 지금은 DB+TMDB가 하나의 풀로 합쳐져 있고 더보기로 끝까지 다 볼 수 있는 구조라,
+  // 총 개수를 미리 알아야 사용자가 더보기를 계속할지 판단할 수 있음.
+  // TMDB는 최초 조회 시점에 이미 전체(최대 약 40개)를 다 확보해두므로 tmdbPool.length가
+  // 곧 TMDB 쪽 정확한 전체 개수 — DB쪽 total과 단순 합산하면 됨(둘 사이 중복은 서버가 이미 제거).
+  const total = dbTotal + tmdbPool.length;
+  const label = dbCapped ? `${total}개 이상` : `${total}개`;
+  document.getElementById('cntWorks').textContent = label;
 }
 
 async function loadMore(btn){
@@ -408,6 +415,8 @@ async function runSearch(){
     ]);
 
     dbHasMore = !!dbJson.has_more;
+    dbTotal   = dbJson.total || 0;
+    dbCapped  = !!dbJson.capped;
     addUnique(dbPool, dbJson.data || []);   // ① DB 먼저 풀에 채움 (우선순위 확보)
     addUnique(tmdbPool, tmdbRaw);           // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
 
