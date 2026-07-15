@@ -62,13 +62,18 @@ export async function handleSearch(path, request, env, url, headers) {
       //   예) "개 공포증" → " 개 공포증 " 안에 " 공포 "(공백포함)가 없어 제외됨 (원하는 동작)
       //       "오컬트 공포" → " 오컬트 공포 " 안에 " 공포 "가 있어 매칭됨
       //   한계: "일본공포"처럼 띄어쓰기 없이 합성된 키워드는 못 잡음 — 발견 시 어드민에서 띄어쓰기 보정
+      //   [2026-07-15 확장] 영어 키워드 1개당 한글 번역을 최대 3개(keyword_ko/ko_2/ko_3)까지 등록 가능.
+      //   예) romantic comedy → "로맨틱 코미디"(1) / "로코"(2) / "로맨틱코미디"(3) — 셋 중 뭘 검색해도 매칭.
+      //   ko_2/ko_3가 비어있는(NULL) 행은 그 조건이 자연히 매칭 안 되므로 별도 분기 불필요.
       const keywordMatch = await env.DB.prepare(`
         SELECT DISTINCT wk.tmdb_id
         FROM keyword_translation kt
         CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
         WHERE (' ' || kt.keyword_ko || ' ') LIKE ('% ' || ? || ' %')
+           OR (' ' || COALESCE(kt.keyword_ko_2, '') || ' ') LIKE ('% ' || ? || ' %')
+           OR (' ' || COALESCE(kt.keyword_ko_3, '') || ' ') LIKE ('% ' || ? || ' %')
         LIMIT ?
-      `).bind(q, MAX_MATCH_IDS).all();
+      `).bind(q, q, q, MAX_MATCH_IDS).all();
 
       // ③ 두 결과 합치기 (중복 제거). matchType: 0=제목매칭(우선), 1=키워드매칭
       const matchType = new Map();
