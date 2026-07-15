@@ -27,6 +27,8 @@
 <meta name="twitter:title" content="웨이브 평점 오늘 TOP10 — 드라마·예능·영화 순위 | 오뜨랑">
 <meta name="twitter:description" content="오늘 웨이브 평점 드라마·예능·영화 TOP10 순위를 한눈에 확인하세요.">
 <meta name="twitter:image" content="https://ottrank.kr/img/og-image.png">
+<!-- 구조화 데이터 (구글 리치 결과) — TOP10 목록용 ItemList(Movie), JS(updateItemListSEO)가 데이터 로드 후 채움 -->
+<script id="ldJsonList" type="application/ld+json">{}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
@@ -354,6 +356,7 @@ fetch('/footer.html')
 const API      = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 const PLATFORM = 'wavve';
+const PLATFORM_LABEL = '웨이브'; // ItemList JSON-LD의 name에 사용
 
 /* ── 작품 상세 페이지 이동 ── */
 function goWork(tmdbId, title) {
@@ -573,6 +576,66 @@ async function loadAll() {
 
   // 전체 트랙 scroll 이벤트 등록
   setTimeout(initSwipeBtns, 100);
+
+  // 렌더링에 사용한 데이터 그대로 JSON-LD ItemList 생성 (화면에 보이는 것과 마크업 내용 일치)
+  updateItemListSEO(groups);
+}
+
+/* ── 구조화 데이터 (JSON-LD) — TOP10 목록 페이지용 ItemList ──
+   구글 캐러셀(ItemList) 리치 결과는 Course/Movie/Recipe/Restaurant 4개 타입만 지원하며
+   TVSeries는 지원 대상이 아니다 (netflix.html 등에서 실제 테스트로 확인된 제약). 웨이브는
+   "드라마"·"예능"·"전체 TOP10"처럼 TV 콘텐츠 위주라 "영화" 카테고리만 골라 마크업한다.
+   ⚠️ 카테고리(그룹)마다 ItemList를 따로 만들거나(@graph로 묶든, 별도 <script> 태그로
+   쪼개든 둘 다) 구글이 "이 페이지의 진짜 캐러셀이 무엇인지" 헷갈려해 "페이지에 여러
+   ListItem 요소가 정의됨" 오류가 난다 (boxoffice.html에서 두 방식 모두 실패로 실제 확인됨).
+   지금은 "영화" 카테고리가 1개뿐이라 문제가 없지만, 나중에 어드민이 카테고리를 추가해도
+   안전하도록 처음부터 하나의 ItemList로 합치는 방식으로 작성한다(화면의 카테고리별 섹션은
+   그대로 유지, SEO 마크업만 합침). */
+function updateItemListSEO(groups) {
+  const y = new Date().getFullYear();
+  // 카테고리가 몇 개든 하나의 ItemList로 합치기 위해, itemListElement를 그룹 바깥에서 누적한다.
+  const itemListElement = [];
+  let globalPos = 0;
+  // 구글 캐러셀은 모든 ListItem이 "고유한 URL"을 가리켜야 함 — 같은 작품이 "영화"와
+  // "전체 TOP10" 등 여러 카테고리에 동시에 있으면 URL(/title/1-{연도}{tmdb_id})이 똑같아져서
+  // 중복이 생긴다. 먼저 등장한 것만 남기고 뒤 카테고리의 중복 작품은 건너뛴다.
+  const seenTmdbIds = new Set();
+
+  (groups || []).forEach(group => {
+    // media_type 판별 — API가 media_type을 직접 안 내려주므로, 카테고리명(display_name)에
+    // "영화"가 포함되는지로 추정한다. (어드민이 카테고리명에서 "영화"를 빼면 오분류될 수 있음 — 알려진 한계)
+    const isMovie = (group.display_name || '').includes('영화');
+    // 구글 캐러셀(ItemList) 리치 결과는 Course/Movie/Recipe/Restaurant 4개 타입만 지원 —
+    // TVSeries는 지원 대상이 아니라서 마크업해봐야 Search Console에 오류로만 잡힘. 영화 카테고리만 생성.
+    if (!isMovie) return;
+
+    (group.items || []).forEach(it => {
+      if (!it.tmdb_id || seenTmdbIds.has(it.tmdb_id)) return; // 링크 없거나 이미 마크업된 작품 제외
+      seenTmdbIds.add(it.tmdb_id);
+      globalPos += 1;
+      const entry = {
+        '@type': 'Movie',
+        'name' : it.title_ko || it.title_en || '',
+        'url'  : `https://ottrank.kr/title/1-${y}${it.tmdb_id}`,
+      };
+      // 평점(aggregateRating)은 이 API에 투표수(vote_count)가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
+      if (it.poster_path) entry.image = `${TMDB_IMG}${it.poster_path}`;
+      itemListElement.push({ '@type': 'ListItem', 'position': globalPos, 'item': entry });
+    });
+  });
+
+  const ldEl = document.getElementById('ldJsonList');
+  if (!ldEl) return;
+  if (!itemListElement.length) { ldEl.textContent = '{}'; return; }
+
+  // ItemList를 항상 1개만(최상위 @type)로 출력 — @graph나 별도 script 태그로 쪼개지 않음
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type'   : 'ItemList',
+    'name'    : `${PLATFORM_LABEL} 영화 순위 — 오뜨랑`,
+    'itemListElement': itemListElement,
+  };
+  ldEl.textContent = JSON.stringify(ld);
 }
 
 /* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
