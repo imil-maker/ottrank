@@ -1,451 +1,280 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex, nofollow">
-<title>검색결과 - 오뜨랑 (테스트)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
-  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
-  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
-  --sans:'Noto Sans KR',sans-serif; --mono:'DM Mono',monospace; --r:10px;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5}
+/* ══════════════════════════════════════════════════════════════
+   검색 관련 API 라우트
+   [2026-07-15 신설] videos.js에 있던 /works/search, /works/exists를
+   분리 — 검색 기능이 자동완성/인기검색어 등으로 커질 것을 대비해
+   별도 파일로 관리.
 
-/* 상단 검색바 */
-.topbar{border-bottom:1px solid var(--border);padding:14px 20px}
-.topbar-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px}
-.logo{font-size:18px;font-weight:700;flex-shrink:0}
-.logo span{color:#e50914}
-.search-wrap{flex:1;max-width:420px;position:relative}
-.search-input{width:100%;padding:10px 42px 10px 14px;border-radius:10px;border:1px solid var(--border2);
-  background:var(--bg2);color:var(--text);font-size:14px;font-family:var(--sans);outline:none}
-.search-input:focus{border-color:#e50914}
-.search-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;
-  border-radius:7px;border:none;background:var(--bg3);color:var(--text);cursor:pointer}
+   GET    /works/search             작품 검색 (공개) — 제목+키워드(한글)+장르 통합검색, 15개 페이징(offset), 년도/평점/OTT순위 포함
+   GET    /works/exists             tmdb_id 목록 중 DB 등록 여부 확인 (공개) — 검색결과 TMDB 보충결과 중복필터용
+══════════════════════════════════════════════════════════════ */
 
-/* 레이아웃 */
-.layout{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
-
-.page-title{font-size:26px;font-weight:700;margin-bottom:4px}
-.page-title .q{color:#7ec8e3}
-.result-count{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:24px}
-
-/* 콘텐츠 */
-.sec-title{font-size:17px;font-weight:700;margin-bottom:14px}
-
-.work-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px 14px}
-@media (max-width:768px){
-  .work-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px}
-}
-.work-card{cursor:pointer;min-width:0}
-.work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
-.work-poster > img{width:100%;height:100%;object-fit:cover;display:block}
-.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
-.work-rank{position:absolute;bottom:6px;left:6px;font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(0,0,0,.65);
-  backdrop-filter:blur(2px);color:#f0b429;font-weight:700;font-family:var(--mono)}
-.work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.work-meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;justify-content:space-between;gap:6px}
-.work-meta-left{display:flex;align-items:center;gap:5px}
-.work-rating{color:#f0b429;flex-shrink:0}
-
-/* 포스터 우상단 OTT 서비스중 뱃지 — 크게, 최대 3개 + 나머지는 +N */
-.work-ott{position:absolute;top:6px;left:6px;right:6px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px}
-.ott-logo{width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-.ott-logo-ph{width:24px;height:24px;border-radius:50%;flex-shrink:0;font-size:11px;color:#fff;font-weight:700;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-
-.more-wrap{grid-column:1/-1;display:flex;justify-content:center;margin-top:8px}
-.more-btn{padding:10px 24px;border-radius:9px;border:1px solid var(--border2);background:var(--bg3);
-  color:var(--text);font-size:13px;font-family:var(--sans);cursor:pointer;transition:background .15s}
-.more-btn:hover{background:var(--bg2)}
-.more-btn:disabled{opacity:.5;cursor:default}
-
-.empty, .loading{padding:40px 0;text-align:center;color:var(--muted);font-size:14px;grid-column:1/-1}
-.spin{width:18px;height:18px;border:2px solid var(--border2);border-top-color:#7ec8e3;border-radius:50%;
-  animation:spin .7s linear infinite;display:inline-block;vertical-align:-3px;margin-right:8px}
-@keyframes spin{to{transform:rotate(360deg)}}
-</style>
-</head>
-<body>
-
-<div class="topbar">
-  <div class="topbar-inner">
-    <div class="logo">오뜨<span>랑</span></div>
-    <div class="search-wrap">
-      <input class="search-input" id="searchInput" type="text" placeholder="작품, 배우 검색"
-        onkeydown="if(event.key==='Enter')doSearch()">
-      <button class="search-btn" onclick="doSearch()">⌕</button>
-    </div>
-  </div>
-</div>
-
-<div class="layout">
-  <div class="page-title">"<span class="q" id="qLabel"></span>" 검색결과</div>
-  <div class="result-count">작품 <span id="cntWorks">0</span>개</div>
-
-  <div class="sec-title">작품</div>
-  <div class="work-grid" id="workGrid">
-    <div class="loading"><span class="spin"></span>검색 중...</div>
-  </div>
-</div>
-
-<script>
-const API        = 'https://ottrank-api.tdidream.workers.dev';
-const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
-const IMG        = 'https://image.tmdb.org/t/p/w342';
-// [2026-07-15] 더보기 기준 개수 — PC 15개 / 모바일(768px 이하) 10개
-// (header.html의 모바일 분기 기준과 동일하게 768px 사용)
-const PAGE_SIZE  = window.innerWidth <= 768 ? 10 : 15;
-
-// OTT 로고/색상 — 메인사이트와 동일한 self-hosted 로고 경로(/img/{file}-icon.jpg) 사용
-// file: 실제 GitHub에 올려둔 로고 파일명 (디즈니+/쿠팡플레이는 키와 파일명이 다름 — 2026-07-12 OTT 로고교체 세션 기준)
-const OTT_META = {
-  netflix: { name:'넷플릭스',   color:'#e50914', file:'netflix' },
-  tving:   { name:'티빙',       color:'#ff153c', file:'tving' },
-  disney:  { name:'디즈니+',   color:'#06b6d4', file:'disneyplus' },
-  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay' },
-  wavve:   { name:'웨이브',     color:'#0070f3', file:'wavve' },
-  watcha:  { name:'왓챠',       color:'#ff0558', file:'watcha' },
-};
-// TMDB Watch Providers의 provider_name → 우리 OTT 키 매칭용
-const OTT_NAME_MATCH = [
-  [/netflix/i,  'netflix'],
-  [/tving/i,    'tving'],
-  [/disney/i,   'disney'],
-  [/coupang/i,  'coupang'],
-  [/wavve/i,    'wavve'],
-  [/watcha/i,   'watcha'],
-];
-
-const params = new URLSearchParams(location.search);
-const q = (params.get('q') || '').trim();
-
-document.getElementById('qLabel').textContent = q;
-document.getElementById('searchInput').value = q;
-
-function doSearch(){
-  const v = document.getElementById('searchInput').value.trim();
-  if(!v) return;
-  location.href = `search-results.html?q=${encodeURIComponent(v)}`;
+// 제목/키워드/장르 매칭 3종 쿼리를 하나의 배열로 묶어서 반환 — env.DB.batch()로 한 번에 실행하기 위함
+// (메인 검색과 "관련 작품 추천" 단어별 재검색 양쪽에서 재사용)
+function _dbMatchStatements(env, term, capLimit) {
+  const termNoSpace = term.replace(/\s+/g, "");
+  return [
+    env.DB.prepare(`
+      SELECT tmdb_id FROM works
+      WHERE REPLACE(title_ko, ' ', '') LIKE ? OR REPLACE(title_en, ' ', '') LIKE ?
+      LIMIT ?
+    `).bind(`%${termNoSpace}%`, `%${termNoSpace}%`, capLimit),
+    env.DB.prepare(`
+      SELECT DISTINCT wk.tmdb_id
+      FROM keyword_translation kt
+      CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
+      WHERE kt.keyword_ko LIKE ('%' || ? || '%')
+         OR kt.keyword_ko_2 LIKE ('%' || ? || '%')
+         OR kt.keyword_ko_3 LIKE ('%' || ? || '%')
+      LIMIT ?
+    `).bind(term, term, term, capLimit),
+    env.DB.prepare(`
+      SELECT tmdb_id FROM works
+      WHERE (',' || REPLACE(genre, ', ', ',') || ',') LIKE ('%,' || ? || ',%')
+        AND (adult_flag IS NULL OR adult_flag != 1)
+        AND poster_path IS NOT NULL AND poster_path != ''
+      ORDER BY (original_language = 'ko') DESC, tmdb_rating DESC
+      LIMIT ?
+    `).bind(term, capLimit),
+  ];
 }
 
-function hesc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function slug(tmdbId){ return `/title/1-${new Date().getFullYear()}${tmdbId}`; }
-function fmtScore(r){ if(!r||r<=0) return null; return parseFloat(r).toFixed(1).replace(/\.0$/,''); }
-
-function goWork(tmdbId, type, title){
-  if(!tmdbId) return;
-  sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id:tmdbId, type:type||'tv', platform:'', rank:1, title, season:1, year:new Date().getFullYear()
-  }));
-  location.href = slug(tmdbId);
-}
-
-/* ── OTT 서비스 여부 판단 — 오뜨랑 4단계 우선순위 원칙 (_title_detail.html과 동일 원칙) ──
-   Priority 1: 오뜨랑 DB 랭킹(ott_ranks) — 오늘 그 플랫폼 랭킹에 있으면 가장 신뢰도 높음
-   Priority 2: 쿠팡플레이는 TMDB Watch Providers에 데이터가 거의 없어서, TMDB Networks(id=5169)로 보완 (TV만 해당)
-   Priority 3: TMDB Watch Providers — 위 두 개로 못 채운 나머지 보완
-   Priority 4: 어드민 "OTT 보러가기" 수동 오버라이드(/work-ott) — action:'add'는 강제 표시,
-               action:'remove'는 강제 제외. 자동 판단(1~3)보다 항상 우선 적용된다.
-               [2026-07-15 추가] 기존엔 이 단계가 빠져있어 어드민에서 수동 설정해도
-               검색결과 페이지엔 반영이 안 되던 버그 수정.
-   ※ 캐싱 없이 매번 실시간 조회 — 트래픽 이슈로 추후 D1 캐싱 별도 검토 예정 (테스트 단계) */
-const _ottCache = new Map(); // `${mediaType}:${tmdbId}` -> ['netflix','tving', ...]
-async function fetchOttKeys(tmdbId, mediaType, rankKeys){
-  const cacheKey = `${mediaType}:${tmdbId}`;
-  if(_ottCache.has(cacheKey)) return _ottCache.get(cacheKey);
-
-  const keys = new Set(rankKeys || []); // Priority 1
-  const type = mediaType === 'movie' ? 'movie' : 'tv';
-
-  try{
-    // Priority 2 — 쿠팡플레이 Network 보완 (TV만 해당, Watch Providers에 없는 경우가 많음)
-    if(type === 'tv' && !keys.has('coupang')){
-      const detRes = await fetch(`${TMDB_PROXY}/tv/${tmdbId}?language=ko-KR`);
-      if(detRes.ok){
-        const det = await detRes.json();
-        if((det.networks||[]).some(n=>n.id===5169)) keys.add('coupang');
-      }
-    }
-
-    // Priority 3 — TMDB Watch Providers (나머지 보완)
-    const wpRes = await fetch(`${TMDB_PROXY}/${type}/${tmdbId}/watch/providers`);
-    if(wpRes.ok){
-      const wp = await wpRes.json();
-      const flatrate = (wp.results && wp.results.KR && wp.results.KR.flatrate) || [];
-      flatrate.forEach(p=>{
-        const match = OTT_NAME_MATCH.find(([re])=>re.test(p.provider_name||''));
-        if(match) keys.add(match[1]);
-      });
-    }
-  }catch(e){
-    // 실패해도 Priority 1(랭킹) 결과는 그대로 반환
+// TMDB 서버-서버 직접 호출 — 브라우저 프록시(tmdb-proxy) 대신 api.themoviedb.org를
+// env.TMDB_API_KEY로 직접 호출 (Worker-to-Worker 프록시 호출은 항상 실패하는 알려진 문제 회피)
+async function _tmdbSearchDirect(env, mediaType, term) {
+  try {
+    const res = await fetch(
+      `https://api.themoviedb.org/3/search/${mediaType}?query=${encodeURIComponent(term)}&language=ko-KR&include_adult=false&api_key=${env.TMDB_API_KEY}`
+    );
+    if (!res.ok) return [];
+    const j = await res.json();
+    return (j.results || []).filter(r => !r.adult).map(r => ({ ...r, _type: mediaType, tmdb_id: r.id }));
+  } catch (e) {
+    return [];
   }
-
-  // Priority 4 — 어드민 수동 오버라이드 (최우선 적용)
-  try{
-    const ovRes = await fetch(`${API}/work-ott/${tmdbId}`);
-    if(ovRes.ok){
-      const ovJson = await ovRes.json();
-      (ovJson.data || []).forEach(o=>{
-        if(o.action === 'add')    keys.add(o.ott_key);
-        else if(o.action === 'remove') keys.delete(o.ott_key);
-      });
-    }
-  }catch(e){
-    // 오버라이드 조회 실패해도 자동 판단(1~3) 결과는 그대로 사용
-  }
-
-  const result = [...keys];
-  _ottCache.set(cacheKey, result);
-  return result;
 }
 
-function ottLogoHtml(key){
-  const meta = OTT_META[key];
-  if(!meta) return '';
-  return `<img class="ott-logo" src="/img/${meta.file}-icon.jpg" alt="${meta.name}" title="${meta.name}"
-    onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
-}
+// [2026-07-15 추가] 관련 작품 추천 — 메인 검색 결과가 빈약하고(RELATED_THRESHOLD 미만)
+// 검색어가 여러 단어로 쪼개질 때("우울한 하루" → "우울한"/"하루"), 단어별로 DB+TMDB를
+// 전부 병렬로 재조회해서 메인 결과와 안 겹치는 것만 골라 반환.
+// - DB 쪽: 단어 수만큼의 매칭 statement를 전부 모아 batch() 한 번으로 실행 (왕복 1회)
+// - TMDB 쪽: 단어 수 × 2(tv/movie) 호출을 전부 Promise.all로 동시에 실행
+// → 단어가 몇 개든 전체가 항상 "가장 느린 호출 1개" 시간 안에 끝남
+async function _fetchRelated(env, words, excludeIds, cap) {
+  const perWordCap = 30;
+  const dbStatements = words.flatMap(w => _dbMatchStatements(env, w, perWordCap));
 
-/* ── 작품 카드 ── */
-function workCard(w){
-  const poster  = w.poster_path
-    ? `<img src="${IMG}${w.poster_path}" alt="" loading="lazy">`
-    : `<div class="work-poster-ph">🎬</div>`;
-  const title   = w.title_ko || w.title || w.name || '';
-  const year    = (w.release_year || (w.first_air_date || w.release_date || '').slice(0,4)) || '';
-  const mtype   = w.media_type || w._type || '';
-  const typeLabel = mtype==='movie' ? '영화' : 'TV';
-  const tmdbId  = w.tmdb_id || w.id;
-  const rating  = fmtScore(w.tmdb_rating || w.vote_average);
-
-  // 오늘자 OTT 순위 배지 (우리 DB 작품만 해당 — ott_ranks는 /works/search 응답에만 있음)
-  const ranks = w.ott_ranks || {};
-  const firstRankKey = Object.keys(ranks)[0];
-  const rankBadge = firstRankKey
-    ? `<span class="work-rank">${OTT_META[firstRankKey]?.name || firstRankKey} ${ranks[firstRankKey]}위</span>`
-    : '';
-
-  const card = document.createElement('div');
-  card.className = 'work-card';
-  card.innerHTML = `
-    <div class="work-poster">
-      ${poster}
-      <div class="work-ott" data-tmdb-id="${tmdbId}" data-media-type="${mtype||'tv'}"></div>
-      ${rankBadge}
-    </div>
-    <div class="work-title">${hesc(title)}</div>
-    <div class="work-meta">
-      <span class="work-meta-left">${year||'-'} · ${typeLabel}</span>
-      ${rating?`<span class="work-rating">★ ${rating}</span>`:''}
-    </div>
-  `;
-  card.onclick = ()=>goWork(tmdbId, mtype, title);
-
-  // 서비스중 OTT 로고 — 비동기로 채워넣음 (포스터 우상단, 개수 제한 없이 전부 표시)
-  const ottBox = card.querySelector('.work-ott');
-  if(tmdbId){
-    fetchOttKeys(tmdbId, mtype, Object.keys(ranks)).then(keys=>{
-      if(!keys.length) return;
-      ottBox.innerHTML = keys.map(ottLogoHtml).join('');
-    });
-  }
-
-  return card;
-}
-
-/* ── 상태 ──
-   [2026-07-15 재설계] 우리DB와 TMDB 보충결과를 처음부터 하나의 풀(pool)로 합쳐서 관리.
-   화면엔 이 풀에서 PAGE_SIZE개씩 순서대로("더보기"마다) 꺼내서 보여준다.
-   순서는 항상 "우리DB 먼저 → TMDB 나중"을 지킨다(신뢰도 높은 DB 매칭 우선 노출).
-   TMDB는 최초 1회만 조회(페이지네이션 없음, 최대 약 40개) — 우리DB는 "더보기"로
-   모자라면 그때그때 다음 페이지를 추가로 불러온다(최대 100개, 백엔드 상한). */
-let dbPool      = [];      // 우리DB 결과 누적 (더보기 시 계속 늘어남)
-let tmdbPool    = [];      // TMDB 보충 결과 (최초 1회 고정)
-let seenIds     = new Set(); // 풀 전체 중복 제거용(tmdb_id 기준)
-let dbOffset    = 0;
-let dbHasMore   = false;
-let dbTotal     = 0;       // 이번 검색어의 우리DB 전체 매칭 개수 (포스터 필터링 반영, 서버가 계산)
-let dbCapped    = false;   // true면 dbTotal이 상한(100개) 안에서만 집계된 하한선일 뿐, 실제로는 더 있을 수 있음
-let renderedCount = 0;     // 지금까지 화면에 실제로 렌더링한 개수
-
-const workGrid = document.getElementById('workGrid');
-let dbInsertMarker = null; // 카드들이 항상 이 앞(="더보기" 버튼 앞)에 꽂히는 기준점
-
-function hasPoster(w){ return !!w.poster_path; } // 포스터 없는 작품은 목록에서 제외
-
-// list를 pool에 추가하되, seenIds에 이미 있는 tmdb_id는 건너뜀(전역 중복 제거)
-function addUnique(pool, list){
-  list.filter(hasPoster).forEach(w=>{
-    const id = w.tmdb_id || w.id;
-    if(!id || seenIds.has(id)) return;
-    seenIds.add(id);
-    pool.push(w);
-  });
-}
-
-// 우리DB 다음 페이지를 가져와서 dbPool에 추가 (호출 시마다 dbOffset 전진)
-async function fetchDbPage(){
-  const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${dbOffset}`);
-  dbOffset += PAGE_SIZE;
-  if(!res.ok){ dbHasMore = false; return; }
-  const j = await res.json();
-  dbHasMore = !!j.has_more;
-  addUnique(dbPool, j.data || []);
-}
-
-// TMDB TV/영화를 조회해서 "이미 우리DB에 등록된 작품"만 걸러낸, 아직 병합 전인 원본 배열을 반환
-// (dbPool과의 중복 제거는 호출부에서 DB를 먼저 병합한 뒤에 진행 — 우선순위 보장을 위해 순서 중요)
-async function fetchTmdbRaw(){
-  const [tvRes, mvRes] = await Promise.allSettled([
-    fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
-    fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+  const [dbBatchResults, ...tmdbLists] = await Promise.all([
+    env.DB.batch(dbStatements),
+    ...words.flatMap(w => [_tmdbSearchDirect(env, "tv", w), _tmdbSearchDirect(env, "movie", w)]),
   ]);
-  let tmdbTv = [];
-  if(tvRes.status==='fulfilled' && tvRes.value.ok){
-    const j = await tvRes.value.json();
-    tmdbTv = (j.results||[]).filter(r=>!r.adult).map(r=>({...r, _type:'tv', tmdb_id:r.id}));
-  }
-  let tmdbMv = [];
-  if(mvRes.status==='fulfilled' && mvRes.value.ok){
-    const j = await mvRes.value.json();
-    tmdbMv = (j.results||[]).filter(r=>!r.adult).map(r=>({...r, _type:'movie', tmdb_id:r.id}));
-  }
-  let combined = [...tmdbTv, ...tmdbMv].filter(hasPoster);
 
-  // "이미 우리 DB에 등록된 작품인데 이번 검색어로는 안 걸린 것"은 TMDB 줄거리 매칭으로
-  // 새어 들어온 것일 수 있어 제외 (기존 로직 그대로 유지)
-  if(combined.length){
-    try{
-      const idsParam = combined.map(w=>w.tmdb_id).join(',');
-      const existsRes = await fetch(`${API}/works/exists?ids=${idsParam}`);
-      if(existsRes.ok){
-        const existsJson = await existsRes.json();
-        const existingIds = new Set(existsJson.existing_ids || []);
-        combined = combined.filter(w=>!existingIds.has(w.tmdb_id));
-      }
-    }catch(e){
-      // 확인 실패해도 검색 자체는 계속 진행 (TMDB 보충 결과만 필터링 스킵)
-    }
+  const dbIds = new Set();
+  dbBatchResults.forEach(r => (r.results || []).forEach(row => dbIds.add(row.tmdb_id)));
+  const dbIdList = [...dbIds].filter(id => !excludeIds.has(id));
+
+  let dbDetail = [];
+  if (dbIdList.length) {
+    const placeholders = dbIdList.map(() => "?").join(",");
+    const res = await env.DB.prepare(`
+      SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
+      FROM works
+      WHERE tmdb_id IN (${placeholders})
+        AND (adult_flag IS NULL OR adult_flag != 1)
+        AND poster_path IS NOT NULL AND poster_path != ''
+    `).bind(...dbIdList).all();
+    dbDetail = res.results;
   }
-  return combined;
-}
 
-function combinedAvailable(){ return dbPool.length + tmdbPool.length; }
-
-// 풀에서 [from, to) 구간을 화면에 새로 추가 렌더링 (DB 먼저, TMDB 나중 순서 유지)
-function renderRange(from, to){
-  const combined = [...dbPool, ...tmdbPool];
-  combined.slice(from, to).forEach(w=>{
-    workGrid.insertBefore(workCard(w), dbInsertMarker);
+  const merged = [];
+  const seen = new Set();
+  dbDetail.forEach(w => {
+    if (seen.has(w.tmdb_id) || excludeIds.has(w.tmdb_id)) return;
+    seen.add(w.tmdb_id);
+    merged.push(w);
   });
+  tmdbLists.flat().forEach(w => {
+    const id = w.tmdb_id;
+    if (!id || seen.has(id) || excludeIds.has(id) || !w.poster_path) return;
+    seen.add(id);
+    // DB 결과와 동일한 필드 형태로 정규화 — 프론트에서 출처 구분 없이 그대로 렌더링 가능
+    merged.push({
+      tmdb_id: id,
+      title_ko: w.name || w.title || "",
+      title_en: w.original_name || w.original_title || "",
+      poster_path: w.poster_path,
+      media_type: w._type,
+      release_year: parseInt((w.first_air_date || w.release_date || "").slice(0, 4)) || null,
+      tmdb_rating: w.vote_average || null,
+      original_language: w.original_language || null,
+    });
+  });
+
+  merged.sort((a, b) => {
+    const ka = a.original_language === "ko" ? 0 : 1;
+    const kb = b.original_language === "ko" ? 0 : 1;
+    if (ka !== kb) return ka - kb;
+    return (b.tmdb_rating || 0) - (a.tmdb_rating || 0);
+  });
+
+  return merged.slice(0, cap);
 }
 
-function shouldShowMore(){
-  return renderedCount < combinedAvailable() || dbHasMore;
-}
+export async function handleSearch(path, request, env, url, headers) {
 
-function updateWorkCount(){
-  // [2026-07-15 변경] "화면에 실제로 보이는 개수" 대신 "전체 매칭 개수"를 표시.
-  // 지금은 DB+TMDB가 하나의 풀로 합쳐져 있고 더보기로 끝까지 다 볼 수 있는 구조라,
-  // 총 개수를 미리 알아야 사용자가 더보기를 계속할지 판단할 수 있음.
-  // TMDB는 최초 조회 시점에 이미 전체(최대 약 40개)를 다 확보해두므로 tmdbPool.length가
-  // 곧 TMDB 쪽 정확한 전체 개수 — DB쪽 total과 단순 합산하면 됨(둘 사이 중복은 서버가 이미 제거).
-  const total = dbTotal + tmdbPool.length;
-  const label = dbCapped ? `${total}개 이상` : `${total}개`;
-  document.getElementById('cntWorks').textContent = label;
-}
+  // ── GET /works/search ────────────────────────────────────────
+  // 공개 API — 인증 없이 works 검색 가능 (헤더 검색창, 검색결과 페이지 등에서 사용)
+  // 2026-07-14 확장: 검색 결과 페이지(search-results.html) 신설에 맞춰 기능 추가
+  //   ① 제목(title_ko/title_en) + 키워드(한글) + 장르(한글) 매칭을 합쳐서 검색
+  //      - 키워드는 work_keywords(영문, 정규화 테이블)에 저장되어 있어서,
+  //        한글 검색어는 keyword_translation.keyword_ko(/ko_2/ko_3)로 먼저 영문 키워드를 찾은 뒤 조인한다.
+  //      - 장르(works.genre)는 TMDB를 language=ko-KR로 조회해서 채운 컬럼이라 이미 한글로 저장돼 있음.
+  //   ② limit 기본값 10→15, offset 페이징 추가 ("더보기" 버튼용). has_more로 다음 페이지 존재 여부 알려줌
+  //   ③ release_year, tmdb_rating 응답에 추가 (기존엔 응답에서 빠져있어 프론트에서 년도 표시가 안 되던 문제)
+  //   ④ 오늘자 rankings를 조인해서 이번 페이지에 뜬 작품들의 플랫폼별 순위(ott_ranks)를 같이 내려줌
+  //      - "지금 이 작품이 이 OTT에서 서비스되는지"는 이 API로는 알 수 없음(순위표 = 랭킹 데이터일 뿐).
+  //        서비스 여부는 TMDB Watch Providers를 프론트에서 별도로 조회해서 보완한다 (트래픽 이슈로 캐싱은 추후 과제).
+  //   ⑤ /search/keyword와 동일하게 성인물(adult_flag=1) 제외
+  //   ⑥ 매칭 대상이 과도하게 많아지는 것(흔한 단어 검색 등) 방지 위해 매칭 tmdb_id 상한 100개
+  //   ⑦ 포스터 없는 작품은 상세조회 단계에서 미리 제외 — has_more/total이 실제 노출 개수와 항상 일치하도록 함
+  //   ⑧ [2026-07-15 추가] total(전체 매칭 개수), capped(100개 상한 도달 여부) 응답에 포함
+  //   ⑨ [2026-07-15 추가] 결과가 빈약하고(RELATED_THRESHOLD 미만) 검색어가 여러 단어면,
+  //      단어별로 DB+TMDB를 서버에서 병렬 재조회해서 메인 결과(data/total)에 자연스럽게
+  //      합침 — "검색결과 0개" 같은 문구로 재검색을 막지 않기 위해 별도 섹션으로 분리하지 않음
+  //   ⑩ [2026-07-15 추가] 제목/키워드/장르 매칭 3개 쿼리를 env.DB.batch()로 묶어서 한 번에 실행
+  //      (기존엔 순차 await 3번 — D1 왕복 3회였던 걸 1회로 줄여서 검색 응답속도 개선)
+  if (path === "/works/search" && request.method === "GET") {
+    const q      = url.searchParams.get("q") || "";
+    const limit  = Math.min(parseInt(url.searchParams.get("limit") || "15"), 30);
+    const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
+    // 2026-07-14 수정: D1은 쿼리 1개당 바인딩 변수 최대 100개 제한이 있음.
+    //   흔한 검색어(예: "로맨스")는 매칭 tmdb_id가 300개 가까이 나와서
+    //   WHERE tmdb_id IN (...) 300개 바인딩 시 "too many SQL variables" 에러 발생 확인됨.
+    //   화면엔 15개씩만 보여주므로 100개로도 충분 — 안전하게 축소.
+    const MAX_MATCH_IDS = 100;
+    const RELATED_THRESHOLD = 15;
+    const MAX_RELATED = 24;
 
-async function loadMore(btn){
-  btn.disabled = true;
-  btn.textContent = '불러오는 중...';
-
-  const target = renderedCount + PAGE_SIZE;
-
-  // 풀에 목표 개수만큼 없으면, 우리DB에 다음 페이지가 남아있는 동안 계속 보충
-  while(combinedAvailable() < target && dbHasMore){
-    await fetchDbPage();
-  }
-
-  const newRenderedCount = Math.min(target, combinedAvailable());
-  renderRange(renderedCount, newRenderedCount);
-  renderedCount = newRenderedCount;
-
-  btn.disabled = false;
-  btn.textContent = '더보기';
-  if(!shouldShowMore()) btn.closest('.more-wrap')?.remove();
-  updateWorkCount();
-}
-
-function renderMoreButton(){
-  document.querySelector('.more-wrap')?.remove();
-  if(!shouldShowMore()) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'more-wrap';
-  wrap.innerHTML = `<button class="more-btn">더보기</button>`;
-  wrap.querySelector('.more-btn').onclick = (e)=>loadMore(e.target);
-  workGrid.insertBefore(wrap, dbInsertMarker.nextSibling);
-}
-
-async function runSearch(){
-
-  if(!q){
-    workGrid.innerHTML = `<div class="empty">검색어를 입력해주세요.</div>`;
-    return;
-  }
-
-  try{
-    // 우리DB 1페이지(결과 빈약 시 관련 작품까지 서버가 이미 합쳐서 내려줌) + TMDB(TV/영화)를
-    // 동시에 네트워크 요청 (속도를 위해 병렬)
-    // 단, 풀에 합치는 순서는 반드시 DB 먼저 → TMDB 나중이어야 중복 시 DB가 우선함
-    const [dbJson, tmdbRaw] = await Promise.all([
-      (async ()=>{
-        const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=0`);
-        dbOffset = PAGE_SIZE;
-        if(!res.ok) return { data: [], has_more: false };
-        return res.json();
-      })(),
-      fetchTmdbRaw(),
-    ]);
-
-    dbHasMore = !!dbJson.has_more;
-    dbTotal   = dbJson.total || 0;
-    dbCapped  = !!dbJson.capped;
-    addUnique(dbPool, dbJson.data || []);   // ① DB 먼저 풀에 채움 (우선순위 확보)
-    addUnique(tmdbPool, tmdbRaw);           // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
-
-    workGrid.innerHTML = '';
-    dbInsertMarker = document.createElement('span');
-    dbInsertMarker.style.display = 'none';
-    workGrid.appendChild(dbInsertMarker);
-
-    if(!combinedAvailable()){
-      workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
-      return;
+    if (!q.trim()) {
+      return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
     }
 
-    const initialCount = Math.min(PAGE_SIZE, combinedAvailable());
-    renderRange(0, initialCount);
-    renderedCount = initialCount;
+    try {
+      // ① 제목/키워드/장르 매칭 — 3개 쿼리를 batch()로 한 번에 실행
+      const [titleRes, keywordRes, genreRes] = await env.DB.batch(_dbMatchStatements(env, q, MAX_MATCH_IDS));
 
-    renderMoreButton();
-    updateWorkCount();
+      // ② 세 결과 합치기 (중복 제거). matchType: 0=제목매칭(우선), 1=키워드/장르매칭
+      const matchType = new Map();
+      titleRes.results.forEach(r => matchType.set(r.tmdb_id, 0));
+      keywordRes.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
+      genreRes.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
 
-  }catch(e){
-    console.warn('검색 실패:', e);
-    workGrid.innerHTML = `<div class="empty">검색 중 오류가 발생했습니다.</div>`;
+      // capped — MAX_MATCH_IDS(100) 상한에 걸려서 실제로는 더 있는데 여기서부터 이미
+      // 잘려나간 경우. 이럴 땐 total이 "정확한 전체 개수"가 아니라 "적어도 이만큼은
+      // 있다"는 하한선이라는 걸 프론트에 알려주기 위한 플래그.
+      const capped = matchType.size > MAX_MATCH_IDS;
+      const allIds = [...matchType.keys()].slice(0, MAX_MATCH_IDS);
+
+      // ③ 상세 정보 조회 (성인물 제외 + 포스터 없는 작품 제외)
+      let workRows = [];
+      if (allIds.length) {
+        const idPlaceholders = allIds.map(() => "?").join(",");
+        const res = await env.DB.prepare(`
+          SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
+          FROM works
+          WHERE tmdb_id IN (${idPlaceholders})
+            AND (adult_flag IS NULL OR adult_flag != 1)
+            AND poster_path IS NOT NULL AND poster_path != ''
+        `).bind(...allIds).all();
+        workRows = res.results;
+      }
+
+      // ④ [2026-07-15 변경] 결과가 빈약하고 검색어가 여러 단어로 쪼개질 때, 단어별
+      //   재검색 결과를 "관련 작품 추천"이라는 별도 섹션이 아니라 메인 결과 자체에
+      //   자연스럽게 합친다 — "검색결과 0개"라는 문구가 재검색을 막는 걸 방지하기 위함.
+      //   matchType에 3(=검색어 단어분리 매칭)으로 표시해서, 정렬 시 정확매칭(0,1)
+      //   보다는 뒤로 가되 화면상으로는 구분 없이 하나의 결과 목록으로 보이게 함.
+      if (workRows.length < RELATED_THRESHOLD) {
+        const words = [...new Set(q.split(/\s+/).filter(w => w.length >= 2))];
+        if (words.length >= 2) {
+          const related = await _fetchRelated(env, words, new Set(matchType.keys()), MAX_RELATED);
+          related.forEach(w => {
+            matchType.set(w.tmdb_id, 3);
+            workRows.push(w);
+          });
+        }
+      }
+
+      // total — 포스터 필터링 + 관련 작품 병합까지 반영한, 이번 검색어의 최종 노출 개수
+      const total = workRows.length;
+
+      // ⑤ 정렬: 제목매칭 우선 → 키워드/장르매칭 → 단어분리 관련매칭 순 → 그 안에서
+      //   한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
+      workRows.sort((a, b) => {
+        const ta = matchType.get(a.tmdb_id) ?? 1;
+        const tb = matchType.get(b.tmdb_id) ?? 1;
+        if (ta !== tb) return ta - tb;
+        const ka = a.original_language === 'ko' ? 0 : 1;
+        const kb = b.original_language === 'ko' ? 0 : 1;
+        if (ka !== kb) return ka - kb;
+        return (b.tmdb_rating || 0) - (a.tmdb_rating || 0);
+      });
+
+      // ⑥ 페이징 (offset~offset+limit, 다음 페이지 존재 여부는 전체 길이로 판단)
+      const pageRows = workRows.slice(offset, offset + limit);
+      const hasMore  = workRows.length > offset + limit;
+
+      // ⑦ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
+      let data = [];
+      if (pageRows.length) {
+        const pageIds = pageRows.map(w => w.tmdb_id);
+        const pagePlaceholders = pageIds.map(() => "?").join(",");
+        const { results: rankRows } = await env.DB.prepare(`
+          SELECT tmdb_id, platform, rank
+          FROM rankings
+          WHERE tmdb_id IN (${pagePlaceholders})
+            AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+        `).bind(...pageIds).all();
+
+        const rankMap = {};
+        rankRows.forEach(r => {
+          if (!rankMap[r.tmdb_id]) rankMap[r.tmdb_id] = {};
+          rankMap[r.tmdb_id][r.platform] = r.rank;
+        });
+
+        data = pageRows.map(w => ({ ...w, ott_ranks: rankMap[w.tmdb_id] || {} }));
+      }
+
+      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset, total, capped }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
   }
+
+  // ── GET /works/exists ────────────────────────────────────────
+  // 공개 API — tmdb_id 목록을 받아 그중 우리 DB(works)에 이미 등록된 것만 반환
+  // 2026-07-14 신설: 검색결과 페이지(search-results.html)가 TMDB 보충 검색 결과를 보여줄 때,
+  //   "이미 우리 DB에 등록된 작품인데 이번 검색어로는 안 걸린 것"까지 TMDB 줄거리 매칭으로
+  //   새어 들어오는 문제 발견 (예: "닥터 섬보이"가 실제 키워드/제목엔 "공포"가 없는데도
+  //   TMDB 검색이 overview의 "공포이자"를 잡아서 "공포" 검색 결과에 섞여 나옴).
+  //   이미 등록된 작품은 우리 키워드 시스템이 "관련 없음"으로 이미 판단을 마친 것이므로,
+  //   TMDB 보충 결과에서는 무조건 제외한다 — 순수 미등록 신작만 보충 결과로 노출.
+  // tmdb_id는 기본키(PK)라 인덱스 조회라 트래픽 부담 거의 없음.
+  if (path === "/works/exists" && request.method === "GET") {
+    const idsParam = url.searchParams.get("ids") || "";
+    const ids = idsParam.split(",").map(s => parseInt(s.trim())).filter(n => Number.isInteger(n)).slice(0, 100);
+    if (!ids.length) {
+      return new Response(JSON.stringify({ ok: true, existing_ids: [] }), { headers });
+    }
+    try {
+      const placeholders = ids.map(() => "?").join(",");
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id FROM works WHERE tmdb_id IN (${placeholders})
+      `).bind(...ids).all();
+      return new Response(JSON.stringify({ ok: true, existing_ids: results.map(r => r.tmdb_id) }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  return null;
 }
-
-runSearch();
-</script>
-
-</body>
-</html>
