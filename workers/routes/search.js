@@ -80,9 +80,13 @@ export async function handleSearch(path, request, env, url, headers) {
       titleMatch.results.forEach(r => matchType.set(r.tmdb_id, 0));
       keywordMatch.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
 
+      // [2026-07-15 추가] capped — MAX_MATCH_IDS(100) 상한에 걸려서 실제로는 더 있는데
+      // 여기서부터 이미 잘려나간 경우. 이럴 땐 total이 "정확한 전체 개수"가 아니라
+      // "적어도 이만큼은 있다"는 하한선이라는 걸 프론트에 알려주기 위한 플래그.
+      const capped = matchType.size > MAX_MATCH_IDS;
       const allIds = [...matchType.keys()].slice(0, MAX_MATCH_IDS);
       if (!allIds.length) {
-        return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset }), { headers });
+        return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset, total: 0, capped: false }), { headers });
       }
 
       // ④ 상세 정보 조회 (성인물 제외 + 포스터 없는 작품 제외)
@@ -96,6 +100,10 @@ export async function handleSearch(path, request, env, url, headers) {
           AND (adult_flag IS NULL OR adult_flag != 1)
           AND poster_path IS NOT NULL AND poster_path != ''
       `).bind(...allIds).all();
+
+      // [2026-07-15 추가] total — 포스터 필터링까지 반영한, 이번 검색어의 전체 매칭 개수
+      // (capped=true면 MAX_MATCH_IDS 상한 안에서만 집계된 것이라 실제로는 더 있을 수 있음)
+      const total = workRows.length;
 
       // ⑤ 정렬: 제목매칭 우선 → 한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
       //   (결과 규모가 작아 JS 정렬로 처리)
@@ -114,7 +122,7 @@ export async function handleSearch(path, request, env, url, headers) {
       const hasMore  = workRows.length > offset + limit;
 
       if (!pageRows.length) {
-        return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset }), { headers });
+        return new Response(JSON.stringify({ ok: true, data: [], has_more: false, limit, offset, total, capped }), { headers });
       }
 
       // ⑦ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
@@ -138,7 +146,7 @@ export async function handleSearch(path, request, env, url, headers) {
         ott_ranks: rankMap[w.tmdb_id] || {},
       }));
 
-      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset }), { headers });
+      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset, total, capped }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
