@@ -230,7 +230,8 @@ body {
 
 /* ── FAQ / 순위 산정 방식 섹션 ── */
 .faq-section { margin-top:8px }
-.faq-list { display:flex; flex-direction:column; gap:10px }
+.faq-list { display:grid; grid-template-columns:1fr; gap:10px }
+@media(min-width:769px) { .faq-list { grid-template-columns:1fr 1fr; gap:12px 16px } }
 .faq-item {
   background:var(--card); border:1px solid var(--border);
   border-radius:var(--r); overflow:hidden;
