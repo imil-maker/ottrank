@@ -233,9 +233,11 @@ export async function onRequest(context) {
       const overviewSnippet = overview
         ? `${overview.slice(0, 80)}... `
         : '';
+      // [2026-07-15 추가] "등장인물"/"몇부작" 검색 의도 대응 — 실제 배우명이나
+      // 화수 숫자는 그대로 노출하지 않고 "궁금증 유발" 단어만 추가 (IMDb 평점 노출 방식과 동일 원칙)
       seoDesc = platforms.length
-        ? `${overviewSnippet}${title} ${platformStr} 평점, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. ${platformStr} 추천 ${typeLabel}.`
-        : `${overviewSnippet}${title} 평점, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. 넷플릭스·티빙·디즈니+ 추천 ${typeLabel}.`;
+        ? `${overviewSnippet}${title} ${platformStr} 평점, 등장인물, 몇부작인지, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. ${platformStr} 추천 ${typeLabel}.`
+        : `${overviewSnippet}${title} 평점, 등장인물, 몇부작인지, 사용자 후기, OTT 순위를 오뜨랑에서 확인하세요. 넷플릭스·티빙·디즈니+ 추천 ${typeLabel}.`;
 
       /* ── 11. keywords 태그 ── */
       const origTitle = det?.original_name || det?.original_title || '';
@@ -253,6 +255,11 @@ export async function onRequest(context) {
         `${title} 후기`,
         `${title} 줄거리`,
         `${title} ${typeLabel}`,
+        // [2026-07-15 추가] "등장인물"/"몇부작" 연관검색어 대응 — 화면엔 안 보이는
+        // keywords 메타태그에만 넣어서, 정보 노출 없이 검색 매칭 신호만 추가
+        `${title} 등장인물`,
+        `${title} 출연진`,
+        `${title} 몇부작`,
         origTitle,
         ...platformKeywords,
         'OTT 추천',
@@ -283,6 +290,9 @@ export async function onRequest(context) {
       };
       if (actors.length)              ld.actor           = actors;
       if (det?.number_of_seasons)     ld.numberOfSeasons = det.number_of_seasons;
+      // [2026-07-15 추가] "몇부작" 검색 의도 대응 — 리치결과용이 아니라 구글/네이버의
+      // 콘텐츠 이해도(색인 품질) 목적. det는 이미 위에서 append_to_response로 받아온 값 재사용
+      if (det?.number_of_episodes)    ld.numberOfEpisodes = det.number_of_episodes;
       if (origTitle)                  ld.alternateName   = origTitle;
       if (releaseYear)                ld.datePublished   = releaseYear;
       // 플랫폼 정보가 있으면 JSON-LD에도 반영
