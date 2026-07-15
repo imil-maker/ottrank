@@ -44,6 +44,8 @@
    POST   /admin/keywords/review                     ← 키워드 번역 관리자 확정 저장(source='admin')
    GET    /admin/keywords/search                     ← 키워드 en/ko 검색 (오탐 발견 시 수동 수정용)
    POST   /admin/keywords/update                      ← 특정 키워드 한글 번역 개별 수정
+   GET    /admin/works/keywords                       ← 작품 제목/tmdb_id로 검색해 그 작품의 키워드 전체 조회(2026-07-15 신설)
+   POST   /admin/works/:tmdb_id/reset-keyword-cache    ← 특정 작품 키워드 캐시(keyword_ko_map) 초기화(2026-07-15 신설)
    POST   /admin/works/discover-collect
    POST   /admin/works/classify-variety
    GET    /admin/variety-genre-options
@@ -2082,12 +2084,12 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
       const like = `%${q}%`;
       const { results: items } = await env.DB.prepare(`
-        SELECT id, keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3, source
+        SELECT id, keyword_en, keyword_ko, source
         FROM keyword_translation
-        WHERE keyword_en LIKE ? OR keyword_ko LIKE ? OR keyword_ko_2 LIKE ? OR keyword_ko_3 LIKE ?
+        WHERE keyword_en LIKE ? OR keyword_ko LIKE ?
         ORDER BY keyword_en ASC
         LIMIT 50
-      `).bind(like, like, like, like).all();
+      `).bind(like, like).all();
 
       return new Response(JSON.stringify({ ok: true, items }), { headers });
     } catch (e) {
@@ -2098,9 +2100,6 @@ export async function handleAdmin(path, request, env, url, headers) {
   // ── POST /admin/keywords/update ─────────────────────────────
   // 검색 결과에서 개별 키워드의 한글 번역만 수정. source는 항상 'admin'으로 고정
   // (검토 대기 중이던 항목을 여기서 먼저 고쳐도 확정 처리되도록).
-  // [2026-07-15 확장] 영어 키워드 1개당 한글 번역을 최대 3개(keyword_ko/ko_2/ko_3)까지 등록.
-  //   예) "romantic comedy" → "로맨틱 코미디"(1) / "로코"(2) / "로맨틱코미디"(3, 띄어쓰기 변형)
-  //   1번(keyword_ko)은 필수, 2·3번은 선택 — 빈 문자열로 오면 NULL로 정리(비워서 저장).
   // 주의: 이 API로 수정해도 이미 캐싱된 작품페이지(keyword_ko_map, 5~100일 TTL)엔
   // 즉시 반영 안 됨 — 특정 작품에 바로 반영하려면 어드민 화면 ③번 SQL로 그 작품 캐시를 초기화할 것.
   if (path === "/admin/keywords/update" && request.method === "POST") {
@@ -2109,16 +2108,14 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
     try {
       const body = await request.json().catch(() => ({}));
-      const keyword_en   = (body.keyword_en || "").trim();
-      const keyword_ko   = (body.keyword_ko || "").trim();
-      const keyword_ko_2 = (body.keyword_ko_2 || "").trim() || null;
-      const keyword_ko_3 = (body.keyword_ko_3 || "").trim() || null;
+      const keyword_en = (body.keyword_en || "").trim();
+      const keyword_ko = (body.keyword_ko || "").trim();
       if (!keyword_en || !keyword_ko) {
         return new Response(JSON.stringify({ ok: false, message: "keyword_en, keyword_ko 모두 필요해요" }), { status: 400, headers });
       }
       const result = await env.DB.prepare(
-        "UPDATE keyword_translation SET keyword_ko = ?, keyword_ko_2 = ?, keyword_ko_3 = ?, source = 'admin' WHERE keyword_en = ?"
-      ).bind(keyword_ko, keyword_ko_2, keyword_ko_3, keyword_en).run();
+        "UPDATE keyword_translation SET keyword_ko = ?, source = 'admin' WHERE keyword_en = ?"
+      ).bind(keyword_ko, keyword_en).run();
 
       if (!result.meta || result.meta.changes === 0) {
         return new Response(JSON.stringify({ ok: false, message: "해당 keyword_en을 찾지 못했어요" }), { status: 404, headers });
@@ -2130,7 +2127,83 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
-  // ── POST /admin/works/discover-collect ─────────────────────
+  // ── GET /admin/works/keywords ────────────────────────────────
+  // [2026-07-15 신설] admin_videos.html "④ 작품 검색으로 키워드 수정"용 —
+  // 작품 제목(부분일치) 또는 tmdb_id(완전일치)로 작품을 찾고, 그 작품(들)에 붙은
+  // 키워드 전체를 keyword_translation과 조인해서 반환. 특정 작품에 왜 이 키워드가
+  // 붙었는지 확인하고 그 자리에서 한글 번역(최대 3개)을 고칠 때 사용.
+  // 응답 items는 /admin/keywords/search와 완전히 동일한 필드 형태라 프론트에서
+  // 같은 렌더링/저장 로직을 그대로 재사용할 수 있음.
+  if (path === "/admin/works/keywords" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: false, message: "검색어(q)가 필요해요" }), { status: 400, headers });
+      }
+
+      let works;
+      if (/^\d+$/.test(q)) {
+        // 숫자만 입력하면 tmdb_id 완전일치로 우선 취급
+        const row = await env.DB.prepare(
+          "SELECT tmdb_id, title_ko, title_en FROM works WHERE tmdb_id = ?"
+        ).bind(parseInt(q)).first();
+        works = row ? [row] : [];
+      } else {
+        const { results } = await env.DB.prepare(`
+          SELECT tmdb_id, title_ko, title_en FROM works
+          WHERE title_ko LIKE ? OR title_en LIKE ?
+          ORDER BY tmdb_rating DESC
+          LIMIT 5
+        `).bind(`%${q}%`, `%${q}%`).all();
+        works = results;
+      }
+
+      if (!works.length) {
+        return new Response(JSON.stringify({ ok: true, works: [], items: [] }), { headers });
+      }
+
+      const tmdbIds = works.map(w => w.tmdb_id);
+      const placeholders = tmdbIds.map(() => "?").join(",");
+      const { results: items } = await env.DB.prepare(`
+        SELECT DISTINCT kt.id, kt.keyword_en, kt.keyword_ko, kt.keyword_ko_2, kt.keyword_ko_3, kt.source
+        FROM work_keywords wk
+        JOIN keyword_translation kt ON kt.keyword_en = wk.keyword
+        WHERE wk.tmdb_id IN (${placeholders})
+        ORDER BY kt.keyword_en ASC
+      `).bind(...tmdbIds).all();
+
+      return new Response(JSON.stringify({ ok: true, works, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/:tmdb_id/reset-keyword-cache ───────────
+  // [2026-07-15 신설] 키워드 번역을 고쳐도 작품페이지 캐시(keyword_ko_map, 5~100일 TTL) 때문에
+  // 바로 반영 안 되는 문제 — 예전엔 D1 콘솔에서 SQL을 직접 실행해야 했는데, 자주 쓰는
+  // 작업이라 버튼 하나로 처리할 수 있게 API로 분리.
+  const resetCacheMatch = path.match(/^\/admin\/works\/(\d+)\/reset-keyword-cache$/);
+  if (resetCacheMatch && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(resetCacheMatch[1]);
+      const result = await env.DB.prepare(
+        "UPDATE works SET keyword_ko_map_updated_at = NULL WHERE tmdb_id = ?"
+      ).bind(tmdb_id).run();
+
+      if (!result.meta || result.meta.changes === 0) {
+        return new Response(JSON.stringify({ ok: false, message: "해당 tmdb_id를 찾지 못했어요" }), { status: 404, headers });
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
   // TMDB discover API로 인기순 한국 작품을 조회해 works 테이블에 신규 등록
   // (랭킹에는 올리지 않음 — 검색/키워드 매칭 대상 풀만 넓히는 용도)
   // 이미 works에 있는 tmdb_id는 절대 덮어쓰지 않고 건너뜀 (기존 데이터 보호)
