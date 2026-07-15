@@ -446,6 +446,35 @@ async function loadAll() {
   updateItemListSEO(groups);
 }
 
+/* ── 구조화 데이터를 <script> 태그로 출력 ──
+   구글 공식 문서: ItemList는 JSON-LD의 "최상위(top-level)" 타입이어야 하고,
+   @graph같은 다른 컨테이너 안에 감싸져 있으면 안 된다. ItemList가 1개뿐이면 문제가 안 되지만,
+   2개 이상(예: 카테고리가 여러 개)이면 하나의 @graph 배열에 묶어넣을 경우 구글이 "이 페이지의
+   진짜 캐러셀이 무엇인지" 헷갈려하는 것으로 확인됨(박스오피스 2개 ItemList 실제 테스트로 확인).
+   그래서 ItemList를 개수만큼 각각 별도 <script> 태그로 쪼개서, 각자 @type:'ItemList'를 최상위로 갖게 한다. */
+function renderItemListScripts(itemLists) {
+  // 재렌더링(예: 기간 전환) 시 이전에 동적으로 추가했던 여분 스크립트 태그를 먼저 제거해 중복 생성 방지
+  document.querySelectorAll('script[data-ld-extra="itemlist"]').forEach(el => el.remove());
+
+  const mainEl = document.getElementById('ldJsonList');
+  if (!itemLists.length) {
+    if (mainEl) mainEl.textContent = '{}';
+    return;
+  }
+
+  // 첫 번째 ItemList는 기존 정적 <script id="ldJsonList"> 태그에 그대로 넣는다(@graph로 감싸지 않고 최상위로)
+  if (mainEl) mainEl.textContent = JSON.stringify({ '@context': 'https://schema.org', ...itemLists[0] });
+
+  // 두 번째부터는 각각 새 <script> 태그를 만들어 <head>에 추가 (data-ld-extra 마크로 표시해 다음 렌더링 시 구별)
+  itemLists.slice(1).forEach(list => {
+    const s = document.createElement('script');
+    s.type = 'application/ld+json';
+    s.setAttribute('data-ld-extra', 'itemlist');
+    s.textContent = JSON.stringify({ '@context': 'https://schema.org', ...list });
+    document.head.appendChild(s);
+  });
+}
+
 /* ── 구조화 데이터 (JSON-LD) — TOP10 목록 페이지용 ItemList ──
    구글 캐러셀(ItemList) 리치 결과는 Course/Movie/Recipe/Restaurant 4개 타입만 지원하며
    TVSeries는 지원 대상이 아니다 (netflix.html 등에서 실제 테스트로 확인된 제약).
@@ -496,9 +525,7 @@ function updateItemListSEO(groups) {
     });
   });
 
-  const ld   = { '@context': 'https://schema.org', '@graph': graph };
-  const ldEl = document.getElementById('ldJsonList');
-  if (ldEl) ldEl.textContent = JSON.stringify(ld);
+  renderItemListScripts(graph);
 }
 
 /* ── 카테고리 타이틀 — 어드민에서 설정한 display_name 그대로 표시 ──
