@@ -92,9 +92,25 @@ async function _fetchRelated(env, words, excludeIds, cap) {
     seen.add(w.tmdb_id);
     merged.push(w);
   });
-  tmdbLists.flat().forEach(w => {
+
+  // TMDB 결과 중 "이미 우리 DB(works)에 등록된 작품"은 제외 — 초창기부터 있던 원칙.
+  // TMDB는 제목뿐 아니라 줄거리(overview) 매칭으로도 걸리기 때문에, 검색어와 실제
+  // 관련 없는 작품이 새어 들어올 수 있음. 이미 등록된 작품은 우리 키워드/장르 시스템이
+  // "이 단어와는 관련없다"고 이미 판단을 마친 것이므로, TMDB 보충 결과에서는 무조건 제외.
+  const tmdbFlat = tmdbLists.flat();
+  const tmdbCandidateIds = [...new Set(tmdbFlat.map(w => w.tmdb_id).filter(Boolean))];
+  let registeredIds = new Set();
+  if (tmdbCandidateIds.length) {
+    const placeholders = tmdbCandidateIds.map(() => "?").join(",");
+    const { results } = await env.DB.prepare(
+      `SELECT tmdb_id FROM works WHERE tmdb_id IN (${placeholders})`
+    ).bind(...tmdbCandidateIds).all();
+    registeredIds = new Set(results.map(r => r.tmdb_id));
+  }
+
+  tmdbFlat.forEach(w => {
     const id = w.tmdb_id;
-    if (!id || seen.has(id) || excludeIds.has(id) || !w.poster_path) return;
+    if (!id || seen.has(id) || excludeIds.has(id) || registeredIds.has(id) || !w.poster_path) return;
     seen.add(id);
     // DB 결과와 동일한 필드 형태로 정규화 — 프론트에서 출처 구분 없이 그대로 렌더링 가능
     merged.push({
