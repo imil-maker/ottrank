@@ -93,14 +93,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <div class="work-grid" id="workGrid">
     <div class="loading"><span class="spin"></span>검색 중...</div>
   </div>
-
-  <div id="relatedSection" style="display:none;margin-top:36px">
-    <div class="sec-title">관련 작품 추천</div>
-    <div class="related-hint" style="font-size:12px;color:var(--muted);margin:-8px 0 14px">
-      "<span id="relatedQLabel"></span>"의 정확한 검색결과가 적어서, 검색어를 나눠 찾아본 결과예요
-    </div>
-    <div class="work-grid" id="relatedGrid"></div>
-  </div>
 </div>
 
 <script>
@@ -402,18 +394,6 @@ function renderMoreButton(){
   workGrid.insertBefore(wrap, dbInsertMarker.nextSibling);
 }
 
-/* ── 관련 작품 추천 ──
-   [2026-07-15] 서버(/works/search)가 메인 결과가 빈약할 때 자체적으로 판단해서
-   related 배열을 같이 내려준다(단어분리 재검색 + DB/TMDB 병렬조회까지 전부 서버에서 처리).
-   프론트는 그 배열을 그대로 그려주기만 하면 됨 — 추가 네트워크 호출 없음. */
-function renderRelated(relatedItems){
-  if(!relatedItems || !relatedItems.length) return;
-  document.getElementById('relatedQLabel').textContent = q;
-  const relatedGrid = document.getElementById('relatedGrid');
-  relatedItems.forEach(w=>relatedGrid.appendChild(workCard(w)));
-  document.getElementById('relatedSection').style.display = 'block';
-}
-
 async function runSearch(){
 
   if(!q){
@@ -422,7 +402,8 @@ async function runSearch(){
   }
 
   try{
-    // 우리DB 1페이지(관련 작품 추천 포함) + TMDB(TV/영화)를 동시에 네트워크 요청 (속도를 위해 병렬)
+    // 우리DB 1페이지(결과 빈약 시 관련 작품까지 서버가 이미 합쳐서 내려줌) + TMDB(TV/영화)를
+    // 동시에 네트워크 요청 (속도를 위해 병렬)
     // 단, 풀에 합치는 순서는 반드시 DB 먼저 → TMDB 나중이어야 중복 시 DB가 우선함
     const [dbJson, tmdbRaw] = await Promise.all([
       (async ()=>{
@@ -447,7 +428,6 @@ async function runSearch(){
 
     if(!combinedAvailable()){
       workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
-      renderRelated(dbJson.related);
       return;
     }
 
@@ -457,7 +437,6 @@ async function runSearch(){
 
     renderMoreButton();
     updateWorkCount();
-    renderRelated(dbJson.related);
 
   }catch(e){
     console.warn('검색 실패:', e);
