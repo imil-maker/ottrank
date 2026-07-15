@@ -585,21 +585,8 @@
     </div>
   </div>
 </div>
-<!-- ══ 모바일 검색 오버레이 ══ -->
-<!-- ── 헤더 검색 결과 드롭다운 ── -->
+<!-- ── 헤더 검색 결과 드롭다운 (모바일 헤더 내부 검색 모드용) ── -->
 <div class="ottrang-header-search-results" id="ottrangMobSearchResults"></div>
-
-<div class="ottrang-mob-search-overlay" id="ottrangMobSearchOverlay">
-  <div class="ottrang-mob-search-bar">
-    <button class="ottrang-mob-search-back" id="ottrangMobSearchBack" aria-label="검색 닫기">&#8592;</button>
-    <input class="ottrang-mob-search-input" id="ottrangMobSearchInput"
-      type="text" placeholder="작품, 배우, 감독 검색"
-      oninput="_mobSearchRun(this.value)"
-      onkeydown="if(event.key==='Enter'){_mobSearchRun(this.value,true);}"
-      autocomplete="off">
-  </div>
-  <div class="ottrang-mob-search-results" id="ottrangMobSearchResultsOverlay"></div>
-</div>
 
 <!-- ══ 드로어 오버레이 ══ -->
 <div class="ottrang-drawer-overlay" id="ottrangDrawerOverlay"></div>
@@ -1140,28 +1127,6 @@ function initHeader(){
     if(e.key === 'Escape') _closeMobSearch();
   });
 
-
-  // 기존 오버레이 닫기 함수 (호환성 유지)
-  document.getElementById('ottrangMobSearchBack')?.addEventListener('click', _closeMobSearch);
-
-  // 모바일 검색 — 기존 _runSearch 함수 재사용 (결과를 모바일 컨테이너에 출력)
-  window._mobSearchRun = function(q, immediate) {
-    clearTimeout(window._mobSrTimer);
-    const el = document.getElementById('ottrangMobSearchResults');
-    if(!el) return;
-    if(!q || q.length < 2){
-      el.innerHTML = '';
-      return;
-    }
-    el.innerHTML = '<div class="ottrang-sr-loading">검색 중...</div>';
-    // _runSearch는 el 파라미터 없이 'ottrangSearchResults'를 직접 참조하므로
-    // 모바일용 결과 렌더 함수를 별도로 처리
-    if(immediate){
-      _mobRunSearch(q);
-    } else {
-      window._mobSrTimer = setTimeout(() => _mobRunSearch(q), 350);
-    }
-  };
 
   // 모바일 전용 검색 실행 (기존 _runSearch와 동일 로직, 결과 컨테이너만 다름)
   async function _mobRunSearch(q) {
