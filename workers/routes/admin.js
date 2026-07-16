@@ -72,11 +72,86 @@
    GET    /admin/works/adult-search    ← 성인물 의심 작품 검색(제목/줄거리/키워드 단어매칭, 2026-07-12 신설)
    POST   /admin/works/adult-review    ← 성인물 일괄삭제 + 오탐 항목 정리완료 표시(2026-07-12 신설)
    GET    /work-ott/:tmdb_id          ← OTT 오버라이드 조회 (인증 불필요 — 작품 페이지 호출)
-   POST   /work-ott                   ← OTT 오버라이드 추가/수정 (관리자 전용)
-   DELETE /work-ott/:id               ← OTT 오버라이드 삭제/복원 (관리자 전용)
+   POST   /work-ott                   ← OTT 오버라이드 추가/수정 (관리자 전용, 저장 직후 즉시 재수집으로 work_ott 반영, 2026-07-17 수정)
+   DELETE /work-ott/:id               ← OTT 오버라이드 삭제/복원 (관리자 전용, 삭제 직후 즉시 재수집으로 work_ott 반영, 2026-07-17 수정)
 ══════════════════════════════════════════════════════════════ */
 
 import { _checkAuth } from "../utils/authUtils.js";
+
+// [2026-07-17 추가] 특정 작품 하나만 즉시 OTT 재수집 — POST /work-ott(오버라이드 저장/삭제) 직후 호출.
+// collect-ott 배치(아래쪽 POST /admin/works/collect-ott)와 동일한 4단계 우선순위를 단일 작품
+// 기준으로 재실행해서 work_ott에 바로 반영한다.
+// [문제 배경] 배치는 ott_updated_at이 15일 안 지나면 대상에서 자동 제외되는데, override
+// 저장/삭제는 이 값을 전혀 안 건드려서 — 이미 한 번 수집됐던 작품은 override를 바꿔도
+// work_ott(검색결과가 실제로 보는 테이블)엔 최대 15일간 반영이 안 되는 버그가 있었음.
+// 저장/삭제 시점에 그 작품 하나만 바로 재수집해서 이 문제를 근본적으로 없앤다.
+async function _recollectOttForWork(env, tmdbId) {
+  const work = await env.DB.prepare(
+    `SELECT media_type FROM works WHERE tmdb_id = ?`
+  ).bind(tmdbId).first();
+  if (!work) return; // works에 없는(미등록) 작품이면 재수집 대상 아님
+
+  const mtype = work.media_type === "movie" ? "movie" : "tv";
+  const keys  = new Set();
+
+  // Priority 1 — 오늘자 랭킹
+  const { results: rankRows } = await env.DB.prepare(`
+    SELECT platform FROM rankings
+    WHERE tmdb_id = ?
+      AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+  `).bind(tmdbId).all();
+  rankRows.forEach(r => keys.add(r.platform));
+
+  const OTT_NAME_MATCH = [
+    [/netflix/i,  "netflix"],
+    [/tving/i,    "tving"],
+    [/disney/i,   "disney"],
+    [/coupang/i,  "coupang"],
+    [/wavve/i,    "wavve"],
+    [/watcha/i,   "watcha"],
+  ];
+
+  try {
+    // Priority 2 — 쿠팡플레이 Network 보완 (TV만)
+    if (mtype === "tv" && !keys.has("coupang")) {
+      const detResp = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${env.TMDB_API_KEY}`);
+      if (detResp.ok) {
+        const det = await detResp.json();
+        if ((det.networks || []).some(n => n.id === 5169)) keys.add("coupang");
+      }
+    }
+    // Priority 3 — TMDB Watch Providers (flatrate+rent+buy, collect-ott 배치와 동일 기준)
+    const wpResp = await fetch(`https://api.themoviedb.org/3/${mtype}/${tmdbId}/watch/providers?api_key=${env.TMDB_API_KEY}`);
+    if (wpResp.ok) {
+      const wp = await wpResp.json();
+      const kr = (wp.results && wp.results.KR) || {};
+      const providers = [...(kr.flatrate || []), ...(kr.rent || []), ...(kr.buy || [])];
+      providers.forEach(p => {
+        const match = OTT_NAME_MATCH.find(([re]) => re.test(p.provider_name || ""));
+        if (match) keys.add(match[1]);
+      });
+    }
+  } catch (e) {
+    // TMDB 호출 실패해도 아래 Priority 4(오버라이드)는 반영 — 재수집 자체를 막지 않음
+  }
+
+  // Priority 4 — 어드민 수동 오버라이드 (최우선 적용, 방금 저장/삭제한 내용까지 포함해서 재조회)
+  const { results: overrideRows } = await env.DB.prepare(
+    `SELECT ott_key, action FROM work_ott_overrides WHERE tmdb_id = ?`
+  ).bind(tmdbId).all();
+  overrideRows.forEach(o => {
+    if (o.action === "add") keys.add(o.ott_key);
+    else if (o.action === "remove") keys.delete(o.ott_key);
+  });
+
+  // 기존 값 지우고 새로 씀 (collect-ott 배치와 동일 원칙)
+  const stmts = [env.DB.prepare("DELETE FROM work_ott WHERE tmdb_id = ?").bind(tmdbId)];
+  keys.forEach(k => {
+    stmts.push(env.DB.prepare("INSERT INTO work_ott (tmdb_id, ott_key) VALUES (?, ?)").bind(tmdbId, k));
+  });
+  stmts.push(env.DB.prepare(`UPDATE works SET ott_updated_at = datetime('now') WHERE tmdb_id = ?`).bind(tmdbId));
+  await env.DB.batch(stmts);
+}
 
 export async function handleAdmin(path, request, env, url, headers) {
 
@@ -136,6 +211,16 @@ export async function handleAdmin(path, request, env, url, headers) {
                        created_at = datetime('now')`
       ).bind(tmdb_id, ott_key, action).run();
 
+      // [2026-07-17 추가] 저장 직후 그 작품만 즉시 재수집 — work_ott(검색결과가 실제로 보는
+      // 테이블)에 바로 반영해서, 정기 자동수집(15일 주기)을 기다리지 않아도 되게 함.
+      // 재수집이 실패해도 오버라이드 저장 자체는 이미 성공했으므로 에러를 삼키고 넘어감
+      // (다음 정기 자동수집 때 결국은 반영됨).
+      try {
+        await _recollectOttForWork(env, tmdb_id);
+      } catch (e) {
+        // 재수집 실패 — 저장은 성공했으니 응답은 그대로 ok:true로 내려감
+      }
+
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers });
@@ -151,9 +236,24 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
     const id = parseInt(workOttDelMatch[1]);
     try {
+      // 삭제 전에 tmdb_id 확보 — 삭제 후 즉시 재수집에 필요
+      const row = await env.DB.prepare(
+        `SELECT tmdb_id FROM work_ott_overrides WHERE id = ?`
+      ).bind(id).first();
+
       await env.DB.prepare(
         `DELETE FROM work_ott_overrides WHERE id = ?`
       ).bind(id).run();
+
+      // [2026-07-17 추가] 오버라이드 복원(삭제) 직후에도 저장 때와 동일하게 즉시 재수집
+      if (row && row.tmdb_id) {
+        try {
+          await _recollectOttForWork(env, row.tmdb_id);
+        } catch (e) {
+          // 재수집 실패 — 삭제는 성공했으니 응답은 그대로 ok:true로 내려감
+        }
+      }
+
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers });
