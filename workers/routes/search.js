@@ -38,40 +38,23 @@ function _dbMatchStatements(env, term, capLimit) {
   ];
 }
 
-// TMDB 서버-서버 직접 호출 — 브라우저 프록시(tmdb-proxy) 대신 api.themoviedb.org를
-// env.TMDB_API_KEY로 직접 호출 (Worker-to-Worker 프록시 호출은 항상 실패하는 알려진 문제 회피)
-async function _tmdbSearchDirect(env, mediaType, term) {
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 3000);
-  try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/search/${mediaType}?query=${encodeURIComponent(term)}&language=ko-KR&include_adult=false&api_key=${env.TMDB_API_KEY}`,
-      { signal: ctrl.signal }
-    );
-    if (!res.ok) return [];
-    const j = await res.json();
-    return (j.results || []).filter(r => !r.adult).map(r => ({ ...r, _type: mediaType, tmdb_id: r.id }));
-  } catch (e) {
-    return []; // 3초 안에 응답 없으면(타임아웃) 또는 그 외 오류 시 그냥 빈 배열 — 검색 자체는 막지 않음
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// [2026-07-17 삭제] TMDB 서버-서버 직접 호출 함수(_tmdbSearchDirect) — 관련검색(_fetchRelated)에서만
+// 쓰였는데, 프론트(search-results.html)가 이미 동일한 검색어로 TMDB 보충 검색을 자체적으로 하고
+// 있어서 서버에서 또 호출하는 건 중복이었음. 검색 응답속도 개선을 위해 서버 쪽 TMDB 호출은 제거.
 
-// [2026-07-15 추가] 관련 작품 추천 — 메인 검색 결과가 빈약하고(RELATED_THRESHOLD 미만)
-// 검색어가 여러 단어로 쪼개질 때("우울한 하루" → "우울한"/"하루"), 단어별로 DB+TMDB를
-// 전부 병렬로 재조회해서 메인 결과와 안 겹치는 것만 골라 반환.
-// - DB 쪽: 단어 수만큼의 매칭 statement를 전부 모아 batch() 한 번으로 실행 (왕복 1회)
-// - TMDB 쪽: 단어 수 × 2(tv/movie) 호출을 전부 Promise.all로 동시에 실행
-// → 단어가 몇 개든 전체가 항상 "가장 느린 호출 1개" 시간 안에 끝남
+// [2026-07-15 추가, 2026-07-17 단순화] 관련 작품 추천 — 메인 검색 결과가 빈약하고(RELATED_THRESHOLD 미만)
+// 검색어가 여러 단어로 쪼개질 때("우울한 하루" → "우울한"/"하루"), 단어별로 우리 DB만 재조회해서
+// 메인 결과와 안 겹치는 것만 골라 반환.
+// [2026-07-17] 원래는 TMDB도 같이 단어별로 재조회했었는데, 프론트(search-results.html)가 이미
+// 동일 검색어로 TMDB 보충 검색을 자체 수행하고 있어 서버 쪽 TMDB 호출은 중복이었음 + TMDB 응답을
+// 최대 3초까지 기다리는 구간이라 검색 응답속도(체감 2초 이상)의 가장 큰 원인이었음. 제거 후에는
+// 우리 DB 안에서만 빠르게 찾고, TMDB 보충은 전적으로 프론트에 맡긴다(포스터는 즉시, OTT 뱃지는
+// 약간 늦게 뜨는 기존 프론트 동작은 그대로 유지되므로 사용자 체감 차이 없음).
 async function _fetchRelated(env, words, excludeIds, cap) {
   const perWordCap = 30;
   const dbStatements = words.flatMap(w => _dbMatchStatements(env, w, perWordCap));
 
-  const [dbBatchResults, ...tmdbLists] = await Promise.all([
-    env.DB.batch(dbStatements),
-    ...words.flatMap(w => [_tmdbSearchDirect(env, "tv", w), _tmdbSearchDirect(env, "movie", w)]),
-  ]);
+  const dbBatchResults = await env.DB.batch(dbStatements);
 
   const dbIds = new Set();
   dbBatchResults.forEach(r => (r.results || []).forEach(row => dbIds.add(row.tmdb_id)));
@@ -90,54 +73,15 @@ async function _fetchRelated(env, words, excludeIds, cap) {
     dbDetail = res.results;
   }
 
-  const merged = [];
-  const seen = new Set();
-  dbDetail.forEach(w => {
-    if (seen.has(w.tmdb_id) || excludeIds.has(w.tmdb_id)) return;
-    seen.add(w.tmdb_id);
-    merged.push(w);
-  });
-
-  // TMDB 결과 중 "이미 우리 DB(works)에 등록된 작품"은 제외 — 초창기부터 있던 원칙.
-  // TMDB는 제목뿐 아니라 줄거리(overview) 매칭으로도 걸리기 때문에, 검색어와 실제
-  // 관련 없는 작품이 새어 들어올 수 있음. 이미 등록된 작품은 우리 키워드/장르 시스템이
-  // "이 단어와는 관련없다"고 이미 판단을 마친 것이므로, TMDB 보충 결과에서는 무조건 제외.
-  const tmdbFlat = tmdbLists.flat();
-  const tmdbCandidateIds = [...new Set(tmdbFlat.map(w => w.tmdb_id).filter(Boolean))];
-  let registeredIds = new Set();
-  if (tmdbCandidateIds.length) {
-    const placeholders = tmdbCandidateIds.map(() => "?").join(",");
-    const { results } = await env.DB.prepare(
-      `SELECT tmdb_id FROM works WHERE tmdb_id IN (${placeholders})`
-    ).bind(...tmdbCandidateIds).all();
-    registeredIds = new Set(results.map(r => r.tmdb_id));
-  }
-
-  tmdbFlat.forEach(w => {
-    const id = w.tmdb_id;
-    if (!id || seen.has(id) || excludeIds.has(id) || registeredIds.has(id) || !w.poster_path) return;
-    seen.add(id);
-    // DB 결과와 동일한 필드 형태로 정규화 — 프론트에서 출처 구분 없이 그대로 렌더링 가능
-    merged.push({
-      tmdb_id: id,
-      title_ko: w.name || w.title || "",
-      title_en: w.original_name || w.original_title || "",
-      poster_path: w.poster_path,
-      media_type: w._type,
-      release_year: parseInt((w.first_air_date || w.release_date || "").slice(0, 4)) || null,
-      tmdb_rating: w.vote_average || null,
-      original_language: w.original_language || null,
-    });
-  });
-
-  merged.sort((a, b) => {
+  // 정렬: 한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
+  dbDetail.sort((a, b) => {
     const ka = a.original_language === "ko" ? 0 : 1;
     const kb = b.original_language === "ko" ? 0 : 1;
     if (ka !== kb) return ka - kb;
     return (b.tmdb_rating || 0) - (a.tmdb_rating || 0);
   });
 
-  return merged.slice(0, cap);
+  return dbDetail.slice(0, cap);
 }
 
 export async function handleSearch(path, request, env, url, headers) {
