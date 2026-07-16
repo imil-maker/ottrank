@@ -1758,12 +1758,17 @@ export async function handleAdmin(path, request, env, url, headers) {
             }
           }
           // Priority 3 — TMDB Watch Providers
+          // [2026-07-17 수정] 원래 flatrate(구독형)만 봤는데, 우리 사이트는 구매/구독을
+          // 구분하지 않는 원칙이라 rent(대여)/buy(구매)도 같이 인정하도록 변경.
+          // Top Gun: Maverick 같은 대작 영화가 구독형 없이 대여/구매로만 걸려있어서
+          // "OTT 없음"으로 잘못 저장되던 문제 발견 후 수정.
           const wpResp = await fetch(`https://api.themoviedb.org/3/${mtype}/${tmdbId}/watch/providers?api_key=${env.TMDB_API_KEY}`);
           if (wpResp.ok) {
             anySuccess = true;
             const wp = await wpResp.json();
-            const flatrate = (wp.results && wp.results.KR && wp.results.KR.flatrate) || [];
-            flatrate.forEach(p => {
+            const kr = (wp.results && wp.results.KR) || {};
+            const providers = [...(kr.flatrate || []), ...(kr.rent || []), ...(kr.buy || [])];
+            providers.forEach(p => {
               const match = OTT_NAME_MATCH.find(([re]) => re.test(p.provider_name || ""));
               if (match) keys.add(match[1]);
             });
