@@ -63,7 +63,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 }
 .ott-filter-row span{font-size:13px;color:var(--muted2);transition:color .15s}
 .ott-filter-row.active span{color:var(--accent);font-weight:600}
-.ott-count{font-size:11px !important;color:var(--accent) !important;font-weight:700 !important;
+.ott-count{font-size:11px !important;color:#f0b429 !important;font-weight:700 !important;
   font-family:var(--mono);white-space:nowrap;display:none}
 .ott-count.show{display:inline}
 .ott-filter-row img, .ott-filter-row .ott-ph{width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0}
@@ -176,9 +176,9 @@ const OTT_META = {
   netflix: { name:'넷플릭스',   color:'#e50914', file:'netflix' },
   tving:   { name:'티빙',       color:'#ff153c', file:'tving' },
   disney:  { name:'디즈니+',   color:'#06b6d4', file:'disneyplus' },
-  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay' },
   wavve:   { name:'웨이브',     color:'#0070f3', file:'wavve' },
   watcha:  { name:'왓챠',       color:'#ff0558', file:'watcha' },
+  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay' },
 };
 // TMDB Watch Providers의 provider_name → 우리 OTT 키 매칭용
 const OTT_NAME_MATCH = [
