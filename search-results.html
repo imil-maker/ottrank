@@ -281,6 +281,14 @@ let dbInsertMarker = null; // 카드들이 항상 이 앞(="더보기" 버튼 �
 
 function hasPoster(w){ return !!w.poster_path; } // 포스터 없는 작품은 목록에서 제외
 
+// TMDB 요청 전용 제한시간 래퍼 — TMDB가 응답을 안 주고 붙잡고 있어도(오늘 같은 장애 상황)
+// 5초 지나면 그냥 포기하고 넘어감. DB 검색은 이 함수를 안 거치므로 영향 없음.
+function _fetchWithTimeout(url, ms = 5000){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 // list를 pool에 추가하되, seenIds에 이미 있는 tmdb_id는 건너뜀(전역 중복 제거)
 function addUnique(pool, list){
   list.filter(hasPoster).forEach(w=>{
@@ -305,8 +313,8 @@ async function fetchDbPage(){
 // (dbPool과의 중복 제거는 호출부에서 DB를 먼저 병합한 뒤에 진행 — 우선순위 보장을 위해 순서 중요)
 async function fetchTmdbRaw(){
   const [tvRes, mvRes] = await Promise.allSettled([
-    fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
-    fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+    _fetchWithTimeout(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
+    _fetchWithTimeout(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
   ]);
   let tmdbTv = [];
   if(tvRes.status==='fulfilled' && tvRes.value.ok){
@@ -403,42 +411,58 @@ async function runSearch(){
     return;
   }
 
+  // 화면 초기화 + 마커 생성 (DB/TMDB 공통으로 쓰는 삽입 기준점)
+  function _resetGrid(){
+    workGrid.innerHTML = '';
+    dbInsertMarker = document.createElement('span');
+    dbInsertMarker.style.display = 'none';
+    workGrid.appendChild(dbInsertMarker);
+  }
+
+  // 지금까지 확보한 풀 기준으로 "아직 안 그린 만큼"만 추가로 그려주는 공용 함수
+  // (최초 DB 렌더링과, TMDB가 늦게 도착했을 때의 추가 렌더링 둘 다 이걸 재사용)
+  function _renderUpTo(target){
+    if(target <= renderedCount) return;
+    renderRange(renderedCount, target);
+    renderedCount = target;
+  }
+
   try{
-    // 우리DB 1페이지(결과 빈약 시 관련 작품까지 서버가 이미 합쳐서 내려줌) + TMDB(TV/영화)를
-    // 동시에 네트워크 요청 (속도를 위해 병렬)
-    // 단, 풀에 합치는 순서는 반드시 DB 먼저 → TMDB 나중이어야 중복 시 DB가 우선함
-    const [dbJson, tmdbRaw] = await Promise.all([
-      (async ()=>{
-        const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=0`);
-        dbOffset = PAGE_SIZE;
-        if(!res.ok) return { data: [], has_more: false };
-        return res.json();
-      })(),
-      fetchTmdbRaw(),
-    ]);
+    // ── 1) 우리 DB부터 먼저 기다렸다가 즉시 화면에 그림 (TMDB를 기다리지 않음) ──
+    const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=0`);
+    dbOffset = PAGE_SIZE;
+    const dbJson = res.ok ? await res.json() : { data: [], has_more: false, total: 0, capped: false };
 
     dbHasMore = !!dbJson.has_more;
     dbTotal   = dbJson.total || 0;
     dbCapped  = !!dbJson.capped;
     addUnique(dbPool, dbJson.data || []);   // ① DB 먼저 풀에 채움 (우선순위 확보)
-    addUnique(tmdbPool, tmdbRaw);           // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
 
-    workGrid.innerHTML = '';
-    dbInsertMarker = document.createElement('span');
-    dbInsertMarker.style.display = 'none';
-    workGrid.appendChild(dbInsertMarker);
+    _resetGrid();
 
-    if(!combinedAvailable()){
+    if(combinedAvailable()){
+      _renderUpTo(Math.min(PAGE_SIZE, combinedAvailable()));
+      renderMoreButton();
+      updateWorkCount();
+    } else {
       workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
-      return;
     }
 
-    const initialCount = Math.min(PAGE_SIZE, combinedAvailable());
-    renderRange(0, initialCount);
-    renderedCount = initialCount;
+    // ── 2) TMDB는 백그라운드로 보충 — DB 화면은 이미 떠 있으므로 TMDB가 느리거나
+    //      실패해도(제한시간 5초, _fetchWithTimeout) 사용자 경험에 영향 없음 ──
+    fetchTmdbRaw().then(tmdbRaw => {
+      if(!tmdbRaw.length) return;
+      addUnique(tmdbPool, tmdbRaw);        // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
 
-    renderMoreButton();
-    updateWorkCount();
+      // DB 결과가 0개라 "결과 없음" 문구가 떠 있던 상태였다면, TMDB 보충분으로 다시 그려야 함
+      if(renderedCount === 0) _resetGrid();
+
+      _renderUpTo(Math.min(PAGE_SIZE, combinedAvailable()));
+      renderMoreButton();
+      updateWorkCount();
+    }).catch(() => {
+      // TMDB 보충 실패해도 DB 결과는 이미 표시돼 있으므로 별도 에러 처리 불필요
+    });
 
   }catch(e){
     console.warn('검색 실패:', e);
