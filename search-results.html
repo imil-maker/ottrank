@@ -351,7 +351,6 @@ async function _collectOttMatches(key, targetCount){
         } else {
           const mtype = w.media_type || w._type || 'tv';
           keys = await fetchOttKeys(tmdbId, mtype, Object.keys(w.ott_ranks||{}));
-          _registerTmdbWorkInBackground(w, tmdbId, mtype);
         }
         cardOttKeys.set(tmdbId, keys);
       }
@@ -456,39 +455,19 @@ function workCard(w){
       cardOttKeys.set(tmdbId, w.ott_keys);
       if(w.ott_keys.length) ottBox.innerHTML = w.ott_keys.map(ottLogoHtml).join('');
     } else {
-      // TMDB 보충 작품(아직 미등록) — 지금은 실시간으로 확인할 수밖에 없음.
-      // 대신 여기서 확인되는 대로 /works/register로 슬쩍 등록해두면, 다음번 검색부터는
-      // 이 작품도 DB 작품이 되어 위 분기(즉시 표시)로 넘어가고, 키워드/OTT 수집 배치도
-      // 자동으로 이 작품을 대상에 포함시킴 — 별도 배치 코드 필요 없음.
+      // TMDB 보충 작품 — 실시간으로 OTT만 확인해서 표시 (DB 자동등록은 하지 않음.
+      // [2026-07-17] 한때 여기서 /works/register로 자동등록했었는데, 검색어와 실제 관련
+      // 없는 TMDB 매칭(줄거리 매칭 등으로 새어 들어온 옛날 작품 등)까지 그대로 DB에 쌓여서,
+      // 다음 검색부터 그 작품들이 "DB 작품"으로 취급되어 TMDB 보충 결과보다 우선 노출되는
+      // 부작용이 있어 제거함. 등록은 기존처럼 작품페이지 방문 시에만 이뤄짐.)
       fetchOttKeys(tmdbId, mtype, Object.keys(ranks)).then(keys=>{
         cardOttKeys.set(tmdbId, keys);
         if(keys.length) ottBox.innerHTML = keys.map(ottLogoHtml).join('');
       });
-      _registerTmdbWorkInBackground(w, tmdbId, mtype);
     }
   }
 
   return card;
-}
-
-// TMDB 보충 작품을 화면에 보여준 김에 우리 DB에도 최소 정보로 등록해두는 백그라운드 호출.
-// 응답을 기다리지 않고(fire-and-forget), 실패해도 검색 화면엔 아무 영향 없음.
-// 같은 작품을 여러 번 등록 요청해도 /works/register는 안전(기존 값 보호/덮어쓰기 규칙 그대로).
-function _registerTmdbWorkInBackground(w, tmdbId, mtype){
-  fetch(`${API}/works/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      tmdb_id: tmdbId,
-      media_type: mtype || null,
-      title_ko: w.title || w.name || '',
-      title_en: w.original_title || w.original_name || '',
-      poster_path: w.poster_path || null,
-      tmdb_rating: (typeof w.vote_average === 'number') ? w.vote_average : null,
-      release_date: w.release_date || w.first_air_date || null,
-      original_language: w.original_language || null,
-    }),
-  }).catch(()=>{ /* 검색 화면엔 영향 없음 — 실패해도 다음 검색에서 다시 시도됨 */ });
 }
 
 /* ── 상태 ──
