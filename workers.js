@@ -361,7 +361,7 @@ function j(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
         AND poster_path IS NOT NULL AND poster_path != ''
       ORDER BY (original_language = 'ko') DESC, tmdb_rating DESC
       LIMIT ?
-    `).bind(i,t)]}async function st(r,i,t){try{let E=await fetch(`https://api.themoviedb.org/3/search/${i}?query=${encodeURIComponent(t)}&language=ko-KR&include_adult=false&api_key=${r.TMDB_API_KEY}`);return E.ok?((await E.json()).results||[]).filter(o=>!o.adult).map(o=>({...o,_type:i,tmdb_id:o.id})):[]}catch{return[]}}async function Ht(r,i,t,E){let o=i.flatMap(m=>it(r,m,30)),[n,..._]=await Promise.all([r.DB.batch(o),...i.flatMap(m=>[st(r,"tv",m),st(r,"movie",m)])]),c=new Set;n.forEach(m=>(m.results||[]).forEach(f=>c.add(f.tmdb_id)));let d=[...c].filter(m=>!t.has(m)),s=[];if(d.length){let m=d.map(()=>"?").join(",");s=(await r.DB.prepare(`
+    `).bind(i,t)]}async function st(r,i,t){let E=new AbortController,e=setTimeout(()=>E.abort(),3e3);try{let o=await fetch(`https://api.themoviedb.org/3/search/${i}?query=${encodeURIComponent(t)}&language=ko-KR&include_adult=false&api_key=${r.TMDB_API_KEY}`,{signal:E.signal});return o.ok?((await o.json()).results||[]).filter(_=>!_.adult).map(_=>({..._,_type:i,tmdb_id:_.id})):[]}catch{return[]}finally{clearTimeout(e)}}async function Ht(r,i,t,E){let o=i.flatMap(m=>it(r,m,30)),[n,..._]=await Promise.all([r.DB.batch(o),...i.flatMap(m=>[st(r,"tv",m),st(r,"movie",m)])]),c=new Set;n.forEach(m=>(m.results||[]).forEach(f=>c.add(f.tmdb_id)));let d=[...c].filter(m=>!t.has(m)),s=[];if(d.length){let m=d.map(()=>"?").join(",");s=(await r.DB.prepare(`
       SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
       FROM works
       WHERE tmdb_id IN (${m})
@@ -373,7 +373,7 @@ function j(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
           WHERE tmdb_id IN (${R})
             AND (adult_flag IS NULL OR adult_flag != 1)
             AND poster_path IS NOT NULL AND poster_path != ''
-        `).bind(...m).all()).results}if(f.length<d){let R=[...new Set(o.split(/\s+/).filter(b=>b.length>=2))];R.length>=2&&(await Ht(t,R,new Set(u.keys()),s)).forEach(N=>{u.set(N.tmdb_id,3),f.push(N)})}let w=f.length;f.sort((R,b)=>{let N=u.get(R.tmdb_id)??1,D=u.get(b.tmdb_id)??1;if(N!==D)return N-D;let h=R.original_language==="ko"?0:1,T=b.original_language==="ko"?0:1;return h!==T?h-T:(b.tmdb_rating||0)-(R.tmdb_rating||0)});let y=f.slice(_,_+n),k=f.length>_+n,S=[];if(y.length){let R=y.map(L=>L.tmdb_id),b=R.map(()=>"?").join(","),{results:N}=await t.DB.prepare(`
+        `).bind(...m).all()).results}if(f.length<d){let R=[...new Set(o.split(/\s+/).filter(b=>b.length>=2))].slice(0,3);R.length>=2&&(await Ht(t,R,new Set(u.keys()),s)).forEach(N=>{u.set(N.tmdb_id,3),f.push(N)})}let w=f.length;f.sort((R,b)=>{let N=u.get(R.tmdb_id)??1,D=u.get(b.tmdb_id)??1;if(N!==D)return N-D;let h=R.original_language==="ko"?0:1,T=b.original_language==="ko"?0:1;return h!==T?h-T:(b.tmdb_rating||0)-(R.tmdb_rating||0)});let y=f.slice(_,_+n),k=f.length>_+n,S=[];if(y.length){let R=y.map(L=>L.tmdb_id),b=R.map(()=>"?").join(","),{results:N}=await t.DB.prepare(`
           SELECT tmdb_id, platform, rank
           FROM rankings
           WHERE tmdb_id IN (${b})
