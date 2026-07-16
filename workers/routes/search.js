@@ -203,16 +203,16 @@ export async function handleSearch(path, request, env, url, headers) {
       const capped = matchType.size > MAX_MATCH_IDS;
       let allIds = [...matchType.keys()].slice(0, MAX_MATCH_IDS);
 
-      // ①-2 [2026-07-17 추가] OTT 필터 — work_ott에서 이 OTT로 확인된 것만 남김.
-      // 예전엔 프론트가 우리DB 페이지를 여러 장 반복 조회하면서(offset 계속 늘려가며)
-      // 화면에서 걸러내는 방식이라 매칭 비율 낮은 OTT일수록 왕복이 몇 번이고 늘어났음.
-      // SQL에서 한 번에 걸러내면 이 문제가 통째로 사라짐.
+      // ①-2 [2026-07-17 추가, 같은 날 재수정] OTT 필터 — work_ott에서 이 OTT로 확인된 것만 남김.
+      // 처음엔 "ott_key=? AND tmdb_id IN (매칭된 최대 100개)"로 짰었는데, 매칭 개수가 100개(상한)
+      // 꽉 찰 때 바인딩 변수가 101개(ott_key 1 + tmdb_id 100)가 되면서 D1의 바인딩 100개 제한에
+      // 걸려 조용히 500 에러가 났음(예외가 잡혀서 프론트엔 "결과 없음"으로만 보였음).
+      // tmdb_id를 SQL로 안 넘기고, ott_key 하나만 바인딩해서 그 OTT의 전체 tmdb_id를 받아온 뒤
+      // 자바스크립트에서 겹치는 것만 추려내는 방식으로 변경 — 바인딩 변수가 항상 1개뿐이라 안전.
       if (ottFilter && allIds.length) {
-        const idPh0 = allIds.map(() => "?").join(",");
         const { results: ottFilterRows } = await env.DB.prepare(`
-          SELECT DISTINCT tmdb_id FROM work_ott
-          WHERE ott_key = ? AND tmdb_id IN (${idPh0})
-        `).bind(ottFilter, ...allIds).all();
+          SELECT tmdb_id FROM work_ott WHERE ott_key = ?
+        `).bind(ottFilter).all();
         const ottIdSet = new Set(ottFilterRows.map(r => r.tmdb_id));
         allIds = allIds.filter(id => ottIdSet.has(id));
       }
