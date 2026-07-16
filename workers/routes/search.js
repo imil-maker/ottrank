@@ -170,6 +170,11 @@ export async function handleSearch(path, request, env, url, headers) {
     const q      = url.searchParams.get("q") || "";
     const limit  = Math.min(parseInt(url.searchParams.get("limit") || "15"), 30);
     const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
+    // [2026-07-17 추가] OTT별 필터 — work_ott(정규화 캐시 테이블)에 있는 값만 허용.
+    // 프론트가 검증 없이 아무 문자열이나 보내도 안전하게 무시되도록 화이트리스트 사용.
+    const OTT_KEYS_WHITELIST = ["netflix", "tving", "disney", "coupang", "wavve", "watcha"];
+    const ottParam = url.searchParams.get("ott") || "";
+    const ottFilter = OTT_KEYS_WHITELIST.includes(ottParam) ? ottParam : "";
     // 2026-07-14 수정: D1은 쿼리 1개당 바인딩 변수 최대 100개 제한이 있음.
     //   흔한 검색어(예: "로맨스")는 매칭 tmdb_id가 300개 가까이 나와서
     //   WHERE tmdb_id IN (...) 300개 바인딩 시 "too many SQL variables" 에러 발생 확인됨.
@@ -196,7 +201,21 @@ export async function handleSearch(path, request, env, url, headers) {
       // 잘려나간 경우. 이럴 땐 total이 "정확한 전체 개수"가 아니라 "적어도 이만큼은
       // 있다"는 하한선이라는 걸 프론트에 알려주기 위한 플래그.
       const capped = matchType.size > MAX_MATCH_IDS;
-      const allIds = [...matchType.keys()].slice(0, MAX_MATCH_IDS);
+      let allIds = [...matchType.keys()].slice(0, MAX_MATCH_IDS);
+
+      // ①-2 [2026-07-17 추가] OTT 필터 — work_ott에서 이 OTT로 확인된 것만 남김.
+      // 예전엔 프론트가 우리DB 페이지를 여러 장 반복 조회하면서(offset 계속 늘려가며)
+      // 화면에서 걸러내는 방식이라 매칭 비율 낮은 OTT일수록 왕복이 몇 번이고 늘어났음.
+      // SQL에서 한 번에 걸러내면 이 문제가 통째로 사라짐.
+      if (ottFilter && allIds.length) {
+        const idPh0 = allIds.map(() => "?").join(",");
+        const { results: ottFilterRows } = await env.DB.prepare(`
+          SELECT DISTINCT tmdb_id FROM work_ott
+          WHERE ott_key = ? AND tmdb_id IN (${idPh0})
+        `).bind(ottFilter, ...allIds).all();
+        const ottIdSet = new Set(ottFilterRows.map(r => r.tmdb_id));
+        allIds = allIds.filter(id => ottIdSet.has(id));
+      }
 
       // ③ 상세 정보 조회 (성인물 제외 + 포스터 없는 작품 제외)
       let workRows = [];
@@ -217,7 +236,7 @@ export async function handleSearch(path, request, env, url, headers) {
       //   자연스럽게 합친다 — "검색결과 0개"라는 문구가 재검색을 막는 걸 방지하기 위함.
       //   matchType에 3(=검색어 단어분리 매칭)으로 표시해서, 정렬 시 정확매칭(0,1)
       //   보다는 뒤로 가되 화면상으로는 구분 없이 하나의 결과 목록으로 보이게 함.
-      if (workRows.length < RELATED_THRESHOLD) {
+      if (!ottFilter && workRows.length < RELATED_THRESHOLD) {
         const words = [...new Set(q.split(/\s+/).filter(w => w.length >= 2))].slice(0, 3);
         if (words.length >= 2) {
           const related = await _fetchRelated(env, words, new Set(matchType.keys()), MAX_RELATED);
@@ -247,17 +266,26 @@ export async function handleSearch(path, request, env, url, headers) {
       const pageRows = workRows.slice(offset, offset + limit);
       const hasMore  = workRows.length > offset + limit;
 
-      // ⑦ 이번 페이지 작품들의 오늘자 플랫폼별 순위 (OTT별 순위) — rankings 조인
+      // ⑦ 이번 페이지 작품들의 오늘자 플랫폼별 순위(ott_ranks) + 서비스중 OTT(ott_keys) —
+      //    [2026-07-17 수정] 서로 관계없는 두 조회인데 예전엔 순서대로 하나씩 기다렸음(fetchOttKeys와
+      //    동일한 실수). Promise.all로 동시에 던지도록 변경 — 둘 중 느린 쪽 1번 왕복시간만 걸림.
       let data = [];
       if (pageRows.length) {
         const pageIds = pageRows.map(w => w.tmdb_id);
         const pagePlaceholders = pageIds.map(() => "?").join(",");
-        const { results: rankRows } = await env.DB.prepare(`
-          SELECT tmdb_id, platform, rank
-          FROM rankings
-          WHERE tmdb_id IN (${pagePlaceholders})
-            AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
-        `).bind(...pageIds).all();
+
+        const [{ results: rankRows }, { results: ottRows }] = await Promise.all([
+          env.DB.prepare(`
+            SELECT tmdb_id, platform, rank
+            FROM rankings
+            WHERE tmdb_id IN (${pagePlaceholders})
+              AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+          `).bind(...pageIds).all(),
+          env.DB.prepare(`
+            SELECT tmdb_id, ott_key FROM work_ott
+            WHERE tmdb_id IN (${pagePlaceholders})
+          `).bind(...pageIds).all(),
+        ]);
 
         const rankMap = {};
         rankRows.forEach(r => {
@@ -265,20 +293,16 @@ export async function handleSearch(path, request, env, url, headers) {
           rankMap[r.tmdb_id][r.platform] = r.rank;
         });
 
-        data = pageRows.map(w => ({ ...w, ott_ranks: rankMap[w.tmdb_id] || {} }));
-
-        // ④-2 — work_ott 조인 (서비스중 OTT 목록, 정규화 캐시 테이블)
-        const { results: ottRows } = await env.DB.prepare(`
-          SELECT tmdb_id, ott_key FROM work_ott
-          WHERE tmdb_id IN (${pagePlaceholders})
-        `).bind(...pageIds).all();
-
         const ottMap = {};
         ottRows.forEach(r => {
           (ottMap[r.tmdb_id] ||= []).push(r.ott_key);
         });
 
-        data = data.map(w => ({ ...w, ott_keys: ottMap[w.tmdb_id] || [] }));
+        data = pageRows.map(w => ({
+          ...w,
+          ott_ranks: rankMap[w.tmdb_id] || {},
+          ott_keys: ottMap[w.tmdb_id] || [],
+        }));
       }
 
       return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset, total, capped }), { headers });
