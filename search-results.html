@@ -233,24 +233,22 @@ function goWork(tmdbId, type, title){
                검색결과 페이지엔 반영이 안 되던 버그 수정.
    ※ 캐싱 없이 매번 실시간 조회 — 트래픽 이슈로 추후 D1 캐싱 별도 검토 예정 (테스트 단계) */
 const _ottCache = new Map(); // `${mediaType}:${tmdbId}` -> ['netflix','tving', ...]
+// [2026-07-17 재검토] 이 함수는 이 파일(검색결과 페이지)에서 "TMDB 보충 작품(아직 우리 DB
+// 미등록)"에만 쓰인다. DB 작품은 /works/search가 work_ott를 이미 조인해서 내려주므로 이 함수를
+// 아예 안 거침. 그런데 원래 코드는 작품페이지(_title_detail.html)의 4단계 판정 로직을 그대로
+// 가져다 쓰고 있었음 — 미등록 작품엔 안 맞는 확인들이 섞여 있었음:
+//   Priority 1(오늘자 랭킹)   — 미등록 작품은 랭킹 데이터 자체가 없어 항상 빈 값 (무의미)
+//   Priority 2(쿠팡 Network) — Watch Providers 보완용 미세 정확도, 검색 보충 수준엔 불필요
+//   Priority 4(관리자 오버라이드) — 오버라이드는 "이미 등록된" 작품 대상 기록이라 미등록 작품엔 사실상 없음
+// 그래서 3번(Watch Providers) 하나만 남김 — 매 호출 왕복 횟수가 3번→1번으로 줄어 그만큼 빨라짐.
 async function fetchOttKeys(tmdbId, mediaType, rankKeys){
   const cacheKey = `${mediaType}:${tmdbId}`;
   if(_ottCache.has(cacheKey)) return _ottCache.get(cacheKey);
 
-  const keys = new Set(rankKeys || []); // Priority 1
+  const keys = new Set(rankKeys || []);
   const type = mediaType === 'movie' ? 'movie' : 'tv';
 
   try{
-    // Priority 2 — 쿠팡플레이 Network 보완 (TV만 해당, Watch Providers에 없는 경우가 많음)
-    if(type === 'tv' && !keys.has('coupang')){
-      const detRes = await fetch(`${TMDB_PROXY}/tv/${tmdbId}?language=ko-KR`);
-      if(detRes.ok){
-        const det = await detRes.json();
-        if((det.networks||[]).some(n=>n.id===5169)) keys.add('coupang');
-      }
-    }
-
-    // Priority 3 — TMDB Watch Providers (나머지 보완)
     const wpRes = await fetch(`${TMDB_PROXY}/${type}/${tmdbId}/watch/providers`);
     if(wpRes.ok){
       const wp = await wpRes.json();
@@ -261,21 +259,7 @@ async function fetchOttKeys(tmdbId, mediaType, rankKeys){
       });
     }
   }catch(e){
-    // 실패해도 Priority 1(랭킹) 결과는 그대로 반환
-  }
-
-  // Priority 4 — 어드민 수동 오버라이드 (최우선 적용)
-  try{
-    const ovRes = await fetch(`${API}/work-ott/${tmdbId}`);
-    if(ovRes.ok){
-      const ovJson = await ovRes.json();
-      (ovJson.data || []).forEach(o=>{
-        if(o.action === 'add')    keys.add(o.ott_key);
-        else if(o.action === 'remove') keys.delete(o.ott_key);
-      });
-    }
-  }catch(e){
-    // 오버라이드 조회 실패해도 자동 판단(1~3) 결과는 그대로 사용
+    // 실패해도 검색 화면엔 영향 없음 — 이 작품만 OTT 배지가 안 뜨는 정도
   }
 
   const result = [...keys];
@@ -301,8 +285,8 @@ function _prewarmTmdbOtt(){
     return id && !cardOttKeys.has(id);
   });
   (async ()=>{
-    for(let i=0; i<items.length; i+=5){
-      const batch = items.slice(i, i+5);
+    for(let i=0; i<items.length; i+=8){
+      const batch = items.slice(i, i+8);
       await Promise.all(batch.map(w=>{
         const id    = w.tmdb_id || w.id;
         const mtype = w.media_type || w._type || 'tv';
