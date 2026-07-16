@@ -299,13 +299,14 @@ function _prewarmTmdbOtt(){
 }
 
 /* ── 사이드바 OTT 필터 ──
-   그냥 "지금 로딩된 첫 페이지 안에서만" 거르면 매칭이 몇 개 없을 수 있어서,
-   목표 개수(PAGE_SIZE)를 채울 때까지 우리DB 다음 페이지를 필요한 만큼 계속 불러와가며 훑는다.
-   이미 확인한 작품의 OTT 정보는 cardOttKeys/_ottCache에 남아있어 재확인 비용이 없다. */
+   [2026-07-17 재설계] 예전엔 우리DB 페이지를 계속 더 불러오면서(offset 증가) 프론트에서
+   OTT가 맞는지 걸러내는 방식이라, 매칭 비율 낮은 OTT일수록 왕복이 몇 번이고 늘어났음.
+   지금은 /works/search에 ott= 파라미터를 붙여서 D1이 SQL에서 한 번에 걸러 응답하도록 변경 —
+   TMDB 미등록 보충 작품은 OTT 필터 결과에 안 나옴(정확도를 우리 DB 기준으로만 보장). */
 let activeOttFilter = null;
-const cardOttKeys = new Map(); // tmdbId -> 확인된 OTT 키 배열
-let ottScanIdx = 0;            // pool(dbPool+tmdbPool)에서 지금까지 훑은 위치
-let ottRenderedIds = new Set(); // 이번 필터로 이미 화면에 낸 tmdb_id (중복 방지)
+const cardOttKeys = new Map(); // tmdbId -> 확인된 OTT 키 배열 (일반 검색결과 카드용)
+let ottOffset  = 0;
+let ottHasMore = false;
 
 function renderOttFilterList(){
   const wrap = document.getElementById('ottFilterList');
@@ -336,41 +337,24 @@ function _renderUnfilteredFirstPage(){
   updateWorkCount();
 }
 
-// pool을 앞에서부터 훑으며 이 OTT에 해당하는 작품을 targetCount개 모을 때까지 계속 찾음
-// (풀이 부족하면 dbHasMore인 동안 다음 DB 페이지를 자동으로 더 불러옴)
-async function _collectOttMatches(key, targetCount){
-  const matched = [];
-  while(matched.length < targetCount){
-    const pool = [...dbPool, ...tmdbPool];
-    if(ottScanIdx >= pool.length){
-      if(dbHasMore){ await fetchDbPage(); continue; }
-      break; // 더 가져올 데이터가 없음
-    }
-    const batch = pool.slice(ottScanIdx, ottScanIdx + 10);
-    ottScanIdx += batch.length;
-    await Promise.all(batch.map(async w=>{
-      const tmdbId = w.tmdb_id || w.id;
-      if(!tmdbId || ottRenderedIds.has(tmdbId)) return;
-      let keys = cardOttKeys.get(tmdbId);
-      if(keys === undefined){
-        if(Array.isArray(w.ott_keys)){
-          // 우리 DB 작품 — 이미 응답에 들어있음, TMDB 조회 불필요
-          keys = w.ott_keys;
-        } else {
-          const mtype = w.media_type || w._type || 'tv';
-          keys = await fetchOttKeys(tmdbId, mtype, Object.keys(w.ott_ranks||{}));
-        }
-        cardOttKeys.set(tmdbId, keys);
-      }
-      if(keys.includes(key)){ ottRenderedIds.add(tmdbId); matched.push(w); }
-    }));
-  }
-  return matched.slice(0, targetCount);
-}
-
 async function renderOttFilterPage(isMore){
   const key = activeOttFilter;
-  const matched = await _collectOttMatches(key, PAGE_SIZE);
+  if(!isMore){
+    ottOffset = 0;
+    workGrid.innerHTML = `<div class="loading"><span class="spin"></span>불러오는 중...</div>`;
+  }
+
+  let json;
+  try{
+    const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&ott=${key}&limit=${PAGE_SIZE}&offset=${ottOffset}`);
+    json = res.ok ? await res.json() : { data: [], has_more: false, total: 0 };
+  }catch(e){
+    json = { data: [], has_more: false, total: 0 };
+  }
+
+  ottOffset += PAGE_SIZE;
+  ottHasMore = !!json.has_more;
+  const items = json.data || [];
 
   if(!isMore){
     workGrid.innerHTML = '';
@@ -379,15 +363,17 @@ async function renderOttFilterPage(isMore){
     workGrid.appendChild(dbInsertMarker);
   }
 
-  if(!isMore && !matched.length){
+  if(!isMore && !items.length){
     workGrid.innerHTML = `<div class="empty">이 OTT에서 볼 수 있는 검색결과가 없습니다.</div>`;
   } else {
-    matched.forEach(w => workGrid.insertBefore(workCard(w), dbInsertMarker));
+    items.forEach(w=>{
+      if(w.tmdb_id) cardOttKeys.set(w.tmdb_id, w.ott_keys || []); // 카드가 다시 조회 안 하게 캐시 채워둠
+      workGrid.insertBefore(workCard(w), dbInsertMarker);
+    });
   }
 
   document.querySelector('.more-wrap')?.remove();
-  const poolLeft = ottScanIdx < (dbPool.length + tmdbPool.length);
-  if(poolLeft || dbHasMore){
+  if(ottHasMore){
     const wrap = document.createElement('div');
     wrap.className = 'more-wrap';
     wrap.innerHTML = `<button class="more-btn">더보기</button>`;
@@ -397,6 +383,8 @@ async function renderOttFilterPage(isMore){
     };
     workGrid.insertBefore(wrap, dbInsertMarker.nextSibling);
   }
+
+  document.getElementById('cntWorks').textContent = json.total ?? items.length;
 }
 
 function toggleOttFilter(key){
@@ -413,9 +401,6 @@ function toggleOttFilter(key){
     return;
   }
 
-  ottScanIdx = 0;
-  ottRenderedIds = new Set();
-  workGrid.innerHTML = `<div class="loading"><span class="spin"></span>불러오는 중...</div>`;
   renderOttFilterPage(false);
 }
 
