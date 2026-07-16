@@ -2084,7 +2084,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
       const like = `%${q}%`;
       const { results: items } = await env.DB.prepare(`
-        SELECT id, keyword_en, keyword_ko, source
+        SELECT id, keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3, source
         FROM keyword_translation
         WHERE keyword_en LIKE ? OR keyword_ko LIKE ?
         ORDER BY keyword_en ASC
@@ -2110,12 +2110,15 @@ export async function handleAdmin(path, request, env, url, headers) {
       const body = await request.json().catch(() => ({}));
       const keyword_en = (body.keyword_en || "").trim();
       const keyword_ko = (body.keyword_ko || "").trim();
+      // 2·3번은 선택 입력 — 빈 값이면 NULL로 저장 (1번만 필수)
+      const keyword_ko_2 = (body.keyword_ko_2 || "").trim() || null;
+      const keyword_ko_3 = (body.keyword_ko_3 || "").trim() || null;
       if (!keyword_en || !keyword_ko) {
         return new Response(JSON.stringify({ ok: false, message: "keyword_en, keyword_ko 모두 필요해요" }), { status: 400, headers });
       }
       const result = await env.DB.prepare(
-        "UPDATE keyword_translation SET keyword_ko = ?, source = 'admin' WHERE keyword_en = ?"
-      ).bind(keyword_ko, keyword_en).run();
+        "UPDATE keyword_translation SET keyword_ko = ?, keyword_ko_2 = ?, keyword_ko_3 = ?, source = 'admin' WHERE keyword_en = ?"
+      ).bind(keyword_ko, keyword_ko_2, keyword_ko_3, keyword_en).run();
 
       if (!result.meta || result.meta.changes === 0) {
         return new Response(JSON.stringify({ ok: false, message: "해당 keyword_en을 찾지 못했어요" }), { status: 404, headers });
