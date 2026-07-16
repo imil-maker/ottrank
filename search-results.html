@@ -317,10 +317,10 @@ function _renderUnfilteredFirstPage(){
   dbInsertMarker.style.display = 'none';
   workGrid.appendChild(dbInsertMarker);
 
-  renderedCount = 0;
+  renderedDbCount = 0;
+  renderedTmdbCount = 0;
   if(combinedAvailable()){
-    renderRange(0, Math.min(PAGE_SIZE, combinedAvailable()));
-    renderedCount = Math.min(PAGE_SIZE, combinedAvailable());
+    renderMore(Math.min(PAGE_SIZE, combinedAvailable()));
     renderMoreButton();
   } else {
     workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
@@ -504,7 +504,8 @@ let dbOffset    = 0;
 let dbHasMore   = false;
 let dbTotal     = 0;       // 이번 검색어의 우리DB 전체 매칭 개수 (포스터 필터링 반영, 서버가 계산)
 let dbCapped    = false;   // true면 dbTotal이 상한(100개) 안에서만 집계된 하한선일 뿐, 실제로는 더 있을 수 있음
-let renderedCount = 0;     // 지금까지 화면에 실제로 렌더링한 개수
+let renderedDbCount   = 0;  // dbPool 중 화면에 그린 개수
+let renderedTmdbCount = 0;  // tmdbPool 중 화면에 그린 개수
 
 const workGrid = document.getElementById('workGrid');
 let dbInsertMarker = null; // 카드들이 항상 이 앞(="더보기" 버튼 앞)에 꽂히는 기준점
@@ -577,17 +578,34 @@ async function fetchTmdbRaw(){
 }
 
 function combinedAvailable(){ return dbPool.length + tmdbPool.length; }
+function _renderedTotal(){ return renderedDbCount + renderedTmdbCount; }
 
-// 풀에서 [from, to) 구간을 화면에 새로 추가 렌더링 (DB 먼저, TMDB 나중 순서 유지)
-function renderRange(from, to){
-  const combined = [...dbPool, ...tmdbPool];
-  combined.slice(from, to).forEach(w=>{
+// [2026-07-17 수정] 예전엔 [...dbPool, ...tmdbPool]를 이어붙인 배열에서 "몇 번째~몇 번째"로
+// 잘라 그리는 방식(renderRange)이었는데, dbPool이 "더보기"마다 계속 커지다 보니 tmdbPool의
+// 위치가 매번 뒤로 밀리면서 이미 그린 TMDB 카드가 다시 안 그려진 자리로 취급돼 중복 렌더링되는
+// 버그가 있었음. dbPool/tmdbPool 각각 "몇 개 그렸는지"를 따로 세는 방식으로 교체 —
+// dbPool이 아무리 커져도 tmdbPool 쪽 진행 상황(renderedTmdbCount)은 흔들리지 않음.
+function renderMore(need){
+  if(need <= 0) return;
+
+  const fromDb = Math.min(need, dbPool.length - renderedDbCount);
+  dbPool.slice(renderedDbCount, renderedDbCount + fromDb).forEach(w=>{
     workGrid.insertBefore(workCard(w), dbInsertMarker);
   });
+  renderedDbCount += fromDb;
+  need -= fromDb;
+
+  if(need > 0){
+    const fromTmdb = Math.min(need, tmdbPool.length - renderedTmdbCount);
+    tmdbPool.slice(renderedTmdbCount, renderedTmdbCount + fromTmdb).forEach(w=>{
+      workGrid.insertBefore(workCard(w), dbInsertMarker);
+    });
+    renderedTmdbCount += fromTmdb;
+  }
 }
 
 function shouldShowMore(){
-  return renderedCount < combinedAvailable() || dbHasMore;
+  return _renderedTotal() < combinedAvailable() || dbHasMore;
 }
 
 function updateWorkCount(){
@@ -607,16 +625,15 @@ async function loadMore(btn){
   btn.disabled = true;
   btn.textContent = '불러오는 중...';
 
-  const target = renderedCount + PAGE_SIZE;
+  const target = _renderedTotal() + PAGE_SIZE;
 
   // 풀에 목표 개수만큼 없으면, 우리DB에 다음 페이지가 남아있는 동안 계속 보충
   while(combinedAvailable() < target && dbHasMore){
     await fetchDbPage();
   }
 
-  const newRenderedCount = Math.min(target, combinedAvailable());
-  renderRange(renderedCount, newRenderedCount);
-  renderedCount = newRenderedCount;
+  const need = Math.min(target, combinedAvailable()) - _renderedTotal();
+  renderMore(need);
 
   btn.disabled = false;
   btn.textContent = '더보기';
@@ -652,9 +669,8 @@ async function runSearch(){
   // 지금까지 확보한 풀 기준으로 "아직 안 그린 만큼"만 추가로 그려주는 공용 함수
   // (최초 DB 렌더링과, TMDB가 늦게 도착했을 때의 추가 렌더링 둘 다 이걸 재사용)
   function _renderUpTo(target){
-    if(target <= renderedCount) return;
-    renderRange(renderedCount, target);
-    renderedCount = target;
+    const need = target - _renderedTotal();
+    if(need > 0) renderMore(need);
   }
 
   try{
@@ -685,7 +701,7 @@ async function runSearch(){
       addUnique(tmdbPool, tmdbRaw);        // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
 
       // DB 결과가 0개라 "결과 없음" 문구가 떠 있던 상태였다면, TMDB 보충분으로 다시 그려야 함
-      if(renderedCount === 0) _resetGrid();
+      if(_renderedTotal() === 0) _resetGrid();
 
       _renderUpTo(Math.min(PAGE_SIZE, combinedAvailable()));
       renderMoreButton();
