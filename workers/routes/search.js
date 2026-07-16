@@ -41,15 +41,20 @@ function _dbMatchStatements(env, term, capLimit) {
 // TMDB 서버-서버 직접 호출 — 브라우저 프록시(tmdb-proxy) 대신 api.themoviedb.org를
 // env.TMDB_API_KEY로 직접 호출 (Worker-to-Worker 프록시 호출은 항상 실패하는 알려진 문제 회피)
 async function _tmdbSearchDirect(env, mediaType, term) {
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3000);
   try {
     const res = await fetch(
-      `https://api.themoviedb.org/3/search/${mediaType}?query=${encodeURIComponent(term)}&language=ko-KR&include_adult=false&api_key=${env.TMDB_API_KEY}`
+      `https://api.themoviedb.org/3/search/${mediaType}?query=${encodeURIComponent(term)}&language=ko-KR&include_adult=false&api_key=${env.TMDB_API_KEY}`,
+      { signal: ctrl.signal }
     );
     if (!res.ok) return [];
     const j = await res.json();
     return (j.results || []).filter(r => !r.adult).map(r => ({ ...r, _type: mediaType, tmdb_id: r.id }));
   } catch (e) {
-    return [];
+    return []; // 3초 안에 응답 없으면(타임아웃) 또는 그 외 오류 시 그냥 빈 배열 — 검색 자체는 막지 않음
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -213,7 +218,7 @@ export async function handleSearch(path, request, env, url, headers) {
       //   matchType에 3(=검색어 단어분리 매칭)으로 표시해서, 정렬 시 정확매칭(0,1)
       //   보다는 뒤로 가되 화면상으로는 구분 없이 하나의 결과 목록으로 보이게 함.
       if (workRows.length < RELATED_THRESHOLD) {
-        const words = [...new Set(q.split(/\s+/).filter(w => w.length >= 2))];
+        const words = [...new Set(q.split(/\s+/).filter(w => w.length >= 2))].slice(0, 3);
         if (words.length >= 2) {
           const related = await _fetchRelated(env, words, new Set(matchType.keys()), MAX_RELATED);
           related.forEach(w => {
