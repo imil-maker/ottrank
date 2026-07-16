@@ -47,6 +47,9 @@
    GET    /admin/works/keywords                       ← 작품 제목/tmdb_id로 검색해 그 작품의 키워드 전체 조회(2026-07-15 신설)
    POST   /admin/works/:tmdb_id/reset-keyword-cache    ← 특정 작품 키워드 캐시(keyword_ko_map) 초기화(2026-07-15 신설)
    POST   /admin/works/collect-ott                     ← OTT 서비스현황 일괄 수집(work_ott 정규화 테이블, 15일 주기 갱신, 2026-07-17 신설)
+   GET    /admin/works/ott-stuck                       ← OTT 수집 계속 실패 중인(ott_updated_at NULL) 작품 목록(2026-07-17 신설)
+   POST   /admin/works/verify-type                     ← media_type 반대 저장 의심 작품 TMDB로 실제 타입 확인(2026-07-17 신설)
+   POST   /admin/works/apply-type-fix                   ← 확인된 media_type 일괄 수정(2026-07-17 신설)
    POST   /admin/works/discover-collect
    POST   /admin/works/classify-variety
    GET    /admin/variety-genre-options
@@ -1804,6 +1807,90 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, processed, attempted: targets.length, skippedRetry, remaining: remainRow?.cnt || 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/works/ott-stuck ───────────────────────────────
+  // OTT 수집 대상(ott_updated_at IS NULL)으로 계속 남아있는 작품 목록.
+  // "계속 실패 중"인지 "아직 순서가 안 왔을 뿐"인지는 이 API만으로 구분 못 하므로,
+  // 어드민 화면에서 일괄 수집을 여러 번 돌려 남은 게 이 정도로 줄어든 뒤에 확인하는 용도.
+  if (path === "/admin/works/ott-stuck" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const limit = Math.min(parseInt(new URL(request.url).searchParams.get("limit")) || 30, 50);
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, media_type FROM works
+        WHERE ott_updated_at IS NULL
+        ORDER BY tmdb_id DESC
+        LIMIT ?
+      `).bind(limit).all();
+      return new Response(JSON.stringify({ ok: true, items: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/verify-type ────────────────────────────
+  // media_type이 반대로 저장돼서 계속 404나는 작품들을 위한 확인용.
+  // movie/tv 둘 다 TMDB에 직접 물어봐서, 실제로 존재하는 쪽을 찾아 알려줌 (자동 수정은 안 함).
+  if (path === "/admin/works/verify-type" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body     = await request.json().catch(() => ({}));
+      const tmdbIds  = (body.tmdb_ids || []).slice(0, 50);
+      if (!tmdbIds.length) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_ids 필요해요" }), { status: 400, headers });
+      }
+
+      const results = await Promise.all(tmdbIds.map(async tmdbId => {
+        const [movieResp, tvResp] = await Promise.all([
+          fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${env.TMDB_API_KEY}`),
+          fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${env.TMDB_API_KEY}`),
+        ]);
+        const movieOk = movieResp.ok;
+        const tvOk    = tvResp.ok;
+
+        let suggested = null; // 'movie' | 'tv' | 'both'(모호해서 자동판단 불가) | 'none'(둘 다 없음)
+        if (movieOk && tvOk) suggested = "both";
+        else if (movieOk) suggested = "movie";
+        else if (tvOk) suggested = "tv";
+        else suggested = "none";
+
+        return { tmdb_id: tmdbId, movie_ok: movieOk, tv_ok: tvOk, suggested };
+      }));
+
+      return new Response(JSON.stringify({ ok: true, results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/apply-type-fix ─────────────────────────
+  // verify-type에서 확인된 결과를 관리자가 검토 후 실제로 media_type을 고칠 때 사용.
+  // ott_updated_at은 건드리지 않음 — 어차피 NULL 상태라 다음 OTT 수집 배치가 바뀐 타입으로 자동 재시도함.
+  if (path === "/admin/works/apply-type-fix" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const fixes = (body.fixes || []).filter(f => f.tmdb_id && ["movie", "tv"].includes(f.media_type));
+      if (!fixes.length) {
+        return new Response(JSON.stringify({ ok: false, message: "fixes 필요해요 (tmdb_id, media_type)" }), { status: 400, headers });
+      }
+
+      const stmts = fixes.map(f =>
+        env.DB.prepare("UPDATE works SET media_type = ? WHERE tmdb_id = ?").bind(f.media_type, f.tmdb_id)
+      );
+      await env.DB.batch(stmts);
+
+      return new Response(JSON.stringify({ ok: true, updated: fixes.length }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
