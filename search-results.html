@@ -630,13 +630,18 @@ async function loadMore(btn){
   btn.disabled = true;
   btn.textContent = '불러오는 중...';
 
-  const target = _renderedTotal() + PAGE_SIZE;
-
-  // 풀에 목표 개수만큼 없으면, 우리DB에 다음 페이지가 남아있는 동안 계속 보충
-  while(combinedAvailable() < target && dbHasMore){
+  // [2026-07-17 수정] 예전엔 combinedAvailable()(=DB+TMDB 합계)이 목표치를 넘으면
+  // DB를 그만 불러왔는데, TMDB는 검색 시작할 때 이미 통째로(약 30~40개) 확보돼 있어서
+  // 이 합계가 쉽게 목표를 넘어버림 → DB가 100개 가까이 남아있어도(dbHasMore=true)
+  // TMDB 개수 때문에 착각해서 DB를 그만 불러오고 TMDB로 자리를 채우는 버그가 있었음.
+  // "DB가 TMDB보다 무조건 우선"이라는 원칙을 지키려면, 이번 배치를 DB만으로 채울 수
+  // 있는지를 DB 개수만 보고 판단해야 함 — TMDB 풀 크기는 이 판단에서 완전히 제외.
+  const dbNeededForThisBatch = renderedDbCount + PAGE_SIZE;
+  while(dbHasMore && dbPool.length < dbNeededForThisBatch){
     await fetchDbPage();
   }
 
+  const target = _renderedTotal() + PAGE_SIZE;
   const need = Math.min(target, combinedAvailable()) - _renderedTotal();
   renderMore(need);
 
