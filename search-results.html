@@ -18,32 +18,62 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5}
 
-/* 검색 헤더 — 검색창 + 결과 요약을 한 줄, 가운데 정렬 (헤더 연결 예정이라 로고 없음) */
-.search-header{
-  max-width:640px;margin:0 auto;padding:44px 20px 32px;
-  display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;
-}
-.search-wrap{width:100%;max-width:440px;position:relative}
+/* 페이지 레이아웃 — 왼쪽 사이드바(검색+OTT+MBTI) + 오른쪽 결과그리드 */
+.page-layout{max-width:1200px;margin:0 auto;padding:32px 20px 80px;display:flex;gap:24px;align-items:flex-start}
+
+/* 사이드바 — 포스터 1개 폭 정도로 좁게 고정 (넓으면 포스터가 작아짐) */
+.sidebar{width:200px;flex-shrink:0}
+
+.search-row{display:flex;gap:6px;margin-bottom:12px}
+.search-input-wrap{position:relative;flex:1;min-width:0}
 .search-input{
-  width:100%;height:46px;padding:0 50px 0 20px;border-radius:23px;
+  width:100%;height:38px;padding:0 30px 0 12px;border-radius:8px;
   border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);
-  font-size:15px;font-family:var(--sans);outline:none;transition:border-color .15s;
+  font-size:13px;font-family:var(--sans);outline:none;transition:border-color .15s;
 }
 .search-input::placeholder{color:var(--muted)}
 .search-input:focus{border-color:var(--accent)}
+.search-clear{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--muted);font-size:16px;line-height:1;
+  cursor:pointer;padding:2px;display:none;
+}
+.search-clear.show{display:block}
+.search-clear:hover{color:var(--text)}
 .search-btn{
-  position:absolute;right:5px;top:50%;transform:translateY(-50%);
-  width:36px;height:36px;border-radius:50%;border:none;
+  width:38px;height:38px;border-radius:8px;border:none;flex-shrink:0;
   background:var(--accent);color:#fff;font-size:15px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;transition:opacity .15s;
 }
 .search-btn:hover{opacity:.85}
-.search-summary{font-size:14px;color:var(--muted2)}
-.search-summary .q{color:var(--accent);font-weight:700}
-.search-summary .count{font-family:var(--mono);color:var(--text);font-weight:600}
 
-/* 레이아웃 */
-.layout{max-width:1100px;margin:0 auto;padding:0 20px 80px}
+.result-bar{
+  background:var(--bg3);border-radius:8px;padding:9px 12px;margin-bottom:20px;
+  text-align:center;font-size:12px;color:var(--muted2);
+}
+.result-bar .count{color:var(--accent);font-weight:700;font-family:var(--mono)}
+
+.sidebar-title{font-size:13px;font-weight:500;color:var(--muted2);margin-bottom:10px;text-align:right}
+
+.ott-filter-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.ott-filter-row{
+  display:flex;align-items:center;justify-content:flex-end;gap:8px;cursor:pointer;
+  background:none;border:none;padding:2px 0;width:100%;font-family:var(--sans);
+}
+.ott-filter-row span{font-size:13px;color:var(--muted2);transition:color .15s}
+.ott-filter-row.active span{color:var(--accent);font-weight:600}
+.ott-filter-row img, .ott-filter-row .ott-ph{width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0}
+.ott-filter-row .ott-ph{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+
+.mbti-select{
+  width:100%;height:36px;padding:0 10px;border-radius:8px;
+  border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);
+  font-size:13px;font-family:var(--sans);outline:none;cursor:pointer;text-align:right;
+  direction:rtl;
+}
+.mbti-select:focus{border-color:var(--accent)}
+
+.main-content{flex:1;min-width:0}
 
 .work-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px 14px}
 @media (max-width:768px){
@@ -80,19 +110,51 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 </head>
 <body>
 
-<div class="search-header">
-  <div class="search-wrap">
-    <input class="search-input" id="searchInput" type="text" placeholder="작품, 배우 검색"
-      onkeydown="if(event.key==='Enter')doSearch()">
-    <button class="search-btn" onclick="doSearch()" aria-label="검색">⌕</button>
-  </div>
-  <div class="search-summary">"<span class="q" id="qLabel"></span>" 검색결과 · <span class="count" id="cntWorks">0</span></div>
-</div>
+<div class="page-layout">
 
-<div class="layout">
-  <div class="work-grid" id="workGrid">
-    <div class="loading"><span class="spin"></span>검색 중...</div>
+  <div class="sidebar">
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <input class="search-input" id="searchInput" type="text" placeholder="작품, 배우 검색"
+          oninput="onSearchInputChange()" onkeydown="if(event.key==='Enter')doSearch()">
+        <button class="search-clear" id="searchClearBtn" onclick="clearSearchInput()" aria-label="지우기">×</button>
+      </div>
+      <button class="search-btn" onclick="doSearch()" aria-label="검색">⌕</button>
+    </div>
+
+    <div class="result-bar">검색결과 <span class="count" id="cntWorks">0</span>개</div>
+
+    <div class="sidebar-title">OTT별</div>
+    <div class="ott-filter-list" id="ottFilterList"></div>
+
+    <div class="sidebar-title">MBTI별 추천</div>
+    <select class="mbti-select" id="mbtiSelect" onchange="onMbtiSelectChange()">
+      <option value="">선택하세요</option>
+      <option value="INTJ">INTJ</option>
+      <option value="INTP">INTP</option>
+      <option value="ENTJ">ENTJ</option>
+      <option value="ENTP">ENTP</option>
+      <option value="INFJ">INFJ</option>
+      <option value="INFP">INFP</option>
+      <option value="ENFJ">ENFJ</option>
+      <option value="ENFP">ENFP</option>
+      <option value="ISTJ">ISTJ</option>
+      <option value="ISFJ">ISFJ</option>
+      <option value="ESTJ">ESTJ</option>
+      <option value="ESFJ">ESFJ</option>
+      <option value="ISTP">ISTP</option>
+      <option value="ISFP">ISFP</option>
+      <option value="ESTP">ESTP</option>
+      <option value="ESFP">ESFP</option>
+    </select>
   </div>
+
+  <div class="main-content">
+    <div class="work-grid" id="workGrid">
+      <div class="loading"><span class="spin"></span>검색 중...</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -126,13 +188,28 @@ const OTT_NAME_MATCH = [
 const params = new URLSearchParams(location.search);
 const q = (params.get('q') || '').trim();
 
-document.getElementById('qLabel').textContent = q;
 document.getElementById('searchInput').value = q;
+onSearchInputChange();
+
+function onSearchInputChange(){
+  const v = document.getElementById('searchInput').value;
+  document.getElementById('searchClearBtn').classList.toggle('show', !!v);
+}
+function clearSearchInput(){
+  const inp = document.getElementById('searchInput');
+  inp.value = '';
+  inp.focus();
+  onSearchInputChange();
+}
 
 function doSearch(){
   const v = document.getElementById('searchInput').value.trim();
   if(!v) return;
   location.href = `search-results.html?q=${encodeURIComponent(v)}`;
+}
+
+function onMbtiSelectChange(){
+  // UI만 우선 구현 — 실제 추천 로직은 다음 단계에서 붙일 예정
 }
 
 function hesc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -214,6 +291,40 @@ function ottLogoHtml(key){
     onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
 }
 
+/* ── 사이드바 "OTT별" 필터 ──
+   각 카드의 OTT 여부는 fetchOttKeys()가 비동기로(카드 렌더 이후) 확인하므로,
+   필터를 누른 시점에 아직 확인 안 된 카드는 일단 숨겼다가 확인되는 대로 다시 나타남(즉시 반응 우선). */
+let activeOttFilter = null;
+const cardOttKeys = new Map(); // tmdbId -> 확인된 OTT 키 배열
+
+function renderOttFilterList(){
+  const wrap = document.getElementById('ottFilterList');
+  wrap.innerHTML = Object.entries(OTT_META).map(([key, meta]) => `
+    <button class="ott-filter-row" data-ott-key="${key}" onclick="toggleOttFilter('${key}')">
+      <span>${meta.name}</span>
+      <img src="/img/${meta.file}-icon.jpg" alt="" class="ott-filter-logo"
+        onerror="this.outerHTML='<div class=\\'ott-ph\\' style=\\'background:${meta.color}\\'>${meta.name[0]}</div>'">
+    </button>
+  `).join('');
+}
+
+function toggleOttFilter(key){
+  activeOttFilter = (activeOttFilter === key) ? null : key;
+
+  document.querySelectorAll('.ott-filter-row').forEach(row=>{
+    row.classList.toggle('active', row.dataset.ottKey === activeOttFilter);
+  });
+
+  // 이미 화면에 그려진 카드 전부를 지금 알고 있는 정보 기준으로 다시 필터링
+  document.querySelectorAll('#workGrid .work-card').forEach(card=>{
+    const tmdbId = parseInt(card.dataset.tmdbId, 10);
+    if(!activeOttFilter){ card.style.display = ''; return; }
+    const keys = cardOttKeys.get(tmdbId);
+    if(!keys){ card.style.display = 'none'; return; } // 아직 확인 전 — fetchOttKeys 콜백에서 다시 판단됨
+    card.style.display = keys.includes(activeOttFilter) ? '' : 'none';
+  });
+}
+
 /* ── 작품 카드 ── */
 function workCard(w){
   const poster  = w.poster_path
@@ -235,6 +346,7 @@ function workCard(w){
 
   const card = document.createElement('div');
   card.className = 'work-card';
+  card.dataset.tmdbId = tmdbId || '';
   card.innerHTML = `
     <div class="work-poster">
       ${poster}
@@ -249,12 +361,17 @@ function workCard(w){
   `;
   card.onclick = ()=>goWork(tmdbId, mtype, title);
 
+  // OTT 필터가 켜져 있는 상태에서 새로 그려지는 카드는, 이 작품이 해당 OTT인지 아직 모르니
+  // 일단 숨겨뒀다가(아래 fetchOttKeys 콜백에서) 확인되는 대로 즉시 보여주거나 계속 숨김
+  if(activeOttFilter) card.style.display = 'none';
+
   // 서비스중 OTT 로고 — 비동기로 채워넣음 (포스터 우상단, 개수 제한 없이 전부 표시)
   const ottBox = card.querySelector('.work-ott');
   if(tmdbId){
     fetchOttKeys(tmdbId, mtype, Object.keys(ranks)).then(keys=>{
-      if(!keys.length) return;
-      ottBox.innerHTML = keys.map(ottLogoHtml).join('');
+      cardOttKeys.set(tmdbId, keys);
+      if(keys.length) ottBox.innerHTML = keys.map(ottLogoHtml).join('');
+      if(activeOttFilter) card.style.display = keys.includes(activeOttFilter) ? '' : 'none';
     });
   }
 
@@ -470,6 +587,7 @@ async function runSearch(){
   }
 }
 
+renderOttFilterList();
 runSearch();
 </script>
 
