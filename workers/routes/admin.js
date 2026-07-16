@@ -46,6 +46,7 @@
    POST   /admin/keywords/update                      ← 특정 키워드 한글 번역 개별 수정
    GET    /admin/works/keywords                       ← 작품 제목/tmdb_id로 검색해 그 작품의 키워드 전체 조회(2026-07-15 신설)
    POST   /admin/works/:tmdb_id/reset-keyword-cache    ← 특정 작품 키워드 캐시(keyword_ko_map) 초기화(2026-07-15 신설)
+   POST   /admin/works/collect-ott                     ← OTT 서비스현황 일괄 수집(work_ott 정규화 테이블, 15일 주기 갱신, 2026-07-17 신설)
    POST   /admin/works/discover-collect
    POST   /admin/works/classify-variety
    GET    /admin/variety-genre-options
@@ -1661,6 +1662,144 @@ export async function handleAdmin(path, request, env, url, headers) {
       const remainRow = await env.DB.prepare(
         "SELECT COUNT(*) as cnt FROM works WHERE (keywords IS NULL OR keywords = '') AND (adult_flag IS NULL OR adult_flag != 1)"
       ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, processed, attempted: targets.length, skippedRetry, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/collect-ott ───────────────────────────
+  // work_ott(정규화 테이블)를 채우는 배치 — 원래 search-results.html이 브라우저에서
+  // 실시간으로 하던 4단계 OTT 판정 로직을 서버로 그대로 옮긴 것.
+  //   Priority 1: 오뜨랑 DB 랭킹(오늘자 rankings) — 가장 신뢰도 높음
+  //   Priority 2: 쿠팡플레이는 TMDB Watch Providers에 데이터가 거의 없어 TMDB Networks(id=5169)로 보완 (TV만)
+  //   Priority 3: TMDB Watch Providers — 위 두 개로 못 채운 나머지 보완
+  //   Priority 4: 어드민 "OTT 보러가기" 수동 오버라이드(work_ott_overrides) — 항상 최우선 적용
+  // 대상: ott_updated_at이 없거나(한 번도 수집 안 함) 15일 넘게 지난 작품.
+  // TMDB 응답을 하나도 못 받았고 랭킹으로도 확인 안 된 작품은 __NONE__ 같은 확정 마킹 없이
+  // ott_updated_at을 그대로 둬서 다음 배치에서 자동 재시도되게 함 (collect-keywords와 동일 원칙).
+  if (path === "/admin/works/collect-ott" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 30, 30); // TMDB 호출 2회/건이라 키워드 수집보다 작게 잡음
+      const CUTOFF_DAYS = 15;
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE (ott_updated_at IS NULL OR ott_updated_at < datetime('now', '-${CUTOFF_DAYS} days'))
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({ ok: true, processed: 0, attempted: 0, remaining: 0, message: "수집할 작품 없음" }), { headers });
+      }
+
+      const tmdbIds      = targets.map(t => t.tmdb_id);
+      const placeholders = tmdbIds.map(() => "?").join(",");
+
+      // Priority 1 — 오늘자 랭킹을 한 번에 조회 (건마다 따로 안 물어봄)
+      const { results: rankRows } = await env.DB.prepare(`
+        SELECT tmdb_id, platform FROM rankings
+        WHERE tmdb_id IN (${placeholders})
+          AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+      `).bind(...tmdbIds).all();
+      const rankMap = {};
+      rankRows.forEach(r => {
+        (rankMap[r.tmdb_id] ||= new Set()).add(r.platform);
+      });
+
+      // Priority 4 — 어드민 수동 오버라이드도 한 번에 조회
+      const { results: overrideRows } = await env.DB.prepare(`
+        SELECT tmdb_id, ott_key, action FROM work_ott_overrides
+        WHERE tmdb_id IN (${placeholders})
+      `).bind(...tmdbIds).all();
+      const overrideMap = {};
+      overrideRows.forEach(o => {
+        (overrideMap[o.tmdb_id] ||= []).push(o);
+      });
+
+      const OTT_NAME_MATCH = [
+        [/netflix/i,  "netflix"],
+        [/tving/i,    "tving"],
+        [/disney/i,   "disney"],
+        [/coupang/i,  "coupang"],
+        [/wavve/i,    "wavve"],
+        [/watcha/i,   "watcha"],
+      ];
+
+      let processed     = 0;
+      let skippedRetry  = 0;
+      const stmts       = [];
+      const touchedIds  = [];
+
+      for (const row of targets) {
+        const tmdbId = row.tmdb_id;
+        const mtype  = row.media_type === "movie" ? "movie" : "tv";
+        const keys   = new Set(rankMap[tmdbId] || []); // Priority 1
+        let anySuccess = false;
+
+        try {
+          // Priority 2 — 쿠팡플레이 Network 보완 (TV만 해당)
+          if (mtype === "tv" && !keys.has("coupang")) {
+            const detResp = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${env.TMDB_API_KEY}`);
+            if (detResp.ok) {
+              anySuccess = true;
+              const det = await detResp.json();
+              if ((det.networks || []).some(n => n.id === 5169)) keys.add("coupang");
+            }
+          }
+          // Priority 3 — TMDB Watch Providers
+          const wpResp = await fetch(`https://api.themoviedb.org/3/${mtype}/${tmdbId}/watch/providers?api_key=${env.TMDB_API_KEY}`);
+          if (wpResp.ok) {
+            anySuccess = true;
+            const wp = await wpResp.json();
+            const flatrate = (wp.results && wp.results.KR && wp.results.KR.flatrate) || [];
+            flatrate.forEach(p => {
+              const match = OTT_NAME_MATCH.find(([re]) => re.test(p.provider_name || ""));
+              if (match) keys.add(match[1]);
+            });
+          }
+        } catch (e) { /* 네트워크 오류 — anySuccess로 아래에서 판단 */ }
+
+        if (!anySuccess && keys.size === 0) {
+          // TMDB 응답도 못 받았고 랭킹으로도 확인 안 됨 — 재시도 대상으로 남김 (ott_updated_at 안 건드림)
+          skippedRetry++;
+          continue;
+        }
+
+        // Priority 4 — 어드민 수동 오버라이드 (최우선 적용)
+        (overrideMap[tmdbId] || []).forEach(o => {
+          if (o.action === "add") keys.add(o.ott_key);
+          else if (o.action === "remove") keys.delete(o.ott_key);
+        });
+
+        // 기존 값 지우고 새로 씀 — 서비스 종료된 OTT는 자연스럽게 빠짐
+        stmts.push(env.DB.prepare("DELETE FROM work_ott WHERE tmdb_id = ?").bind(tmdbId));
+        [...keys].forEach(k => {
+          stmts.push(env.DB.prepare("INSERT INTO work_ott (tmdb_id, ott_key) VALUES (?, ?)").bind(tmdbId, k));
+        });
+        touchedIds.push(tmdbId);
+        processed++;
+      }
+
+      if (touchedIds.length) {
+        const tp = touchedIds.map(() => "?").join(",");
+        stmts.push(
+          env.DB.prepare(`UPDATE works SET ott_updated_at = datetime('now') WHERE tmdb_id IN (${tp})`).bind(...touchedIds)
+        );
+      }
+      if (stmts.length) await env.DB.batch(stmts);
+
+      const remainRow = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM works
+        WHERE (ott_updated_at IS NULL OR ott_updated_at < datetime('now', '-${CUTOFF_DAYS} days'))
+      `).first();
 
       return new Response(JSON.stringify({
         ok: true, processed, attempted: targets.length, skippedRetry, remaining: remainRow?.cnt || 0,
