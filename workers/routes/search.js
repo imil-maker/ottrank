@@ -147,8 +147,11 @@ export async function handleSearch(path, request, env, url, headers) {
   //   ② limit 기본값 10→15, offset 페이징 추가 ("더보기" 버튼용). has_more로 다음 페이지 존재 여부 알려줌
   //   ③ release_year, tmdb_rating 응답에 추가 (기존엔 응답에서 빠져있어 프론트에서 년도 표시가 안 되던 문제)
   //   ④ 오늘자 rankings를 조인해서 이번 페이지에 뜬 작품들의 플랫폼별 순위(ott_ranks)를 같이 내려줌
-  //      - "지금 이 작품이 이 OTT에서 서비스되는지"는 이 API로는 알 수 없음(순위표 = 랭킹 데이터일 뿐).
-  //        서비스 여부는 TMDB Watch Providers를 프론트에서 별도로 조회해서 보완한다 (트래픽 이슈로 캐싱은 추후 과제).
+  //   ④-2 [2026-07-17 추가] work_ott(정규화 캐시 테이블)를 조인해서 "지금 이 작품이 어느 OTT에서
+  //        서비스되는지"(ott_keys)도 같이 내려줌 — 예전엔 이걸 몰라서 프론트가 카드마다 TMDB를
+  //        실시간으로 물어봤는데(검색결과 로딩이 느려지는 주된 원인이었음), 이제 D1 조인 한 번으로 끝남.
+  //        미등록/미수집 작품(work_ott에 아직 없음)은 빈 배열로 내려가고, 이 경우만 프론트가
+  //        TMDB 실시간 조회로 보완한다.
   //   ⑤ /search/keyword와 동일하게 성인물(adult_flag=1) 제외
   //   ⑥ 매칭 대상이 과도하게 많아지는 것(흔한 단어 검색 등) 방지 위해 매칭 tmdb_id 상한 100개
   //   ⑦ 포스터 없는 작품은 상세조회 단계에서 미리 제외 — has_more/total이 실제 노출 개수와 항상 일치하도록 함
@@ -258,6 +261,19 @@ export async function handleSearch(path, request, env, url, headers) {
         });
 
         data = pageRows.map(w => ({ ...w, ott_ranks: rankMap[w.tmdb_id] || {} }));
+
+        // ④-2 — work_ott 조인 (서비스중 OTT 목록, 정규화 캐시 테이블)
+        const { results: ottRows } = await env.DB.prepare(`
+          SELECT tmdb_id, ott_key FROM work_ott
+          WHERE tmdb_id IN (${pagePlaceholders})
+        `).bind(...pageIds).all();
+
+        const ottMap = {};
+        ottRows.forEach(r => {
+          (ottMap[r.tmdb_id] ||= []).push(r.ott_key);
+        });
+
+        data = data.map(w => ({ ...w, ott_keys: ottMap[w.tmdb_id] || [] }));
       }
 
       return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset, total, capped }), { headers });
