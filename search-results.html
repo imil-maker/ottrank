@@ -290,6 +290,30 @@ function ottLogoHtml(key){
     onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
 }
 
+// TMDB 보충 작품들의 OTT 여부를 화면에 안 보이는 상태로 미리 확인해서 cardOttKeys에 캐싱해둠.
+// (fetchOttKeys 내부에 이미 _ottCache가 있어서, 나중에 카드가 실제로 그려지거나 OTT 필터를
+//  누를 때 이 캐시를 그대로 재사용 — 첫 번째 OTT 필터 클릭이 느렸던 이유가 이 확인 작업을
+//  그때서야 시작해서였는데, 검색결과 뜨자마자 미리 끝내두면 체감상 항상 빠르게 느껴짐)
+// TMDB에 한꺼번에 몰리지 않게 5개씩 나눠서 순차 처리, 검색 자체 속도엔 영향 없음(await 안 함).
+function _prewarmTmdbOtt(){
+  const items = tmdbPool.filter(w=>{
+    const id = w.tmdb_id || w.id;
+    return id && !cardOttKeys.has(id);
+  });
+  (async ()=>{
+    for(let i=0; i<items.length; i+=5){
+      const batch = items.slice(i, i+5);
+      await Promise.all(batch.map(w=>{
+        const id    = w.tmdb_id || w.id;
+        const mtype = w.media_type || w._type || 'tv';
+        return fetchOttKeys(id, mtype, Object.keys(w.ott_ranks||{})).then(keys=>{
+          cardOttKeys.set(id, keys);
+        });
+      }));
+    }
+  })();
+}
+
 /* ── 사이드바 OTT 필터 ──
    그냥 "지금 로딩된 첫 페이지 안에서만" 거르면 매칭이 몇 개 없을 수 있어서,
    목표 개수(PAGE_SIZE)를 채울 때까지 우리DB 다음 페이지를 필요한 만큼 계속 불러와가며 훑는다.
@@ -678,6 +702,7 @@ async function runSearch(){
     fetchTmdbRaw().then(tmdbRaw => {
       if(!tmdbRaw.length) return;
       addUnique(tmdbPool, tmdbRaw);        // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
+      _prewarmTmdbOtt();                   // 화면엔 안 보이지만 미리 OTT 확인해서 캐싱 (OTT 필터 첫 클릭 대비)
 
       // DB 결과가 0개라 "결과 없음" 문구가 떠 있던 상태였다면, TMDB 보충분으로 다시 그려야 함
       if(_renderedTotal() === 0) _resetGrid();
