@@ -62,6 +62,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 }
 .ott-filter-row span{font-size:13px;color:var(--muted2);transition:color .15s}
 .ott-filter-row.active span{color:var(--accent);font-weight:600}
+.ott-count{font-size:11px !important;color:var(--muted) !important;font-weight:400 !important;
+  font-family:var(--mono);white-space:nowrap;display:none}
+.ott-count.show{display:inline}
 .ott-filter-row img, .ott-filter-row .ott-ph{width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0}
 .ott-filter-row .ott-ph{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
 
@@ -122,7 +125,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <button class="search-btn" onclick="doSearch()" aria-label="검색">⌕</button>
     </div>
 
-    <div class="result-bar">검색결과 <span class="count" id="cntWorks">0</span>개</div>
+    <div class="result-bar">검색결과 <span class="count" id="cntWorks">0</span></div>
 
     <div class="ott-filter-list" id="ottFilterList"></div>
 
@@ -316,6 +319,7 @@ function renderOttFilterList(){
   wrap.innerHTML = Object.entries(OTT_META).map(([key, meta]) => `
     <button class="ott-filter-row" data-ott-key="${key}" onclick="toggleOttFilter('${key}')">
       <span>${meta.name}</span>
+      <span class="ott-count" data-count-for="${key}"></span>
       <img src="/img/${meta.file}-icon.jpg" alt="" class="ott-filter-logo"
         onerror="this.outerHTML='<div class=\\'ott-ph\\' style=\\'background:${meta.color}\\'>${meta.name[0]}</div>'">
     </button>
@@ -387,7 +391,29 @@ async function renderOttFilterPage(isMore){
     workGrid.insertBefore(wrap, dbInsertMarker.nextSibling);
   }
 
-  document.getElementById('cntWorks').textContent = json.total ?? items.length;
+  // [2026-07-17 수정] 상단 "검색결과 N"은 항상 전체 검색 결과 개수로 고정 유지 —
+  // 여기서 더 이상 덮어쓰지 않는다. 대신 선택된 OTT 줄 옆에 그 OTT만의 개수를 표시.
+  setOttCount(key, json.total ?? items.length);
+}
+
+// 사이드바 OTT 목록에서 특정 OTT 줄 옆에 "N 작품" 표시 (다른 줄은 항상 비워둠 — 단일 선택 필터라 한 번에 하나만 보이면 됨)
+function setOttCount(key, total){
+  document.querySelectorAll('.ott-count').forEach(el=>{
+    if(el.dataset.countFor === key){
+      el.textContent = `${total} 작품`;
+      el.classList.add('show');
+    } else {
+      el.textContent = '';
+      el.classList.remove('show');
+    }
+  });
+}
+
+function clearOttCounts(){
+  document.querySelectorAll('.ott-count').forEach(el=>{
+    el.textContent = '';
+    el.classList.remove('show');
+  });
 }
 
 function toggleOttFilter(key){
@@ -400,6 +426,7 @@ function toggleOttFilter(key){
   document.querySelector('.more-wrap')?.remove();
 
   if(!activeOttFilter){
+    clearOttCounts();
     _renderUnfilteredFirstPage();
     return;
   }
