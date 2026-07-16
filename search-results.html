@@ -252,8 +252,11 @@ async function fetchOttKeys(tmdbId, mediaType, rankKeys){
     const wpRes = await fetch(`${TMDB_PROXY}/${type}/${tmdbId}/watch/providers`);
     if(wpRes.ok){
       const wp = await wpRes.json();
-      const flatrate = (wp.results && wp.results.KR && wp.results.KR.flatrate) || [];
-      flatrate.forEach(p=>{
+      // [2026-07-17 수정] flatrate(구독형)만 보던 걸 rent/buy까지 합쳐서 인정 —
+      // 우리 사이트는 구매/구독 구분 안 함 (admin.js collect-ott와 동일 원칙으로 통일)
+      const kr = (wp.results && wp.results.KR) || {};
+      const providers = [...(kr.flatrate||[]), ...(kr.rent||[]), ...(kr.buy||[])];
+      providers.forEach(p=>{
         const match = OTT_NAME_MATCH.find(([re])=>re.test(p.provider_name||''));
         if(match) keys.add(match[1]);
       });
