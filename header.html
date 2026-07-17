@@ -427,13 +427,17 @@
   flex-shrink:0;
 }
 .ottrang-drawer-search-inner {
-  display:flex;align-items:center;gap:8px;
-  background:#13131a;border:1px solid rgba(255,255,255,0.1);
-  border-radius:22px;padding:0 14px;height:38px;
+  display:flex;align-items:center;gap:6px;
+  background:#13131a;border:1px solid rgba(255,255,255,0.35);
+  border-radius:22px;padding:0 4px 0 16px;height:38px;
 }
-.ottrang-drawer-search-icon {
-  color:rgba(255,255,255,0.3);font-size:15px;flex-shrink:0;
+.ottrang-drawer-search-btn {
+  width:30px;height:30px;border-radius:50%;border:none;flex-shrink:0;
+  background:#e63946;color:#fff;font-size:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .15s;
 }
+.ottrang-drawer-search-btn:hover { opacity:.85; }
 .ottrang-drawer-search-input {
   flex:1;background:none;border:none;outline:none;
   color:#ededf0;font-family:var(--sans);font-size:13px;
@@ -628,15 +632,12 @@
   <!-- 드로어 검색창 -->
   <div class="ottrang-drawer-search-wrap">
     <div class="ottrang-drawer-search-inner">
-      <span class="ottrang-drawer-search-icon">&#9906;</span>
       <input class="ottrang-drawer-search-input" id="ottrangDrawerSearchInput"
-        type="text" placeholder="작품, 배우, 감독 검색"
-        oninput="_drawerSearchRun(this.value)"
-        onkeydown="if(event.key==='Enter'){_drawerSearchRun(this.value,true);}"
+        type="text" placeholder="키워드, 장르, 기분을 검색해보세요"
+        onkeydown="if(event.key==='Enter'){_drawerSearchGo();}"
         autocomplete="off">
+      <button class="ottrang-drawer-search-btn" onclick="_drawerSearchGo()" aria-label="검색">&#9906;</button>
     </div>
-    <!-- 드로어 내 검색결과 (펼쳐짐) -->
-    <div id="ottrangDrawerSearchResults" style="margin-top:8px;border-radius:10px;overflow:hidden;background:#13131a;"></div>
   </div>
 
   <nav class="ottrang-drawer-nav" id="ottrangDrawerNav">
@@ -1199,53 +1200,14 @@ function initHeader(){
     }
   }
 
-  // 드로어 검색 — _mobRunSearch 재사용, 결과를 드로어 내 div에 출력
-  window._drawerSearchRun = function(q, immediate) {
-    clearTimeout(window._drawerSrTimer);
-    const el = document.getElementById('ottrangDrawerSearchResults');
-    if(!el) return;
-    if(!q || q.length < 2){ el.innerHTML=''; return; }
-    el.innerHTML='<div class="ottrang-sr-loading">검색 중...</div>';
-    const run = async () => {
-      // _mobRunSearch와 동일 로직이나 el을 드로어 결과로 교체
-      const API='https://ottrank-api.tdidream.workers.dev';
-      const TMDB='https://tmdb-proxy.tdidream.workers.dev/tmdb';
-      const IMG='https://image.tmdb.org/t/p/w92';
-      const _slug=id=>`/title/1-${new Date().getFullYear()}${id}`;
-      const _h=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const _wi=(w,db)=>{
-        const poster=w.poster_path?`<img class="ottrang-sr-poster" src="${IMG}${w.poster_path}" alt="" loading="lazy">`:`<div class="ottrang-sr-poster-ph">🎬</div>`;
-        const t=w.title_ko||w.title||w.name||'';
-        const te=w.title_en||w.original_title||w.original_name||'';
-        const yr=(w.release_year||(w.first_air_date||w.release_date||'').slice(0,4))||'';
-        const mt=w.media_type||w._type||'';
-        const tl=mt==='movie'?'영화':'TV';
-        const tc=mt==='movie'?'rgba(240,180,41,.8)':'rgba(55,138,221,.8)';
-        const sl=w.tmdb_id?_slug(w.tmdb_id):'#';
-        const go=w.tmdb_id?`(function(){sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:${w.tmdb_id},type:'${mt||'tv'}',platform:'',rank:1,title:'${t.replace(/'/g,'').replace(/"/g,'')}',season:1,year:${new Date().getFullYear()}}));location.href='${sl}';})()`:`location.href='#'`;
-        return `<div class="ottrang-sr-item" onclick="${go}">${poster}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_h(t)}</div><div class="ottrang-sr-meta">${_h(te)}${yr?` · ${yr}`:''}</div></div><span class="ottrang-sr-type" style="background:${tc};color:#fff">${tl}</span>${db?'<span class="ottrang-sr-db">DB</span>':''}</div>`;
-      };
-      try{
-        const [dr,tr,mr,pr]=await Promise.allSettled([
-          fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=5`),
-          fetch(`${TMDB}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
-          fetch(`${TMDB}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
-          fetch(`${TMDB}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
-        ]);
-        let dw=[];if(dr.status==='fulfilled'&&dr.value.ok){const j=await dr.value.json();dw=(j.data||[]).slice(0,5);}
-        const di=new Set(dw.map(w=>w.tmdb_id));
-        let tv=[];if(tr.status==='fulfilled'&&tr.value.ok){const j=await tr.value.json();tv=(j.results||[]).filter(r=>!r.adult).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'tv',tmdb_id:r.id}));}
-        let mv=[];if(mr.status==='fulfilled'&&mr.value.ok){const j=await mr.value.json();mv=(j.results||[]).filter(r=>!r.adult).filter(r=>!di.has(r.id)).slice(0,3).map(r=>({...r,_type:'movie',tmdb_id:r.id}));}
-        let ps=[];if(pr.status==='fulfilled'&&pr.value.ok){const j=await pr.value.json();ps=(j.results||[]).slice(0,2);}
-        if(!dw.length&&!tv.length&&!mv.length&&!ps.length){el.innerHTML='<div class="ottrang-sr-empty">검색 결과가 없습니다</div>';return;}
-        let h='';
-        if(dw.length)h+='<div class="ottrang-sr-section">🗄️ 추천</div>'+dw.map(w=>_wi(w,true)).join('');
-        const ta=[...tv,...mv];if(ta.length)h+='<div class="ottrang-sr-section">🎬 작품</div>'+ta.map(w=>_wi(w,false)).join('');
-        if(ps.length)h+='<div class="ottrang-sr-section">👤 인물</div>'+ps.map(p=>{const pf=p.profile_path?`<img class="ottrang-sr-profile" src="${IMG}${p.profile_path}" alt="" loading="lazy">`:`<div class="ottrang-sr-profile-ph">👤</div>`;return`<div class="ottrang-sr-item" onclick="location.href='/person.html?id=${p.id}'">${pf}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_h(p.name||'')}</div><div class="ottrang-sr-meta">${p.known_for_department||''}</div></div></div>`;}).join('');
-        el.innerHTML=h;
-      }catch(e){el.innerHTML='<div class="ottrang-sr-empty">검색 중 오류가 발생했습니다</div>';}
-    };
-    if(immediate){ run(); } else { window._drawerSrTimer=setTimeout(run,350); }
+  // [2026-07-18 수정] 드로어 검색 — 자동완성 드롭다운(상단 헤더에 이미 있어서 중복) 대신
+  // 검색결과 페이지로 이동하는 방식으로 변경. 예전 _drawerSearchRun(TMDB 실시간 자동완성,
+  // 결과 div 렌더링)은 통째로 제거.
+  window._drawerSearchGo = function() {
+    const input = document.getElementById('ottrangDrawerSearchInput');
+    const q = (input?.value || '').trim();
+    if(!q) return;
+    location.href = `/search-results.html?q=${encodeURIComponent(q)}`;
   };
 
 } // initHeader 끝
