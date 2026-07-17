@@ -371,9 +371,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       헤더 자동완성(타이핑 중 즉시 뜨는 결과)이나 인물(배우) 검색은 기록 대상이 아닙니다.
     </div>
 
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px">
-      <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">전체 검색 기록</div>
-      <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="slTotal">-</div>
+    <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:20px">
+      <div style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 20px">
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">전체 검색 기록</div>
+        <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="slTotal">-</div>
+      </div>
+      <button class="btn-secondary" onclick="loadSearchLogs(1)" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
     </div>
 
     <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
@@ -389,9 +392,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </tbody>
     </table>
 
-    <div style="display:flex;justify-content:center;padding:20px 0" id="slMoreWrap">
-      <button class="btn-secondary" id="slMoreBtn" onclick="loadSearchLogs(false)">더보기</button>
-    </div>
+    <div style="display:flex;justify-content:center;gap:6px;padding:20px 0" id="slPagination"></div>
 
   </div>
 
@@ -401,7 +402,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 <script>
 const API_SL = 'https://ottrank-api.tdidream.workers.dev';
-let slPage = 1;
 const SL_PAGE_SIZE = 50;
 
 function hescSl(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -411,18 +411,13 @@ function fmtSlTime(iso){
   return m ? `${m[1]}.${m[2]} ${m[3]}:${m[4]}` : iso;
 }
 
-/* 검색어 로그 목록 로드 — reset=true면 1페이지부터 새로, false면 다음 페이지 이어붙이기 */
-async function loadSearchLogs(reset){
-  if(reset) slPage = 1;
-  const tbody    = document.getElementById('slTbody');
-  const moreWrap = document.getElementById('slMoreWrap');
-  const moreBtn  = document.getElementById('slMoreBtn');
-
-  if(reset) tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
-  else { moreBtn.disabled = true; moreBtn.textContent = '불러오는 중...'; }
+/* 검색어 로그 목록 로드 — page 번호로 그 페이지만 딱 조회해서 표로 교체 (누적 X) */
+async function loadSearchLogs(page){
+  const tbody = document.getElementById('slTbody');
+  tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
 
   try{
-    const res = await fetch(`${API_SL}/admin/search-logs?page=${slPage}&limit=${SL_PAGE_SIZE}`, {
+    const res = await fetch(`${API_SL}/admin/search-logs?page=${page}&limit=${SL_PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const json = await res.json();
@@ -432,26 +427,51 @@ async function loadSearchLogs(reset){
 
     const rows = (json.data || []).map(row => `
       <tr>
-        <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--text)">${hescSl(row.query)}</td>
+        <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border)">
+          <a href="/search-results.html?q=${encodeURIComponent(row.query)}" target="_blank" rel="noopener"
+            style="font-weight:600;color:var(--text);text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${hescSl(row.query)}</a>
+        </td>
         <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--gold)">${row.result_count}</td>
         <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12.5px;color:var(--muted)">${fmtSlTime(row.created_at)}</td>
       </tr>
     `).join('');
 
-    if(reset){
-      tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 검색어가 없습니다</td></tr>`;
-    } else {
-      tbody.insertAdjacentHTML('beforeend', rows);
-    }
+    tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 검색어가 없습니다</td></tr>`;
 
-    moreWrap.style.display = json.has_more ? 'flex' : 'none';
-    moreBtn.disabled = false;
-    moreBtn.textContent = '더보기';
-    if(json.has_more) slPage += 1;
+    const totalPages = Math.max(1, Math.ceil((json.total || 0) / SL_PAGE_SIZE));
+    renderSlPagination(page, totalPages);
 
   }catch(e){
     tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오기 중 오류가 발생했습니다</td></tr>`;
   }
+}
+
+/* 숫자 페이지네이션 — 현재 페이지 중심 ±2개 표시 (community.html과 동일 패턴) */
+function renderSlPagination(current, total){
+  const el = document.getElementById('slPagination');
+  if(total <= 1){ el.innerHTML = ''; return; }
+
+  let start = Math.max(1, current - 2);
+  let end   = Math.min(total, start + 4);
+  if(end - start < 4) start = Math.max(1, end - 4);
+
+  const parts = [];
+  parts.push(`<button class="btn-secondary" onclick="loadSearchLogs(${current-1})" ${current===1?'disabled':''}>‹</button>`);
+  if(start > 1){
+    parts.push(`<button class="btn-secondary" onclick="loadSearchLogs(1)">1</button>`);
+    if(start > 2) parts.push(`<span style="color:var(--muted);padding:0 4px">…</span>`);
+  }
+  for(let i=start;i<=end;i++){
+    parts.push(`<button class="btn-secondary" onclick="loadSearchLogs(${i})"
+      style="${i===current?'background:rgba(230,57,70,.15);border-color:var(--accent);color:var(--accent);font-weight:700':''}">${i}</button>`);
+  }
+  if(end < total){
+    if(end < total-1) parts.push(`<span style="color:var(--muted);padding:0 4px">…</span>`);
+    parts.push(`<button class="btn-secondary" onclick="loadSearchLogs(${total})">${total}</button>`);
+  }
+  parts.push(`<button class="btn-secondary" onclick="loadSearchLogs(${current+1})" ${current===total?'disabled':''}>›</button>`);
+
+  el.innerHTML = parts.join('');
 }
 </script>
 
@@ -513,7 +533,7 @@ function switchPageTab(tab) {
     if (isOn) document.getElementById('adminHeaderTitle').textContent = t.title;
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
-  if (tab === 'searchLog') loadSearchLogs(true);
+  if (tab === 'searchLog') loadSearchLogs(1);
 }
 
 function showToast(msg){
