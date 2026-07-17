@@ -32,6 +32,7 @@
    GET    /admin/works/:tmdb_id/rating-status   ← 특정 작품 works↔rankings 평점 불일치 미리보기(2026-07-13 신설)
    POST   /admin/works/sync-rating-single       ← 특정 작품 평점 강제 동기화(2026-07-13 신설)
    GET    /admin/rankings/rating-check          ← 카테고리별 평점 비교 리스트(2026-07-14 신설, "OTT 평점 반영" 탭)
+   GET    /admin/search-logs                    ← 검색어 로그 목록(2026-07-18 신설)
    GET    /admin/grade-settings
    PUT    /admin/grade-settings
    POST   /admin/grade-settings/assign
@@ -3786,6 +3787,36 @@ export async function handleAdmin(path, request, env, url, headers) {
         }
       }
       return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/search-logs ──────────────────────────────────
+  // [2026-07-18 신설] 검색어 로그 목록 조회 (관리자 전용). 최신순, 페이지네이션.
+  if (path === "/admin/search-logs" && request.method === "GET") {
+    const isAuthed = await _checkAuth(request, env);
+    if (!isAuthed) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
+      const limit  = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1), 200);
+      const offset = (page - 1) * limit;
+
+      const [{ results }, totalRow] = await Promise.all([
+        env.DB.prepare(
+          `SELECT id, query, result_count, created_at FROM search_logs
+           ORDER BY created_at DESC LIMIT ? OFFSET ?`
+        ).bind(limit, offset).all(),
+        env.DB.prepare(`SELECT COUNT(*) AS cnt FROM search_logs`).first(),
+      ]);
+
+      const total = totalRow?.cnt || 0;
+      return new Response(JSON.stringify({
+        ok: true, data: results, page, limit, total,
+        has_more: offset + results.length < total,
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
