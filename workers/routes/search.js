@@ -8,6 +8,7 @@
    GET    /works/exists             tmdb_id 목록 중 DB 등록 여부 확인 (공개) — 검색결과 TMDB 보충결과 중복필터용
    GET    /works/ott-map            [2026-07-18 신설] tmdb_id 목록 → 각각의 OTT 소속 매핑만 가볍게 반환 (OTT 필터 즉시반응용 사전조회)
    GET    /works/details            [2026-07-18 신설] tmdb_id 목록의 카드 상세정보 반환 (매칭 재실행 없이, 이미 확정된 id들만 조회)
+   POST   /search-log               [2026-07-18 신설] 검색결과 페이지 도착 시 검색어 기록 (관리자 검색어 로그용, 자동완성 제외)
 ══════════════════════════════════════════════════════════════ */
 
 // [2026-07-17 추가] 사용자 입력을 FTS5 MATCH 문법에 안전하게 쓸 수 있는 쿼리 문자열로 변환.
@@ -412,6 +413,30 @@ export async function handleSearch(path, request, env, url, headers) {
       }
 
       return new Response(JSON.stringify({ ok: true, data }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /search-log ──────────────────────────────────────────
+  // [2026-07-18 신설] 검색결과 페이지(search-results.html)가 실제로 열릴 때(Enter/버튼으로
+  // "진짜" 검색했을 때)만 호출하는 조용한 기록용 API. 헤더 자동완성처럼 타이핑할 때마다
+  // 호출되는 게 아니라, 검색결과 페이지 도착 시 딱 한 번만 호출되도록 프론트에서 제어함
+  // (자동완성 노이즈 없이 실제 검색 의도만 남기기 위함). 인물(배우) 검색은 브라우저에서
+  // TMDB로 직접 나가는 구조라 이 API를 안 거침 — 이번 범위에서는 제외.
+  // 실패해도 검색 자체엔 전혀 영향 없는 백그라운드 기록이라, 인증 없이 공개로 둠.
+  if (path === "/search-log" && request.method === "POST") {
+    try {
+      const body = await request.json().catch(() => ({}));
+      const query = (body.q || "").toString().trim().slice(0, 200);
+      const resultCount = parseInt(body.total, 10) || 0;
+      if (!query) {
+        return new Response(JSON.stringify({ ok: true }), { headers }); // 빈 검색어는 조용히 무시
+      }
+      await env.DB.prepare(
+        `INSERT INTO search_logs (query, result_count) VALUES (?, ?)`
+      ).bind(query, resultCount).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
