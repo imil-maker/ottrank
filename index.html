@@ -741,20 +741,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 #hot100HeroWrap{margin-bottom:8px}
 
 /* ══ 메인 검색창 (2026-07-18 추가) — PC/모바일 공통, 별도 분기 없이 자연스럽게 줄어드는 구조 ══ */
-.main-search-wrap{max-width:640px;margin:8px auto 40px;padding:0 20px;text-align:center}
+.main-search-wrap{max-width:576px;margin:23px auto 40px;padding:0 20px;text-align:center}
 .main-search-title{
-  font-family:var(--sans);font-size:24px;font-weight:700;color:var(--text);
+  font-family:var(--sans);font-size:26px;font-weight:700;color:var(--text);
   margin-bottom:16px;
 }
 .main-search-row{display:flex;gap:8px}
 .main-search-input-wrap{position:relative;flex:1;min-width:0}
-.main-search-icon{
-  position:absolute;left:16px;top:50%;transform:translateY(-50%);
-  color:var(--muted);font-size:16px;pointer-events:none;
-}
 .main-search-input{
-  width:100%;height:48px;padding:0 16px 0 42px;border-radius:24px;
-  border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);
+  width:100%;height:48px;padding:0 16px;border-radius:24px;
+  border:1.5px solid #fff;background:var(--bg2);color:var(--text);
   font-size:14px;font-family:var(--sans);outline:none;transition:border-color .15s;
 }
 .main-search-input::placeholder{color:var(--muted)}
@@ -768,7 +764,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 @media(max-width:768px){
   .main-search-wrap{margin:4px auto 28px;padding:0 16px}
-  .main-search-title{font-size:19px;margin-bottom:12px}
+  .main-search-title{font-size:20px;margin-bottom:12px}
   .main-search-btn{padding:0 18px;font-size:14px}
 }
 
@@ -870,7 +866,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="main-search-title">오늘 뭐 볼까?</div>
     <div class="main-search-row">
       <div class="main-search-input-wrap">
-        <span class="main-search-icon">⌕</span>
         <input class="main-search-input" id="mainSearchInput" type="text"
           placeholder="키워드, 장르, 오늘 감정을 검색해보세요"
           onkeydown="if(event.key==='Enter')mainSearchGo()">
