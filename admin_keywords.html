@@ -97,6 +97,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎬 OTT 수집
         </button>
+        <button id="tabSearchLog" onclick="switchPageTab('searchLog')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🔍 검색어 로그
+        </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
     </div>
@@ -359,9 +363,97 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   </div>
 
+  <!-- ══ 검색어 로그 섹션 ══ -->
+  <div class="wrap" id="searchLogWrap" style="display:none">
+
+    <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 검색결과 페이지(search-results.html)에 실제로 도착했을 때(Enter/버튼으로 "진짜" 검색했을 때)만 기록됩니다.<br>
+      헤더 자동완성(타이핑 중 즉시 뜨는 결과)이나 인물(배우) 검색은 기록 대상이 아닙니다.
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px">
+      <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">전체 검색 기록</div>
+      <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="slTotal">-</div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <thead>
+        <tr>
+          <th style="width:55%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">검색어</th>
+          <th style="width:20%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">검색결과 수</th>
+          <th style="width:25%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">검색 시각</th>
+        </tr>
+      </thead>
+      <tbody id="slTbody">
+        <tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+
+    <div style="display:flex;justify-content:center;padding:20px 0" id="slMoreWrap">
+      <button class="btn-secondary" id="slMoreBtn" onclick="loadSearchLogs(false)">더보기</button>
+    </div>
+
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
+
+<script>
+const API_SL = 'https://ottrank-api.tdidream.workers.dev';
+let slPage = 1;
+const SL_PAGE_SIZE = 50;
+
+function hescSl(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtSlTime(iso){
+  if(!iso) return '-';
+  const m = iso.match(/^\d{4}-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
+  return m ? `${m[1]}.${m[2]} ${m[3]}:${m[4]}` : iso;
+}
+
+/* 검색어 로그 목록 로드 — reset=true면 1페이지부터 새로, false면 다음 페이지 이어붙이기 */
+async function loadSearchLogs(reset){
+  if(reset) slPage = 1;
+  const tbody    = document.getElementById('slTbody');
+  const moreWrap = document.getElementById('slMoreWrap');
+  const moreBtn  = document.getElementById('slMoreBtn');
+
+  if(reset) tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
+  else { moreBtn.disabled = true; moreBtn.textContent = '불러오는 중...'; }
+
+  try{
+    const res = await fetch(`${API_SL}/admin/search-logs?page=${slPage}&limit=${SL_PAGE_SIZE}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const json = await res.json();
+    if(!json.ok){ tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오기 실패</td></tr>`; return; }
+
+    document.getElementById('slTotal').textContent = (json.total || 0).toLocaleString();
+
+    const rows = (json.data || []).map(row => `
+      <tr>
+        <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--text)">${hescSl(row.query)}</td>
+        <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--gold)">${row.result_count}</td>
+        <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12.5px;color:var(--muted)">${fmtSlTime(row.created_at)}</td>
+      </tr>
+    `).join('');
+
+    if(reset){
+      tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 검색어가 없습니다</td></tr>`;
+    } else {
+      tbody.insertAdjacentHTML('beforeend', rows);
+    }
+
+    moreWrap.style.display = json.has_more ? 'flex' : 'none';
+    moreBtn.disabled = false;
+    moreBtn.textContent = '더보기';
+    if(json.has_more) slPage += 1;
+
+  }catch(e){
+    tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오기 중 오류가 발생했습니다</td></tr>`;
+  }
+}
+</script>
 
 <script>
 const API = 'https://ottrank-api.tdidream.workers.dev';
@@ -407,6 +499,7 @@ const PAGE_TABS = [
   { key: 'keyword',          wrapId: 'keywordWrap',          btnId: 'tabKeyword',          title: '🏷 키워드 수집', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'keywordTranslate', wrapId: 'keywordTranslateWrap', btnId: 'tabKeywordTranslate', title: '🔤 키워드 번역', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'ott',              wrapId: 'ottWrap',              btnId: 'tabOtt',              title: '🎬 OTT 수집',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
+  { key: 'searchLog',        wrapId: 'searchLogWrap',        btnId: 'tabSearchLog',        title: '🔍 검색어 로그', onColor: 'rgba(230,57,70,.2)',  onText: 'var(--accent)' },
 ];
 let currentPageTab = 'keyword';
 function switchPageTab(tab) {
@@ -420,6 +513,7 @@ function switchPageTab(tab) {
     if (isOn) document.getElementById('adminHeaderTitle').textContent = t.title;
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
+  if (tab === 'searchLog') loadSearchLogs(true);
 }
 
 function showToast(msg){
