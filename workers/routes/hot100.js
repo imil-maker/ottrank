@@ -754,16 +754,36 @@ export async function getHeroTabs(request, env, headers) {
     // page 파라미터 없이 호출(예: hot100_preview.html의 관리자 미리보기)하면 예전처럼 그대로 동작.
     const url  = new URL(request.url);
     const page = url.searchParams.get("page");
+
+    const TAB_CONFIGS_SQL = `
+      SELECT platform, category_slot, top_n, display_order
+      FROM hot100_frontend_tabs
+      WHERE is_active = 1
+      ORDER BY display_order ASC
+    `;
+
+    let tabConfigsResults;
     if (page) {
-      const displayRow = await env.DB.prepare(
-        `SELECT is_active FROM hot100_page_display WHERE page = ?`
-      ).bind(page).first();
+      // [2026-07-17 수정] displayRow 확인(①)과 tabConfigs 조회(②)가 서로 의존관계 없는
+      // 별개 쿼리인데도 순서대로 await되고 있었음(왕복 2회). 메인페이지 실측 시
+      // 이 API가 660ms 걸렸고, 그중 상당 부분이 이 불필요한 순차 왕복이었음.
+      // batch로 묶어서 한 번의 왕복으로 처리 — 노출이 꺼져있는 드문 경우엔 tabConfigs
+      // 결과를 그냥 버리게 되지만, 같은 왕복 안에서 이미 받아온 것이라 추가 비용 없음.
+      const [displayRes, tabConfigsRes] = await env.DB.batch([
+        env.DB.prepare(`SELECT is_active FROM hot100_page_display WHERE page = ?`).bind(page),
+        env.DB.prepare(TAB_CONFIGS_SQL),
+      ]);
+      const displayRow = displayRes.results[0] || null;
       if (!displayRow || !displayRow.is_active) {
         return new Response(
           JSON.stringify({ ok: true, active: false, tabs: [] }),
           { status: 200, headers }
         );
       }
+      tabConfigsResults = tabConfigsRes.results;
+    } else {
+      const { results } = await env.DB.prepare(TAB_CONFIGS_SQL).all();
+      tabConfigsResults = results;
     }
 
     const PLATFORM_LABELS = {
@@ -771,12 +791,7 @@ export async function getHeroTabs(request, env, headers) {
       coupang: "쿠팡플레이", wavve: "웨이브", boxoffice: "박스오피스",
     };
 
-    const { results: tabConfigs } = await env.DB.prepare(
-      `SELECT platform, category_slot, top_n, display_order
-       FROM hot100_frontend_tabs
-       WHERE is_active = 1
-       ORDER BY display_order ASC`
-    ).all();
+    const tabConfigs = tabConfigsResults;
 
     if (!tabConfigs || tabConfigs.length === 0) {
       return new Response(JSON.stringify({ ok: true, active: true, tabs: [] }), { status: 200, headers });
