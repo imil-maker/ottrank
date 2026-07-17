@@ -292,14 +292,31 @@ function _prewarmTmdbOtt(){
 }
 
 /* ── 사이드바 OTT 필터 ──
-   [2026-07-17 재설계] 예전엔 우리DB 페이지를 계속 더 불러오면서(offset 증가) 프론트에서
-   OTT가 맞는지 걸러내는 방식이라, 매칭 비율 낮은 OTT일수록 왕복이 몇 번이고 늘어났음.
-   지금은 /works/search에 ott= 파라미터를 붙여서 D1이 SQL에서 한 번에 걸러 응답하도록 변경 —
-   TMDB 미등록 보충 작품은 OTT 필터 결과에 안 나옴(정확도를 우리 DB 기준으로만 보장). */
+   [2026-07-18 재설계] 서버에 매번 다시 물어보는 대신, 검색 완료 후 백그라운드로
+   "전체 매칭 후보(최대 100개)가 각각 어느 OTT에 있는지"를 미리 한 번만 받아둔다
+   (/works/ott-map). OTT 버튼을 클릭하면 이 매핑으로 즉시 대상 목록을 계산하고,
+   그중 아직 카드 정보(포스터/평점 등)를 모르는 것만 /works/details로 가볍게 보충한다
+   (매칭을 처음부터 다시 하지 않으므로 /works/search보다 훨씬 가벼운 조회).
+   TMDB 미등록 보충 작품은 여전히 OTT 필터 결과에 안 나옴(정확도를 우리 DB 기준으로만 보장). */
 let activeOttFilter = null;
 const cardOttKeys = new Map(); // tmdbId -> 확인된 OTT 키 배열 (일반 검색결과 카드용)
 let ottOffset  = 0;
 let ottHasMore = false;
+
+let allMatchedIds    = [];          // 검색 시 서버가 내려준 전체 매칭 후보 id 목록(정렬된 순서)
+let ottMap           = {};          // tmdb_id -> [ott_key, ...] — 백그라운드로 채워짐
+let ottMapReady      = false;
+const ottDetailCache = new Map();   // tmdb_id -> 카드 상세정보 캐시 (details 재요청 방지)
+
+// 검색 완료 후 화면이 이미 뜬 다음 호출 — 전체 매칭 후보의 OTT 소속을 백그라운드로 미리 조회
+function prefetchOttMap(){
+  ottMapReady = false;
+  if(!allMatchedIds.length){ ottMap = {}; ottMapReady = true; return; }
+  fetch(`${API}/works/ott-map?tmdb_ids=${allMatchedIds.join(',')}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(json => { ottMap = (json && json.ok) ? json.map : {}; ottMapReady = true; })
+    .catch(() => { ottMap = {}; ottMapReady = true; });
+}
 
 function renderOttFilterList(){
   const wrap = document.getElementById('ottFilterList');
@@ -331,24 +348,55 @@ function _renderUnfilteredFirstPage(){
   updateWorkCount();
 }
 
+// ottMap이 아직 준비 안 됐으면(사용자가 아주 빨리 클릭한 경우) 준비될 때까지 짧게만 대기 (최대 3초 안전장치)
+function _waitOttMapReady(){
+  if(ottMapReady) return Promise.resolve();
+  return new Promise(resolve=>{
+    const check = setInterval(()=>{ if(ottMapReady){ clearInterval(check); resolve(); } }, 50);
+    setTimeout(()=>{ clearInterval(check); resolve(); }, 3000);
+  });
+}
+
 async function renderOttFilterPage(isMore){
   const key = activeOttFilter;
   if(!isMore){
     ottOffset = 0;
     workGrid.innerHTML = `<div class="loading"><span class="spin"></span>불러오는 중...</div>`;
+    await _waitOttMapReady();
   }
 
-  let json;
-  try{
-    const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&ott=${key}&limit=${PAGE_SIZE}&offset=${ottOffset}`);
-    json = res.ok ? await res.json() : { data: [], has_more: false, total: 0 };
-  }catch(e){
-    json = { data: [], has_more: false, total: 0 };
-  }
-
+  // 전체 매칭 후보 중 이 OTT에 해당하는 것만 (서버가 준 정렬 순서 그대로 유지)
+  const matchedIds = allMatchedIds.filter(id => (ottMap[id] || []).includes(key));
+  ottHasMore = matchedIds.length > ottOffset + PAGE_SIZE;
+  const pageIds = matchedIds.slice(ottOffset, ottOffset + PAGE_SIZE);
   ottOffset += PAGE_SIZE;
-  ottHasMore = !!json.has_more;
-  const items = json.data || [];
+
+  // 이미 카드 정보를 알고 있는 것(캐시/DB풀/TMDB풀)과, 아직 모르는 것 구분
+  const knownMap = new Map();
+  const unknownIds = [];
+  pageIds.forEach(id=>{
+    const found = ottDetailCache.get(id)
+      || dbPool.find(w => w.tmdb_id === id)
+      || tmdbPool.find(w => w.tmdb_id === id);
+    if(found) knownMap.set(id, found);
+    else unknownIds.push(id);
+  });
+
+  // 모르는 것만 가볍게 보충 조회 — 매칭 재실행 없이 딱 이 id들만
+  if(unknownIds.length){
+    try{
+      const res = await fetch(`${API}/works/details?tmdb_ids=${unknownIds.join(',')}`);
+      const json = res.ok ? await res.json() : { data: [] };
+      (json.data || []).forEach(w => {
+        ottDetailCache.set(w.tmdb_id, w);
+        knownMap.set(w.tmdb_id, w);
+      });
+    }catch(e){
+      // 실패해도 이미 알고 있던 카드들은 정상 표시 — 이 부분만 조용히 빠짐
+    }
+  }
+
+  const items = pageIds.map(id => knownMap.get(id)).filter(Boolean);
 
   if(!isMore){
     workGrid.innerHTML = '';
@@ -378,9 +426,9 @@ async function renderOttFilterPage(isMore){
     workGrid.insertBefore(wrap, dbInsertMarker.nextSibling);
   }
 
-  // [2026-07-17 수정] 상단 "검색결과 N"은 항상 전체 검색 결과 개수로 고정 유지 —
-  // 여기서 더 이상 덮어쓰지 않는다. 대신 선택된 OTT 줄 옆에 그 OTT만의 개수를 표시.
-  setOttCount(key, json.total ?? items.length);
+  // 상단 "검색결과 N"은 항상 전체 검색 결과 개수로 고정 유지 — 여기서 덮어쓰지 않는다.
+  // 대신 선택된 OTT 줄 옆에 그 OTT만의 개수를 표시.
+  setOttCount(key, matchedIds.length);
 }
 
 // 사이드바 OTT 목록에서 특정 OTT 줄 옆에 "N 작품" 표시 (다른 줄은 항상 비워둠 — 단일 선택 필터라 한 번에 하나만 보이면 됨)
@@ -677,6 +725,11 @@ async function runSearch(){
     dbTotal   = dbJson.total || 0;
     dbCapped  = !!dbJson.capped;
     addUnique(dbPool, dbJson.data || []);   // ① DB 먼저 풀에 채움 (우선순위 확보)
+
+    // [2026-07-18 추가] 전체 매칭 후보 목록을 받아서, 화면이 뜬 뒤 백그라운드로 OTT 소속을
+    // 미리 조회해둠 — OTT 버튼 클릭 시 서버에 다시 안 물어보고 즉시 반응하기 위한 사전준비.
+    allMatchedIds = dbJson.all_ids || [];
+    prefetchOttMap();
 
     _resetGrid();
 
