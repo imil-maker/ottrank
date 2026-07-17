@@ -8,16 +8,37 @@
    GET    /works/exists             tmdb_id 목록 중 DB 등록 여부 확인 (공개) — 검색결과 TMDB 보충결과 중복필터용
 ══════════════════════════════════════════════════════════════ */
 
+// [2026-07-17 추가] 사용자 입력을 FTS5 MATCH 문법에 안전하게 쓸 수 있는 쿼리 문자열로 변환.
+// 각 단어를 큰따옴표로 감싸서(따옴표 자체가 있으면 "" 로 이스케이프) 특수문자로 인한 문법
+// 에러를 막고, 뒤에 *를 붙여 "이 단어로 시작하는 토큰"만 매칭되게 함(=단어 중간 우연매칭 차단).
+// 여러 단어를 띄어쓰기로 이으면 FTS5 기본 문법상 AND(전부 만족)로 처리됨.
+function _buildFtsQuery(term) {
+  const words = term.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  return words.map(w => `"${w.replace(/"/g, '""')}"*`).join(" ");
+}
+
 // 제목/키워드/장르 매칭 3종 쿼리를 하나의 배열로 묶어서 반환 — env.DB.batch()로 한 번에 실행하기 위함
 // (메인 검색과 "관련 작품 추천" 단어별 재검색 양쪽에서 재사용)
+// [2026-07-17 수정] 제목매칭을 REPLACE(공백제거)+LIKE 방식에서 FTS5 색인 테이블(works_fts) 기반
+// "단어 시작" 매칭으로 교체. 기존 방식은 공백을 지우고 비교하다 보니 서로 다른 두 단어가 우연히
+// 붙어서(예: "Dex's Fridge Interview" → "dex'sfridgeinterview") 전혀 상관없는 검색어에 걸리는
+// 오검색이 있었음(2026-07-17 "sf" 검색 사고). works_fts는 원문 그대로(공백 유지) 단어 단위로
+// 색인되어 있어서, 이런 단어 경계를 넘나드는 우연매칭이 구조적으로 불가능함.
 function _dbMatchStatements(env, term, capLimit) {
-  const termNoSpace = term.replace(/\s+/g, "");
+  const ftsQuery = _buildFtsQuery(term);
+  const titleStmt = ftsQuery
+    ? env.DB.prepare(`
+        SELECT w.tmdb_id FROM works_fts f
+        JOIN works w ON w.id = f.rowid
+        WHERE works_fts MATCH ?
+        LIMIT ?
+      `).bind(ftsQuery, capLimit)
+    // 공백만 입력하는 등 극단적인 경우 대비 가드 — 매칭 결과 없이 안전하게 빈 배열 반환
+    : env.DB.prepare(`SELECT tmdb_id FROM works WHERE 0 LIMIT 0`);
+
   return [
-    env.DB.prepare(`
-      SELECT tmdb_id FROM works
-      WHERE REPLACE(title_ko, ' ', '') LIKE ? OR REPLACE(title_en, ' ', '') LIKE ?
-      LIMIT ?
-    `).bind(`%${termNoSpace}%`, `%${termNoSpace}%`, capLimit),
+    titleStmt,
     env.DB.prepare(`
       SELECT DISTINCT wk.tmdb_id
       FROM keyword_translation kt
