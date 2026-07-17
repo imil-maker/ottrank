@@ -18,6 +18,7 @@
    inquiry.js   : /inquiry, /admin/inquiry*  (광고문의/오류신고 게시판)
    hot100.js    : /hot100, /admin/calc-hot100, /admin/hot100/boosts*, /admin/hot100/frontend-tabs*,
                   /admin/hot100/backfill-logos*  (HOT100 통합 랭킹 + 히어로 로고 백필)
+   image-proxy.js : /tmdb-img/*  (TMDB 포스터 캐싱 프록시, poster.ottrank.kr, 2026-07-17 신설)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -31,6 +32,7 @@ import { handleAdmin     } from "./routes/admin.js";
 import { handleContents  } from "./routes/contents.js";
 import { handleBlog      } from "./routes/blog.js";
 import { handleInquiry   } from "./routes/inquiry.js";
+import { handleImageProxy } from "./routes/image-proxy.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -77,6 +79,13 @@ export default {
     // 순서 중요: 더 구체적인 경로를 앞에 배치
 
     let res = null;
+
+    // 0. TMDB 포스터 이미지 프록시(poster.ottrank.kr) — 이미지 바이너리를 그대로 반환해야
+    //    해서, 다른 라우트가 공유하는 JSON용 headers를 안 쓰고 여기서 바로 반환하고 끝냄
+    //    (다른 라우트와 경로가 겹칠 일이 없어 맨 앞에 둬도 안전)
+    if (path.startsWith("/tmdb-img/")) {
+      return await handleImageProxy(path, request, env, ctx);
+    }
 
     // 1. OTT 콘텐츠 게시판 (예고편/신작, trailers → contents 대체)
     if (path.startsWith("/contents") || path.startsWith("/admin/contents")) {
