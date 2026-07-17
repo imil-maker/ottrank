@@ -348,10 +348,15 @@ export async function handleRankings(path, request, env, url, headers) {
         manualBySlot[key].push(row);
       }
 
-      // [2026-07-15 추가] B안 안전망 — 특정 날짜를 직접 지정한 조회는 대상에서 제외,
-      // 기본(오늘자) 조회일 때만 "오늘자 없는 카테고리"를 최근 날짜로 보충
+      // [2026-07-17 수정] "빠진 카테고리"를 크롤링 데이터(crawlBySlot) 유무만으로 판단했더니,
+      // category05·06·09처럼 애초에 크롤링을 안 하고 수동고정(manualBySlot)으로만 채워지는
+      // 카테고리까지 매번 "혹시 예전 크롤링 데이터라도 있나" 하고 헛수고로 보충쿼리를 날리고
+      // 있었음(넷플릭스 페이지 응답속도 실측 시 확인됨). 수동고정 데이터가 이미 있으면
+      // 애초에 화면에 빈 칸이 안 생기니, 보충 대상에서 제외한다.
       if (!date) {
-        const missingCats = activeCats.filter(c => !crawlBySlot[c.category_slot]);
+        const missingCats = activeCats.filter(
+          c => !crawlBySlot[c.category_slot] && !manualBySlot[c.category_slot]
+        );
         if (missingCats.length) {
           const fallbackRows = await _fetchFallbackForMissing(env, missingCats);
           for (const row of fallbackRows) {
