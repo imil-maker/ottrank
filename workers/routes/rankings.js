@@ -284,47 +284,54 @@ export async function handleRankings(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "platform required" }), { status: 400, headers });
       }
 
-      // [2026-07-15 추가] 노출 설정된 전체 카테고리 목록(이 플랫폼 한정) — 오늘자 데이터
-      // 유무와 무관하게 "설정상 켜져있는" 카테고리를 먼저 확보 (B안 안전망의 기준표)
-      const { results: activeCats } = await env.DB.prepare(`
-        SELECT platform, category_slot, display_name, platform_section, platform_order, platform_limit, memo_label
-        FROM ott_categories
-        WHERE platform = ? AND platform_section IS NOT NULL AND is_active = 1
-      `).bind(platform).all();
+      // [2026-07-17 수정] 서로 의존관계 없는 쿼리 3개(활성 카테고리 목록 / 일반 크롤링 랭킹 /
+      // 수동고정 랭킹)를 순서대로 하나씩 await하던 걸 env.DB.batch()로 묶어서 한 번의 왕복으로
+      // 처리. 쿼리 각각의 실행시간(query time)은 이미 인덱스를 잘 타서 빨랐지만(EXPLAIN QUERY
+      // PLAN으로 확인함), Worker↔D1 왕복 자체가 4번(+보충쿼리 1번) 순서대로 쌓이면서 넷플릭스
+      // 페이지 기준 749ms까지 늘어났던 게 실측으로 확인됨. 왕복을 최대 2번(이 batch 1번 +
+      // 보충쿼리 batch 1번)으로 줄여서 절반 가까이 단축을 노림.
+      const [activeCatsRes, crawlRes, manualRes] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT platform, category_slot, display_name, platform_section, platform_order, platform_limit, memo_label
+          FROM ott_categories
+          WHERE platform = ? AND platform_section IS NOT NULL AND is_active = 1
+        `).bind(platform),
+        env.DB.prepare(`
+          SELECT
+            r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+          FROM rankings r
+          JOIN ott_categories oc
+            ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+          WHERE r.platform = ?
+            AND oc.platform_section IS NOT NULL
+            AND oc.is_active = 1
+            AND r.date = COALESCE(?, (SELECT value FROM app_settings WHERE key = 'latest_ranking_date'))
+            AND r.rank <= oc.platform_limit + 20
+          ORDER BY oc.platform_order, r.rank
+        `).bind(platform, date),
+        env.DB.prepare(`
+          SELECT
+            r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+          FROM rankings r
+          JOIN ott_categories oc
+            ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+          WHERE r.platform = ?
+            AND oc.platform_section IS NOT NULL
+            AND oc.is_active = 1
+            AND r.is_manual = 1
+            AND r.date = 'manual'
+          ORDER BY oc.platform_order, r.rank
+        `).bind(platform),
+      ]);
+
+      const activeCats    = activeCatsRes.results;
+      const crawlResults  = crawlRes.results;
+      const manualResults = manualRes.results;
+
       const catMeta = {};
       for (const c of activeCats) catMeta[c.category_slot] = c;
-
-      // 일반 크롤링 랭킹
-      const { results: crawlResults } = await env.DB.prepare(`
-        SELECT
-          r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
-        FROM rankings r
-        JOIN ott_categories oc
-          ON r.platform = oc.platform AND r.category_slot = oc.category_slot
-        WHERE r.platform = ?
-          AND oc.platform_section IS NOT NULL
-          AND oc.is_active = 1
-          AND r.date = COALESCE(?, (SELECT value FROM app_settings WHERE key = 'latest_ranking_date'))
-          AND r.rank <= oc.platform_limit + 20
-        ORDER BY oc.platform_order, r.rank
-      `).bind(platform, date).all();
-
-      // 수동고정 랭킹
-      const { results: manualResults } = await env.DB.prepare(`
-        SELECT
-          r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
-        FROM rankings r
-        JOIN ott_categories oc
-          ON r.platform = oc.platform AND r.category_slot = oc.category_slot
-        WHERE r.platform = ?
-          AND oc.platform_section IS NOT NULL
-          AND oc.is_active = 1
-          AND r.is_manual = 1
-          AND r.date = 'manual'
-        ORDER BY oc.platform_order, r.rank
-      `).bind(platform).all();
 
       // category_slot별 그룹화
       const crawlBySlot  = {};
