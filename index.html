@@ -740,6 +740,38 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
    섹션 스스로 하단 여백을 확보 */
 #hot100HeroWrap{margin-bottom:8px}
 
+/* ══ 메인 검색창 (2026-07-18 추가) — PC/모바일 공통, 별도 분기 없이 자연스럽게 줄어드는 구조 ══ */
+.main-search-wrap{max-width:640px;margin:8px auto 40px;padding:0 20px;text-align:center}
+.main-search-title{
+  font-family:var(--sans);font-size:24px;font-weight:700;color:var(--text);
+  margin-bottom:16px;
+}
+.main-search-row{display:flex;gap:8px}
+.main-search-input-wrap{position:relative;flex:1;min-width:0}
+.main-search-icon{
+  position:absolute;left:16px;top:50%;transform:translateY(-50%);
+  color:var(--muted);font-size:16px;pointer-events:none;
+}
+.main-search-input{
+  width:100%;height:48px;padding:0 16px 0 42px;border-radius:24px;
+  border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);
+  font-size:14px;font-family:var(--sans);outline:none;transition:border-color .15s;
+}
+.main-search-input::placeholder{color:var(--muted)}
+.main-search-input:focus{border-color:var(--accent)}
+.main-search-btn{
+  padding:0 26px;height:48px;border-radius:24px;border:none;flex-shrink:0;
+  background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;
+  font-family:var(--sans);transition:opacity .15s;
+}
+.main-search-btn:hover{opacity:.85}
+
+@media(max-width:768px){
+  .main-search-wrap{margin:4px auto 28px;padding:0 16px}
+  .main-search-title{font-size:19px;margin-bottom:12px}
+  .main-search-btn{padding:0 18px;font-size:14px}
+}
+
 @media(max-width:768px){
   #hot100Hero{margin-bottom:8px}
   #hot100HeroWrap{margin-bottom:0}
@@ -832,6 +864,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   <!-- ══ HOT100 히어로 캐러셀 (어드민 페이지 카테고리 설정 > HOT100 노출 스위치로 켜고 끔) ══ -->
   <div id="hot100HeroWrap"></div>
+
+  <!-- ══ 메인 검색창 (2026-07-18 추가) — PC/모바일 공통 마크업 ══ -->
+  <div class="main-search-wrap">
+    <div class="main-search-title">오늘 뭐 볼까?</div>
+    <div class="main-search-row">
+      <div class="main-search-input-wrap">
+        <span class="main-search-icon">⌕</span>
+        <input class="main-search-input" id="mainSearchInput" type="text"
+          placeholder="키워드, 장르, 오늘 감정을 검색해보세요"
+          onkeydown="if(event.key==='Enter')mainSearchGo()">
+      </div>
+      <button class="main-search-btn" onclick="mainSearchGo()">검색</button>
+    </div>
+  </div>
 
   <!-- ══ 넷플릭스 featured 슬라이드 섹션 (어드민 main_section=featured 설정 시 표시) ══ -->
   <div id="featuredWrap"></div>
@@ -1563,6 +1609,13 @@ async function loadRecentReviews() {
     // API 오류 시 그리드만 숨김 (섹션 헤더는 항상 표시)
     document.getElementById('reviewGrid')?.style.setProperty('display', 'none');
   }
+}
+
+// [2026-07-18 추가] 메인 검색창 — 검색결과 페이지로 이동 (헤더 자체완성형 검색과는 별개)
+function mainSearchGo(){
+  const q = document.getElementById('mainSearchInput').value.trim();
+  if(!q) return;
+  location.href = `search-results.html?q=${encodeURIComponent(q)}`;
 }
 
 async function init(){
