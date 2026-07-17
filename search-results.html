@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
 <title>검색결과 - 오뜨랑 (테스트)</title>
+<link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48x48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/img/favicon-96x96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+<link rel="manifest" href="/img/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono&display=swap" rel="stylesheet">
 <style>
@@ -78,9 +85,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 .main-content{flex:1;min-width:0}
 
-.work-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px 14px}
+.work-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:26px 14px}
 @media (max-width:768px){
-  .work-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px}
+  /* [2026-07-18 추가] 모바일 레이아웃 — 사이드바를 세로로 쌓고(1.검색결과 2.검색창
+     3.OTT 원형로고 4.결과그리드), 우선순위 선택은 자리가 없어 숨김(C안 확정) */
+  .page-layout{flex-direction:column}
+  .sidebar{width:100%}
+
+  /* "OTT 선택" / "검색 우선순위 선택" 타이틀 텍스트는 모바일에서 숨김 */
+  .ott-title-box{display:none}
+  /* 검색 우선순위 선택 자체를 통째로 숨김 — 들어갈 자리가 없음 */
+  .priority-list{display:none}
+
+  /* OTT 필터를 원형 로고만, 가로 한 줄, 가운데 정렬로 표시 */
+  .ott-filter-list{
+    flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;
+    gap:14px;margin:4px 0 24px;
+  }
+  .ott-filter-row{width:auto;justify-content:center;padding:0}
+  .ott-filter-row span{display:none}
+  .ott-count{display:none !important}
+  .ott-filter-row img, .ott-filter-row .ott-ph{width:44px;height:44px;border-radius:50%}
+
+  .work-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 10px}
 }
 .work-card{cursor:pointer;min-width:0}
 .work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
@@ -150,7 +177,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <div class="ott-filter-list" id="ottFilterList"></div>
 
-    <div class="result-bar ott-title-box">검색 결과 우선순위 선택</div>
+    <div class="result-bar ott-title-box">검색 우선순위 선택</div>
 
     <div class="priority-list">
       <button class="priority-btn active" data-priority="0" onclick="togglePriority(0)">제목</button>
