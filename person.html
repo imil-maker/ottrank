@@ -335,8 +335,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       });
       if(typeof initHeader==='function') initHeader();
     })
-    .catch(()=>{})
-    .finally(()=>{ initPage(); });
+    .catch(()=>{});
+  // [2026-07-18 수정] 원래는 헤더 fetch가 끝나야(.finally) initPage()가 시작되는 구조였음 —
+  // 헤더와 인물 정보는 서로 전혀 무관한 데이터인데도, 헤더 로딩 시간만큼 콘텐츠 시작이
+  // 매번 늦춰지고 있었음(넷플릭스 페이지에서 발견했던 것과 동일한 패턴). initPage() 호출은
+  // 여기서 빼고, 이 함수가 실제로 정의되는 아래쪽 스크립트 블록 끝에서 바로 호출하도록 이동
+  // (index.html/_title_detail.html의 init() 호출 방식과 동일한 패턴).
 })();
 </script>
 
@@ -457,8 +461,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ── 상수 ── */
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API = 'https://ottrank-api.tdidream.workers.dev'; // [2026-07-11 추가] 랭킹배지 조회용
-const IMG        = 'https://image.tmdb.org/t/p/w500';
-const IMG_PROFILE= 'https://image.tmdb.org/t/p/w342';
+const IMG        = 'https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-18] 캐싱 프록시로 변경
+const IMG_PROFILE= 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-18] 캐싱 프록시로 변경
 
 /* [2026-07-11 추가] 플랫폼 코드 → 한글 라벨 (랭킹 배지용) */
 const PLATFORM_LABELS = {
@@ -997,7 +1001,7 @@ async function initPage(){
 
     /* ⑦ SEO */
     const profileImgUrl = data.profile_path
-      ? `https://image.tmdb.org/t/p/w342${data.profile_path}` : '';
+      ? `https://poster.ottrank.kr/tmdb-img/w342${data.profile_path}` : '';
     const jobLabel = data.known_for_department === 'Directing' ? '감독' : '배우';
     const seoDesc = bio
       ? bio.slice(0, 120).replace(/\n/g,' ') + '...'
@@ -1109,7 +1113,12 @@ async function initPage(){
   }
 }
 
-// 헤더 로드 전에 initPage가 호출되지 않도록 헤더 finally에서만 호출됨
+// [2026-07-18 수정] 예전엔 "헤더 로드 전에 initPage가 호출되지 않도록" 헤더 fetch의
+// .finally()에서만 호출했는데, initPage()는 헤더 DOM을 전혀 안 건드리고 자기 자신의
+// 요소(personHero, personName 등 이 페이지 body에 이미 존재하는 요소)만 사용하기 때문에
+// 헤더를 기다릴 이유가 없었음. 헤더 로딩 시간만큼 인물 정보 조회 시작이 매번 늦춰지고 있던
+// 것을 없애기 위해, 이 함수가 정의되자마자(=페이지 파싱이 여기 도달하자마자) 바로 호출.
+initPage();
 </script>
 
 <!-- 푸터 -->
