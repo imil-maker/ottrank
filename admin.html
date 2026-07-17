@@ -3420,6 +3420,12 @@ async function deleteRankingRow(id) {
       allData = allData.filter(r => r.id !== id);
       renderTable();
       showToast('🗑️ 삭제 완료', 'ok');
+      // [2026-07-17 추가] 같은 작품이 날짜고정(📌)된 채로 남아있으면, 삭제해도 다음
+      // 크롤링 때 다시 나타날 수 있다는 걸 미리 알려줌 — 서버가 pinned_warning으로 내려줌.
+      // 3초짜리 토스트로는 문구가 길어서 다 읽기 전에 사라지므로 alert로 명확히 표시.
+      if (json.pinned_warning) {
+        alert(`⚠️ ${json.pinned_warning.message}`);
+      }
     } else {
       showToast('삭제 실패: ' + (json.message || '알 수 없는 오류'), 'err');
     }
