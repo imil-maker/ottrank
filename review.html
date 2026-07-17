@@ -749,7 +749,10 @@ let LAST_REVIEW=null; // 공유 카드용 — 제출 성공 시 채워짐
   document.getElementById('workSub').textContent=[RDATA.platform?({netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'}[RDATA.platform]||RDATA.platform):'',RDATA.year].filter(Boolean).join(' · ');
 
   // 포스터 — 배너 배경이미지로 세팅 (cover 방식: 비율 유지하며 넘치는 부분만 크롭, 찌그러짐 없음)
-  if(RDATA.poster_path&&RDATA.poster_path.includes('image.tmdb.org')){
+  // [2026-07-18 수정] TMDB 직접주소('image.tmdb.org' 포함)만 완성된 URL로 인정하던 걸,
+  // 캐싱 프록시(poster.ottrank.kr) 주소도 인정하도록 "http로 시작하는지"로 완화 —
+  // _title_detail.html의 포스터가 프록시 주소로 바뀌면서 리뷰 페이지에 포스터가 안 뜨던 버그 수정
+  if(RDATA.poster_path&&RDATA.poster_path.startsWith('http')){
     const bg=document.getElementById('workHeaderBg');
     if(bg)bg.style.backgroundImage=`url('${RDATA.poster_path}')`;
   }
@@ -982,7 +985,8 @@ async function shareReviewCard(skipModal=false){
 
   try{
     // ── 카드 데이터 채우기 ──
-    const posterUrl=RDATA.poster_path&&RDATA.poster_path.includes('image.tmdb.org')
+    // [2026-07-18 수정] 위와 동일한 이유로 'image.tmdb.org' 하드코딩 체크 → 'http' 시작 여부로 완화
+    const posterUrl=RDATA.poster_path&&RDATA.poster_path.startsWith('http')
       ? RDATA.poster_path.replace('/w300/','/w780/').replace('/w500/','/w780/')
       : '';
 
