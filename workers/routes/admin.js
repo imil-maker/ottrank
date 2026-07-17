@@ -646,9 +646,9 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const rankingId = parseInt(rankingDeleteMatch[1]);
 
-      // 대상 행 존재 여부 확인 (로그 기록용 정보도 같이 확보)
+      // 대상 행 존재 여부 확인 (로그 기록용 정보 + tmdb_id도 같이 확보 — 날짜고정 중복 확인에 필요)
       const row = await env.DB.prepare(
-        "SELECT id, platform, category_slot, title_ko, rank, is_manual FROM rankings WHERE id = ?"
+        "SELECT id, tmdb_id, platform, category_slot, title_ko, rank, is_manual FROM rankings WHERE id = ?"
       ).bind(rankingId).first();
 
       if (!row) {
@@ -665,7 +665,26 @@ export async function handleAdmin(path, request, env, url, headers) {
         JSON.stringify({ title_ko: row.title_ko, rank: row.rank, is_manual: row.is_manual })
       ).run();
 
-      return new Response(JSON.stringify({ ok: true }), { headers });
+      // [2026-07-17 추가] 같은 작품(tmdb_id)이 같은 플랫폼·카테고리에 날짜고정(is_manual=2)된
+      // 채로 남아있는지 확인 — 남아있으면 크롤링 때마다 계속 복사되어 재등장하기 때문에, 지금
+      // 삭제만으로는 근본적으로 안 끝난다는 걸 관리자에게 미리 알려줌(삭제 자체는 정상 진행됨).
+      let pinnedWarning = null;
+      if (row.tmdb_id) {
+        const { results: pinnedRows } = await env.DB.prepare(`
+          SELECT id, date FROM rankings
+          WHERE tmdb_id = ? AND platform = ? AND category_slot = ? AND is_manual = 2
+          ORDER BY date DESC
+        `).bind(row.tmdb_id, row.platform, row.category_slot).all();
+        if (pinnedRows.length) {
+          pinnedWarning = {
+            count: pinnedRows.length,
+            latest_date: pinnedRows[0].date,
+            message: `이 작품은 날짜고정(📌)된 버전이 ${pinnedRows.length}건 더 남아있어, 다음 크롤링 때 다시 나타날 수 있습니다. 완전히 막으려면 해당 행의 날짜고정을 해제하세요(기록은 삭제되지 않고 남습니다).`,
+          };
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, pinned_warning: pinnedWarning }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
@@ -1482,17 +1501,25 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (!date || !platform || !category_slot || !Array.isArray(items)) {
         return new Response(JSON.stringify({ ok: false, message: "date, platform, category_slot, items required" }), { status: 400, headers });
       }
-      // category_slot 조건 추가 — 같은 platform의 다른 슬롯 rank 오염 방지
-      const step1 = items.map(item =>
-        env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
-          .bind(-parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
-      );
-      await env.DB.batch(step1);
-      const step2 = items.map(item =>
-        env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
-          .bind(parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
-      );
-      await env.DB.batch(step2);
+      // [2026-07-17 수정] 기존엔 "①전부 마이너스로 피신 → ②원래 순위로 복귀"를 완전히 별개인
+      // batch() 두 번으로 나눠서 실행했음. 문제는 이 둘이 서로 다른 트랜잭션이라, ①은 성공하고
+      // ②만 실패하는 경우(예: 클라이언트가 보낸 items에 실제 행 개수와 안 맞는 rank가 섞여
+      // UNIQUE 제약 충돌 등) ①의 "마이너스 피신" 상태가 영구히 DB에 남아버리는 버그가 있었음
+      // (실제로 티빙 카테고리에서 순위가 전부 마이너스로 뒤집혀 보이는 사고 발생, 2026-07-17).
+      // 두 단계를 하나의 batch()로 합치면 D1이 전체를 하나의 트랜잭션으로 실행하기 때문에,
+      // 중간에 어느 한 문장이라도 실패하면 전체가 롤백되어 "마이너스에 갇히는" 상태 자체가
+      // 구조적으로 불가능해짐 — 순위 오염 없이 항상 저장 전 상태 그대로 남거나, 전부 성공한다.
+      const stmts = [
+        ...items.map(item =>
+          env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
+            .bind(-parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
+        ),
+        ...items.map(item =>
+          env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
+            .bind(parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
+        ),
+      ];
+      await env.DB.batch(stmts);
       await env.DB.prepare(
         "INSERT INTO admin_logs (action, platform, category_slot, after_value) VALUES ('ranking_reorder', ?, ?, ?)"
       ).bind(platform, category_slot, JSON.stringify(items)).run();
