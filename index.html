@@ -743,6 +743,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 /* ══ 메인 검색창 (2026-07-18 추가) — PC/모바일 공통, 별도 분기 없이 자연스럽게 줄어드는 구조 ══ */
 .main-search-wrap{max-width:576px;margin:23px auto 40px;padding:0 20px;text-align:center}
 .main-search-title{
+  display:flex;align-items:center;justify-content:center;gap:12px;
   font-family:var(--sans);font-size:26px;font-weight:700;color:var(--text);
   margin-bottom:16px;
 }
@@ -764,7 +765,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 @media(max-width:768px){
   .main-search-wrap{margin:4px auto 28px;padding:0 16px}
-  .main-search-title{font-size:20px;margin-bottom:12px}
+  .main-search-title{font-size:20px;margin-bottom:12px;gap:8px}
+  .main-search-title svg{width:24px;height:24px}
   .main-search-btn{padding:0 18px;font-size:14px}
 }
 
@@ -863,7 +865,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   <!-- ══ 메인 검색창 (2026-07-18 추가) — PC/모바일 공통 마크업 ══ -->
   <div class="main-search-wrap">
-    <div class="main-search-title">오늘 뭐 볼까?</div>
+    <div class="main-search-title">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent);flex-shrink:0">
+        <circle cx="10.5" cy="10.5" r="6.5"></circle>
+        <line x1="20" y1="20" x2="15.3" y2="15.3"></line>
+      </svg>
+      <span>오늘 뭐 볼까?</span>
+    </div>
     <div class="main-search-row">
       <div class="main-search-input-wrap">
         <input class="main-search-input" id="mainSearchInput" type="text"
