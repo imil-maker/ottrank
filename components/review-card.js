@@ -75,7 +75,11 @@ const ReviewCard = (() => {
     const pfLabel   = PF_LABEL[rv.platform] || '';
 
     // 포스터 URL — w300 사용
-    const posterUrl = rv.poster_path && rv.poster_path.includes('image.tmdb.org')
+    // [2026-07-18 수정] 'image.tmdb.org' 하드코딩 체크 → 'http' 시작 여부로 완화.
+    // 지금 이 컴포넌트를 쓰는 index.html/mypage.html/community.html은 전부 여전히
+    // TMDB 직접주소만 넘기고 있어서(프록시 미적용) 동작은 그대로고, review.html처럼
+    // 캐싱 프록시(poster.ottrank.kr) 주소가 들어올 수 있는 곳까지 넓게 인식되도록 함.
+    const posterUrl = rv.poster_path && rv.poster_path.startsWith('http')
       ? rv.poster_path.replace('/w92/', '/w300/').replace('/w500/', '/w300/').replace('/w780/', '/w300/')
       : '';
 
