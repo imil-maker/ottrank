@@ -1,3 +1,10 @@
+<!-- ── [2026-07-17 추가] 포스터 이미지 서버(TMDB) 미리 연결 ──
+     이 헤더는 모든 페이지 공통으로 삽입되므로, 여기 한 번만 추가하면 사이트 전체에 적용됨.
+     포스터 <img src>가 실제로 채워지기 전에 미리 DNS 조회 + TLS 핸드셰이크를 끝내둬서,
+     첫 포스터가 눈에 보이기까지 걸리는 시간을 줄인다(체감 로딩속도 개선, 2026-07-17). -->
+<link rel="preconnect" href="https://image.tmdb.org" crossorigin>
+<link rel="dns-prefetch" href="https://image.tmdb.org">
+
 <!-- ══════════════════════════════════════════════
      오뜨랑 공용 헤더 (header.html)
      사용법: 각 페이지 <body> 상단에 JS로 삽입
