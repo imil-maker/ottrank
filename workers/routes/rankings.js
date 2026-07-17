@@ -144,43 +144,50 @@ export async function handleRankings(path, request, env, url, headers) {
       // [2026-07-15 추가] 노출 설정된 전체 카테고리 목록 — 오늘자 데이터 유무와 무관하게
       // "설정상 켜져있는" 카테고리를 먼저 확보해둬야, 아래에서 오늘자 데이터가 없는
       // 카테고리를 가려낼 수 있다 (B안 안전망의 기준표 역할)
-      const { results: activeCats } = await env.DB.prepare(`
-        SELECT platform, category_slot, display_name, main_section, main_order, main_limit, memo_label
-        FROM ott_categories
-        WHERE main_section IS NOT NULL AND is_active = 1
-      `).all();
+      // [2026-07-17 수정] /rankings/platform과 동일한 이유로 batch 통합 — 서로 독립적인 쿼리
+      // 3개(활성 카테고리 / 크롤링 랭킹 / 수동고정 랭킹)를 순서대로 await하던 걸 한 번의
+      // 왕복으로 처리. 이 API는 전체 플랫폼을 한꺼번에 조회해서 /rankings/platform보다
+      // 범위가 크고, 메인페이지 init()에서 제일 먼저 기다리는 요청이라 체감 영향이 큼.
+      const [activeCatsRes, crawlRes, manualRes] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT platform, category_slot, display_name, main_section, main_order, main_limit, memo_label
+          FROM ott_categories
+          WHERE main_section IS NOT NULL AND is_active = 1
+        `),
+        env.DB.prepare(`
+          SELECT
+            r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+          FROM rankings r
+          JOIN ott_categories oc
+            ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+          WHERE oc.main_section IS NOT NULL
+            AND oc.is_active = 1
+            AND r.date = COALESCE(?, (SELECT value FROM app_settings WHERE key = 'latest_ranking_date'))
+            AND r.rank <= oc.main_limit + 20
+          ORDER BY oc.main_section, oc.main_order, r.rank
+        `).bind(date),
+        env.DB.prepare(`
+          SELECT
+            r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+          FROM rankings r
+          JOIN ott_categories oc
+            ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+          WHERE oc.main_section IS NOT NULL
+            AND oc.is_active = 1
+            AND r.is_manual = 1
+            AND r.date = 'manual'
+          ORDER BY oc.main_section, oc.main_order, r.rank
+        `),
+      ]);
+
+      const activeCats    = activeCatsRes.results;
+      const crawlResults  = crawlRes.results;
+      const manualResults = manualRes.results;
+
       const catMeta = {};
       for (const c of activeCats) catMeta[`${c.platform}__${c.category_slot}`] = c;
-
-      // 일반 크롤링 랭킹 (오늘자)
-      const { results: crawlResults } = await env.DB.prepare(`
-        SELECT
-          r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
-        FROM rankings r
-        JOIN ott_categories oc
-          ON r.platform = oc.platform AND r.category_slot = oc.category_slot
-        WHERE oc.main_section IS NOT NULL
-          AND oc.is_active = 1
-          AND r.date = COALESCE(?, (SELECT value FROM app_settings WHERE key = 'latest_ranking_date'))
-          AND r.rank <= oc.main_limit + 20
-        ORDER BY oc.main_section, oc.main_order, r.rank
-      `).bind(date).all();
-
-      // 수동 랭킹 (date='manual' AND is_manual=1)
-      const { results: manualResults } = await env.DB.prepare(`
-        SELECT
-          r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-          r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
-        FROM rankings r
-        JOIN ott_categories oc
-          ON r.platform = oc.platform AND r.category_slot = oc.category_slot
-        WHERE oc.main_section IS NOT NULL
-          AND oc.is_active = 1
-          AND r.is_manual = 1
-          AND r.date = 'manual'
-        ORDER BY oc.main_section, oc.main_order, r.rank
-      `).all();
 
       // category_slot별 그룹화
       const crawlBySlot  = {};
@@ -199,9 +206,14 @@ export async function handleRankings(path, request, env, url, headers) {
 
       // [2026-07-15 추가] B안 안전망 — 날짜 파라미터를 직접 지정한 조회(과거 특정일 조회)는
       // "그날 데이터가 없으면 없는 게 맞다"이므로 안전망 대상에서 제외하고, 기본(오늘자) 조회일 때만 적용
+      // [2026-07-17 수정] /rankings/platform과 동일하게, 수동고정 데이터(manualBySlot)가
+      // 이미 있는 카테고리는 보충 대상에서 제외 — 크롤링 데이터가 애초에 생길 일이 없는
+      // 카테고리(예: featured 슬라이드처럼 수동으로만 채워지는 섹션)를 매번 헛수고로
+      // 보충쿼리 날리던 문제 해결
       if (!date) {
         const missingCats = activeCats.filter(
-          c => !crawlBySlot[`${c.platform}__${c.category_slot}`]
+          c => !crawlBySlot[`${c.platform}__${c.category_slot}`] &&
+               !manualBySlot[`${c.platform}__${c.category_slot}`]
         );
         if (missingCats.length) {
           const fallbackRows = await _fetchFallbackForMissing(env, missingCats);
