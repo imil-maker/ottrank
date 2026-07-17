@@ -162,6 +162,21 @@ export async function handleSearch(path, request, env, url, headers) {
       keywordRes.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
       genreRes.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
 
+      // [2026-07-17 추가] ②-2 위 세 가지 매칭이 하나도 없을 때만 보조로 "띄어쓰기 무시" 매칭 시도
+      // (예: "멜로가체질"로 검색 → 실제 제목 "멜로가 체질"). FTS5(works_fts)는 원문 그대로
+      // 단어 단위로 색인돼 있어서 사용자가 띄어쓰기를 다르게 입력하면 못 찾는 경우가 있음.
+      // 이 보조 매칭은 matchType=2(최하 순위)로만 취급하고, 1~3순위 결과가 하나라도 있으면
+      // 아예 실행조차 안 해서 — 과거 "sf" 사고처럼 가짜매칭이 진짜 결과를 밀어낼 여지가 없음.
+      if (matchType.size === 0) {
+        const qNoSpace = q.replace(/\s+/g, "");
+        const { results: fallbackRes } = await env.DB.prepare(`
+          SELECT tmdb_id FROM works
+          WHERE REPLACE(title_ko, ' ', '') LIKE ? OR REPLACE(title_en, ' ', '') LIKE ?
+          LIMIT ?
+        `).bind(`%${qNoSpace}%`, `%${qNoSpace}%`, MAX_MATCH_IDS).all();
+        fallbackRes.forEach(r => matchType.set(r.tmdb_id, 2));
+      }
+
       // capped — MAX_MATCH_IDS(100) 상한에 걸려서 실제로는 더 있는데 여기서부터 이미
       // 잘려나간 경우. 이럴 땐 total이 "정확한 전체 개수"가 아니라 "적어도 이만큼은
       // 있다"는 하한선이라는 걸 프론트에 알려주기 위한 플래그.
