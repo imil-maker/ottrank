@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex, nofollow">
-<title>검색결과 - 오뜨랑 (테스트)</title>
+<meta name="robots" content="index, follow">
+<title>작품 검색 — 키워드·장르·감정으로 찾는 OTT 드라마·영화 | 오뜨랑</title>
+<meta name="description" content="넷플릭스, 티빙, 디즈니+, 웨이브, 쿠팡플레이 작품을 키워드·장르·감정으로 검색하세요. 오뜨랑에서 원하는 드라마·영화를 빠르게 찾아보세요.">
+<meta name="keywords" content="OTT 검색, 작품 검색, 드라마 검색, 영화 검색, 키워드 검색, 장르 검색, 감정 검색, 넷플릭스 검색, 티빙 검색">
+<link rel="canonical" href="https://ottrank.kr/search-results.html">
 <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
 <link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16x16.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
@@ -12,6 +15,21 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/img/favicon-96x96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
 <link rel="manifest" href="/img/site.webmanifest">
+<meta name="theme-color" content="#0c0c10">
+
+<!-- 오픈그래프 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="오뜨랑">
+<meta property="og:title" content="작품 검색 — 키워드·장르·감정으로 찾는 OTT 드라마·영화 | 오뜨랑">
+<meta property="og:description" content="넷플릭스, 티빙, 디즈니+, 웨이브, 쿠팡플레이 작품을 키워드·장르·감정으로 검색하세요.">
+<meta property="og:url" content="https://ottrank.kr/search-results.html">
+<meta property="og:image" content="https://ottrank.kr/img/og-image.png">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="작품 검색 — 키워드·장르·감정으로 찾는 OTT 드라마·영화 | 오뜨랑">
+<meta name="twitter:description" content="넷플릭스, 티빙, 디즈니+, 웨이브, 쿠팡플레이 작품을 키워드·장르·감정으로 검색하세요.">
+<meta name="twitter:image" content="https://ottrank.kr/img/og-image.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono&display=swap" rel="stylesheet">
 <style>
@@ -243,6 +261,10 @@ const OTT_NAME_MATCH = [
 
 const params = new URLSearchParams(location.search);
 const q = (params.get('q') || '').trim();
+
+// [2026-07-18 추가] 브라우저 탭 제목에 검색어 반영 — SSR 없이 클라이언트에서 바로 되는 부분만 우선 적용.
+// 카톡/SNS 공유 미리보기(OG 태그)는 크롤러가 JS를 안 읽어서 여기선 안 바뀜 — SSR 도입 시 별도 작업 필요.
+if(q) document.title = `${q} OTT 검색결과 - 오뜨랑`;
 
 document.getElementById('searchInput').value = q;
 onSearchInputChange();
