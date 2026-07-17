@@ -58,6 +58,11 @@ export async function handleImageProxy(path, request, env, ctx) {
       headers: {
         "Content-Type": contentType,
         "Cache-Control": `public, max-age=${CACHE_TTL_SECONDS}, immutable`,
+        // [2026-07-18 추가] CORS 허용 — <img> 태그로 "보여주기"는 CORS 없이도 되지만,
+        // 리뷰 카드 공유 이미지 생성처럼 fetch()로 이미지 데이터를 직접 읽어가는 기능은
+        // 이 헤더가 없으면 브라우저가 조용히 막아버림(에러 없이 실패 → 포스터 공백).
+        // 이미지는 어차피 공개 콘텐츠라 모든 origin 허용해도 안전함.
+        "Access-Control-Allow-Origin": "*",
       },
     });
 
@@ -77,6 +82,7 @@ export async function handleImageProxy(path, request, env, ctx) {
         "Content-Type": r2Object.httpMetadata?.contentType || "image/jpeg",
         // TMDB 복구 후 금방 다시 시도하도록 짧게만 캐싱
         "Cache-Control": "public, max-age=3600",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   }
