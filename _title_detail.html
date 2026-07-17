@@ -1679,7 +1679,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
-const IMG='https://image.tmdb.org/t/p/w500';
+const IMG='https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-17] 캐싱 프록시로 변경
 
 /* ── 모바일 상단 블록 동기화 ── */
 function syncMobHero(){
@@ -1722,9 +1722,9 @@ function syncMobHero(){
   }
   top.style.display='flex';
 }
-const IMG_BACKDROP='https://image.tmdb.org/t/p/w1280';
-const IMG_PROFILE='https://image.tmdb.org/t/p/w185';
-const IMG_STILL='https://image.tmdb.org/t/p/w780';
+const IMG_BACKDROP='https://poster.ottrank.kr/tmdb-img/w1280'; // [2026-07-17] 캐싱 프록시로 변경
+const IMG_PROFILE='https://poster.ottrank.kr/tmdb-img/w185'; // [2026-07-17] 캐싱 프록시로 변경
+const IMG_STILL='https://poster.ottrank.kr/tmdb-img/w780'; // [2026-07-17] 캐싱 프록시로 변경
 const PC={netflix:'넷플릭스',tving:'티빙',disney:'디즈니+',coupang:'쿠팡플레이',wavve:'웨이브',boxoffice:'박스오피스'};
 const CC={netflix:'#e50914',tving:'#ff1a6e',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#888'};
 const OTT_SEARCH_URL={
@@ -2098,11 +2098,11 @@ function updateSEO(title,overview,posterUrl,platform,rank){
     sessionStorage.setItem('ottrang_slug',targetUrl);
     sessionStorage.setItem('ottrang_work',JSON.stringify({tmdb_id:WORK.tmdb_id,type:WORK.type,platform:WORK.platform,rank:WORK.rank,title:WORK.title,season:WORK.season,year:WORK.year,poster_path:WORK.poster_path||''}));
   }
-  if(posterUrl){const ogImg=`https://image.tmdb.org/t/p/w780${posterUrl}`;setMeta('seoOgImg','content',ogImg);setMeta('seoTwImg','content',ogImg);}
+  if(posterUrl){const ogImg=`https://poster.ottrank.kr/tmdb-img/w780${posterUrl}`;setMeta('seoOgImg','content',ogImg);setMeta('seoTwImg','content',ogImg);}
   // 미디어타입 분기 — works 테이블의 media_type을 기준으로 이미 정리된 WORK.type 사용
   const ldType=WORK.type==='movie'?'Movie':'TVSeries';
   const ld={'@context':'https://schema.org','@type':ldType,'name':t,'description':seoD,'url':canonical};
-  if(posterUrl)ld.image=`https://image.tmdb.org/t/p/w780${posterUrl}`;
+  if(posterUrl)ld.image=`https://poster.ottrank.kr/tmdb-img/w780${posterUrl}`;
   if(WORK.genreNames&&WORK.genreNames.length)ld.genre=WORK.genreNames;
   if(WORK.releaseDate)ld.datePublished=WORK.releaseDate;
   // 평점 개수(ratingCount) 0인 채로 aggregateRating을 넣으면 구조화 데이터 오류로 잡힐 수 있어
