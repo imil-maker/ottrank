@@ -67,6 +67,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ott-filter-row img, .ott-filter-row .ott-ph{width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0}
 .ott-filter-row .ott-ph{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
 
+.priority-list{display:flex;flex-direction:column;gap:6px;margin:4px 0 20px}
+.priority-btn{
+  width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border2);
+  background:var(--bg2);color:var(--muted2);font-size:13px;font-family:var(--sans);
+  cursor:pointer;text-align:right;transition:all .15s;
+}
+.priority-btn:hover{border-color:var(--border2);color:var(--text)}
+.priority-btn.active{border-color:var(--accent);color:var(--accent);font-weight:700;background:rgba(230,57,70,.08)}
+
 .main-content{flex:1;min-width:0}
 
 .work-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px 14px}
@@ -140,6 +149,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="result-bar ott-title-box">OTT 선택</div>
 
     <div class="ott-filter-list" id="ottFilterList"></div>
+
+    <div class="result-bar ott-title-box">검색 우선순위</div>
+
+    <div class="priority-list">
+      <button class="priority-btn active" data-priority="0" onclick="togglePriority(0)">제목순</button>
+      <button class="priority-btn" data-priority="1" onclick="togglePriority(1)">키워드순</button>
+      <button class="priority-btn" data-priority="2" onclick="togglePriority(2)">장르순</button>
+    </div>
   </div>
 
   <div class="main-content">
@@ -291,19 +308,27 @@ function _prewarmTmdbOtt(){
   })();
 }
 
-/* ── 사이드바 OTT 필터 ──
+/* ── 사이드바 OTT 필터 + 정렬 우선순위 선택 ──
    [2026-07-18 재설계] 서버에 매번 다시 물어보는 대신, 검색 완료 후 백그라운드로
    "전체 매칭 후보(최대 100개)가 각각 어느 OTT에 있는지"를 미리 한 번만 받아둔다
    (/works/ott-map). OTT 버튼을 클릭하면 이 매핑으로 즉시 대상 목록을 계산하고,
    그중 아직 카드 정보(포스터/평점 등)를 모르는 것만 /works/details로 가볍게 보충한다
    (매칭을 처음부터 다시 하지 않으므로 /works/search보다 훨씬 가벼운 조회).
-   TMDB 미등록 보충 작품은 여전히 OTT 필터 결과에 안 나옴(정확도를 우리 DB 기준으로만 보장). */
+   TMDB 미등록 보충 작품은 여전히 필터/우선순위 결과에 안 나옴(정확도를 우리 DB 기준으로만 보장).
+
+   [2026-07-18 추가] 정렬 우선순위(제목/키워드/장르) 선택 — OTT와 달리 이건 검색 응답 시점에
+   서버가 이미 계산해서 내려준 정보(match_types)라 별도 백그라운드 조회조차 필요 없음.
+   버튼을 누르면 이미 갖고 있는 allMatchedIds를 "선택한 카테고리가 앞으로 오도록"
+   안정정렬(stable partition)만 하면 끝 — 원래 배열이 이미 (매칭타입→한국작품→평점) 순으로
+   정렬돼 있어서, 안정정렬로 재배치해도 각 그룹 내부의 한국작품/평점 순서는 그대로 보존된다. */
 let activeOttFilter = null;
+let activePriority  = 0; // 0=제목(기본), 1=키워드, 2=장르
 const cardOttKeys = new Map(); // tmdbId -> 확인된 OTT 키 배열 (일반 검색결과 카드용)
-let ottOffset  = 0;
-let ottHasMore = false;
+let filterOffset  = 0;
+let filterHasMore = false;
 
 let allMatchedIds    = [];          // 검색 시 서버가 내려준 전체 매칭 후보 id 목록(정렬된 순서)
+let matchTypeMap      = {};         // tmdb_id -> 0(제목)/1(키워드)/2(장르)/3,4(기타) — 검색 응답에 이미 포함됨
 let ottMap           = {};          // tmdb_id -> [ott_key, ...] — 백그라운드로 채워짐
 let ottMapReady      = false;
 const ottDetailCache = new Map();   // tmdb_id -> 카드 상세정보 캐시 (details 재요청 방지)
@@ -330,7 +355,24 @@ function renderOttFilterList(){
   `).join('');
 }
 
-// 필터 없이(전체 보기) 지금까지 확보한 풀 기준 첫 페이지를 처음부터 다시 그림 — 필터 해제 시 사용
+// 필터/우선순위 둘 다 기본값이면 "필터 없는 기본 화면" — 하나라도 걸려있으면 필터 모드
+function _isFilterActive(){ return !!activeOttFilter || activePriority !== 0; }
+
+// 지금 선택된 OTT + 우선순위를 반영한 최종 id 순서 계산 (서버 재조회 없이 로컬 데이터만 사용)
+function getFilteredSortedIds(){
+  let ids = activeOttFilter
+    ? allMatchedIds.filter(id => (ottMap[id] || []).includes(activeOttFilter))
+    : allMatchedIds.slice();
+
+  if(activePriority !== 0){
+    const sel = [], rest = [];
+    ids.forEach(id => ((matchTypeMap[id] ?? -1) === activePriority ? sel : rest).push(id));
+    ids = [...sel, ...rest];
+  }
+  return ids;
+}
+
+// 필터 없이(전체 보기) 지금까지 확보한 풀 기준 첫 페이지를 처음부터 다시 그림 — 필터/우선순위 모두 해제 시 사용
 function _renderUnfilteredFirstPage(){
   workGrid.innerHTML = '';
   dbInsertMarker = document.createElement('span');
@@ -349,6 +391,7 @@ function _renderUnfilteredFirstPage(){
 }
 
 // ottMap이 아직 준비 안 됐으면(사용자가 아주 빨리 클릭한 경우) 준비될 때까지 짧게만 대기 (최대 3초 안전장치)
+// 우선순위(matchTypeMap)는 검색 응답에 이미 포함돼 있어서 별도 대기가 필요 없음 — OTT 필터가 걸려있을 때만 대기.
 function _waitOttMapReady(){
   if(ottMapReady) return Promise.resolve();
   return new Promise(resolve=>{
@@ -357,19 +400,17 @@ function _waitOttMapReady(){
   });
 }
 
-async function renderOttFilterPage(isMore){
-  const key = activeOttFilter;
+async function renderFilteredPage(isMore){
   if(!isMore){
-    ottOffset = 0;
+    filterOffset = 0;
     workGrid.innerHTML = `<div class="loading"><span class="spin"></span>불러오는 중...</div>`;
-    await _waitOttMapReady();
+    if(activeOttFilter) await _waitOttMapReady();
   }
 
-  // 전체 매칭 후보 중 이 OTT에 해당하는 것만 (서버가 준 정렬 순서 그대로 유지)
-  const matchedIds = allMatchedIds.filter(id => (ottMap[id] || []).includes(key));
-  ottHasMore = matchedIds.length > ottOffset + PAGE_SIZE;
-  const pageIds = matchedIds.slice(ottOffset, ottOffset + PAGE_SIZE);
-  ottOffset += PAGE_SIZE;
+  const matchedIds = getFilteredSortedIds();
+  filterHasMore = matchedIds.length > filterOffset + PAGE_SIZE;
+  const pageIds = matchedIds.slice(filterOffset, filterOffset + PAGE_SIZE);
+  filterOffset += PAGE_SIZE;
 
   // 이미 카드 정보를 알고 있는 것(캐시/DB풀/TMDB풀)과, 아직 모르는 것 구분
   const knownMap = new Map();
@@ -406,7 +447,7 @@ async function renderOttFilterPage(isMore){
   }
 
   if(!isMore && !items.length){
-    workGrid.innerHTML = `<div class="empty">이 OTT에서 볼 수 있는 검색결과가 없습니다.</div>`;
+    workGrid.innerHTML = `<div class="empty">조건에 맞는 검색결과가 없습니다.</div>`;
   } else {
     items.forEach(w=>{
       if(w.tmdb_id) cardOttKeys.set(w.tmdb_id, w.ott_keys || []); // 카드가 다시 조회 안 하게 캐시 채워둠
@@ -415,20 +456,21 @@ async function renderOttFilterPage(isMore){
   }
 
   document.querySelector('.more-wrap')?.remove();
-  if(ottHasMore){
+  if(filterHasMore){
     const wrap = document.createElement('div');
     wrap.className = 'more-wrap';
     wrap.innerHTML = `<button class="more-btn">더보기</button>`;
     wrap.querySelector('.more-btn').onclick = (e)=>{
       e.target.disabled = true; e.target.textContent = '불러오는 중...';
-      renderOttFilterPage(true);
+      renderFilteredPage(true);
     };
     workGrid.insertBefore(wrap, dbInsertMarker.nextSibling);
   }
 
   // 상단 "검색결과 N"은 항상 전체 검색 결과 개수로 고정 유지 — 여기서 덮어쓰지 않는다.
-  // 대신 선택된 OTT 줄 옆에 그 OTT만의 개수를 표시.
-  setOttCount(key, matchedIds.length);
+  // OTT가 선택되어 있을 때만 그 OTT 줄 옆에 개수를 표시(우선순위만 바뀐 경우엔 표시 안 함).
+  if(activeOttFilter) setOttCount(activeOttFilter, matchedIds.length);
+  else clearOttCounts();
 }
 
 // 사이드바 OTT 목록에서 특정 OTT 줄 옆에 "N 작품" 표시 (다른 줄은 항상 비워둠 — 단일 선택 필터라 한 번에 하나만 보이면 됨)
@@ -457,16 +499,26 @@ function toggleOttFilter(key){
   document.querySelectorAll('.ott-filter-row').forEach(row=>{
     row.classList.toggle('active', row.dataset.ottKey === activeOttFilter);
   });
+  if(!activeOttFilter) clearOttCounts();
 
   document.querySelector('.more-wrap')?.remove();
 
-  if(!activeOttFilter){
-    clearOttCounts();
-    _renderUnfilteredFirstPage();
-    return;
-  }
+  if(_isFilterActive()) renderFilteredPage(false);
+  else _renderUnfilteredFirstPage();
+}
 
-  renderOttFilterPage(false);
+// 정렬 우선순위 버튼(제목/키워드/장르) 클릭
+function togglePriority(type){
+  activePriority = type;
+
+  document.querySelectorAll('.priority-btn').forEach(btn=>{
+    btn.classList.toggle('active', parseInt(btn.dataset.priority, 10) === activePriority);
+  });
+
+  document.querySelector('.more-wrap')?.remove();
+
+  if(_isFilterActive()) renderFilteredPage(false);
+  else _renderUnfilteredFirstPage();
 }
 
 /* ── 작품 카드 ── */
@@ -726,9 +778,11 @@ async function runSearch(){
     dbCapped  = !!dbJson.capped;
     addUnique(dbPool, dbJson.data || []);   // ① DB 먼저 풀에 채움 (우선순위 확보)
 
-    // [2026-07-18 추가] 전체 매칭 후보 목록을 받아서, 화면이 뜬 뒤 백그라운드로 OTT 소속을
-    // 미리 조회해둠 — OTT 버튼 클릭 시 서버에 다시 안 물어보고 즉시 반응하기 위한 사전준비.
+    // [2026-07-18 추가] 전체 매칭 후보 목록 + 매칭 카테고리(match_types)를 받아둠.
+    // OTT 소속은 검색 시점엔 모르는 정보라 백그라운드 조회가 필요했지만(prefetchOttMap),
+    // 매칭 카테고리(제목/키워드/장르)는 서버가 이미 계산해서 응답에 실어주므로 별도 조회 없이 바로 사용.
     allMatchedIds = dbJson.all_ids || [];
+    matchTypeMap  = dbJson.match_types || {};
     prefetchOttMap();
 
     _resetGrid();
