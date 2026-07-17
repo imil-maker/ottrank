@@ -18,13 +18,13 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5}
 
-/* 페이지 레이아웃 — 왼쪽 사이드바(검색+OTT+MBTI) + 오른쪽 결과그리드 */
-.page-layout{max-width:1200px;margin:0 auto;padding:32px 20px 80px;display:flex;gap:24px;align-items:flex-start}
+/* 페이지 레이아웃 — 왼쪽 사이드바(검색+OTT) + 오른쪽 결과그리드 */
+.page-layout{max-width:1200px;margin:0 auto;padding:52px 20px 80px;display:flex;gap:24px;align-items:flex-start}
 
 /* 사이드바 — 포스터 1개 폭 정도로 좁게 고정 (넓으면 포스터가 작아짐) */
 .sidebar{width:200px;flex-shrink:0}
 
-.search-row{display:flex;gap:6px;margin-bottom:12px}
+.search-row{display:flex;gap:6px;margin-bottom:22px}
 .search-input-wrap{position:relative;flex:1;min-width:0}
 .search-input{
   width:100%;height:38px;padding:0 30px 0 12px;border-radius:8px;
@@ -54,8 +54,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .result-bar .count{color:var(--accent);font-weight:700;font-family:var(--mono)}
 .ott-title-box{font-weight:700;color:var(--muted2)}
 
-.sidebar-title{font-size:13px;font-weight:500;color:var(--muted2);margin-bottom:10px;text-align:right}
-
 .ott-filter-list{display:flex;flex-direction:column;gap:8px;margin:4px 0 20px}
 .ott-filter-row{
   display:flex;align-items:center;justify-content:flex-end;gap:8px;cursor:pointer;
@@ -68,14 +66,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ott-count.show{display:inline}
 .ott-filter-row img, .ott-filter-row .ott-ph{width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0}
 .ott-filter-row .ott-ph{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
-
-.mbti-select{
-  width:100%;height:36px;padding:0 10px;border-radius:8px;
-  border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);
-  font-size:13px;font-family:var(--sans);outline:none;cursor:pointer;text-align:right;
-  direction:rtl;
-}
-.mbti-select:focus{border-color:var(--accent)}
 
 .main-content{flex:1;min-width:0}
 
@@ -150,27 +140,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="result-bar ott-title-box">OTT 선택</div>
 
     <div class="ott-filter-list" id="ottFilterList"></div>
-
-    <div class="sidebar-title">MBTI별 추천</div>
-    <select class="mbti-select" id="mbtiSelect" onchange="onMbtiSelectChange()">
-      <option value="">선택하세요</option>
-      <option value="INTJ">INTJ</option>
-      <option value="INTP">INTP</option>
-      <option value="ENTJ">ENTJ</option>
-      <option value="ENTP">ENTP</option>
-      <option value="INFJ">INFJ</option>
-      <option value="INFP">INFP</option>
-      <option value="ENFJ">ENFJ</option>
-      <option value="ENFP">ENFP</option>
-      <option value="ISTJ">ISTJ</option>
-      <option value="ISFJ">ISFJ</option>
-      <option value="ESTJ">ESTJ</option>
-      <option value="ESFJ">ESFJ</option>
-      <option value="ISTP">ISTP</option>
-      <option value="ISFP">ISFP</option>
-      <option value="ESTP">ESTP</option>
-      <option value="ESFP">ESFP</option>
-    </select>
   </div>
 
   <div class="main-content">
@@ -230,10 +199,6 @@ function doSearch(){
   const v = document.getElementById('searchInput').value.trim();
   if(!v) return;
   location.href = `search-results.html?q=${encodeURIComponent(v)}`;
-}
-
-function onMbtiSelectChange(){
-  // UI만 우선 구현 — 실제 추천 로직은 다음 단계에서 붙일 예정
 }
 
 function hesc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
