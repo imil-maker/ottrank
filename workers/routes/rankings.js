@@ -643,20 +643,37 @@ export async function handleRankings(path, request, env, url, headers) {
 
       const limit = slot.person_limit || 10;
 
-      // 일반 크롤링 랭킹 (오늘 날짜)
+      // [2026-07-18 수정] 일반 크롤링 랭킹(crawlResults)과 수동고정 랭킹(manualResults)이
+      // 서로 의존관계 없이(둘 다 slot만 있으면 조회 가능) 순서대로 await되고 있었음 —
+      // batch로 묶어서 한 번의 왕복으로 처리. slot 조회는 이 둘의 재료라 어쩔 수 없이
+      // 먼저 필요하지만, 그 뒤 이 둘은 병렬 처리 가능.
       // ⚠️ works를 LEFT JOIN해서 media_type을 같이 가져옴 — rankings 테이블엔
       // media_type이 없는데, 영화/TV는 TMDB 숫자 tmdb_id를 공유하므로 이게 없으면
       // 프론트에서 작품 상세페이지로 이동할 때 완전히 다른(엉뚱한) 작품으로
       // 잘못 연결될 수 있음(works 3키 원칙과 같은 계열의 위험).
-      let { results: crawlResults } = await env.DB.prepare(`
-        SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
-               r.tmdb_rating, r.release_year, w.media_type
-        FROM rankings r
-        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
-        WHERE r.platform = ? AND r.category_slot = ?
-          AND r.date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
-        ORDER BY r.rank ASC
-      `).bind(slot.platform, slot.category_slot).all();
+      const [crawlRes, manualRes] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
+                 r.tmdb_rating, r.release_year, w.media_type
+          FROM rankings r
+          LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+          WHERE r.platform = ? AND r.category_slot = ?
+            AND r.date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+          ORDER BY r.rank ASC
+        `).bind(slot.platform, slot.category_slot),
+        env.DB.prepare(`
+          SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
+                 r.tmdb_rating, r.release_year, w.media_type
+          FROM rankings r
+          LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
+          WHERE r.platform = ? AND r.category_slot = ?
+            AND r.is_manual = 1 AND r.date = 'manual'
+          ORDER BY r.rank ASC
+        `).bind(slot.platform, slot.category_slot),
+      ]);
+
+      let crawlResults = crawlRes.results;
+      const manualResults = manualRes.results;
 
       // [2026-07-15 추가] B안 안전망 — 오늘자로 이 카테고리 데이터가 하나도 없으면
       // (예: category10처럼 그날 재계산을 못 돌린 경우), 이 카테고리의 가장 최근 날짜로 대체.
@@ -676,17 +693,6 @@ export async function handleRankings(path, request, env, url, headers) {
         `).bind(slot.platform, slot.category_slot, slot.platform, slot.category_slot).all();
         crawlResults = fallbackResults;
       }
-
-      // 수동고정 랭킹 (다른 엔드포인트와 동일한 규칙: is_manual=1 AND date='manual')
-      const { results: manualResults } = await env.DB.prepare(`
-        SELECT r.rank, r.title_ko, r.title_en, r.tmdb_id, r.poster_path, r.genre,
-               r.tmdb_rating, r.release_year, w.media_type
-        FROM rankings r
-        LEFT JOIN works w ON r.tmdb_id = w.tmdb_id
-        WHERE r.platform = ? AND r.category_slot = ?
-          AND r.is_manual = 1 AND r.date = 'manual'
-        ORDER BY r.rank ASC
-      `).bind(slot.platform, slot.category_slot).all();
 
       // 기존 /rankings/main, /rankings/platform과 동일한 병합 함수 재사용
       const merged = _mergeRankings(crawlResults, manualResults, limit);
