@@ -6,6 +6,8 @@
 
    GET    /works/search             작품 검색 (공개) — 제목+키워드(한글)+장르 통합검색, 15개 페이징(offset), 년도/평점/OTT순위 포함
    GET    /works/exists             tmdb_id 목록 중 DB 등록 여부 확인 (공개) — 검색결과 TMDB 보충결과 중복필터용
+   GET    /works/ott-map            [2026-07-18 신설] tmdb_id 목록 → 각각의 OTT 소속 매핑만 가볍게 반환 (OTT 필터 즉시반응용 사전조회)
+   GET    /works/details            [2026-07-18 신설] tmdb_id 목록의 카드 상세정보 반환 (매칭 재실행 없이, 이미 확정된 id들만 조회)
 ══════════════════════════════════════════════════════════════ */
 
 // [2026-07-17 추가] 사용자 입력을 FTS5 MATCH 문법에 안전하게 쓸 수 있는 쿼리 문자열로 변환.
@@ -285,7 +287,14 @@ export async function handleSearch(path, request, env, url, headers) {
         }));
       }
 
-      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore, limit, offset, total, capped }), { headers });
+      // [2026-07-18 추가] all_ids — 이번 검색어로 매칭된 전체 후보 tmdb_id 목록(정렬된 순서,
+      // 페이징 적용 전). 프론트가 화면에 15개만 그린 뒤, 백그라운드로 이 목록 전체에 대해
+      // "어느 OTT에 있는지"를 미리 조회(/works/ott-map)해두는 데 사용 — OTT 버튼 클릭 시
+      // 서버에 다시 안 물어보고 즉시 반응하기 위한 사전 준비용 목록.
+      return new Response(JSON.stringify({
+        ok: true, data, has_more: hasMore, limit, offset, total, capped,
+        all_ids: workRows.map(w => w.tmdb_id),
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
@@ -312,6 +321,88 @@ export async function handleSearch(path, request, env, url, headers) {
         SELECT tmdb_id FROM works WHERE tmdb_id IN (${placeholders})
       `).bind(...ids).all();
       return new Response(JSON.stringify({ ok: true, existing_ids: results.map(r => r.tmdb_id) }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /works/ott-map ────────────────────────────────────────
+  // [2026-07-18 신설] 검색결과 페이지의 OTT 필터 즉시반응화용. 특정 tmdb_id 목록에 대해
+  // "각각 어느 OTT에 있는지"만 가볍게 반환한다(포스터/평점 등 상세정보는 포함 안 함).
+  // 프론트는 검색 완료 후 화면이 이미 뜬 뒤 백그라운드로 이걸 미리 호출해두고,
+  // OTT 버튼을 클릭하면 이 매핑을 그대로 써서 서버에 다시 안 물어보고 즉시 필터링한다.
+  if (path === "/works/ott-map" && request.method === "GET") {
+    const idsParam = url.searchParams.get("tmdb_ids") || "";
+    const ids = idsParam.split(",").map(s => parseInt(s.trim())).filter(n => Number.isInteger(n)).slice(0, 100);
+    if (!ids.length) {
+      return new Response(JSON.stringify({ ok: true, map: {} }), { headers });
+    }
+    try {
+      const placeholders = ids.map(() => "?").join(",");
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${placeholders})
+      `).bind(...ids).all();
+      const map = {};
+      results.forEach(r => { (map[r.tmdb_id] ||= []).push(r.ott_key); });
+      return new Response(JSON.stringify({ ok: true, map }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /works/details ────────────────────────────────────────
+  // [2026-07-18 신설] 특정 tmdb_id 목록의 카드 상세정보(포스터/평점/랭킹뱃지/OTT뱃지)를
+  // /works/search와 동일한 형태로 반환. OTT 필터 클릭 시, ott-map으로 이미 알고 있는
+  // 작품 중 "아직 카드 정보를 안 받아온 것"만 이걸로 가볍게 보충 조회한다 —
+  // 매칭(제목/키워드/장르 검색)을 처음부터 다시 하지 않으므로 /works/search보다 훨씬 가벼움.
+  if (path === "/works/details" && request.method === "GET") {
+    const idsParam = url.searchParams.get("tmdb_ids") || "";
+    const ids = idsParam.split(",").map(s => parseInt(s.trim())).filter(n => Number.isInteger(n)).slice(0, 100);
+    if (!ids.length) {
+      return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
+    }
+    try {
+      const placeholders = ids.map(() => "?").join(",");
+      const { results: workRows } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
+        FROM works
+        WHERE tmdb_id IN (${placeholders})
+          AND (adult_flag IS NULL OR adult_flag != 1)
+          AND poster_path IS NOT NULL AND poster_path != ''
+      `).bind(...ids).all();
+
+      let data = [];
+      if (workRows.length) {
+        const foundIds = workRows.map(w => w.tmdb_id);
+        const foundPlaceholders = foundIds.map(() => "?").join(",");
+        const [{ results: rankRows }, { results: ottRows }] = await Promise.all([
+          env.DB.prepare(`
+            SELECT tmdb_id, platform, rank
+            FROM rankings
+            WHERE tmdb_id IN (${foundPlaceholders})
+              AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+          `).bind(...foundIds).all(),
+          env.DB.prepare(`
+            SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${foundPlaceholders})
+          `).bind(...foundIds).all(),
+        ]);
+
+        const rankMap = {};
+        rankRows.forEach(r => {
+          if (!rankMap[r.tmdb_id]) rankMap[r.tmdb_id] = {};
+          rankMap[r.tmdb_id][r.platform] = r.rank;
+        });
+        const ottMap = {};
+        ottRows.forEach(r => { (ottMap[r.tmdb_id] ||= []).push(r.ott_key); });
+
+        data = workRows.map(w => ({
+          ...w,
+          ott_ranks: rankMap[w.tmdb_id] || {},
+          ott_keys: ottMap[w.tmdb_id] || [],
+        }));
+      }
+
+      return new Response(JSON.stringify({ ok: true, data }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
