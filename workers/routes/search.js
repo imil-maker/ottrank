@@ -158,16 +158,19 @@ export async function handleSearch(path, request, env, url, headers) {
       // ① 제목/키워드/장르 매칭 — 3개 쿼리를 batch()로 한 번에 실행
       const [titleRes, keywordRes, genreRes] = await env.DB.batch(_dbMatchStatements(env, q, MAX_MATCH_IDS));
 
-      // ② 세 결과 합치기 (중복 제거). matchType: 0=제목매칭(우선), 1=키워드/장르매칭
+      // ② 세 결과 합치기 (중복 제거).
+      // [2026-07-18 수정] 검색결과 페이지에 "정렬 우선순위 선택(제목/키워드/장르)" 기능을
+      // 붙이기 위해, 예전엔 하나로 합쳐져 있던 키워드매칭·장르매칭을 서로 다른 값으로 분리.
+      // matchType: 0=제목매칭, 1=키워드매칭, 2=장르매칭, 3=띄어쓰기무시 보조매칭, 4=단어분리 관련매칭
       const matchType = new Map();
       titleRes.results.forEach(r => matchType.set(r.tmdb_id, 0));
       keywordRes.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
-      genreRes.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 1); });
+      genreRes.results.forEach(r => { if (!matchType.has(r.tmdb_id)) matchType.set(r.tmdb_id, 2); });
 
       // [2026-07-17 추가] ②-2 위 세 가지 매칭이 하나도 없을 때만 보조로 "띄어쓰기 무시" 매칭 시도
       // (예: "멜로가체질"로 검색 → 실제 제목 "멜로가 체질"). FTS5(works_fts)는 원문 그대로
       // 단어 단위로 색인돼 있어서 사용자가 띄어쓰기를 다르게 입력하면 못 찾는 경우가 있음.
-      // 이 보조 매칭은 matchType=2(최하 순위)로만 취급하고, 1~3순위 결과가 하나라도 있으면
+      // 이 보조 매칭은 matchType=3(최하 순위권)으로만 취급하고, 1~3순위 결과가 하나라도 있으면
       // 아예 실행조차 안 해서 — 과거 "sf" 사고처럼 가짜매칭이 진짜 결과를 밀어낼 여지가 없음.
       if (matchType.size === 0) {
         const qNoSpace = q.replace(/\s+/g, "");
@@ -176,7 +179,7 @@ export async function handleSearch(path, request, env, url, headers) {
           WHERE REPLACE(title_ko, ' ', '') LIKE ? OR REPLACE(title_en, ' ', '') LIKE ?
           LIMIT ?
         `).bind(`%${qNoSpace}%`, `%${qNoSpace}%`, MAX_MATCH_IDS).all();
-        fallbackRes.forEach(r => matchType.set(r.tmdb_id, 2));
+        fallbackRes.forEach(r => matchType.set(r.tmdb_id, 3));
       }
 
       // capped — MAX_MATCH_IDS(100) 상한에 걸려서 실제로는 더 있는데 여기서부터 이미
@@ -216,14 +219,14 @@ export async function handleSearch(path, request, env, url, headers) {
       // ④ [2026-07-15 변경] 결과가 빈약하고 검색어가 여러 단어로 쪼개질 때, 단어별
       //   재검색 결과를 "관련 작품 추천"이라는 별도 섹션이 아니라 메인 결과 자체에
       //   자연스럽게 합친다 — "검색결과 0개"라는 문구가 재검색을 막는 걸 방지하기 위함.
-      //   matchType에 3(=검색어 단어분리 매칭)으로 표시해서, 정렬 시 정확매칭(0,1)
-      //   보다는 뒤로 가되 화면상으로는 구분 없이 하나의 결과 목록으로 보이게 함.
+      //   matchType에 4(=검색어 단어분리 매칭)로 표시해서, 정렬 시 정확매칭보다는
+      //   뒤로 가되 화면상으로는 구분 없이 하나의 결과 목록으로 보이게 함.
       if (!ottFilter && workRows.length < RELATED_THRESHOLD) {
         const words = [...new Set(q.split(/\s+/).filter(w => w.length >= 2))].slice(0, 3);
         if (words.length >= 2) {
           const related = await _fetchRelated(env, words, new Set(matchType.keys()), MAX_RELATED);
           related.forEach(w => {
-            matchType.set(w.tmdb_id, 3);
+            matchType.set(w.tmdb_id, 4);
             workRows.push(w);
           });
         }
@@ -291,9 +294,15 @@ export async function handleSearch(path, request, env, url, headers) {
       // 페이징 적용 전). 프론트가 화면에 15개만 그린 뒤, 백그라운드로 이 목록 전체에 대해
       // "어느 OTT에 있는지"를 미리 조회(/works/ott-map)해두는 데 사용 — OTT 버튼 클릭 시
       // 서버에 다시 안 물어보고 즉시 반응하기 위한 사전 준비용 목록.
+      // match_types — all_ids 각각이 제목(0)/키워드(1)/장르(2)/기타(3,4) 중 뭘로 매칭됐는지.
+      // 이미 서버가 계산을 마친 값을 그대로 노출하는 것뿐이라 별도 조회가 필요 없음(OTT와의
+      // 차이점 — OTT는 매칭 과정과 무관한 정보라 따로 물어봐야 했지만, 이건 이미 다 알고 있음).
+      // 프론트는 "정렬 우선순위(제목/키워드/장르)" 버튼을 눌렀을 때, 서버에 다시 안 물어보고
+      // 이 값을 기준으로 기존 순서를 안정정렬(stable)로 그룹만 재배치한다.
       return new Response(JSON.stringify({
         ok: true, data, has_more: hasMore, limit, offset, total, capped,
         all_ids: workRows.map(w => w.tmdb_id),
+        match_types: Object.fromEntries(matchType),
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
