@@ -2427,9 +2427,11 @@ export async function handleAdmin(path, request, env, url, headers) {
   }
 
   // ── GET /admin/keywords/search ──────────────────────────────
-  // admin_videos.html "④ 키워드 검색/수정"용 — 영문(keyword_en) 또는 한글(keyword_ko)에
-  // 검색어가 포함된 항목 조회. 서로 다른 영문이 같은 한글로 번역돼 중복 노출되는 것 같은
-  // 오탐을 발견했을 때 수동으로 찾아 고치는 용도.
+  // admin_videos.html "④ 키워드 검색/수정"용 — 영문(keyword_en) 또는 한글(keyword_ko/
+  // keyword_ko_2/keyword_ko_3) 중 어디든 검색어가 포함되면 조회. 서로 다른 영문이 같은
+  // 한글로 번역돼 중복 노출되는 것 같은 오탐을 발견했을 때 수동으로 찾아 고치는 용도.
+  // [2026-07-18 수정] keyword_ko_2/keyword_ko_3는 검색 조건에서 빠져있어서, 2·3번에만
+  // 들어있는 감정 키워드 등을 검색해도 안 걸리던 버그 수정.
   // keyword_translation은 규모가 작은 테이블(~4,500행)이라 LIKE 풀스캔도 부담 없음
   // (관리자가 가끔 수동 호출하는 용도라 트래픽상으로도 문제 없음).
   if (path === "/admin/keywords/search" && request.method === "GET") {
@@ -2445,10 +2447,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       const { results: items } = await env.DB.prepare(`
         SELECT id, keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3, source
         FROM keyword_translation
-        WHERE keyword_en LIKE ? OR keyword_ko LIKE ?
+        WHERE keyword_en LIKE ? OR keyword_ko LIKE ? OR keyword_ko_2 LIKE ? OR keyword_ko_3 LIKE ?
         ORDER BY keyword_en ASC
         LIMIT 50
-      `).bind(like, like).all();
+      `).bind(like, like, like, like).all();
 
       return new Response(JSON.stringify({ ok: true, items }), { headers });
     } catch (e) {
