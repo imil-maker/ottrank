@@ -926,7 +926,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 </script>
 
 <script>
-const IMG = 'https://image.tmdb.org/t/p/w500';
+const IMG = 'https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-17] 캐싱 프록시로 변경
 const TMDB_API = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 
 /* OTT 순서: 넷플릭스→티빙→디즈니+→쿠팡플레이→웨이브 */
@@ -1264,7 +1264,7 @@ function renderFeatured(featuredGroups) {
     return;
   }
 
-  const TMDB_IMG_FT = 'https://image.tmdb.org/t/p/w342';
+  const TMDB_IMG_FT = 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-17] 캐싱 프록시로 변경
 
   // 각 그룹 → 슬라이드 섹션 HTML 생성
   wrap.innerHTML = featuredGroups.map((group, gi) => {
@@ -1513,7 +1513,7 @@ function normalizeReview(rv) {
   // poster_path: 경로만 있으면 풀 TMDB URL로 변환
   let poster_path = rv.poster_path || '';
   if (poster_path && !poster_path.startsWith('http')) {
-    poster_path = 'https://image.tmdb.org/t/p/w300' + poster_path;
+    poster_path = 'https://poster.ottrank.kr/tmdb-img/w300' + poster_path; // [2026-07-17] 캐싱 프록시로 변경
   }
 
   return { ...rv, emotions, evaluation, poster_path };
@@ -1606,9 +1606,9 @@ async function init(){
 // (변수·함수명은 전부 hh 접두사로 기존 코드와 충돌 방지, PC 상수만 이미 있는 걸 재사용)
 // ════════════════════════════════════════════════════
 const HH_API          = API; // 이미 위에서 선언된 것과 동일한 서버
-const HH_IMG          = 'https://image.tmdb.org/t/p/w300';
-const HH_IMG_BACKDROP = 'https://image.tmdb.org/t/p/w780';
-const HH_IMG_LOGO     = 'https://image.tmdb.org/t/p/w300';
+const HH_IMG          = 'https://poster.ottrank.kr/tmdb-img/w300'; // [2026-07-17] 캐싱 프록시로 변경
+const HH_IMG_BACKDROP = 'https://poster.ottrank.kr/tmdb-img/w780'; // [2026-07-17] 캐싱 프록시로 변경
+const HH_IMG_LOGO     = 'https://poster.ottrank.kr/tmdb-img/w300'; // [2026-07-17] 캐싱 프록시로 변경
 const HH_ICON_BASE    = 'https://ottrank.kr/img/';
 const HH_PLATFORM_KO  = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스' };
 const HH_PLATFORM_ICON = {
