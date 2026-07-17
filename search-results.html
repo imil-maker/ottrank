@@ -114,6 +114,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 </head>
 <body>
 
+<!-- ── 공용 헤더 동적 삽입 (다른 페이지와 동일한 표준 패턴 — 콘텐츠 로딩과 독립적으로 실행) ── -->
+<script>
+(function(){
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      const el=document.getElementById('ottrang-header');
+      el.innerHTML=h;
+      el.querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function') initHeader();
+    })
+    .catch(()=>{});
+})();
+</script>
+<div id="ottrang-header"></div>
+
 <div class="page-layout">
 
   <div class="sidebar">
@@ -165,7 +184,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <script>
 const API        = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
-const IMG        = 'https://image.tmdb.org/t/p/w342';
+const IMG        = 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-18] 캐싱 프록시로 변경
 // [2026-07-15] 더보기 기준 개수 — PC 15개 / 모바일(768px 이하) 10개
 // (header.html의 모바일 분기 기준과 동일하게 768px 사용)
 const PAGE_SIZE  = window.innerWidth <= 768 ? 10 : 15;
@@ -729,6 +748,15 @@ async function runSearch(){
 
 renderOttFilterList();
 runSearch();
+</script>
+
+<!-- ── 공용 푸터 동적 삽입 ── -->
+<div id="ottrang-footer"></div>
+<script>
+fetch('/footer.html')
+  .then(r=>r.ok?r.text():Promise.reject())
+  .then(h=>{ document.getElementById('ottrang-footer').innerHTML=h; })
+  .catch(()=>{});
 </script>
 
 </body>
