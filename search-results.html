@@ -49,7 +49,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 .result-bar{
   background:var(--bg3);border-radius:8px;padding:9px 12px;margin-bottom:20px;
-  text-align:center;font-size:12px;color:var(--muted2);
+  text-align:center;font-size:13px;color:var(--muted2);
 }
 .result-bar .count{color:var(--accent);font-weight:700;font-family:var(--mono)}
 .ott-title-box{font-weight:700;color:var(--muted2)}
@@ -67,11 +67,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ott-filter-row img, .ott-filter-row .ott-ph{width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0}
 .ott-filter-row .ott-ph{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
 
-.priority-list{display:flex;flex-direction:column;gap:6px;margin:4px 0 20px}
+.priority-list{display:flex;flex-direction:row;gap:6px;margin:4px 0 20px}
 .priority-btn{
-  width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border2);
-  background:var(--bg2);color:var(--muted2);font-size:13px;font-family:var(--sans);
-  cursor:pointer;text-align:right;transition:all .15s;
+  flex:1;padding:8px 6px;border-radius:8px;border:1.5px solid var(--border2);
+  background:var(--bg2);color:var(--muted2);font-size:12px;font-family:var(--sans);
+  cursor:pointer;text-align:center;transition:all .15s;
 }
 .priority-btn:hover{border-color:var(--border2);color:var(--text)}
 .priority-btn.active{border-color:var(--accent);color:var(--accent);font-weight:700;background:rgba(230,57,70,.08)}
@@ -150,12 +150,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <div class="ott-filter-list" id="ottFilterList"></div>
 
-    <div class="result-bar ott-title-box">검색 우선순위</div>
+    <div class="result-bar ott-title-box">검색 우선순위 선택</div>
 
     <div class="priority-list">
-      <button class="priority-btn active" data-priority="0" onclick="togglePriority(0)">제목순</button>
-      <button class="priority-btn" data-priority="1" onclick="togglePriority(1)">키워드순</button>
-      <button class="priority-btn" data-priority="2" onclick="togglePriority(2)">장르순</button>
+      <button class="priority-btn active" data-priority="0" onclick="togglePriority(0)">제목</button>
+      <button class="priority-btn" data-priority="1" onclick="togglePriority(1)">키워드</button>
+      <button class="priority-btn" data-priority="2" onclick="togglePriority(2)">장르</button>
     </div>
   </div>
 
