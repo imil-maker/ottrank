@@ -831,6 +831,15 @@ async function runSearch(){
     matchTypeMap  = dbJson.match_types || {};
     prefetchOttMap();
 
+    // [2026-07-18 추가] 관리자 검색어 로그 — 실제로 이 페이지에 도착했을 때(Enter/버튼으로
+    // "진짜" 검색했을 때)만 한 번 기록. 헤더 자동완성처럼 타이핑마다 호출되는 게 아니라
+    // 여기서 페이지 로드 시 딱 1번만 호출됨. 실패해도 검색 자체엔 전혀 영향 없음(await 없음).
+    fetch(`${API}/search-log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q, total: dbJson.total || 0 }),
+    }).catch(() => {});
+
     _resetGrid();
 
     if(combinedAvailable()){
