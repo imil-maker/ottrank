@@ -96,6 +96,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .result-bar{font-size:14px}
   .search-input{font-size:14px}
 
+  /* [2026-07-18 추가] "검색결과 N 작품" — 박스(배경/패딩) 제거, 검색창과의 간격만 최소화 */
+  .result-count{background:none;padding:0;border-radius:0;margin-bottom:6px}
+
   /* "OTT 선택" / "검색 우선순위 선택" 타이틀 텍스트는 모바일에서 숨김 */
   .ott-title-box{display:none}
   /* 검색 우선순위 선택 자체를 통째로 숨김 — 들어갈 자리가 없음 */
@@ -178,7 +181,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <div class="page-layout">
 
   <div class="sidebar">
-    <div class="result-bar">검색결과 <span class="count" id="cntWorks">0</span></div>
+    <div class="result-bar result-count">검색결과 <span class="count" id="cntWorks">0</span> 작품</div>
 
     <div class="search-row">
       <div class="search-input-wrap">
