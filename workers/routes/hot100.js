@@ -149,20 +149,34 @@ export async function calcHot100(request, env, headers) {
     const latestDate = latestDateRow.latest_date;
 
     // ── 3. RankScore × PlatformWeight 계산 (SQL 윈도우 함수 활용) ──
-    // - date = 최신 크롤링 날짜 OR date = 'manual'(수동 고정 데이터도 포함)
+    // - [2026-07-19 수정] 기존엔 모든 플랫폼을 "오늘 날짜(app_settings.latest_ranking_date)"
+    //   딱 하나로 고정해서 걸렀는데, 이러면 특정 플랫폼 하루 크롤링이 실패/지연될 때
+    //   그 플랫폼 전체가 HOT100 계산에서 통째로 빠져버림(오늘 박스오피스 미반영 사례로 확인됨).
+    //   플랫폼+카테고리별로 "각자 가진 가장 최근 날짜"를 찾아서 그 날짜 데이터를 쓰도록 변경.
+    //   'manual'은 날짜 컬럼에 들어가는 특수 문자열이라 MAX(date) 계산에서 반드시 제외해야 함
+    //   (문자열 비교상 'manual'이 어떤 날짜보다도 커서 안 걸러내면 MAX가 전부 'manual'이 되어버림).
     // - tmdb_id가 없는 행(TMDB 매칭 실패)은 제외
     // - 같은 tmdb_id가 여러 플랫폼/카테고리에 걸쳐 있으면
     //   "가중치 적용 후 점수"가 가장 높은 행 1개만 채택
     const weightedQuery = `
-      WITH target_rankings AS (
+      WITH latest_per_slot AS (
+        SELECT platform, category_slot, MAX(date) AS latest_date
+        FROM rankings
+        WHERE date < 'manual'
+        GROUP BY platform, category_slot
+      ),
+      target_rankings AS (
         SELECT r.tmdb_id, r.platform, r.rank, r.title_ko,
                COALESCE(oc.hot100_weight, 0.5) AS category_weight
         FROM rankings r
         JOIN ott_categories oc
           ON oc.platform = r.platform
          AND oc.category_slot = r.category_slot
+        JOIN latest_per_slot lps
+          ON lps.platform = r.platform
+         AND lps.category_slot = r.category_slot
+         AND r.date = lps.latest_date
         WHERE r.tmdb_id IS NOT NULL
-          AND r.date = ?
           AND oc.hot100_eligible = 1
       ),
       weighted AS (
@@ -197,7 +211,7 @@ export async function calcHot100(request, env, headers) {
       ORDER BY (w.weighted_score + COALESCE(ab.boost_value, 0)) DESC
     `;
 
-    const { results } = await env.DB.prepare(weightedQuery).bind(latestDate).all();
+    const { results } = await env.DB.prepare(weightedQuery).all();
 
     // ── 3-1. admin_boosts 전체 조회 ──
     // is_pinned=1(고정) → 랭킹 유무 상관없이 pinned_score를 그대로 최종 점수로 사용(크롤링 반영 안 됨)
