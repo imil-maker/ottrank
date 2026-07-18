@@ -2078,11 +2078,13 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   const hasImdb=!!WORK.imdbRating;
   const titleMid=['평점',hasImdb?'IMDb 평점':null,hasRank?'순위':'후기','추천'].filter(Boolean).join('·');
   const imdbDescPart=hasImdb?', IMDb 평점':'';
+  // [2026-07-18] 실시간 순위 숫자(N위)는 노출 즉시 변동되는 값이라 타이틀/설명에서 제거.
+  //   "OTT명 N위" → "OTT명 순위"로 고정 문구만 노출 (검색결과에 옛 순위 숫자가 캐싱되어 남는 문제 방지)
   const seoT=hasRank
-    ? `${t} ${titleMid} | ${typeLabel} ${pName} ${rank}위 | 오뜨랑`
+    ? `${t} ${titleMid} | ${typeLabel} ${pName} 순위 | 오뜨랑`
     : `${t} ${titleMid} | ${typeLabel} 오뜨랑`;
   const seoD=hasRank
-    ? `${t} 평점, ${pName} ${rank}위${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
+    ? `${t} 평점, ${pName} 순위${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
     : `${t} 평점${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`;
   const s=WORK.season||1,y=WORK.year||(new Date().getFullYear()),tid=WORK.tmdb_id||'';
   const slug=`${s}-${y}${tid}`;
