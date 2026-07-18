@@ -174,6 +174,30 @@ def init_db() -> sqlite3.Connection:
         )
     """)
 
+    # boxoffice_stats 테이블 (KOBIS 박스오피스 상세 지표 — 관객수/매출/스크린수 등)
+    # tmdb_id + date 유니크 → 하루에 한 작품당 한 줄, 최신순 조회 시 자동 인덱싱
+    # ⚠️ D1(Cloudflare)에는 동일 구조로 이미 마이그레이션 적용 완료 (2026-07-18)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS boxoffice_stats (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            tmdb_id           INTEGER NOT NULL,
+            movie_cd          TEXT,
+            date              TEXT NOT NULL,
+            rank              INTEGER,
+            rank_inten        INTEGER,
+            rank_old_and_new  TEXT,
+            audi_cnt          INTEGER,
+            audi_acc          INTEGER,
+            audi_change       REAL,
+            sales_amt         INTEGER,
+            sales_share       REAL,
+            scrn_cnt          INTEGER,
+            show_cnt          INTEGER,
+            created_at        TEXT DEFAULT (datetime('now','localtime')),
+            UNIQUE(tmdb_id, date)
+        )
+    """)
+
     # touched_works 테이블 (신규)
     # ⚠️ 목적: 이번 크롤링 실행에서 works를 "실제로" 쓴(INSERT/UPDATE) tmdb_id만 기록
     #   → upload_to_d1.py가 works 전체가 아니라 이 목록에 있는 것만 D1에 업로드하도록 좁히기 위함
