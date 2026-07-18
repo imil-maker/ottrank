@@ -2201,6 +2201,10 @@ function renderRankRow(platforms){
   const row=document.getElementById('heroRankRow');if(!row)return;
   // OTT 순위 칩만 제거 (chip-rank만), chip-top10/chip-manual은 유지
   row.querySelectorAll('.chip-rank').forEach(el=>el.remove());
+  // [2026-07-19 수정] 박스오피스는 상세페이지 하단 boxofficeInfoBox에서 순위를 이미 보여주므로
+  // 상단 히어로 칩은 무조건 표시 안 함. 예전엔 renderRankRow([])로 빈 배열만 넘겼는데,
+  // 아래 else 분기가 WORK.rank/WORK.platform으로 다시 칩을 만들어버려 실제로는 안 꺼지던 버그가 있었음.
+  if(WORK.platform==='boxoffice')return;
   if(platforms&&platforms.length){
     platforms.forEach(p=>{
       const rankVal=p.rank&&p.rank!=='-'&&p.rank!=='0'?p.rank:null;
