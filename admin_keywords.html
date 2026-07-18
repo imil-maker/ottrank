@@ -382,13 +382,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
       <thead>
         <tr>
-          <th style="width:55%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">검색어</th>
-          <th style="width:20%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">검색결과 수</th>
+          <th style="width:40%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">검색어</th>
+          <th style="width:17%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">전체 검색결과</th>
+          <th style="width:18%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">DB 검색결과 수</th>
           <th style="width:25%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">검색 시각</th>
         </tr>
       </thead>
       <tbody id="slTbody">
-        <tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
+        <tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
       </tbody>
     </table>
 
@@ -414,14 +415,14 @@ function fmtSlTime(iso){
 /* 검색어 로그 목록 로드 — page 번호로 그 페이지만 딱 조회해서 표로 교체 (누적 X) */
 async function loadSearchLogs(page){
   const tbody = document.getElementById('slTbody');
-  tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
 
   try{
     const res = await fetch(`${API_SL}/admin/search-logs?page=${page}&limit=${SL_PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const json = await res.json();
-    if(!json.ok){ tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오기 실패</td></tr>`; return; }
+    if(!json.ok){ tbody.innerHTML = `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오기 실패</td></tr>`; return; }
 
     document.getElementById('slTotal').textContent = (json.total || 0).toLocaleString();
 
@@ -431,18 +432,19 @@ async function loadSearchLogs(page){
           <a href="/search-results.html?q=${encodeURIComponent(row.query)}" target="_blank" rel="noopener"
             style="font-weight:600;color:var(--text);text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${hescSl(row.query)}</a>
         </td>
+        <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--accent)">${row.total_count ?? '-'}</td>
         <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--gold)">${row.result_count}</td>
         <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12.5px;color:var(--muted)">${fmtSlTime(row.created_at)}</td>
       </tr>
     `).join('');
 
-    tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 검색어가 없습니다</td></tr>`;
+    tbody.innerHTML = rows || `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 검색어가 없습니다</td></tr>`;
 
     const totalPages = Math.max(1, Math.ceil((json.total || 0) / SL_PAGE_SIZE));
     renderSlPagination(page, totalPages);
 
   }catch(e){
-    tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오기 중 오류가 발생했습니다</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오기 중 오류가 발생했습니다</td></tr>`;
   }
 }
 
