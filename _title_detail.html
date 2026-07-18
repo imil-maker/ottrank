@@ -1273,14 +1273,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* ══ 박스오피스 정보 + 보러가기 (같은 행, PC / 모바일은 위아래로 자연 스택) ══
    DOM 순서: 박스오피스 박스 → ott-section 순서로 배치해서,
-   모바일(column)에서 별도 order 지정 없이도 "보러가기 위에" 자연스럽게 오게 함
-   두 박스 모두 flex:1 — PC에서 폭이 정확히 반반, 모바일 스택 시에도 둘 다 100% */
+   모바일(1열)에서 별도 order 지정 없이도 "보러가기 위에" 자연스럽게 오게 함
+   [2026-07-19] flex-grow(1fr)에 의존하는 방식들이 내부 콘텐츠(긴 숫자 등) 영향을 받는 것으로
+   보여서, 아예 calc(50% - 8px)로 폭을 직접 못박음 — 콘텐츠 크기와 완전히 무관하게 고정.
+   overflow:hidden도 같이 걸어서 혹시 내용이 넘쳐도 박스 자체 폭은 절대 안 늘어나게 방어. */
 .bo-ott-row{
   display:flex; align-items:flex-start; gap:16px;
 }
-.bo-ott-row .ott-section{ flex:1; min-width:0; }
+.boxoffice-info-box,
+.bo-ott-row .ott-section{
+  width:calc(50% - 8px); flex-shrink:0; flex-grow:0; overflow:hidden;
+}
 .boxoffice-info-box{
-  flex:1; min-width:0;
   background:var(--bg2); border:.5px solid var(--border);
   border-radius:var(--r-lg); padding:20px;
   margin:24px 0 8px;
@@ -1308,14 +1312,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 }
 .bo-info-row:last-child{ border-bottom:none; }
 .bo-info-row i{ font-size:15px; color:var(--muted); width:18px; text-align:center; flex-shrink:0; }
-.bo-info-label{ color:var(--muted); flex:1; min-width:0; }
-.bo-info-value{ font-family:var(--font-mono); font-size:13px; font-weight:400; color:var(--text); white-space:nowrap; }
+.bo-info-label{ color:var(--muted); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bo-info-value{ font-family:var(--font-mono); font-size:13px; font-weight:400; color:var(--text); white-space:nowrap; flex-shrink:0; }
 .bo-info-value.gold{ color:var(--gold); }
 .bo-info-value.up{ color:#34d399; }
 .bo-info-value.down{ color:#f87171; }
 @media(max-width:640px){
   .bo-ott-row{ flex-direction:column; }
-  .boxoffice-info-box{ width:100%; }
+  .boxoffice-info-box,
   .bo-ott-row .ott-section{ width:100%; }
 }
 
