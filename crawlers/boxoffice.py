@@ -1,24 +1,124 @@
-"""극장 박스오피스 크롤러 - 무비차트 (기존 유지)
-변경사항: save() → _save_boxoffice() 으로 직접 저장 (category_slot 방식)
+"""극장 박스오피스 크롤러 - KOBIS(영화진흥위원회) 오픈API 직접 연동
+────────────────────────────────────────────────────────────────
+2026-07-18 변경사항:
+  - Playwright + 무비차트(moviechart.co.kr) 화면 크롤링 제거
+  - KOBIS searchDailyBoxOfficeList API 직접 호출로 교체 (브라우저 실행 불필요)
+  - 관객수/매출/스크린수 등 상세 지표를 boxoffice_stats 테이블에 신규 저장
+    → 작품 상세페이지(_title_detail.html)에서 활용 예정
+
+핵심 원칙:
+  - targetDt는 항상 "어제(KST)" 고정. 몇 시에 크롤링이 돌든 동일하게 요청.
+    (KOBIS 데이터는 익일 오전 확정되면 그날 하루 안 바뀌므로, 회차 시간을
+    따로 계산할 필요 없음)
+  - KOBIS 응답이 비어있거나 에러면 조용히 스킵 → 같은 날 다음 회차가 재시도
+  - KOBIS 숫자 필드는 전부 문자열로 오므로 저장 전 반드시 int()/float() 변환
+  - 매칭 파이프라인은 db.py의 기존 검증된 함수 재사용 (lookup_works,
+    search_tmdb_korean, insert_work, save_review_queue) — 새 매칭 로직 없음
+────────────────────────────────────────────────────────────────
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import asyncio
+import time
 import sqlite3
-from playwright.async_api import async_playwright
-from db import init_db, get_today, lookup_works, search_tmdb_korean, insert_work
+import requests
+from datetime import datetime, timedelta, timezone
 
-URL = "https://www.moviechart.co.kr/rank/boxoffice"
+from db import (
+    init_db, get_today, lookup_works, search_tmdb_korean,
+    insert_work, save_review_queue,
+)
 
-# 박스오피스 고정 슬롯 설정
+KST = timezone(timedelta(hours=9))
+KOBIS_API_KEY = os.environ.get("KOBIS_API_KEY", "")
+KOBIS_URL = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
+
+# 박스오피스 고정 슬롯 설정 (기존과 동일 유지)
 PLATFORM      = "boxoffice"
 CATEGORY_SLOT = "category01"
-SOURCE_NAME   = "주간 박스오피스"
+SOURCE_NAME   = "일별 박스오피스"
 
 
-def _save_boxoffice(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: dict | None):
-    """박스오피스 랭킹 rankings 테이블에 저장"""
+# ══════════════════════════════════════════════════════════════
+# ① KOBIS API 호출
+# ══════════════════════════════════════════════════════════════
+
+def _get_target_dt() -> str:
+    """항상 '어제(KST)' 날짜를 yyyymmdd 형식으로 반환 (실행 시각과 무관하게 동일 로직)"""
+    yesterday = datetime.now(KST) - timedelta(days=1)
+    return yesterday.strftime("%Y%m%d")
+
+
+def _fetch_kobis_daily() -> list[dict]:
+    """
+    KOBIS 일별 박스오피스 API 호출 → 파싱된 리스트 반환
+    실패/데이터 미확정 시 빈 리스트 반환 → 크롤러는 조용히 스킵하고
+    같은 날 다음 회차가 재시도하도록 함 (하루 4회 스케줄 중 몇 회가
+    유실돼도 targetDt=어제 고정이라 자동으로 채워짐)
+    """
+    if not KOBIS_API_KEY:
+        print("  [박스오피스] KOBIS_API_KEY 없음 → 스킵")
+        return []
+
+    target_dt = _get_target_dt()
+    params = {
+        "key": KOBIS_API_KEY,
+        "targetDt": target_dt,
+        "itemPerPage": 10,
+    }
+
+    try:
+        resp = requests.get(KOBIS_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        # 에러 로그에 API 키가 노출되지 않도록 params 전체는 출력하지 않음
+        print(f"  [박스오피스] KOBIS API 호출 오류: {type(e).__name__}: {e}")
+        return []
+
+    # KOBIS는 키 오류/날짜 형식 오류 시 boxOfficeResult 대신 faultInfo를 반환
+    if "faultInfo" in data:
+        fault = data["faultInfo"]
+        print(f"  [박스오피스] KOBIS API 오류 응답: {fault.get('message', '알 수 없음')}")
+        return []
+
+    raw_list = data.get("boxOfficeResult", {}).get("dailyBoxOfficeList", [])
+    if not raw_list:
+        print(f"  [박스오피스] {target_dt} 데이터 없음(아직 미확정 가능) → 스킵")
+        return []
+
+    parsed = []
+    for item in raw_list:
+        try:
+            parsed.append({
+                "rank":             int(item["rank"]),
+                "rank_inten":       int(item["rankInten"]),
+                "rank_old_and_new": item["rankOldAndNew"],
+                "movie_cd":         item["movieCd"],
+                "movie_nm":         item["movieNm"],
+                "audi_cnt":         int(item["audiCnt"]),
+                "audi_acc":         int(item["audiAcc"]),
+                "audi_change":      float(item["audiChange"]),
+                "sales_amt":        int(item["salesAmt"]),
+                "sales_share":      float(item["salesShare"]),
+                "scrn_cnt":         int(item["scrnCnt"]),
+                "show_cnt":         int(item["showCnt"]),
+            })
+        except (KeyError, ValueError) as e:
+            # 항목 하나가 이상해도 전체를 죽이지 않고 그 항목만 건너뜀
+            print(f"  [박스오피스] 항목 파싱 오류(건너뜀): {e} / {item.get('movieNm')}")
+            continue
+
+    print(f"  [박스오피스] KOBIS {target_dt} — {len(parsed)}개 수집")
+    return parsed
+
+
+# ══════════════════════════════════════════════════════════════
+# ② 저장 — rankings (기존 구조 그대로) + boxoffice_stats (신규)
+# ══════════════════════════════════════════════════════════════
+
+def _save_boxoffice_ranking(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_data: dict | None):
+    """박스오피스 랭킹 rankings 테이블에 저장 (기존 boxoffice.py와 동일 구조 유지)"""
     today = get_today()
     if tmdb_data:
         conn.execute("""
@@ -47,95 +147,92 @@ def _save_boxoffice(conn: sqlite3.Connection, rank: int, title_ko: str, tmdb_dat
     conn.commit()
 
 
-async def run(conn):
-    print("\n[박스오피스] 크롤링 중... (무비차트)")
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
-        )
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            locale="ko-KR",
-        )
-        page = await context.new_page()
-        titles = await _crawl(page)
-        await browser.close()
+def _save_boxoffice_stats(conn: sqlite3.Connection, tmdb_id: int, item: dict, crawl_date: str):
+    """
+    boxoffice_stats 테이블에 관객수/매출/스크린수 등 상세 지표 저장
+    tmdb_id 매칭에 성공한 작품만 저장 (매칭 실패 작품은 어느 상세페이지에
+    연결할지 알 수 없으므로 저장하지 않음)
+    UNIQUE(tmdb_id, date) 기준 UPSERT — 같은 날 여러 회차가 돌아도 최신값으로 덮어씀
+    """
+    conn.execute("""
+        INSERT INTO boxoffice_stats
+            (tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+             audi_cnt, audi_acc, audi_change, sales_amt, sales_share, scrn_cnt, show_cnt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(tmdb_id, date) DO UPDATE SET
+            movie_cd         = excluded.movie_cd,
+            rank             = excluded.rank,
+            rank_inten       = excluded.rank_inten,
+            rank_old_and_new = excluded.rank_old_and_new,
+            audi_cnt         = excluded.audi_cnt,
+            audi_acc         = excluded.audi_acc,
+            audi_change      = excluded.audi_change,
+            sales_amt        = excluded.sales_amt,
+            sales_share      = excluded.sales_share,
+            scrn_cnt         = excluded.scrn_cnt,
+            show_cnt         = excluded.show_cnt
+    """, (
+        tmdb_id, item["movie_cd"], crawl_date,
+        item["rank"], item["rank_inten"], item["rank_old_and_new"],
+        item["audi_cnt"], item["audi_acc"], item["audi_change"],
+        item["sales_amt"], item["sales_share"], item["scrn_cnt"], item["show_cnt"],
+    ))
+    conn.commit()
 
-    if not titles:
-        print("  [박스오피스] 데이터 없음")
+
+# ══════════════════════════════════════════════════════════════
+# ③ 실행 진입점 — run_all.py에서 호출
+# ══════════════════════════════════════════════════════════════
+
+async def run(conn):
+    print("\n[박스오피스] KOBIS 오픈API 수집 중...")
+    items = _fetch_kobis_daily()
+
+    if not items:
+        print("  [박스오피스] 처리할 데이터 없음")
         return
 
-    # 매칭 파이프라인
-    for rank, title_ko in titles:
-        # ① works 우선 조회 (한글 제목으로)
-        works_data = conn.execute("""
-            SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
-            FROM works WHERE title_ko = ? LIMIT 1
-        """, (title_ko,)).fetchone()
+    crawl_date = get_today()
 
-        if works_data:
-            tmdb_data = dict(zip(
-                ["tmdb_id","title_ko","title_en","poster_path","genre","overview","release_year","tmdb_rating"],
-                works_data
-            ))
-            print(f"  ✅ [박스오피스] {rank:2d}. '{title_ko}' → works DB (tmdb_id={tmdb_data['tmdb_id']})")
-            _save_boxoffice(conn, rank, title_ko, tmdb_data)
-            continue
+    for item in items:
+        rank     = item["rank"]
+        title_ko = item["movie_nm"]
 
-        # ② TMDB 한글 검색 (박스오피스는 이미 한글 제목)
-        tmdb_data = search_tmdb_korean(title_ko)
+        # ① works 우선 조회 (KOBIS는 이미 한글 제목이라 title_ko로 바로 조회)
+        tmdb_data = lookup_works(conn, title_ko)
+
         if tmdb_data:
-            tmdb_data["title_en"] = tmdb_data.get("title_en") or title_ko
-            print(f"  ✅ [박스오피스] {rank:2d}. '{title_ko}' → TMDB 매칭 (tmdb_id={tmdb_data['tmdb_id']})")
-            insert_work(conn, tmdb_data, match_source="auto_claude")
-            _save_boxoffice(conn, rank, title_ko, tmdb_data)
+            print(f"  ✅ [박스오피스] {rank:2d}. '{title_ko}' → works DB (tmdb_id={tmdb_data['tmdb_id']})")
         else:
-            print(f"  ⚠️ [박스오피스] {rank:2d}. '{title_ko}' → 매칭 실패, 검토 큐 저장")
-            conn.execute("""
-                INSERT OR IGNORE INTO review_queue
-                    (platform, category_slot, rank, title_en, title_ko_guess, fail_reason, crawled_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (PLATFORM, CATEGORY_SLOT, rank, title_ko, title_ko, "tmdb_not_found", get_today()))
-            conn.commit()
-            _save_boxoffice(conn, rank, title_ko, None)
+            # ② TMDB 한글 검색 (Claude 번역 불필요 — 이미 한글 제목)
+            tmdb_data = search_tmdb_korean(title_ko)
+            if tmdb_data:
+                tmdb_data["title_en"] = tmdb_data.get("title_en") or title_ko
+                print(f"  ✅ [박스오피스] {rank:2d}. '{title_ko}' → TMDB 매칭 (tmdb_id={tmdb_data['tmdb_id']})")
+                insert_work(conn, tmdb_data, match_source="auto_claude")
+            else:
+                print(f"  ⚠️ [박스오피스] {rank:2d}. '{title_ko}' → 매칭 실패, 검토 큐 저장")
+                review_item = {
+                    "platform": PLATFORM,
+                    "category_slot": CATEGORY_SLOT,
+                    "rank": rank,
+                    "title_en": title_ko,
+                }
+                save_review_queue(conn, review_item, title_ko, fail_reason="tmdb_not_found")
+            time.sleep(0.2)  # TMDB API 연속 호출 완충
 
-    print(f"  [박스오피스] {len(titles)}개 처리 완료")
+        # rankings는 매칭 성공/실패 관계없이 저장 (기존 방식 동일)
+        _save_boxoffice_ranking(conn, rank, title_ko, tmdb_data)
 
+        # boxoffice_stats는 tmdb_id 확보된 작품만 저장
+        if tmdb_data and tmdb_data.get("tmdb_id"):
+            _save_boxoffice_stats(conn, tmdb_data["tmdb_id"], item, crawl_date)
 
-async def _crawl(page) -> list[tuple]:
-    """무비차트에서 박스오피스 랭킹 크롤링, 반환: [(rank, title_ko), ...]"""
-    titles = []
-    try:
-        await page.goto(URL, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_selector("table tr", timeout=15000)
-
-        rows = await page.query_selector_all("table tr")
-        count = 0
-        for row in rows:
-            if count >= 10:
-                break
-            try:
-                rank_el  = await row.query_selector("td:first-child")
-                title_el = await row.query_selector("td:nth-child(2) a")
-                if not rank_el or not title_el:
-                    continue
-                rank_txt = (await rank_el.inner_text()).strip().lstrip("0")
-                title    = (await title_el.inner_text()).strip()
-                if not rank_txt.isdigit() or not title:
-                    continue
-                titles.append((int(rank_txt), title))
-                count += 1
-            except Exception:
-                continue
-
-        print(f"  [박스오피스] {count}개 수집")
-    except Exception as e:
-        print(f"  [박스오피스] 에러: {e}")
-    return titles
+    print(f"  [박스오피스] {len(items)}개 처리 완료")
 
 
 if __name__ == "__main__":
+    import asyncio
     conn = init_db()
     asyncio.run(run(conn))
     conn.close()
