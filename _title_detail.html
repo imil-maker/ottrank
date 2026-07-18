@@ -1266,6 +1266,44 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   text-align: center;
 }
 
+/* ══ 박스오피스 정보 + 보러가기 (같은 행, PC / 모바일은 위아래로 자연 스택) ══
+   DOM 순서: 박스오피스 박스 → ott-section 순서로 배치해서,
+   모바일(column)에서 별도 order 지정 없이도 "보러가기 위에" 자연스럽게 오게 함 */
+.bo-ott-row{
+  display:flex; align-items:flex-start; gap:16px;
+}
+.bo-ott-row .ott-section{ flex:1; min-width:0; }
+.boxoffice-info-box{
+  width:260px; flex-shrink:0;
+  background:var(--bg2); border:.5px solid var(--border);
+  border-radius:var(--r-lg); padding:18px;
+  margin:24px 0 8px;
+}
+.bo-info-title{
+  font-size:16px; font-weight:700; color:var(--text);
+  display:flex; align-items:center; gap:6px; margin-bottom:2px;
+}
+.bo-info-sub{
+  font-size:13px; color:var(--gold); font-family:var(--font-mono);
+  font-weight:600; margin-bottom:12px;
+}
+.bo-info-list{ display:flex; flex-direction:column; }
+.bo-info-row{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 0; border-bottom:.5px solid var(--border);
+  font-size:13px;
+}
+.bo-info-row:last-child{ border-bottom:none; }
+.bo-info-row i{ font-size:15px; color:var(--muted); width:18px; text-align:center; flex-shrink:0; }
+.bo-info-label{ color:var(--muted); flex:1; min-width:0; }
+.bo-info-value{ font-family:var(--font-mono); font-weight:700; color:var(--text); white-space:nowrap; }
+.bo-info-value.up{ color:#34d399; }
+.bo-info-value.down{ color:#f87171; }
+@media(max-width:640px){
+  .bo-ott-row{ flex-direction:column; }
+  .boxoffice-info-box{ width:100%; }
+}
+
 /* ══ 관련영상/관련이미지 섹션 타이틀 ══ */
 .plain-section-title{
   font-size: 16px;
@@ -1574,15 +1612,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <div id="mbtiWgRow" style="display:none"></div>
 
 <!-- ══════════════════════════════════════
-     보러가기 섹션 — 바 형태, 항상 표시
+     박스오피스 정보(KOBIS) + 보러가기 — 같은 행
+     boxofficeInfoBox는 category01(일간 박스오피스) 매칭된 영화만 데이터 있으면 표시
 ══════════════════════════════════════ -->
-<div class="ott-section" id="ottSection" style="display:none">
-  <div class="ott-section-header">
-    <span class="ott-section-title">보러가기</span>
-    <!-- 제작: A · B 형태로 JS가 채워줌 -->
-    <span class="ott-section-network" id="ottNetworkLabel"></span>
+<div class="bo-ott-row">
+  <div class="boxoffice-info-box" id="boxofficeInfoBox" style="display:none">
+    <div class="bo-info-title"><i class="ti ti-clipboard-list" style="font-size:16px"></i>박스오피스 정보</div>
+    <div class="bo-info-sub" id="boxofficeInfoSub"></div>
+    <div class="bo-info-list" id="boxofficeInfoList"></div>
   </div>
-  <div class="ott-bar-list" id="ottBarList"></div>
+  <div class="ott-section" id="ottSection" style="display:none">
+    <div class="ott-section-header">
+      <span class="ott-section-title">보러가기</span>
+      <!-- 제작: A · B 형태로 JS가 채워줌 -->
+      <span class="ott-section-network" id="ottNetworkLabel"></span>
+    </div>
+    <div class="ott-bar-list" id="ottBarList"></div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -2366,6 +2412,58 @@ function updateMbtiWgRow(){
 async function loadWatchGuide(){
   /* loadWatchProviders()가 boxoffice 포함 모든 보러가기를 통합 처리
      이 함수는 하위 호환성 유지용으로만 남겨둠 */
+}
+
+/* == 박스오피스(KOBIS) 상세 정보 == */
+// 큰 금액을 "66억 8,412만원" 형태로 변환 — 원 단위 그대로 찍으면 자릿수가 너무 많아 가독성이 떨어짐
+function formatWon(amount){
+  if(amount==null) return '-';
+  const eok = Math.floor(amount/100000000);
+  const man = Math.floor((amount%100000000)/10000);
+  if(eok>0) return `${eok.toLocaleString()}억 ${man.toLocaleString()}만원`;
+  if(man>0) return `${man.toLocaleString()}만원`;
+  return `${Number(amount).toLocaleString()}원`;
+}
+
+async function loadBoxofficeInfo(){
+  // 박스오피스는 영화만 대상 (media_type 확정 전이면 스킵)
+  if(!WORK.tmdb_id || WORK.type!=='movie') return;
+  try{
+    const res = await fetch(`${OTTRANK_API}/rankings/boxoffice-stats/${WORK.tmdb_id}`).then(r=>r.json()).catch(()=>null);
+    const d = res && res.ok ? res.data : null;
+    if(!d) return; // 매칭된 박스오피스 데이터 없으면 박스는 숨김 상태 그대로 유지
+
+    const changeUp = Number(d.audi_change) >= 0;
+    const rankInten = Number(d.rank_inten) || 0;
+    const rankIcon  = rankInten > 0 ? 'ti-arrow-up' : (rankInten < 0 ? 'ti-arrow-down' : 'ti-minus');
+    const rankTxt   = rankInten > 0 ? `▲${rankInten}` : (rankInten < 0 ? `▼${Math.abs(rankInten)}` : '변동없음');
+    const rankCls   = rankInten > 0 ? 'up' : (rankInten < 0 ? 'down' : '');
+
+    // 9개 항목 — [아이콘, 라벨, 값, 색상클래스(선택)]
+    const rows = [
+      ['ti-users',      '일 관객수',     `${Number(d.audi_cnt).toLocaleString()}명`],
+      ['ti-stack-2',    '누적 관객수',   `${Number(d.audi_acc).toLocaleString()}명`],
+      ['ti-cash',       '당일 매출액',   formatWon(d.sales_amt)],
+      [changeUp?'ti-trending-up':'ti-trending-down', '전일대비 관객', `${changeUp?'+':''}${d.audi_change}%`, changeUp?'up':'down'],
+      ['ti-chart-pie',  '매출 점유율',   `${d.sales_share}%`],
+      ['ti-device-tv',  '상영 스크린수', `${Number(d.scrn_cnt).toLocaleString()}개`],
+      ['ti-repeat',     '상영 횟수',     `${Number(d.show_cnt).toLocaleString()}회`],
+      [rankIcon,        '전일대비 순위', rankTxt, rankCls],
+      ['ti-sparkles',   '신규진입 여부', d.rank_old_and_new === 'NEW' ? 'NEW' : '기존작'],
+    ];
+
+    document.getElementById('boxofficeInfoList').innerHTML = rows.map(([icon,label,value,cls])=>`
+      <div class="bo-info-row">
+        <i class="ti ${icon}"></i>
+        <span class="bo-info-label">${label}</span>
+        <span class="bo-info-value${cls?' '+cls:''}">${value}</span>
+      </div>`).join('');
+
+    document.getElementById('boxofficeInfoSub').textContent = `오늘 박스오피스 ${d.rank}위`;
+    document.getElementById('boxofficeInfoBox').style.display = 'block';
+  }catch(e){
+    console.log('[boxoffice-info] load failed:', e.message);
+  }
 }
 
 /* == TMDB Load (parallel) == */
@@ -4146,6 +4244,7 @@ async function init(){
       loadTitleVideos(),
       loadFeelingData(),
       loadUpcomingOttBadge(), // 공개예정 뱃지 (release_date > 오늘 + 관리자 수동입력 있을 때만)
+      loadBoxofficeInfo(),    // [2026-07-19 신설] KOBIS 박스오피스 상세 지표 (영화만 해당)
     ]);
   }else{
     renderComments();
