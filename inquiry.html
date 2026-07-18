@@ -154,7 +154,7 @@ function switchType(type){
   document.getElementById('tabBug').classList.toggle('on', type==='bug');
 
   const isAd = type === 'ad';
-  document.getElementById('inqTitle').textContent = isAd ? '📮 광고문의' : '🐛 오류신고';
+  document.getElementById('inqTitle').textContent = isAd ? '📮 제휴·광고문의' : '🐛 오류신고';
   document.getElementById('inqSub').textContent = isAd
     ? '오뜨랑 광고·제휴 문의를 남겨주시면 빠르게 답변드릴게요.'
     : '사이트 이용 중 발견한 오류를 알려주시면 빠르게 확인할게요.';
