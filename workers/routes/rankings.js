@@ -10,6 +10,7 @@
    GET  /rankings/platforms-batch?tmdb_ids=1,2,3   ← person.html 필모그래피 배치조회(2026-07-11 신설)
    GET  /rankings/person-widget                    ← 인물페이지 상단 랭킹 위젯(2026-07-11 신설)
    GET  /rankings/manual/:tmdb_id
+   GET  /rankings/boxoffice-stats/:tmdb_id          ← 작품 상세페이지 박스오피스 정보(2026-07-19 신설)
    GET  /latest-date
    GET  /platforms
    GET  /sitemap.xml
@@ -723,6 +724,31 @@ export async function handleRankings(path, request, env, url, headers) {
           })),
         }
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /rankings/boxoffice-stats/:tmdb_id ───────────────────
+  // 작품 상세페이지용 — 해당 작품의 가장 최근 KOBIS 박스오피스 지표 1건
+  // (2026-07-19 신설) boxoffice_stats는 tmdb_id+date UNIQUE라 ORDER BY date DESC LIMIT 1로
+  // 자동으로 인덱스를 탐 (별도 인덱스 추가 불필요 — 유니크 제약이 인덱스 역할)
+  if (path.startsWith("/rankings/boxoffice-stats/") && request.method === "GET") {
+    const tmdb_id = parseInt(path.split("/rankings/boxoffice-stats/")[1]);
+    if (!tmdb_id) {
+      return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+               audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
+               scrn_cnt, show_cnt
+        FROM boxoffice_stats
+        WHERE tmdb_id = ?
+        ORDER BY date DESC
+        LIMIT 1
+      `).bind(tmdb_id).all();
+      return new Response(JSON.stringify({ ok: true, data: results[0] || null }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
