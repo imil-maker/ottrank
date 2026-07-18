@@ -538,12 +538,15 @@ export async function handleRankings(path, request, env, url, headers) {
     if (!tmdb_id) {
       return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
     }
+    // [2026-07-18] netflix category10은 자동 크롤링이 아닌 수동 재계산 전용 비공식 카테고리라
+    //   "N일간 TOP 10" 이력 계산 대상에서 제외 (작품페이지 heroRankRow의 chip-top10 배지용)
     const { results } = await env.DB.prepare(`
       SELECT date, platform, category_slot, rank
       FROM rankings
       WHERE tmdb_id = ?
         AND date < 'manual'
         AND date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-29 days')
+        AND NOT (platform = 'netflix' AND category_slot = 'category10')
       ORDER BY date ASC, platform ASC
     `).bind(tmdb_id).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
