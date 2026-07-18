@@ -388,6 +388,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
             FROM rankings
             WHERE tmdb_id IN (${N})
               AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+              AND NOT (platform = 'netflix' AND category_slot = 'category10')
           `).bind(...b).all(),t.DB.prepare(`
             SELECT tmdb_id, ott_key FROM work_ott
             WHERE tmdb_id IN (${N})
@@ -406,6 +407,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
             FROM rankings
             WHERE tmdb_id IN (${a})
               AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+              AND NOT (platform = 'netflix' AND category_slot = 'category10')
           `).bind(...s).all(),t.DB.prepare(`
             SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${a})
           `).bind(...s).all()]),m={};l.forEach(E=>{m[E.tmdb_id]||(m[E.tmdb_id]={}),m[E.tmdb_id][E.platform]=E.rank});let u={};p.forEach(E=>{(u[E.tmdb_id]||=[]).push(E.ott_key)}),d=c.map(E=>({...E,ott_ranks:m[E.tmdb_id]||{},ott_keys:u[E.tmdb_id]||[]}))}return new Response(JSON.stringify({ok:!0,data:d}),{headers:e})}catch(_){return new Response(JSON.stringify({ok:!1,message:_.message}),{status:500,headers:e})}}if(r==="/search-log"&&i.method==="POST")try{let o=await i.json().catch(()=>({})),n=(o.q||"").toString().trim().slice(0,200),_=parseInt(o.total,10)||0;return n?(await t.DB.prepare("INSERT INTO search_logs (query, result_count) VALUES (?, ?)").bind(n,_).run(),new Response(JSON.stringify({ok:!0}),{headers:e})):new Response(JSON.stringify({ok:!0}),{headers:e})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:e})}return null}async function at(r,i,t,g,e){if(r==="/reactions"&&i.method==="GET"){let o=new URL(i.url),n=o.searchParams.get("tmdb_id"),_=o.searchParams.get("featured"),c=parseInt(o.searchParams.get("page")||"1"),d=20,s=(c-1)*d,a,l;_==="1"?(a="SELECT * FROM reactions WHERE is_featured = 1 ORDER BY created_at DESC LIMIT 1",l=[]):n?(a="SELECT * FROM reactions WHERE tmdb_id = ? ORDER BY is_featured DESC, like_count DESC, created_at DESC",l=[parseInt(n)]):(a="SELECT * FROM reactions ORDER BY is_featured DESC, created_at DESC LIMIT ? OFFSET ?",l=[d,s]);let{results:p}=l.length?await t.DB.prepare(a).bind(...l).all():await t.DB.prepare(a).all();return new Response(JSON.stringify({ok:!0,data:p}),{headers:e})}if(r.match(/^\/reactions\/work\/\d+$/)&&i.method==="GET")try{let o=parseInt(r.split("/")[3]),n=["great","good","meh","bad"],{results:_}=await t.DB.prepare(`
