@@ -266,6 +266,7 @@ export async function handleSearch(path, request, env, url, headers) {
             FROM rankings
             WHERE tmdb_id IN (${pagePlaceholders})
               AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+              AND NOT (platform = 'netflix' AND category_slot = 'category10')
           `).bind(...pageIds).all(),
           env.DB.prepare(`
             SELECT tmdb_id, ott_key FROM work_ott
@@ -391,6 +392,7 @@ export async function handleSearch(path, request, env, url, headers) {
             FROM rankings
             WHERE tmdb_id IN (${foundPlaceholders})
               AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+              AND NOT (platform = 'netflix' AND category_slot = 'category10')
           `).bind(...foundIds).all(),
           env.DB.prepare(`
             SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${foundPlaceholders})
