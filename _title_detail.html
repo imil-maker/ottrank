@@ -1188,11 +1188,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
+  flex-shrink: 0;
 }
 .ott-section-network{
   font-size: 13px;
   color: var(--muted);
   font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 /* OTT 바 목록 */
 .ott-bar-list{
@@ -1268,26 +1273,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* ══ 박스오피스 정보 + 보러가기 (같은 행, PC / 모바일은 위아래로 자연 스택) ══
    DOM 순서: 박스오피스 박스 → ott-section 순서로 배치해서,
-   모바일(column)에서 별도 order 지정 없이도 "보러가기 위에" 자연스럽게 오게 함 */
+   모바일(column)에서 별도 order 지정 없이도 "보러가기 위에" 자연스럽게 오게 함
+   두 박스 모두 flex:1 — PC에서 폭이 정확히 반반, 모바일 스택 시에도 둘 다 100% */
 .bo-ott-row{
   display:flex; align-items:flex-start; gap:16px;
 }
 .bo-ott-row .ott-section{ flex:1; min-width:0; }
 .boxoffice-info-box{
-  width:260px; flex-shrink:0;
+  flex:1; min-width:0;
   background:var(--bg2); border:.5px solid var(--border);
-  border-radius:var(--r-lg); padding:18px;
+  border-radius:var(--r-lg); padding:20px;
   margin:24px 0 8px;
 }
 .bo-info-title{
   font-size:16px; font-weight:700; color:var(--text);
-  display:flex; align-items:center; gap:6px; margin-bottom:2px;
+  display:flex; align-items:center; gap:8px; margin-bottom:12px;
 }
-.bo-info-sub{
-  font-size:13px; color:var(--gold); font-family:var(--font-mono);
-  font-weight:600; margin-bottom:12px;
+.bo-info-title-icon{
+  width:28px; height:28px; border-radius:8px; flex-shrink:0;
+  background:rgba(240,180,41,.12); color:var(--gold);
+  display:flex; align-items:center; justify-content:center; font-size:14px;
 }
-.bo-info-list{ display:flex; flex-direction:column; }
+/* 오늘 순위 칩 — 기존 rank-info-chip.chip-manual 톤(골드) 그대로 재사용, 크기만 축소 */
+.bo-info-rank-chip{
+  margin-left:auto; font-size:12px; font-weight:700;
+  font-family:var(--font-mono); color:var(--gold);
+  background:rgba(240,180,41,.15); border:.5px solid rgba(240,180,41,.4);
+  border-radius:var(--r); padding:4px 10px; white-space:nowrap;
+}
 .bo-info-row{
   display:flex; align-items:center; gap:8px;
   padding:8px 0; border-bottom:.5px solid var(--border);
@@ -1296,7 +1309,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .bo-info-row:last-child{ border-bottom:none; }
 .bo-info-row i{ font-size:15px; color:var(--muted); width:18px; text-align:center; flex-shrink:0; }
 .bo-info-label{ color:var(--muted); flex:1; min-width:0; }
-.bo-info-value{ font-family:var(--font-mono); font-weight:700; color:var(--text); white-space:nowrap; }
+.bo-info-value{ font-family:var(--font-mono); font-size:13px; font-weight:400; color:var(--text); white-space:nowrap; }
+.bo-info-value.gold{ color:var(--gold); }
 .bo-info-value.up{ color:#34d399; }
 .bo-info-value.down{ color:#f87171; }
 @media(max-width:640px){
@@ -1617,8 +1631,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 ══════════════════════════════════════ -->
 <div class="bo-ott-row">
   <div class="boxoffice-info-box" id="boxofficeInfoBox" style="display:none">
-    <div class="bo-info-title"><i class="ti ti-clipboard-list" style="font-size:16px"></i>박스오피스 정보</div>
-    <div class="bo-info-sub" id="boxofficeInfoSub"></div>
+    <div class="bo-info-title">
+      <span class="bo-info-title-icon"><i class="ti ti-clipboard-list"></i></span>
+      박스오피스 정보
+      <span class="bo-info-rank-chip" id="boxofficeInfoSub"></span>
+    </div>
     <div class="bo-info-list" id="boxofficeInfoList"></div>
   </div>
   <div class="ott-section" id="ottSection" style="display:none">
@@ -2414,17 +2431,6 @@ async function loadWatchGuide(){
      이 함수는 하위 호환성 유지용으로만 남겨둠 */
 }
 
-/* == 박스오피스(KOBIS) 상세 정보 == */
-// 큰 금액을 "66억 8,412만원" 형태로 변환 — 원 단위 그대로 찍으면 자릿수가 너무 많아 가독성이 떨어짐
-function formatWon(amount){
-  if(amount==null) return '-';
-  const eok = Math.floor(amount/100000000);
-  const man = Math.floor((amount%100000000)/10000);
-  if(eok>0) return `${eok.toLocaleString()}억 ${man.toLocaleString()}만원`;
-  if(man>0) return `${man.toLocaleString()}만원`;
-  return `${Number(amount).toLocaleString()}원`;
-}
-
 async function loadBoxofficeInfo(){
   // 박스오피스는 영화만 대상 (media_type 확정 전이면 스킵)
   if(!WORK.tmdb_id || WORK.type!=='movie') return;
@@ -2439,17 +2445,13 @@ async function loadBoxofficeInfo(){
     const rankTxt   = rankInten > 0 ? `▲${rankInten}` : (rankInten < 0 ? `▼${Math.abs(rankInten)}` : '변동없음');
     const rankCls   = rankInten > 0 ? 'up' : (rankInten < 0 ? 'down' : '');
 
-    // 9개 항목 — [아이콘, 라벨, 값, 색상클래스(선택)]
+    // 5개 항목 — [아이콘, 라벨, 값, 색상클래스(선택)]
     const rows = [
-      ['ti-users',      '일 관객수',     `${Number(d.audi_cnt).toLocaleString()}명`],
+      ['ti-users',      '일 관객수',     `${Number(d.audi_cnt).toLocaleString()}명`, 'gold'],
       ['ti-stack-2',    '누적 관객수',   `${Number(d.audi_acc).toLocaleString()}명`],
-      ['ti-cash',       '당일 매출액',   formatWon(d.sales_amt)],
       [changeUp?'ti-trending-up':'ti-trending-down', '전일대비 관객', `${changeUp?'+':''}${d.audi_change}%`, changeUp?'up':'down'],
-      ['ti-chart-pie',  '매출 점유율',   `${d.sales_share}%`],
       ['ti-device-tv',  '상영 스크린수', `${Number(d.scrn_cnt).toLocaleString()}개`],
-      ['ti-repeat',     '상영 횟수',     `${Number(d.show_cnt).toLocaleString()}회`],
       [rankIcon,        '전일대비 순위', rankTxt, rankCls],
-      ['ti-sparkles',   '신규진입 여부', d.rank_old_and_new === 'NEW' ? 'NEW' : '기존작'],
     ];
 
     document.getElementById('boxofficeInfoList').innerHTML = rows.map(([icon,label,value,cls])=>`
@@ -2459,7 +2461,7 @@ async function loadBoxofficeInfo(){
         <span class="bo-info-value${cls?' '+cls:''}">${value}</span>
       </div>`).join('');
 
-    document.getElementById('boxofficeInfoSub').textContent = `오늘 박스오피스 ${d.rank}위`;
+    document.getElementById('boxofficeInfoSub').textContent = `오늘 ${d.rank}위`;
     document.getElementById('boxofficeInfoBox').style.display = 'block';
   }catch(e){
     console.log('[boxoffice-info] load failed:', e.message);
@@ -3864,11 +3866,12 @@ function renderNetworkTab(networks){
     labelEl.textContent = '';
     return;
   }
-  const names = networks.slice(0, 3).map(n => {
-    const nm = n.name || '';
-    return nm.length > 20 ? nm.slice(0, 20) + '…' : nm;
-  }).join(' · ');
-  labelEl.textContent = `제작: ${names}`;
+  // [2026-07-19 수정] 이전엔 제작사명을 하나씩 20자로 잘랐는데, 여러 개를 합치면
+  // 전체 길이가 여전히 길어서 박스오피스 정보 박스와 폭을 나눠 쓰는 좁아진 레이아웃에서 잘려 보임.
+  // 개별이 아니라 "제작: " 뒤에 붙는 전체 문구 기준으로 20자(영문 기준)까지만 표시.
+  const names = networks.slice(0, 3).map(n => n.name || '').filter(Boolean).join(' · ');
+  const displayNames = names.length > 20 ? names.slice(0, 20) + '…' : names;
+  labelEl.textContent = `제작: ${displayNames}`;
   /* 보러가기 섹션 표시 (데이터 있으면) */
   const sec = document.getElementById('ottSection');
   if(sec) sec.style.display = 'block';
