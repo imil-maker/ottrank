@@ -168,7 +168,15 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
               WHERE platform = ? AND category_slot = ? AND date != 'manual'
             )
           ORDER BY r.rank ASC
-        `).bind(o.platform,o.category_slot,o.platform,o.category_slot).all();d=l}let a=Y(d,s,n);return new Response(JSON.stringify({ok:!0,data:{platform:o.platform,category_slot:o.category_slot,display_name:o.display_name,items:a.map(l=>({rank:l.rank,title_ko:l.title_ko,title_en:l.title_en,tmdb_id:l.tmdb_id,poster_path:l.poster_path,genre:l.genre,tmdb_rating:l.tmdb_rating,release_year:l.release_year,media_type:l.media_type||null}))}}),{headers:e})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:e})}if(r.startsWith("/rankings/manual/")&&i.method==="GET"){let o=parseInt(r.split("/rankings/manual/")[1]);if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:e});try{let{results:n}=await t.DB.prepare(`
+        `).bind(o.platform,o.category_slot,o.platform,o.category_slot).all();d=l}let a=Y(d,s,n);return new Response(JSON.stringify({ok:!0,data:{platform:o.platform,category_slot:o.category_slot,display_name:o.display_name,items:a.map(l=>({rank:l.rank,title_ko:l.title_ko,title_en:l.title_en,tmdb_id:l.tmdb_id,poster_path:l.poster_path,genre:l.genre,tmdb_rating:l.tmdb_rating,release_year:l.release_year,media_type:l.media_type||null}))}}),{headers:e})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:e})}if(r.startsWith("/rankings/boxoffice-stats/")&&i.method==="GET"){let o=parseInt(r.split("/rankings/boxoffice-stats/")[1]);if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:e});try{let{results:n}=await t.DB.prepare(`
+        SELECT tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+               audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
+               scrn_cnt, show_cnt
+        FROM boxoffice_stats
+        WHERE tmdb_id = ?
+        ORDER BY date DESC
+        LIMIT 1
+      `).bind(o).all();return new Response(JSON.stringify({ok:!0,data:n[0]||null}),{headers:e})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:e})}}if(r.startsWith("/rankings/manual/")&&i.method==="GET"){let o=parseInt(r.split("/rankings/manual/")[1]);if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:e});try{let{results:n}=await t.DB.prepare(`
         SELECT
           r.rank, r.memo, r.platform, r.category_slot,
           oc.display_name, oc.memo_label
