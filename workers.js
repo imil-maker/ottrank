@@ -119,6 +119,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
         FROM rankings
         WHERE tmdb_id = ?
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+          AND NOT (platform = 'netflix' AND category_slot = 'category10')
         GROUP BY platform
         ORDER BY rank ASC
       `).bind(o).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:e})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:e})}}if(r==="/rankings/platforms-batch"&&i.method==="GET"){let o=(g.searchParams.get("tmdb_ids")||"").trim();if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_ids required"}),{status:400,headers:e});let n=[...new Set(o.split(",").map(_=>parseInt(_.trim())).filter(_=>Number.isInteger(_)&&_>0))].slice(0,50);if(!n.length)return new Response(JSON.stringify({ok:!1,message:"\uC720\uD6A8\uD55C tmdb_ids\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"}),{status:400,headers:e});try{let _=n.map(()=>"?").join(","),{results:c}=await t.DB.prepare(`
