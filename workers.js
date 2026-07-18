@@ -112,6 +112,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
       WHERE tmdb_id = ?
         AND date < 'manual'
         AND date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-29 days')
+        AND NOT (platform = 'netflix' AND category_slot = 'category10')
       ORDER BY date ASC, platform ASC
     `).bind(o).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:e})}if(r.startsWith("/rankings/platforms/")&&i.method==="GET"){let o=parseInt(r.split("/rankings/platforms/")[1]);if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:e});try{let{results:n}=await t.DB.prepare(`
         SELECT DISTINCT platform, MIN(rank) as rank
