@@ -194,6 +194,11 @@ body {
   font-family:var(--mono); font-size:11px; color:var(--muted);
   display:flex; align-items:center; gap:6px; flex-wrap:wrap;
 }
+/* [2026-07-18 추가] 일 관객수 — pk-year 줄 오른쪽 끝에 골드색으로 표시 (박스오피스 순위 기준값) */
+.pk-audi {
+  margin-left:auto; font-family:var(--mono); font-size:11px;
+  font-weight:600; color:var(--gold); white-space:nowrap;
+}
 .pk-memo {
   font-family:var(--mono); font-size:11px; color:var(--gold);
   background:rgba(240,180,41,.1); border:1px solid rgba(240,180,41,.2);
@@ -458,6 +463,9 @@ function makeCard(item, rank) {
     ? `<div class="pk-rating">★ ${parseFloat(item.tmdb_rating).toFixed(1)}</div>` : '';
   const memo   = item.memo
     ? `<span class="pk-memo">${escHtml(item.memo)}</span>` : '';
+  // [2026-07-18 추가] 일 관객수 — boxoffice_stats 매칭 안 된 항목(null)은 표시 안 함
+  const audiHtml = (item.audi_cnt != null)
+    ? `<span class="pk-audi">일 ${Number(item.audi_cnt).toLocaleString()}명</span>` : '';
   // 영어제목 — title_en이 없거나 한글제목과 동일하면(데이터 미보완 상태) 중복 노출 방지
   const enHtml = (item.title_en && item.title_en !== item.title_ko)
     ? `<div class="pk-en">${escHtml(item.title_en)}</div>` : '';
@@ -479,6 +487,7 @@ function makeCard(item, rank) {
         <div class="pk-year">
           ${item.release_year || '-'}
           ${memo}
+          ${audiHtml}
         </div>
       </div>
     </div>`;
