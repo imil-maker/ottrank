@@ -1280,8 +1280,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .bo-ott-row{
   display:flex; align-items:flex-start; gap:16px;
 }
-.boxoffice-info-box,
+/* [2026-07-19 수정] 기본값(박스오피스 박스가 없는 대부분의 작품)은 보러가기가 100% 차지.
+   박스오피스 박스가 실제로 표시될 때만(.has-boxoffice 클래스) 50%씩 나눔.
+   기존엔 박스오피스 박스가 display:none이어도 보러가기가 항상 50%로 고정되는 버그가 있었음. */
 .bo-ott-row .ott-section{
+  width:100%; flex-shrink:0; flex-grow:0; overflow:hidden;
+}
+.bo-ott-row.has-boxoffice .boxoffice-info-box,
+.bo-ott-row.has-boxoffice .ott-section{
   width:calc(50% - 8px); flex-shrink:0; flex-grow:0; overflow:hidden;
 }
 .boxoffice-info-box{
@@ -2474,7 +2480,10 @@ async function loadBoxofficeInfo(){
       </div>`).join('');
 
     document.getElementById('boxofficeInfoSub').textContent = `오늘 ${d.rank}위`;
-    document.getElementById('boxofficeInfoBox').style.display = 'block';
+    const boxofficeInfoBox = document.getElementById('boxofficeInfoBox');
+    boxofficeInfoBox.style.display = 'block';
+    // [2026-07-19 추가] 박스오피스 박스가 실제로 뜰 때만 보러가기와 50:50 분할
+    boxofficeInfoBox.closest('.bo-ott-row')?.classList.add('has-boxoffice');
   }catch(e){
     console.log('[boxoffice-info] load failed:', e.message);
   }
