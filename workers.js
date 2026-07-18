@@ -127,6 +127,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
         FROM rankings
         WHERE tmdb_id IN (${_})
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+          AND NOT (platform = 'netflix' AND category_slot = 'category10')
         GROUP BY tmdb_id, platform
         ORDER BY tmdb_id, rank ASC
       `).bind(...n).all(),d={};for(let s of c)d[s.tmdb_id]||(d[s.tmdb_id]=[]),d[s.tmdb_id].push({platform:s.platform,rank:s.rank});return new Response(JSON.stringify({ok:!0,data:d}),{headers:e})}catch(_){return new Response(JSON.stringify({ok:!1,message:_.message}),{status:500,headers:e})}}if(r==="/rankings/person-widget"&&i.method==="GET")try{let o=await t.DB.prepare(`
