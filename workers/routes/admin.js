@@ -1781,10 +1781,24 @@ export async function handleAdmin(path, request, env, url, headers) {
         }
 
         if (keywords) {
-          // 정상적으로 키워드를 찾음
-          updates.push(
-            env.DB.prepare("UPDATE works SET keywords = ? WHERE tmdb_id = ?").bind(keywords, row.tmdb_id)
-          );
+          // [2026-07-18 추가] 키워드에 'softcore'가 있으면 성인물로 자동 확정.
+          // 실측 결과 오탐율 0.23%(2597개 중 6개, 그 6개도 전부 실제 성인물로 확인됨)라
+          // 안전한 신호로 판단 — adult_flag=1과 media_type='movie'를 이 자리에서 같이 저장.
+          // (media_type='movie' 통일은 19금 체크박스 토글 때와 동일한 원칙)
+          const kwTokens = keywords.split(",");
+          const isSoftcore = kwTokens.includes("softcore");
+
+          if (isSoftcore) {
+            updates.push(
+              env.DB.prepare(
+                "UPDATE works SET keywords = ?, adult_flag = 1, media_type = 'movie' WHERE tmdb_id = ?"
+              ).bind(keywords, row.tmdb_id)
+            );
+          } else {
+            updates.push(
+              env.DB.prepare("UPDATE works SET keywords = ? WHERE tmdb_id = ?").bind(keywords, row.tmdb_id)
+            );
+          }
           processed++;
         } else if (anySuccess) {
           // TMDB가 정상 응답했는데 진짜로 키워드가 없는 경우만 '__NONE__' 확정
