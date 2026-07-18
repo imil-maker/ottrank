@@ -3808,7 +3808,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const [{ results }, totalRow] = await Promise.all([
         env.DB.prepare(
-          `SELECT id, query, result_count, created_at FROM search_logs
+          `SELECT id, query, result_count, total_count, created_at FROM search_logs
            ORDER BY created_at DESC LIMIT ? OFFSET ?`
         ).bind(limit, offset).all(),
         env.DB.prepare(`SELECT COUNT(*) AS cnt FROM search_logs`).first(),
