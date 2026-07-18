@@ -7,8 +7,9 @@ SQL을 배치(batch)로 나눠서 업로드 (D1 API 한 번에 최대 10MB 제�
 업로드 대상:
   1. rankings  — 오늘 날짜 데이터
   2. works     — 신규 작품 INSERT + tmdb_rating 항상 최신화
-  3. review_queue — 오늘 날짜 매칭 실패 항목
-  4. title_map — 전체 upsert
+  3. boxoffice_stats — 오늘 날짜 KOBIS 관객수/매출 등 상세 지표 (2026-07-18 신설)
+  4. review_queue — 오늘 날짜 매칭 실패 항목
+  5. title_map — 전체 upsert
 ────────────────────────────────────────────────────────────────
 """
 import sqlite3
@@ -466,6 +467,59 @@ def upload_title_map(conn: sqlite3.Connection) -> int:
     return success
 
 
+def upload_boxoffice_stats(conn: sqlite3.Connection) -> int:
+    """
+    boxoffice_stats 오늘 날짜 데이터 D1 업로드 (2026-07-18 신설)
+    KOBIS 박스오피스 관객수/매출/스크린수 등 상세 지표
+    ⚠️ works가 먼저 D1에 올라가 있어야 tmdb_id 참조가 의미 있으므로
+       upload_works() 이후에 호출 (호출 순서는 upload() 함수 참고)
+    UNIQUE(tmdb_id, date) 기준이라 INSERT OR REPLACE로 안전하게 upsert
+    """
+    try:
+        rows = conn.execute("""
+            SELECT tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+                   audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
+                   scrn_cnt, show_cnt
+            FROM boxoffice_stats
+            WHERE date = ?
+            ORDER BY rank
+        """, (TODAY,)).fetchall()
+    except Exception:
+        print(f"  boxoffice_stats: 0개 (테이블 없음)")
+        return 0
+
+    sql_list = []
+    for row in rows:
+        (tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+         audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
+         scrn_cnt, show_cnt) = row
+        sql_list.append(
+            f"INSERT OR REPLACE INTO boxoffice_stats "
+            f"(tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new, "
+            f"audi_cnt, audi_acc, audi_change, sales_amt, sales_share, "
+            f"scrn_cnt, show_cnt) "
+            f"VALUES ({tmdb_id}, {esc(movie_cd)}, {esc(date)}, "
+            f"{rank if rank is not None else 'NULL'}, "
+            f"{rank_inten if rank_inten is not None else 'NULL'}, "
+            f"{esc(rank_old_and_new)}, "
+            f"{audi_cnt if audi_cnt is not None else 'NULL'}, "
+            f"{audi_acc if audi_acc is not None else 'NULL'}, "
+            f"{audi_change if audi_change is not None else 'NULL'}, "
+            f"{sales_amt if sales_amt is not None else 'NULL'}, "
+            f"{sales_share if sales_share is not None else 'NULL'}, "
+            f"{scrn_cnt if scrn_cnt is not None else 'NULL'}, "
+            f"{show_cnt if show_cnt is not None else 'NULL'});"
+        )
+
+    if not sql_list:
+        print(f"  boxoffice_stats: 0개")
+        return 0
+
+    success = d1_batch(sql_list)
+    print(f"  ✅ boxoffice_stats: {success}/{len(sql_list)}개 업로드")
+    return success
+
+
 def _update_latest_ranking_date() -> None:
     """
     [2026-07-14 신설] 'latest_ranking_date' 설정값을 오늘 날짜로 갱신.
@@ -503,6 +557,7 @@ def upload():
         upload_rankings(conn)
         _update_latest_ranking_date()
         upload_works(conn)
+        upload_boxoffice_stats(conn)
         upload_review_queue(conn)
         upload_title_map(conn)
     except Exception as e:
