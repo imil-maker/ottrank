@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>박스오피스 순위 이번 주 TOP10 — 극장 영화 흥행 순위 | 오뜨랑</title>
-<meta name="description" content="이번 주 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요. 주간 박스오피스 TOP10, 현재 상영작 순위를 오뜨랑에서 매일 오전 9시에 업데이트합니다.">
-<meta name="keywords" content="박스오피스 순위, 박스오피스 순위, 주간 박스오피스, 한국영화 흥행 순위, 현재 상영 영화, 극장 영화 순위, 역대 한국영화 흥행, 오늘 영화 추천">
+<title>박스오피스 순위 일간 TOP10 — 극장 영화 흥행 순위 | 오뜨랑</title>
+<meta name="description" content="일간 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요. 일간 박스오피스 TOP10, 현재 상영작 순위를 오뜨랑에서 매일 오전 9시에 업데이트합니다.">
+<meta name="keywords" content="박스오피스 순위, 박스오피스 순위, 일간 박스오피스, 한국영화 흥행 순위, 현재 상영 영화, 극장 영화 순위, 역대 한국영화 흥행, 오늘 영화 추천">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://ottrank.kr/boxoffice">
 <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
@@ -18,14 +18,14 @@
 <meta name="theme-color" content="#0c0c10">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="오뜨랑">
-<meta property="og:title" content="박스오피스 순위 이번 주 TOP10 — 극장 영화 흥행 순위 | 오뜨랑">
-<meta property="og:description" content="이번 주 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요.">
+<meta property="og:title" content="박스오피스 순위 일간 TOP10 — 극장 영화 흥행 순위 | 오뜨랑">
+<meta property="og:description" content="일간 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요.">
 <meta property="og:url" content="https://ottrank.kr/boxoffice">
 <meta property="og:image" content="https://ottrank.kr/img/og-image.png">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="박스오피스 순위 이번 주 TOP10 — 극장 영화 흥행 순위 | 오뜨랑">
-<meta name="twitter:description" content="이번 주 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요.">
+<meta name="twitter:title" content="박스오피스 순위 일간 TOP10 — 극장 영화 흥행 순위 | 오뜨랑">
+<meta name="twitter:description" content="일간 극장 박스오피스 순위와 역대 한국영화 흥행 순위를 한눈에 확인하세요.">
 <meta name="twitter:image" content="https://ottrank.kr/img/og-image.png">
 <!-- 구조화 데이터 (구글 리치 결과) — TOP10 목록용 ItemList(Movie), JS(updateItemListSEO)가 데이터 로드 후 채움 -->
 <script id="ldJsonList" type="application/ld+json">{}</script>
@@ -200,6 +200,7 @@ body {
   font-weight:600; color:var(--gold); white-space:nowrap;
 }
 .pk-memo {
+  margin-left:auto;
   font-family:var(--mono); font-size:11px; color:var(--gold);
   background:rgba(240,180,41,.1); border:1px solid rgba(240,180,41,.2);
   border-radius:3px; padding:1px 6px; white-space:nowrap;
@@ -308,7 +309,7 @@ fetch('/header.html')
   <div class="hero">
     <div class="hero-eyebrow">OTT RANKING</div>
     <div class="hero-title"><span class="bo">BOXOFFICE</span> 순위</div>
-    <div class="hero-sub">주간 박스오피스 순위 · 역대 한국 영화 · 오뜨랑 집계</div>
+    <div class="hero-sub">일간 박스오피스 순위 · 역대 한국 영화 · 오뜨랑 집계</div>
     <div class="hero-logo">BOX</div>
   </div>
 
@@ -465,7 +466,7 @@ function makeCard(item, rank) {
     ? `<span class="pk-memo">${escHtml(item.memo)}</span>` : '';
   // [2026-07-18 추가] 일 관객수 — boxoffice_stats 매칭 안 된 항목(null)은 표시 안 함
   const audiHtml = (item.audi_cnt != null)
-    ? `<span class="pk-audi">일 ${Number(item.audi_cnt).toLocaleString()}명</span>` : '';
+    ? `<span class="pk-audi">${Number(item.audi_cnt).toLocaleString()}명 / 일</span>` : '';
   // 영어제목 — title_en이 없거나 한글제목과 동일하면(데이터 미보완 상태) 중복 노출 방지
   const enHtml = (item.title_en && item.title_en !== item.title_ko)
     ? `<div class="pk-en">${escHtml(item.title_en)}</div>` : '';
