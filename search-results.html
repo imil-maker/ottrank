@@ -853,15 +853,6 @@ async function runSearch(){
     matchTypeMap  = dbJson.match_types || {};
     prefetchOttMap();
 
-    // [2026-07-18 추가] 관리자 검색어 로그 — 실제로 이 페이지에 도착했을 때(Enter/버튼으로
-    // "진짜" 검색했을 때)만 한 번 기록. 헤더 자동완성처럼 타이핑마다 호출되는 게 아니라
-    // 여기서 페이지 로드 시 딱 1번만 호출됨. 실패해도 검색 자체엔 전혀 영향 없음(await 없음).
-    fetch(`${API}/search-log`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q, total: dbJson.total || 0 }),
-    }).catch(() => {});
-
     _resetGrid();
 
     if(combinedAvailable()){
@@ -887,6 +878,18 @@ async function runSearch(){
       updateWorkCount();
     }).catch(() => {
       // TMDB 보충 실패해도 DB 결과는 이미 표시돼 있으므로 별도 에러 처리 불필요
+    }).finally(() => {
+      // [2026-07-18 수정] 관리자 검색어 로그 — 예전엔 DB 응답 직후(TMDB 합산 전) 숫자로 기록해서
+      // 화면에 실제 보이는 전체 개수(#cntWorks)와 로그 숫자가 달랐음. TMDB 보충까지(성공/실패/
+      // 타임아웃 모두 포함, 최대 5초) 기다린 뒤 딱 1번만 최종 합계로 기록하도록 이동.
+      // 검색페이지 로딩 자체와는 무관한 백그라운드 호출(await 없음)이라 체감 속도엔 영향 없음.
+      const finalTotal = dbTotal + tmdbPool.length;
+      const totalCount = dbCapped ? `${finalTotal}+` : `${finalTotal}`;
+      fetch(`${API}/search-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q, total: dbTotal, totalCount }),
+      }).catch(() => {});
     });
 
   }catch(e){
