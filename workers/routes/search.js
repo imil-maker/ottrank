@@ -432,12 +432,20 @@ export async function handleSearch(path, request, env, url, headers) {
       const body = await request.json().catch(() => ({}));
       const query = (body.q || "").toString().trim().slice(0, 200);
       const resultCount = parseInt(body.total, 10) || 0;
+      // [2026-07-18 추가] totalCount — DB+TMDB 합산 후 화면(#cntWorks)에 실제로 표시되는
+      // 전체 검색결과 숫자. dbCapped인 경우 "135+"처럼 뒤에 +가 붙은 문자열로 올 수 있어서
+      // 숫자(INTEGER)가 아니라 TEXT로 그대로 저장. 프론트가 아직 안 보내는 구버전 호출(과거
+      // 캐시된 페이지 등)과의 호환을 위해 없으면 NULL 허용.
+      const totalCountRaw = body.totalCount;
+      const totalCount = (totalCountRaw === undefined || totalCountRaw === null)
+        ? null
+        : String(totalCountRaw).slice(0, 20);
       if (!query) {
         return new Response(JSON.stringify({ ok: true }), { headers }); // 빈 검색어는 조용히 무시
       }
       await env.DB.prepare(
-        `INSERT INTO search_logs (query, result_count) VALUES (?, ?)`
-      ).bind(query, resultCount).run();
+        `INSERT INTO search_logs (query, result_count, total_count) VALUES (?, ?, ?)`
+      ).bind(query, resultCount, totalCount).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
