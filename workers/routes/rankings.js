@@ -311,10 +311,13 @@ export async function handleRankings(path, request, env, url, headers) {
         env.DB.prepare(`
           SELECT
             r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
+            bs.audi_cnt AS audi_cnt
           FROM rankings r
           JOIN ott_categories oc
             ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+          LEFT JOIN boxoffice_stats bs
+            ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id AND r.date = bs.date
           WHERE r.platform = ?
             AND oc.platform_section IS NOT NULL
             AND oc.is_active = 1
@@ -325,7 +328,8 @@ export async function handleRankings(path, request, env, url, headers) {
         env.DB.prepare(`
           SELECT
             r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
+            NULL AS audi_cnt
           FROM rankings r
           JOIN ott_categories oc
             ON r.platform = oc.platform AND r.category_slot = oc.category_slot
@@ -400,6 +404,8 @@ export async function handleRankings(path, request, env, url, headers) {
             tmdb_id: row.tmdb_id, poster_path: row.poster_path,
             genre: row.genre, tmdb_rating: row.tmdb_rating,
             release_year: row.release_year, memo: row.memo || null,
+            // [2026-07-18 추가] boxoffice 전용 — 다른 플랫폼은 항상 null
+            audi_cnt: row.audi_cnt || null,
           })),
         };
       }
