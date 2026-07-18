@@ -1237,9 +1237,19 @@ export async function handleAdmin(path, request, env, url, headers) {
       const body    = await request.json();
       const finalValue = body.adult_flag === 1 ? 1 : null; // 1 이외에는 전부 null로 취급(안전한 기본값)
 
-      await env.DB.prepare(
-        "UPDATE works SET adult_flag = ? WHERE tmdb_id = ?"
-      ).bind(finalValue, tmdb_id).run();
+      // [2026-07-18 추가] 19금으로 체크(1)되는 순간 media_type도 자동으로 'movie'로 고정.
+      // 성인물은 TV 시리즈로 등록될 일이 거의 없고, 영화로 통일해두면 이후 필터/집계에서
+      // 예외 처리를 안 해도 됨. 체크 해제(null)일 때는 media_type을 건드리지 않음 —
+      // 되돌릴 원래 타입을 알 방법이 없어 잘못된 값을 덮어쓸 수 있기 때문.
+      if (finalValue === 1) {
+        await env.DB.prepare(
+          "UPDATE works SET adult_flag = ?, media_type = 'movie' WHERE tmdb_id = ?"
+        ).bind(finalValue, tmdb_id).run();
+      } else {
+        await env.DB.prepare(
+          "UPDATE works SET adult_flag = ? WHERE tmdb_id = ?"
+        ).bind(finalValue, tmdb_id).run();
+      }
 
       return new Response(JSON.stringify({ ok: true, adult_flag: finalValue }), { headers });
     } catch (e) {
