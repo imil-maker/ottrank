@@ -43,10 +43,13 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
         `).bind(o),t.DB.prepare(`
           SELECT
             r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
+            bs.audi_cnt AS audi_cnt
           FROM rankings r
           JOIN ott_categories oc
             ON r.platform = oc.platform AND r.category_slot = oc.category_slot
+          LEFT JOIN boxoffice_stats bs
+            ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id AND r.date = bs.date
           WHERE r.platform = ?
             AND oc.platform_section IS NOT NULL
             AND oc.is_active = 1
@@ -56,7 +59,8 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
         `).bind(o,n),t.DB.prepare(`
           SELECT
             r.platform, r.category_slot, r.rank, r.title_ko, r.title_en,
-            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo
+            r.tmdb_id, r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo,
+            NULL AS audi_cnt
           FROM rankings r
           JOIN ott_categories oc
             ON r.platform = oc.platform AND r.category_slot = oc.category_slot
@@ -66,7 +70,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
             AND r.is_manual = 1
             AND r.date = 'manual'
           ORDER BY oc.platform_order, r.rank
-        `).bind(o)]),s=_.results,a=c.results,l=d.results,p={};for(let k of s)p[k.category_slot]=k;let m={},u={};for(let k of a){let y=k.category_slot;m[y]||(m[y]=[]),m[y].push(k)}for(let k of l){let y=k.category_slot;u[y]||(u[y]=[]),u[y].push(k)}if(!n){let k=s.filter(y=>!m[y.category_slot]&&!u[y.category_slot]);if(k.length){let y=await X(t,k);for(let O of y){let R=O.category_slot;m[R]||(m[R]=[]),m[R].push(O)}}}let E={},w=new Set([...Object.keys(m),...Object.keys(u)]);for(let k of w){let y=p[k];if(!y)continue;let O=y.platform_limit||20,R=Y((m[k]||[]).sort((S,h)=>S.rank-h.rank),(u[k]||[]).sort((S,h)=>S.rank-h.rank),O);E[k]={platform:y.platform,category_slot:y.category_slot,display_name:y.display_name,platform_order:y.platform_order,memo_label:y.memo_label||null,items:R.map(S=>({rank:S.rank,title_ko:S.title_ko,title_en:S.title_en,tmdb_id:S.tmdb_id,poster_path:S.poster_path,genre:S.genre,tmdb_rating:S.tmdb_rating,release_year:S.release_year,memo:S.memo||null}))}}let f=Object.values(E).sort((k,y)=>k.platform_order-y.platform_order);return new Response(JSON.stringify({ok:!0,data:f}),{headers:e})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:e})}if(r==="/rankings/weekly"&&i.method==="GET")try{let{results:o}=await t.DB.prepare(`
+        `).bind(o)]),s=_.results,a=c.results,l=d.results,p={};for(let k of s)p[k.category_slot]=k;let m={},u={};for(let k of a){let y=k.category_slot;m[y]||(m[y]=[]),m[y].push(k)}for(let k of l){let y=k.category_slot;u[y]||(u[y]=[]),u[y].push(k)}if(!n){let k=s.filter(y=>!m[y.category_slot]&&!u[y.category_slot]);if(k.length){let y=await X(t,k);for(let O of y){let R=O.category_slot;m[R]||(m[R]=[]),m[R].push(O)}}}let E={},w=new Set([...Object.keys(m),...Object.keys(u)]);for(let k of w){let y=p[k];if(!y)continue;let O=y.platform_limit||20,R=Y((m[k]||[]).sort((S,h)=>S.rank-h.rank),(u[k]||[]).sort((S,h)=>S.rank-h.rank),O);E[k]={platform:y.platform,category_slot:y.category_slot,display_name:y.display_name,platform_order:y.platform_order,memo_label:y.memo_label||null,items:R.map(S=>({rank:S.rank,title_ko:S.title_ko,title_en:S.title_en,tmdb_id:S.tmdb_id,poster_path:S.poster_path,genre:S.genre,tmdb_rating:S.tmdb_rating,release_year:S.release_year,memo:S.memo||null,audi_cnt:S.audi_cnt||null}))}}let f=Object.values(E).sort((k,y)=>k.platform_order-y.platform_order);return new Response(JSON.stringify({ok:!0,data:f}),{headers:e})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:e})}if(r==="/rankings/weekly"&&i.method==="GET")try{let{results:o}=await t.DB.prepare(`
         SELECT
           r.platform, r.category_slot, r.title_ko, r.title_en,
           r.tmdb_id, r.poster_path, r.genre, r.release_year,
