@@ -1369,15 +1369,24 @@ ${b.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
      WHERE COALESCE(w.hero_title_baked_in, 0) = 0
        AND w.hero_logo_checked_at IS NULL
      LIMIT ?`).bind(i).all();if(!t||t.length===0)return{processed:0,found:0,failed:0};let g=new Date(Date.now()+540*60*1e3).toISOString().slice(0,19).replace("T"," "),e=0,o=0,n=[];for(let _ of t){let c=await le(_.tmdb_id,_.media_type||null,r);if(!c.ok){o++;continue}c.logoPath&&e++,n.push(r.DB.prepare("UPDATE works SET hero_logo_path = ?, hero_logo_checked_at = ? WHERE tmdb_id = ?").bind(c.logoPath,g,_.tmdb_id))}return n.length>0&&await r.DB.batch(n),{processed:n.length,found:e,failed:o}}async function St(r,i,t){if(!await D(r,i))return new Response(JSON.stringify({ok:!1,error:"\uAD00\uB9AC\uC790 \uC778\uC99D\uC774 \uD544\uC694\uD569\uB2C8\uB2E4."}),{status:401,headers:t});try{let e=await i.DB.prepare("SELECT value AS latest_date FROM app_settings WHERE key = 'latest_ranking_date'").first();if(!e||!e.latest_date)return new Response(JSON.stringify({ok:!1,error:"rankings \uD14C\uC774\uBE14\uC5D0 \uC720\uD6A8\uD55C \uD06C\uB864\uB9C1 \uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."}),{status:404,headers:t});let o=e.latest_date,n=`
-      WITH target_rankings AS (
+      WITH latest_per_slot AS (
+        SELECT platform, category_slot, MAX(date) AS latest_date
+        FROM rankings
+        WHERE date < 'manual'
+        GROUP BY platform, category_slot
+      ),
+      target_rankings AS (
         SELECT r.tmdb_id, r.platform, r.rank, r.title_ko,
                COALESCE(oc.hot100_weight, 0.5) AS category_weight
         FROM rankings r
         JOIN ott_categories oc
           ON oc.platform = r.platform
          AND oc.category_slot = r.category_slot
+        JOIN latest_per_slot lps
+          ON lps.platform = r.platform
+         AND lps.category_slot = r.category_slot
+         AND r.date = lps.latest_date
         WHERE r.tmdb_id IS NOT NULL
-          AND r.date = ?
           AND oc.hot100_eligible = 1
       ),
       weighted AS (
@@ -1410,7 +1419,7 @@ ${b.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
       LEFT JOIN admin_boosts ab ON ab.tmdb_id = w.tmdb_id
       WHERE w.rn = 1
       ORDER BY (w.weighted_score + COALESCE(ab.boost_value, 0)) DESC
-    `,{results:_}=await i.DB.prepare(n).bind(o).all(),{results:c}=await i.DB.prepare("SELECT tmdb_id, boost_value, is_pinned, pinned_score, pinned_platform FROM admin_boosts").all(),d=new Map((c||[]).map(w=>[w.tmdb_id,w]));if((!_||_.length===0)&&d.size===0)return new Response(JSON.stringify({ok:!1,error:"\uACC4\uC0B0\uD560 \uB7AD\uD0B9 \uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."}),{status:404,headers:t});let s=[],a=new Set;for(let w of _||[]){a.add(w.tmdb_id);let f=d.get(w.tmdb_id);f&&f.is_pinned?s.push({tmdb_id:w.tmdb_id,best_platform:f.pinned_platform||w.best_platform,best_rank:w.best_rank,rank_score:0,platform_weight:0,weighted_score:0,admin_boost:f.pinned_score??0}):s.push(w)}for(let[w,f]of d)a.has(w)||(f.is_pinned?s.push({tmdb_id:w,best_platform:f.pinned_platform||"manual",best_rank:null,rank_score:0,platform_weight:0,weighted_score:0,admin_boost:f.pinned_score??0}):f.boost_value&&s.push({tmdb_id:w,best_platform:f.pinned_platform||"manual",best_rank:null,rank_score:0,platform_weight:0,weighted_score:0,admin_boost:f.boost_value}));s.sort((w,f)=>f.weighted_score+f.admin_boost-(w.weighted_score+w.admin_boost));let l=new Date(Date.now()+540*60*1e3).toISOString().slice(0,19).replace("T"," "),p=[i.DB.prepare("DELETE FROM hot100_scores")];for(let w of s){let f=w.weighted_score+w.admin_boost;p.push(i.DB.prepare(`INSERT INTO hot100_scores
+    `,{results:_}=await i.DB.prepare(n).all(),{results:c}=await i.DB.prepare("SELECT tmdb_id, boost_value, is_pinned, pinned_score, pinned_platform FROM admin_boosts").all(),d=new Map((c||[]).map(w=>[w.tmdb_id,w]));if((!_||_.length===0)&&d.size===0)return new Response(JSON.stringify({ok:!1,error:"\uACC4\uC0B0\uD560 \uB7AD\uD0B9 \uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."}),{status:404,headers:t});let s=[],a=new Set;for(let w of _||[]){a.add(w.tmdb_id);let f=d.get(w.tmdb_id);f&&f.is_pinned?s.push({tmdb_id:w.tmdb_id,best_platform:f.pinned_platform||w.best_platform,best_rank:w.best_rank,rank_score:0,platform_weight:0,weighted_score:0,admin_boost:f.pinned_score??0}):s.push(w)}for(let[w,f]of d)a.has(w)||(f.is_pinned?s.push({tmdb_id:w,best_platform:f.pinned_platform||"manual",best_rank:null,rank_score:0,platform_weight:0,weighted_score:0,admin_boost:f.pinned_score??0}):f.boost_value&&s.push({tmdb_id:w,best_platform:f.pinned_platform||"manual",best_rank:null,rank_score:0,platform_weight:0,weighted_score:0,admin_boost:f.boost_value}));s.sort((w,f)=>f.weighted_score+f.admin_boost-(w.weighted_score+w.admin_boost));let l=new Date(Date.now()+540*60*1e3).toISOString().slice(0,19).replace("T"," "),p=[i.DB.prepare("DELETE FROM hot100_scores")];for(let w of s){let f=w.weighted_score+w.admin_boost;p.push(i.DB.prepare(`INSERT INTO hot100_scores
             (tmdb_id, calc_date, best_platform, platform_weight,
              rank_score, weighted_rank_score, engagement_score,
              admin_boost, total_score, updated_at)
