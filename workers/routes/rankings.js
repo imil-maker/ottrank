@@ -560,11 +560,13 @@ export async function handleRankings(path, request, env, url, headers) {
       return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
     }
     try {
+      // [2026-07-18] netflix category10은 비공식 카테고리 — 현재 순위 칩(heroRankRow chip-rank)에도 반영되지 않도록 제외
       const { results } = await env.DB.prepare(`
         SELECT DISTINCT platform, MIN(rank) as rank
         FROM rankings
         WHERE tmdb_id = ?
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+          AND NOT (platform = 'netflix' AND category_slot = 'category10')
         GROUP BY platform
         ORDER BY rank ASC
       `).bind(tmdb_id).all();
