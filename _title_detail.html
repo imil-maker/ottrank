@@ -2250,6 +2250,9 @@ async function loadTop10Days(){
       // category_slot 저장 (가장 최근 데이터 기준)
       const latest=data.data[data.data.length-1];
       if(latest&&latest.category_slot){WORK_CATEGORY_SLOT=latest.category_slot;}
+      // [2026-07-19 추가] 박스오피스는 상세 순위 정보를 boxofficeInfoBox에서 이미 보여주므로
+      // 상단 히어로 영역의 "N일간 TOP 10" 칩은 중복이라 표시하지 않음
+      if(latest&&latest.platform==='boxoffice')return;
       const days=new Set(data.data.map(r=>r.date)).size;
       if(days>0){
         const row=document.getElementById('heroRankRow');
