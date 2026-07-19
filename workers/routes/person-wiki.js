@@ -34,18 +34,44 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     }
 
     // Prepared Statement 사용 (SQL 인젝션 방지)
+    // [2026-07-20 신규] hidden_fields도 같이 조회 — 어드민 "인물 개별 검색"에서
+    // 체크 해제한 항목이 있으면 아래에서 걸러냄
     const row = await env.DB.prepare(
       `SELECT tmdb_person_id, wiki_title, bio_summary, career_history,
               debut_work, debut_year, education, awards_text,
-              kmdb_id, imdb_id, source_url
+              kmdb_id, imdb_id, source_url, hidden_fields
        FROM person_wiki_cache
        WHERE tmdb_person_id = ?`
     )
       .bind(tmdbPersonId)
       .first();
 
+    // [2026-07-20 신규] 숨김 처리된 항목은 데이터를 지우지 않고 컬럼에만 기록해두는
+    // 방식이라(관리자가 다시 체크하면 복구 가능), 여기 공개 API 응답 단계에서
+    // 걸러내야 실제로 화면에 안 보이게 됨. 데이터 자체는 D1에 그대로 남아있음.
+    let data = row || null;
+    if (data) {
+      data = { ...data };
+      const hidden = (data.hidden_fields || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      delete data.hidden_fields; // 관리용 내부 필드라 공개 응답엔 안 내려줌
+
+      if (hidden.includes("bio_summary")) data.bio_summary = null;
+      if (hidden.includes("career_history")) data.career_history = null;
+      if (hidden.includes("awards_text")) data.awards_text = null;
+      if (hidden.includes("debut_work")) {
+        data.debut_work = null;
+        data.debut_year = null;
+      }
+      if (hidden.includes("education")) data.education = null;
+      if (hidden.includes("kmdb_id")) data.kmdb_id = null;
+      if (hidden.includes("imdb_id")) data.imdb_id = null;
+    }
+
     // row가 null이어도(캐시 없음) 정상 응답 — ok:true, data:null
-    return new Response(JSON.stringify({ ok: true, data: row || null }), {
+    return new Response(JSON.stringify({ ok: true, data }), {
       status: 200,
       headers,
     });
