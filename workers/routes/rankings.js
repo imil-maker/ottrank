@@ -862,9 +862,16 @@ export async function handleRankings(path, request, env, url, headers) {
       ).all();
 
       // persons 전체 인물 목록 (배우/감독 검색 SEO 유입용 — /person/{tmdb_id})
-      const { results: persons } = await env.DB.prepare(
-        "SELECT tmdb_id FROM persons WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id"
-      ).all();
+      // [2026-07-20 수정] 2단 레이아웃 배포 + 위키 데이터 매칭이 배우별로 매일 조금씩
+      // 반영되므로, sitemap의 lastmod에 실제 갱신 시점을 반영하기 위해
+      // person_wiki_cache(위키 매칭 승인 시점=created_at)를 LEFT JOIN
+      const { results: persons } = await env.DB.prepare(`
+        SELECT p.tmdb_id, w.created_at AS wiki_matched_at
+        FROM persons p
+        LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        WHERE p.tmdb_id IS NOT NULL
+        ORDER BY p.tmdb_id
+      `).all();
 
       const urls = [];
 
@@ -892,11 +899,20 @@ export async function handleRankings(path, request, env, url, headers) {
       }
 
       // 인물 상세 페이지 URL 생성 (배우/감독 이름 검색 유입용)
+      // [2026-07-20 신규] lastmod 추가 — 위키 매칭 승인된 사람은 그 승인일,
+      // 아직 매칭 안 된 사람은 2단 레이아웃 배포일(고정)을 사용.
+      // ⚠️ 사이트맵 생성 시점의 "오늘" 날짜를 넣으면 안 됨 — 이 사이트맵은 1시간마다
+      // 재생성되는데, 그때마다 오늘 날짜가 찍히면 매일 "방금 바뀜"이라는 거짓 신호가 됨
+      const PERSON_TEMPLATE_DEPLOYED = "2026-07-20"; // 2단 레이아웃 전체 배포일
       for (const p of persons) {
         const loc = `${baseUrl}/person/${p.tmdb_id}`;
+        const lastmod = p.wiki_matched_at
+          ? p.wiki_matched_at.slice(0, 10)
+          : PERSON_TEMPLATE_DEPLOYED;
         urls.push(
           `  <url>\n` +
           `    <loc>${loc}</loc>\n` +
+          `    <lastmod>${lastmod}</lastmod>\n` +
           `    <changefreq>monthly</changefreq>\n` +
           `    <priority>0.5</priority>\n` +
           `  </url>`
