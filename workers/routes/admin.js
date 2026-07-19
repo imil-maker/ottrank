@@ -62,6 +62,7 @@
    DELETE /admin/works/pinned-similar
    POST   /admin/persons/collect
    POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설)
+   GET    /admin/persons/wiki-candidates ← 위키 매칭 후보 목록(2026-07-20 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -3220,6 +3221,48 @@ export async function handleAdmin(path, request, env, url, headers) {
         processed: targets.length,
         updated: updatedCount,
         remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/wiki-candidates ───────────────────────
+  // [2026-07-20 신규] 위키 매칭 대상 후보 목록 — person_wiki_cache에 아직 없는
+  // 인물만, 인기순 또는 이름순으로 50개씩. 여기선 위키 검색을 전혀 안 하고
+  // DB 조회만 하므로 빠름 — "매칭 시도" 버튼은 다음 단계에서 별도로 만듦.
+  if (path === "/admin/persons/wiki-candidates" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const sort   = url.searchParams.get("sort") === "name" ? "name" : "popularity";
+      const limit  = Math.min(parseInt(url.searchParams.get("limit")) || 50, 100);
+      const offset = Math.max(parseInt(url.searchParams.get("offset")) || 0, 0);
+      const orderBy = sort === "name"
+        ? "p.name ASC"
+        : "p.popularity DESC NULLS LAST"; // D1(SQLite)은 NULLS LAST 지원 — 인기도 없는 인물은 뒤로
+
+      const { results } = await env.DB.prepare(`
+        SELECT p.tmdb_id, p.name, p.job, p.birthday, p.popularity, p.profile_path
+        FROM persons p
+        LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        WHERE w.tmdb_person_id IS NULL
+        ORDER BY ${orderBy}
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      const totalRow = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM persons p
+        LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        WHERE w.tmdb_person_id IS NULL
+      `).first();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        items: results,
+        total: totalRow?.cnt || 0,
+        offset, limit,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
