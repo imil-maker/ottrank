@@ -61,6 +61,7 @@
    GET    /admin/works/pinned-similar/:tmdb_id
    DELETE /admin/works/pinned-similar
    POST   /admin/persons/collect
+   POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -3088,7 +3089,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         }), { headers });
       }
 
-      const personRows = new Map(); // tmdb_id → { name, job }  (배치 내 중복 제거용)
+      const personRows = new Map(); // tmdb_id → { name, job, popularity, profile_path }  (배치 내 중복 제거용)
       const scannedIds  = [];
 
       for (const row of targets) {
@@ -3105,9 +3106,11 @@ export async function handleAdmin(path, request, env, url, headers) {
           const data = await resp.json();
 
           // 출연진 — 너무 많으면 의미 없는 단역까지 다 들어가니 상위 15명만
+          // [2026-07-20 수정] popularity/profile_path는 이 응답에 이미 포함돼 있어서
+          // 추가 API 호출 없이 같이 저장 (생년월일만 별도 백필 배치에서 처리)
           for (const c of (data.cast || []).slice(0, 15)) {
             if (c.id && c.name && !personRows.has(c.id)) {
-              personRows.set(c.id, { name: c.name, job: "act" });
+              personRows.set(c.id, { name: c.name, job: "act", popularity: c.popularity || null, profile_path: c.profile_path || null });
             }
           }
           // 감독/크리에이터만 crew에서 추출
@@ -3115,7 +3118,7 @@ export async function handleAdmin(path, request, env, url, headers) {
             const isDirector = c.job === "Director" || c.job === "Creator" || c.department === "Directing"
               || (c.jobs || []).some(j => j.job === "Director" || j.job === "Creator"); // aggregate_credits는 jobs 배열 형태
             if (isDirector && c.id && c.name) {
-              personRows.set(c.id, { name: c.name, job: "direct" });
+              personRows.set(c.id, { name: c.name, job: "direct", popularity: c.popularity || null, profile_path: c.profile_path || null });
             }
           }
         } catch (e) { /* 이 작품만 스킵, 다음 작품 계속 */ }
@@ -3125,9 +3128,9 @@ export async function handleAdmin(path, request, env, url, headers) {
       for (const [tmdbId, info] of personRows) {
         updates.push(
           env.DB.prepare(
-            `INSERT INTO persons (tmdb_id, name, job) VALUES (?, ?, ?)
+            `INSERT INTO persons (tmdb_id, name, job, popularity, profile_path) VALUES (?, ?, ?, ?, ?)
              ON CONFLICT(tmdb_id) DO NOTHING`
-          ).bind(tmdbId, info.name, info.job)
+          ).bind(tmdbId, info.name, info.job, info.popularity, info.profile_path)
         );
       }
       // 스캔 완료 마킹 (person 발견 여부와 무관하게 항상 마킹 — 재시도 방지)
@@ -3146,6 +3149,76 @@ export async function handleAdmin(path, request, env, url, headers) {
         ok: true,
         worksScanned: targets.length,
         personsFound: personRows.size,
+        remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/backfill-meta ────────────────────────
+  // [2026-07-20 신규] persons 테이블에 생년월일이 없는 인물들을 TMDB 인물상세 API로
+  // 채워넣는 배치. 신규 등록된 인물(생년월일 없음)뿐 아니라, 이 컬럼 추가 이전에
+  // 등록됐던 기존 인물도 같이 대상이 됨 — 인물별로 1번씩 API 호출 필요해서
+  // /admin/persons/collect보다 인원수를 작게 잡음(기본 20, 최대 50).
+  // 생년월일이 TMDB에도 없는 인물은 NULL로 남기지 않고 빈 문자열('')로 표시해서
+  // "조회 안 함"과 "조회했지만 값 없음"을 구분(sentinel 원칙, 무한 재시도 방지).
+  if (path === "/admin/persons/backfill-meta" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 20, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id FROM persons
+        WHERE birthday IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, processed: 0, updated: 0, remaining: 0, message: "채울 인물 없음"
+        }), { headers });
+      }
+
+      const updates = [];
+      let updatedCount = 0;
+
+      for (const row of targets) {
+        try {
+          const resp = await fetch(
+            `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
+          );
+          if (!resp.ok) {
+            // 인물 자체가 TMDB에서 삭제/비공개 등 — 빈 문자열로 마킹해 재시도 안 하게
+            updates.push(
+              env.DB.prepare(`UPDATE persons SET birthday = '' WHERE tmdb_id = ?`).bind(row.tmdb_id)
+            );
+            continue;
+          }
+          const data = await resp.json();
+          updates.push(
+            env.DB.prepare(
+              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ? WHERE tmdb_id = ?`
+            ).bind(data.birthday || "", data.popularity || null, data.profile_path || null, row.tmdb_id)
+          );
+          updatedCount++;
+        } catch (e) {
+          // 네트워크 오류 등 — 이번엔 스킵, 다음 배치에서 재시도(빈 문자열로 마킹 안 함)
+        }
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        processed: targets.length,
+        updated: updatedCount,
         remaining: remainRow?.cnt || 0,
       }), { headers });
     } catch (e) {
