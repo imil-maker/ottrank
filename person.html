@@ -291,6 +291,14 @@ body.layout-test .person-like-btn{ display:flex }
 }
 .wiki-test-summary{ font-size:14px; line-height:1.6; color:var(--text); margin-bottom:14px; }
 .wiki-test-meta{ display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:var(--muted); margin-bottom:14px; }
+
+/* [2026-07-19 신규] 데뷔작/학력 — 오른쪽 프로필(person-info) 안, 메타칩과 약력 사이에 표시 */
+.profile-debut-edu{
+  display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:var(--muted);
+  margin:12px 0; padding:10px 0;
+  border-top:.5px solid var(--border); border-bottom:.5px solid var(--border);
+}
+.profile-debut-edu b{ color:var(--text); font-weight:600; margin-right:4px; }
 .wiki-test-meta b{ color:var(--text); font-weight:600; }
 .wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
 .wiki-career-preview{ font-size:14px; line-height:1.7; color:var(--text); white-space:pre-line; }
@@ -476,6 +484,8 @@ body.layout-test .person-like-btn{ display:flex }
         <div class="person-name" id="personName">—</div>
         <div class="person-name-en" id="personNameEn"></div>
         <div class="person-meta-row" id="personMetaRow"></div>
+        <!-- [2026-07-19 신규] 데뷔작/학력 — 위키 데이터 있을 때만 채워짐 -->
+        <div class="profile-debut-edu" id="profileDebutEdu" style="display:none"></div>
         <div class="bio-section">
           <div class="bio-text" id="bioText"></div>
           <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
@@ -489,8 +499,6 @@ body.layout-test .person-like-btn{ display:flex }
        오른쪽 컬럼 맨 위로 통째로 이동되는데, 이 섹션은 왼쪽에 그대로 남아있어야 함 -->
   <div class="wiki-test-section" id="wikiTestSection">
     <span class="wiki-test-badge">🧪 위키 데이터 테스트</span>
-    <div class="wiki-test-summary" id="wikiSummary"></div>
-    <div class="wiki-test-meta" id="wikiMeta"></div>
     <div class="wiki-test-awards" id="wikiAwards"></div>
     <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
     <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
@@ -758,7 +766,11 @@ async function loadWikiTest(personId){
     const metaParts = [];
     if(d.debut_work) metaParts.push(`<span><b>데뷔작</b> ${d.debut_work}${d.debut_year ? ' ('+d.debut_year+')' : ''}</span>`);
     if(d.education)  metaParts.push(`<span><b>학력</b> ${d.education}</span>`);
-    document.getElementById('wikiMeta').innerHTML = metaParts.join('');
+    if(metaParts.length){
+      const debutEduEl = document.getElementById('profileDebutEdu');
+      debutEduEl.innerHTML = metaParts.join('');
+      debutEduEl.style.display = 'flex';
+    }
 
     if(d.awards_text){
       document.getElementById('wikiAwards').innerHTML = `<b style="color:var(--text)">수상내역</b> ${d.awards_text}`;
