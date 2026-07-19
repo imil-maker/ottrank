@@ -845,7 +845,7 @@ async function attemptPersonMatch(){
             ${r.wiki_birth_year ? ` · 생년: ${r.wiki_birth_year}` : ''}
           </div>
           <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6">${escapeHtmlPm((r.wiki_summary||'').slice(0,150))}...</div>
-        ` : `<div style="font-size:12px;color:var(--muted)">후보를 못 찾았거나 생년월일이 안 맞았어요. person_wiki_match_queue에 실패로 기록됐어요.</div>`}
+        ` : `<div style="font-size:12px;color:var(--muted)">${escapeHtmlPm(r.debug || '후보를 못 찾았거나 생년월일이 안 맞았어요.')} — person_wiki_match_queue에 실패로 기록됐어요.</div>`}
       </div>
     `).join('');
 
