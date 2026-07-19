@@ -281,20 +281,9 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 
 /* [2026-07-11 추가] 좌우 스크롤 화살표 — PC 전용(대표작/사진갤러리 공통).
    모바일은 스와이프로 충분히 잘 동작하고 있어서 의도적으로 미적용(하단 미디어쿼리에서 숨김). */
-.scroll-row-wrap{position:relative}
-.scroll-arrow{
-  position:absolute;top:50%;transform:translateY(-50%);
-  width:34px;height:34px;border-radius:50%;
-  background:rgba(20,20,28,.8);border:1px solid var(--border2);
-  color:#fff;display:flex;align-items:center;justify-content:center;
-  font-size:20px;line-height:1;cursor:pointer;z-index:3;
-  opacity:0;transition:opacity .2s;user-select:none;
-}
-.scroll-row-wrap:hover .scroll-arrow{opacity:.9}
-.scroll-arrow:hover{background:rgba(30,30,42,.95)}
-.scroll-arrow-left{left:-40px}
-.scroll-arrow-right{right:-40px}
-.scroll-arrow.hidden{display:none} /* 스크롤 끝(또는 스크롤 필요 없음)에 도달하면 자동으로 숨김 */
+/* [2026-07-20 수정] 겹침 문제로 화살표 자체를 완전히 제거하기로 결정.
+   가로 스크롤은 마우스 드래그/터치 스와이프로만 가능 (기존 overflow-x:auto는 그대로 유지) */
+.scroll-arrow{ display:none !important; }
 
 /* ── 인물 정보 ── */
 .person-info{flex:1;min-width:0}
