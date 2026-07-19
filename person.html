@@ -424,10 +424,18 @@ body.layout-test .person-like-btn{ display:flex }
 .work-poster img{width:100%;height:100%;object-fit:cover;display:block}
 .work-poster-ph{width:100%;height:100%;display:flex;align-items:center;
   justify-content:center;font-size:28px}
-.work-year-badge{position:absolute;top:6px;right:6px;
+.work-year-badge{position:absolute;bottom:6px;right:6px;
   background:rgba(0,0,0,.75);color:var(--muted2);
   font-size:10px;font-family:var(--font-mono);
   padding:2px 6px;border-radius:4px;backdrop-filter:blur(4px)}
+/* [2026-07-20 신규] OTT 로고 — 우리 DB에 있는 작품만 표시 (검색결과 페이지와 동일 스타일) */
+.work-ott-badges{position:absolute;top:6px;left:6px;right:6px;
+  display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px}
+.ott-logo{width:20px;height:20px;border-radius:50%;object-fit:cover;
+  flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ott-logo-ph{width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  font-size:10px;color:#fff;font-weight:700;display:flex;
+  align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 .work-title{font-size:13px;font-weight:600;color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
 .work-role{font-size:12px;color:var(--muted);font-family:var(--font-mono);
@@ -787,6 +795,23 @@ if(new URLSearchParams(location.search).get('wikitest') === '1'){
   }
 }
 
+/* [2026-07-20 신규] OTT 로고 — 검색결과 페이지(search-results.html)와 동일한 상수/함수 재사용 */
+const OTT_META = {
+  netflix: { name:'넷플릭스',   color:'#e50914', file:'netflix' },
+  tving:   { name:'티빙',       color:'#ff153c', file:'tving' },
+  disney:  { name:'디즈니+',   color:'#06b6d4', file:'disneyplus' },
+  wavve:   { name:'웨이브',     color:'#0070f3', file:'wavve' },
+  watcha:  { name:'왓챠',       color:'#ff0558', file:'watcha' },
+  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay' },
+};
+function ottLogoHtml(key){
+  const meta = OTT_META[key];
+  if(!meta) return '';
+  return `<img class="ott-logo" src="/img/${meta.file}-icon.jpg" alt="${meta.name}" title="${meta.name}"
+    onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
+}
+let ottBadgeCache = {}; // tmdb_id -> [ott_key, ...] | null(DB 미등록)
+
 /* ── 필모그래피 상태 ── */
 let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
 let actCredits   = [];   // 출연
@@ -953,6 +978,7 @@ function workCardHtml(item){
        data-title="${title}" onclick="goWork(this)">
       <div class="work-poster">
         ${poster}
+        <div class="work-ott-badges" id="ottBadge-${item.id}-${mediaType}"></div>
         ${year?`<span class="work-year-badge">${year}</span>`:''}
         <span class="work-rank-badge" id="${badgeId}"></span>
       </div>
@@ -973,6 +999,7 @@ function renderWorks(){
   grid.innerHTML = slice.map(workCardHtml).join('');
   moreBtn.style.display = shownCount < list.length ? 'block' : 'none';
   loadRankBadges(slice); // [2026-07-11 추가] 화면에 보이는 카드만 배지 조회 (더보기 시 새로 늘어난 만큼만 실제 요청됨 — 캐시 재사용)
+  loadOttBadges(slice); // [2026-07-20 신규]
 }
 
 /* [2026-07-11 추가] 랭킹 배지 로드 — 화면에 보이는 카드들의 tmdb_id를 모아 한 번에 조회
@@ -1007,6 +1034,35 @@ async function loadRankBadges(items){
       el.textContent = `🔥 ${label} ${best.rank}위`;
       el.style.display = 'inline-flex';
     }
+  });
+}
+
+/* [2026-07-20 신규] OTT 배지 로드 — 화면에 보이는 카드들의 tmdb_id를 모아 한 번에 조회.
+   /works/ott-map은 "우리 DB에 있는 작품"만 응답에 포함되므로, DB 미등록 작품은
+   자동으로 배지가 안 뜸(실시간 TMDB 조회 없음 — 검색결과 페이지와 다르게 가볍게 처리). */
+async function loadOttBadges(items){
+  const uncachedIds = [...new Set(
+    items.filter(it => !(it.id in ottBadgeCache)).map(it => it.id)
+  )];
+
+  if(uncachedIds.length){
+    try{
+      const res  = await fetch(`${OTTRANK_API}/works/ott-map?tmdb_ids=${uncachedIds.join(',')}`);
+      const json = await res.json();
+      if(json.ok){
+        uncachedIds.forEach(id => { ottBadgeCache[id] = (json.map && json.map[id]) || null; });
+      }
+    }catch(e){
+      // 실패해도 필모그래피 표시엔 영향 없게 조용히 무시
+      uncachedIds.forEach(id => { ottBadgeCache[id] = null; });
+    }
+  }
+
+  items.forEach(item => {
+    const keys = ottBadgeCache[item.id];
+    if(!keys || !keys.length) return;
+    const el = document.getElementById(`ottBadge-${item.id}-${item.media_type||'tv'}`);
+    if(el) el.innerHTML = keys.map(ottLogoHtml).join('');
   });
 }
 
@@ -1440,6 +1496,7 @@ async function initPage(){
         knownForRow.classList.toggle('few-items', knownFor.length <= 2); // [2026-07-11 추가]
         knownForRow.innerHTML = knownFor.map(workCardHtml).join('');
         loadRankBadges(knownFor); // 대표작 카드도 랭킹배지 대상(캐시 공유라 필모그래피와 겹쳐도 중복요청 안 됨)
+        loadOttBadges(knownFor); // [2026-07-20 신규]
         updateScrollArrows('knownForRow'); // [2026-07-11 추가] 콘텐츠 채워진 뒤 화살표 표시여부 갱신
       }
     }
