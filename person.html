@@ -52,9 +52,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .page-wrap{max-width:900px;margin:0 auto;padding:24px 20px 80px}
 /* [2026-07-19 신규] 레이아웃 테스트 모드일 때만 폭 확장 — 일반 방문자는 900px 그대로 */
 body.layout-test .page-wrap{max-width:1200px}
-/* [2026-07-19 신규] 헤더(스티키)와 본문 사이 간격 20px로 */
+/* [2026-07-20 수정] 헤더(스티키)와 본문 사이 간격 25px로 (!important로 확실히 적용) */
 @media(min-width:641px){
-  body.layout-test .page-wrap{padding-top:20px}
+  body.layout-test .page-wrap{padding-top:25px !important}
 }
 
 /* [2026-07-19 신규] 2단 레이아웃 뼈대
@@ -104,6 +104,12 @@ body.layout-test .page-wrap{max-width:1200px}
 }
 body.layout-test .person-col-left > *{ margin-bottom:24px }
 body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
+/* [2026-07-20 신규] 모바일 — 사진(왼쪽컬럼)과 이름(오른쪽컬럼) 사이 간격이 너무 넓어서 축소.
+   .person-hero 기본 margin-bottom(32px)이 실제 원인이라 이것도 같이 줄임 */
+@media(max-width:640px){
+  body.layout-test .person-col-left > *{ margin-bottom:8px }
+  body.layout-test .person-hero{ margin-bottom:8px }
+}
 
 /* [2026-07-19 신규] 왼쪽 컬럼(380px)은 폭이 좁아서, 사진이 가로로 배치되는
    기존 PC 스타일 대신 세로로 확실히 쌓이게 강제함 (기존 모바일 스타일과 동일 패턴 재사용,
@@ -225,15 +231,15 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
    포스터 카드는 대표작(.known-for-row .work-card)과 완전히 동일한 크기를 쓰려고
    새 CSS를 만들지 않고 .known-for-row 클래스를 그대로 재사용함(아래 rankingWidgetRow).
    헤더(OTT 네임태그 + 제목)는 netflix.html의 .sec-num/.sec-title 패턴을 재현. */
-.ranking-widget-section{margin:32px 0;padding:18px 18px 20px;
+.ranking-widget-section{margin:32px 0;padding:16px 18px 20px;
   background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg)}
-.ranking-widget-hd{display:flex;align-items:center;gap:10px;margin-bottom:8px;
+.ranking-widget-hd{display:flex;align-items:center;gap:10px;margin-bottom:4px;
   flex-wrap:wrap;text-decoration:none;cursor:pointer}
 .ranking-widget-hd .sec-num{font-family:var(--font-mono);font-size:12px;font-weight:700;
-  padding:3px 10px;border-radius:4px;letter-spacing:1px;white-space:nowrap}
+  padding:3px 10px;border-radius:4px;letter-spacing:1px;white-space:nowrap;line-height:1.2}
 .ranking-widget-title-row{display:flex;align-items:baseline;gap:10px}
-.ranking-widget-hd .sec-title{font-size:17px;font-weight:700;color:var(--text);transition:color .15s}
-.ranking-widget-hd .sec-count{font-family:var(--disp);font-size:17px;letter-spacing:1px;color:var(--muted)}
+.ranking-widget-hd .sec-title{font-size:17px;font-weight:700;color:var(--text);transition:color .15s;line-height:1.2}
+.ranking-widget-hd .sec-count{font-family:var(--disp);font-size:17px;letter-spacing:1px;color:var(--muted);line-height:1.2}
 .ranking-widget-hd:hover .sec-title{color:var(--info)}
 /* [2026-07-11 추가] 랭킹 위젯 전용 행 — .known-for-row(대표작과 공유)에서 분리해서
    대표작 카드 크기에 영향 안 주고 이 위젯만 사진갤러리(90px)와 동일 사이즈로 줄임 */
@@ -472,7 +478,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   .person-meta-row{justify-content:center}
   .works-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
   /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 모바일은 OTT 태그(1줄) / 제목+카운트(2줄)로 분리 */
-  .ranking-widget-title-row{flex-basis:100%;margin-top:4px}
+  .ranking-widget-title-row{flex-basis:100%;margin-top:2px}
   /* [2026-07-11 추가] 모바일 전용 — 태그 위아래 여백 축소 */
   .ranking-widget-hd .sec-num{padding:2px 10px}
   /* [2026-07-11 추가] 모바일 전용 — 랭킹 위젯 화살표는 PC(호버 시에만 노출)와 달리
@@ -1028,12 +1034,12 @@ async function loadRankBadges(items){
     const badges = rankBadgeCache[item.id];
     if(!badges || !badges.length) return;
     const best = badges.reduce((a,b) => a.rank < b.rank ? a : b); // 여러 플랫폼이면 순위 가장 높은 것 하나만
-    const el = document.getElementById(`rankBadge-${item.id}-${item.media_type||'tv'}`);
-    if(el){
+    const els = document.querySelectorAll(`#rankBadge-${item.id}-${item.media_type||'tv'}`); // [2026-07-20 수정] 같은 작품이 대표작+필모그래피에 중복 id로 나올 때 전부 채우기
+    els.forEach(el => {
       const label = PLATFORM_LABELS[best.platform] || best.platform;
       el.textContent = `🔥 ${label} ${best.rank}위`;
       el.style.display = 'inline-flex';
-    }
+    });
   });
 }
 
@@ -1061,8 +1067,9 @@ async function loadOttBadges(items){
   items.forEach(item => {
     const keys = ottBadgeCache[item.id];
     if(!keys || !keys.length) return;
-    const el = document.getElementById(`ottBadge-${item.id}-${item.media_type||'tv'}`);
-    if(el) el.innerHTML = keys.map(ottLogoHtml).join('');
+    // [2026-07-20 수정] 같은 작품이 대표작+필모그래피에 중복 id로 나올 때 전부 채우기
+    const els = document.querySelectorAll(`#ottBadge-${item.id}-${item.media_type||'tv'}`);
+    els.forEach(el => { el.innerHTML = keys.map(ottLogoHtml).join(''); });
   });
 }
 
