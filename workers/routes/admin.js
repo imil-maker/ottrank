@@ -65,7 +65,9 @@
    GET    /admin/persons/wiki-candidates ← 위키 매칭 후보 목록(2026-07-20 신설)
    POST   /admin/persons/wiki-match-attempt ← 실제 위키 검색+매칭 시도(2026-07-20 신설)
    POST   /admin/persons/wiki-approve   ← 매칭 확정 승인, person_wiki_cache 반영(2026-07-20 신설)
-   GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설)
+   GET    /admin/persons/wiki-detail/:tmdb_id ← 인물 1명 위키 상세(매칭여부+항목별 숨김여부)(2026-07-20 신설)
+   POST   /admin/persons/wiki-hidden-fields   ← 항목별 숨김/복구 저장(2026-07-20 신설)
+   GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
    POST   /admin/works/backfill-release-year
@@ -3632,6 +3634,9 @@ export async function handleAdmin(path, request, env, url, headers) {
 
   // ── GET /admin/persons/search ────────────────────────────────
   // persons 테이블에서 이름으로 검색 (인물 사전등록 탭 — 삭제 대상 찾기용)
+  // [2026-07-20 수정] "인물 개별 검색"(위키 연동) 화면에서 재사용하기 위해
+  // name_ko(한글 대표이름)와 matched(위키백과 매칭 여부)를 추가로 내려줌.
+  // 기존 name/job 필드는 그대로 유지되므로 기존 화면(인물 사전등록)엔 영향 없음.
   if (path === "/admin/persons/search" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -3641,10 +3646,94 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (!q) {
         return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
       }
-      const { results: items } = await env.DB.prepare(
-        "SELECT tmdb_id, name, job FROM persons WHERE name LIKE ? ORDER BY name LIMIT 30"
-      ).bind(`%${q}%`).all();
+      const { results: items } = await env.DB.prepare(`
+        SELECT p.tmdb_id, p.name, p.name_ko, p.job,
+               CASE WHEN w.tmdb_person_id IS NULL THEN 0 ELSE 1 END AS matched
+        FROM persons p
+        LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        WHERE p.name LIKE ? OR p.name_ko LIKE ?
+        ORDER BY p.name LIMIT 30
+      `).bind(`%${q}%`, `%${q}%`).all();
       return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/wiki-detail/:tmdb_id ───────────────────
+  // [2026-07-20 신규] "인물 개별 검색"에서 인물 1명 클릭했을 때 상세 조회.
+  // - 아직 위키랑 안 이어진 사람: matched:false + persons 기본정보만 반환
+  //   (프론트는 이걸 받으면 wiki-match-attempt를 그 사람 1명한테 호출)
+  // - 이미 이어진 사람: matched:true + person_wiki_cache 전체 값 + 항목별
+  //   숨김여부(hiddenFields 배열)까지 반환 → 프론트가 체크박스 초기 상태를 맞춤
+  if (path.match(/^\/admin\/persons\/wiki-detail\/\d+$/) && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdbId = parseInt(path.split("/")[4]);
+      const person = await env.DB.prepare(
+        `SELECT tmdb_id, name, name_ko, birthday, popularity, profile_path FROM persons WHERE tmdb_id = ?`
+      ).bind(tmdbId).first();
+      if (!person) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+
+      const wiki = await env.DB.prepare(
+        `SELECT tmdb_person_id, wiki_title, bio_summary, career_history, awards_text,
+                debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields
+         FROM person_wiki_cache WHERE tmdb_person_id = ?`
+      ).bind(tmdbId).first();
+
+      if (!wiki) {
+        return new Response(JSON.stringify({ ok: true, matched: false, person }), { headers });
+      }
+
+      const hiddenFields = (wiki.hidden_fields || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      return new Response(JSON.stringify({
+        ok: true, matched: true, person, wiki, hiddenFields,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/wiki-hidden-fields ────────────────────
+  // [2026-07-20 신규] "인물 개별 검색"에서 체크 해제한 항목 저장.
+  // 데이터는 절대 지우지 않고 hidden_fields 컬럼에 콤마로 목록만 남김 —
+  // person-wiki.js(공개 API)가 응답 시점에 해당 항목만 걸러서 안 보여줌.
+  // 다시 체크해서 저장하면 hidden_fields에서 빠지므로 즉시 복구됨.
+  if (path === "/admin/persons/wiki-hidden-fields" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const ALLOWED_HIDDEN_FIELDS = [
+        "bio_summary", "career_history", "awards_text",
+        "debut_work", "education", "kmdb_id", "imdb_id",
+      ];
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      if (!Number.isInteger(tmdbId)) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+      const hiddenFields = Array.isArray(body.hidden_fields)
+        ? body.hidden_fields.filter((f) => ALLOWED_HIDDEN_FIELDS.includes(f))
+        : [];
+
+      const result = await env.DB.prepare(
+        `UPDATE person_wiki_cache SET hidden_fields = ? WHERE tmdb_person_id = ?`
+      ).bind(hiddenFields.join(","), tmdbId).run();
+
+      if (!result.meta || result.meta.changes === 0) {
+        return new Response(JSON.stringify({ ok: false, message: "매칭된 위키 데이터가 없는 인물이에요" }), { status: 404, headers });
+      }
+
+      return new Response(JSON.stringify({ ok: true, hidden_fields: hiddenFields }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
