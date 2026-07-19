@@ -61,8 +61,8 @@ body.layout-test .page-wrap{max-width:1200px}
 @media(min-width:641px){
   body.layout-test .person-layout{
     display:grid;
-    grid-template-columns:380px 1fr;
-    column-gap:32px;
+    grid-template-columns:220px 1fr;
+    column-gap:30px;
     align-items:start;
   }
   /* [2026-07-19 신규] 그리드 아이템 기본값(min-width:auto)이 가로 스크롤 카드행의
@@ -81,8 +81,8 @@ body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
    기존 PC 스타일 대신 세로로 확실히 쌓이게 강제함 (기존 모바일 스타일과 동일 패턴 재사용,
    "혹시 wrap될 수도"에 기대지 않고 명시적으로 고정) */
 body.layout-test .person-hero{ flex-direction:column; gap:16px; align-items:center }
-body.layout-test .person-photo-wrap{ width:180px }
-body.layout-test .person-photo{ width:180px }
+body.layout-test .person-photo-wrap{ width:200px }
+body.layout-test .person-photo{ width:200px }
 body.layout-test .mobile-photo-row{ position:relative; display:flex; justify-content:center; width:100% }
 body.layout-test .back-btn{
   position:absolute; top:0; left:0; z-index:5;
