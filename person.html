@@ -73,6 +73,22 @@ body.layout-test .page-wrap{max-width:1200px}
   body.layout-test .person-col-right{
     min-width:0;
   }
+  /* [2026-07-19 신규] 필모그래피를 1줄에 정확히 5개로 고정 (기존 auto-fill 대신) */
+  body.layout-test .works-grid{
+    grid-template-columns:repeat(5, 1fr);
+  }
+  /* [2026-07-19 신규] 대표작도 필모그래피와 완전히 같은 5열 그리드로 통일
+     (기존 가로스크롤 flex+고정120px 대신 — 카드 크기를 정확히 똑같이 맞추기 위함) */
+  body.layout-test .known-for-row{
+    display:grid;
+    grid-template-columns:repeat(5, 1fr);
+    gap:16px;
+    overflow-x:visible;
+  }
+  body.layout-test .known-for-row .work-card{
+    flex:none;
+    width:auto;
+  }
 }
 body.layout-test .person-col-left > *{ margin-bottom:24px }
 body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
@@ -299,6 +315,9 @@ body.layout-test .person-like-btn{ display:flex }
   border-top:.5px solid var(--border); border-bottom:.5px solid var(--border);
 }
 .profile-debut-edu b{ color:var(--text); font-weight:600; margin-right:4px; }
+
+/* [2026-07-19 신규] 수상내역 — 약력 바로 아래 */
+.profile-awards{ font-size:13px; color:var(--muted2); line-height:1.7; margin-bottom:24px; }
 .wiki-test-meta b{ color:var(--text); font-weight:600; }
 .wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
 .wiki-career-preview{ font-size:14px; line-height:1.7; color:var(--text); white-space:pre-line; }
@@ -490,6 +509,8 @@ body.layout-test .person-like-btn{ display:flex }
           <div class="bio-text" id="bioText"></div>
           <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
         </div>
+        <!-- [2026-07-19 신규] 수상내역 — 약력 바로 아래, 대표작(TMDB)보다 먼저 보이는 위치 -->
+        <div class="profile-awards" id="profileAwards" style="display:none"></div>
       </div>
     </div>
   </div><!-- /hero-wrap -->
@@ -499,7 +520,6 @@ body.layout-test .person-like-btn{ display:flex }
        오른쪽 컬럼 맨 위로 통째로 이동되는데, 이 섹션은 왼쪽에 그대로 남아있어야 함 -->
   <div class="wiki-test-section" id="wikiTestSection">
     <span class="wiki-test-badge">🧪 위키 데이터 테스트</span>
-    <div class="wiki-test-awards" id="wikiAwards"></div>
     <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
     <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
     <div class="wiki-test-source" id="wikiSource"></div>
@@ -771,7 +791,9 @@ async function loadWikiTest(personId){
     }
 
     if(d.awards_text){
-      document.getElementById('wikiAwards').innerHTML = `<b style="color:var(--text)">수상내역</b> ${d.awards_text}`;
+      const awardsEl = document.getElementById('profileAwards');
+      awardsEl.innerHTML = `<b style="color:var(--text)">🏆 수상내역</b><br>${d.awards_text}`;
+      awardsEl.style.display = 'block';
     }
 
     if(d.career_history){
@@ -1316,7 +1338,7 @@ async function initPage(){
       const knownFor = [...allCredits]
         .filter(it => it.poster_path)
         .sort((a,b) => scoreFor(b) - scoreFor(a))
-        .slice(0, 6);
+        .slice(0, document.body.classList.contains('layout-test') ? 5 : 6); // [2026-07-19] PC 2단 레이아웃은 5개만
       if(knownFor.length){
         document.getElementById('knownForSection').style.display = 'block';
         const knownForRow = document.getElementById('knownForRow');
