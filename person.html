@@ -57,9 +57,8 @@ body.layout-test .page-wrap{max-width:1200px}
   body.layout-test .page-wrap{padding-top:20px}
 }
 
-/* [2026-07-19 신규] 2단 레이아웃 뼈대 (1단계 — 구조만, 내용 재배치는 다음 단계)
-   ⚠️ 일반 방문자에게는 절대 안 보임 — body에 layout-test 클래스가 있을 때만
-   (JS에서 ?wikitest=1일 때만 이 클래스를 붙임) 작동. 실제 배포해도 안전함.
+/* [2026-07-19 신규] 2단 레이아웃 뼈대
+   ⚠️ body에 layout-test 클래스가 항상 붙어있어서(2026-07-20부터 전체 적용) 모든 방문자에게 보임.
    PC(641px 이상): 왼쪽 380px 고정 + 오른쪽 나머지.
    모바일(640px 이하): 그리드 해제하고 기존처럼 세로로 그대로 쌓임(순서 안 바뀜) */
 @media(min-width:641px){
@@ -306,8 +305,7 @@ body.layout-test .person-like-btn{ display:flex }
 .bio-section{margin-bottom:0}
 
 /* [2026-07-19 신규] 위키백과 보강 데이터 — 테스트 전용 섹션
-   ?wikitest=1 파라미터 있을 때만 JS에서 display:block으로 켜짐.
-   기존 화면 요소는 전혀 안 건드리고 독립된 새 섹션으로만 추가됨. */
+   위키 데이터가 있는 배우만 JS에서 display:block으로 켜짐(2026-07-20부터 전체 적용). */
 .wiki-test-section{
   display:none; margin:16px 0 24px; padding:16px;
   background:var(--bg); border:.5px solid rgba(255,255,255,0.05); border-radius:var(--r);
@@ -783,13 +781,12 @@ const personId = (typeof window.__PERSON_ID__ !== 'undefined' && window.__PERSON
   ? String(window.__PERSON_ID__)
   : new URLSearchParams(location.search).get('id');
 
-/* [2026-07-19 신규] ?wikitest=1이면 레이아웃 테스트 모드 즉시 켜기
-   (데이터 로딩 성공 여부와 무관하게 CSS만 바로 적용됨, 일반 방문자는 영향 없음) */
-if(new URLSearchParams(location.search).get('wikitest') === '1'){
-  document.body.classList.add('layout-test');
+/* [2026-07-20 수정] 테스트 기간 종료 — ?wikitest=1 조건 없이 항상 새 2단 레이아웃 적용 */
+document.body.classList.add('layout-test');
 
-  // 이름/SNS/공유/메타/약력(person-info)을 오른쪽 컬럼 맨 위로 이동
-  // (내용은 아직 비어있는 상태 — initPage()가 나중에 채워도 이미 옮겨진 자리에 그대로 채워짐)
+// 이름/SNS/공유/메타/약력(person-info)을 오른쪽 컬럼 맨 위로 이동
+// (내용은 아직 비어있는 상태 — initPage()가 나중에 채워도 이미 옮겨진 자리에 그대로 채워짐)
+{
   const profileHeaderAnchor = document.getElementById('profileHeaderAnchor');
   const personInfo = document.querySelector('.person-info');
   if(profileHeaderAnchor && personInfo){
@@ -862,13 +859,9 @@ function toggleWikiCareerMobile(){
     : `${personDisplayName} 전체 이력 더보기 ▾`;
 }
 
-/* [2026-07-19 신규] 위키백과 보강 데이터 테스트 로드
-   ?wikitest=1 있을 때만 동작. 실패하거나 캐시에 데이터가 없으면
-   섹션을 그냥 숨긴 채로 두고 조용히 종료 — 기존 화면에 영향 전혀 없음. */
+/* [2026-07-20 수정] 테스트 기간 종료 — 항상 위키 데이터 조회 시도.
+   캐시에 데이터 없는 배우(대부분)는 아래 "if(!d) return"에서 조용히 종료됨. */
 async function loadWikiTest(personId){
-  const wikitest = new URLSearchParams(location.search).get('wikitest');
-  if(wikitest !== '1') return;
-
   try{
     const res  = await fetch(`${OTTRANK_API}/person-wiki/${personId}`);
     const json = await res.json();
@@ -1351,7 +1344,7 @@ async function initPage(){
        personId 로딩 성공 여부와 상관없이 독립적으로 호출, await 없이 별도 호출 */
     loadRankingWidget();
 
-    /* [2026-07-19 신규] 위키백과 보강 데이터 테스트 — ?wikitest=1일 때만 내부에서 동작 */
+    /* [2026-07-20 수정] 위키백과 보강 데이터 — 항상 조회 시도 (2026-07-20부터 전체 적용) */
     loadWikiTest(personId);
 
     /* ⑤ 약력 — ko-KR 없으면 영어 fallback */
