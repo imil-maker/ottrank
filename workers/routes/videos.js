@@ -487,12 +487,48 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const releaseDateVal = release_date || null;
       const nowIso         = new Date().toISOString(); // rating_updated_at은 서버 시각 기준(클라이언트 시각 신뢰 안 함)
 
+      // [2026-07-19 추가] 신규 작품 등록 시 softcore 키워드 자동 성인물 판별
+      // - "신규 등록"일 때만 실행 (기존에 이미 있는 작품은 재방문마다 이 API를 다시 타므로,
+      //   그때마다 조회하면 관리자가 수동으로 해제한 작품이 재방문 시 다시 성인물로 잡히는
+      //   무한반복 문제가 생김 — 그래서 최초 1회, INSERT 시점에만 실행)
+      // - admin.js의 collect-keywords 배치는 이 로직을 더 이상 하지 않음(2026-07-19 제거) —
+      //   성인물 자동판별은 이제 이 지점 하나로 일원화됨
+      const existing = await env.DB.prepare(
+        "SELECT tmdb_id FROM works WHERE tmdb_id = ?"
+      ).bind(parseInt(tmdb_id)).first();
+
+      let keywordsVal  = null;
+      let adultFlagVal = null;
+      let mediaTypeForInsert = media_type || null;
+
+      if (!existing) {
+        const mtypes = media_type ? [media_type] : ["movie", "tv"];
+        for (const mtype of mtypes) {
+          try {
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${parseInt(tmdb_id)}/keywords?api_key=${env.TMDB_API_KEY}`
+            );
+            if (!resp.ok) continue;
+            const data   = await resp.json();
+            const kwList = data.keywords || data.results || []; // 영화: keywords, TV: results
+            if (kwList.length) {
+              keywordsVal = kwList.map(k => k.name).filter(Boolean).join(",");
+              break;
+            }
+          } catch (e) { /* 네트워크 오류 — 다음 media_type으로 계속 시도, 실패해도 등록 자체는 진행 */ }
+        }
+        if (keywordsVal && keywordsVal.split(",").includes("softcore")) {
+          adultFlagVal = 1;
+          mediaTypeForInsert = "movie"; // 성인물은 movie로 통일 (기존 원칙과 동일)
+        }
+      }
+
       await env.DB.prepare(`
         INSERT INTO works (
           tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
-          tmdb_rating, release_date, rating_updated_at, match_source
+          tmdb_rating, release_date, rating_updated_at, match_source, keywords, adult_flag
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- media_type: title_en과 달리 "보호 대상 아님" — 확신 있는 값(NULL 아님)이 오면 항상 최신화.
           -- movie/tv tmdb_id가 우연히 겹쳐 한 번 잘못 저장돼도, 이후 신뢰 가능한 값이 들어오면
@@ -540,12 +576,14 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         title_ko       || null,
         validTitle_en  || null,
         poster_path    || null,
-        media_type     || null,
+        mediaTypeForInsert,
         genre          || null,
         original_language || null,
         ratingVal,
         releaseDateVal,
-        nowIso
+        nowIso,
+        keywordsVal,
+        adultFlagVal
       ).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
