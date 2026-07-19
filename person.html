@@ -486,7 +486,12 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
      기본값으로 바로 노출. 스크롤 끝(맨 앞/맨 뒤) 도달 시 자동 숨기는 기존 JS 로직
      (.hidden 클래스)은 그대로 살아있어서, 처음엔 오른쪽 화살표만 보이고
      왼쪽은 스크롤해야 나타남 — "더 있다"는 걸 알려주는 효과 */
-  .ranking-widget-section .scroll-arrow{opacity:.9}
+  /* [2026-07-20 수정] 원래 랭킹위젯에만 있던 규칙 — 대표작/갤러리는 모바일에
+     호버가 없어서 화살표가 계속 opacity:0으로 안 보이다가, 슬라이딩할 때 터치로
+     우연히 hover 비슷한 상태가 잠깐 걸려야만 보이는 버그였음. 동일하게 적용 */
+  .ranking-widget-section .scroll-arrow,
+  .known-for-section .scroll-arrow,
+  #photoGallerySection .scroll-arrow{opacity:.9}
 
   /* ⚠️ 2026-07-11 6차 수정(최종): justify-content:center로 화살표+사진을 "하나로 묶어서"
      가운데 정렬했더니, 화살표까지 같이 오른쪽으로 밀려서 진짜 왼쪽 상단이 아니게 됨.
