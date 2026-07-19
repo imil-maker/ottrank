@@ -373,7 +373,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
     `).bind(i,i,i,t),r.DB.prepare(`
       SELECT tmdb_id FROM works
       WHERE (',' || REPLACE(genre, ', ', ',') || ',') LIKE ('%,' || ? || ',%')
-        AND (adult_flag IS NULL OR adult_flag != 1)
+        AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
         AND poster_path IS NOT NULL AND poster_path != ''
       ORDER BY (original_language = 'ko') DESC, tmdb_rating DESC
       LIMIT ?
@@ -381,7 +381,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
       SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
       FROM works
       WHERE tmdb_id IN (${s})
-        AND (adult_flag IS NULL OR adult_flag != 1)
+        AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
         AND poster_path IS NOT NULL AND poster_path != ''
     `).bind(...c).all()).results}return d.sort((s,a)=>{let l=s.original_language==="ko"?0:1,p=a.original_language==="ko"?0:1;return l!==p?l-p:(a.tmdb_rating||0)-(s.tmdb_rating||0)}),d.slice(0,g)}async function rt(r,i,t,g,e){if(r==="/works/search"&&i.method==="GET"){let o=g.searchParams.get("q")||"",n=Math.min(parseInt(g.searchParams.get("limit")||"15"),30),_=Math.max(parseInt(g.searchParams.get("offset")||"0"),0),c=["netflix","tving","disney","coupang","wavve","watcha"],d=g.searchParams.get("ott")||"",s=c.includes(d)?d:"",a=100,l=15,p=24;if(!o.trim())return new Response(JSON.stringify({ok:!1,message:"q required"}),{status:400,headers:e});try{let[m,u,E]=await t.DB.batch(at(t,o,a)),w=new Map;if(m.results.forEach(O=>w.set(O.tmdb_id,0)),u.results.forEach(O=>{w.has(O.tmdb_id)||w.set(O.tmdb_id,1)}),E.results.forEach(O=>{w.has(O.tmdb_id)||w.set(O.tmdb_id,2)}),w.size===0){let O=o.replace(/\s+/g,""),{results:N}=await t.DB.prepare(`
           SELECT tmdb_id FROM works
@@ -393,7 +393,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
           SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
           FROM works
           WHERE tmdb_id IN (${O})
-            AND (adult_flag IS NULL OR adult_flag != 1)
+            AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
             AND poster_path IS NOT NULL AND poster_path != ''
         `).bind(...k).all()).results}if(!s&&y.length<l){let O=[...new Set(o.split(/\s+/).filter(N=>N.length>=2))].slice(0,3);O.length>=2&&(await xt(t,O,new Set(w.keys()),p)).forEach(T=>{w.set(T.tmdb_id,4),y.push(T)})}let b=y.length;y.sort((O,N)=>{let T=w.get(O.tmdb_id)??1,B=w.get(N.tmdb_id)??1;if(T!==B)return T-B;let L=O.original_language==="ko"?0:1,J=N.original_language==="ko"?0:1;return L!==J?L-J:(N.tmdb_rating||0)-(O.tmdb_rating||0)});let R=y.slice(_,_+n),S=y.length>_+n,h=[];if(R.length){let O=R.map(A=>A.tmdb_id),N=O.map(()=>"?").join(","),[{results:T},{results:B}]=await Promise.all([t.DB.prepare(`
             SELECT tmdb_id, platform, rank
@@ -412,7 +412,7 @@ function Y(r,i,t){if(!i.length)return r.slice(0,t).map((d,s)=>({...d,rank:s+1}))
         SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
         FROM works
         WHERE tmdb_id IN (${_})
-          AND (adult_flag IS NULL OR adult_flag != 1)
+          AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
           AND poster_path IS NOT NULL AND poster_path != ''
       `).bind(...n).all(),d=[];if(c.length){let s=c.map(E=>E.tmdb_id),a=s.map(()=>"?").join(","),[{results:l},{results:p}]=await Promise.all([t.DB.prepare(`
             SELECT tmdb_id, platform, rank
