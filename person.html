@@ -92,15 +92,16 @@ body.layout-test .page-wrap{max-width:1200px}
     flex:none;
     width:auto;
   }
-  /* [2026-07-19 신규] 더보기 버튼 — 오른쪽 컬럼이 넓어지면서 버튼이 과하게 길어보여서
-     원래 크기(내용만큼)로 줄이고, 눈에 띄게 골드색으로 */
-  body.layout-test .load-more-btn{
-    display:block; width:fit-content; margin:20px auto 0; padding:10px 32px;
-    border-color:var(--gold); color:var(--gold);
-  }
-  body.layout-test .load-more-btn:hover{
-    background:rgba(240,180,41,.1); border-color:var(--gold); color:var(--gold);
-  }
+}
+/* [2026-07-19 신규] 더보기 버튼 — 오른쪽 컬럼이 넓어지면서 버튼이 과하게 길어보여서
+   원래 크기(내용만큼)로 줄이고, 눈에 띄게 골드색으로.
+   [2026-07-20 수정] PC 전용이었던 걸 모바일에도 동일하게 적용 */
+body.layout-test .load-more-btn{
+  display:block; width:fit-content; margin:20px auto 0; padding:10px 32px;
+  border-color:var(--gold); color:var(--gold);
+}
+body.layout-test .load-more-btn:hover{
+  background:rgba(240,180,41,.1); border-color:var(--gold); color:var(--gold);
 }
 body.layout-test .person-col-left > *{ margin-bottom:24px }
 body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
@@ -823,7 +824,8 @@ let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
 let actCredits   = [];   // 출연
 let directCredits= [];   // 연출
 let currentTab   = 'all';
-const PAGE_SIZE  = 30;
+// [2026-07-20 수정] 고정값 대신 화면 폭 기준으로 모바일(640px 이하) 20개 / PC 30개
+function getPageSize(){ return window.innerWidth <= 640 ? 20 : 30; }
 let shownCount   = 0;
 let filmoSortMode = 'ott'; // [2026-07-20 신규] 'ott'(OTT 있는 작품 우선, 기본값) | 'year'(연도순)
 
@@ -1016,7 +1018,7 @@ function renderWorks(){
   const list   = currentList();
   const grid   = document.getElementById('worksGrid');
   const moreBtn= document.getElementById('loadMoreBtn');
-  const slice  = list.slice(0, shownCount + PAGE_SIZE);
+  const slice  = list.slice(0, shownCount + getPageSize());
   shownCount   = slice.length;
   grid.innerHTML = slice.map(workCardHtml).join('');
   moreBtn.style.display = shownCount < list.length ? 'block' : 'none';
