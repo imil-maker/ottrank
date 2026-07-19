@@ -343,11 +343,40 @@ body.layout-test .person-like-btn{ display:flex }
 .wiki-career-preview.collapsed{
   max-height:calc(1.7em * 4); overflow:hidden;
 }
+/* [2026-07-19 신규] 펼친 상태도 무한정 안 늘어나고 박스 안에서만 스크롤 (페이지 길이 유지) */
+.wiki-career-preview.expanded{
+  max-height:400px; overflow-y:auto; padding-right:8px;
+}
 .wiki-career-toggle{
   margin-top:8px; background:none; border:none; color:var(--info);
   font-size:13px; cursor:pointer; padding:0;
 }
 .wiki-test-source{ margin-top:14px; font-size:11px; color:var(--muted); }
+
+/* [2026-07-19 신규] 전체이력 — 모바일 전용 UI (랭킹위젯~필모그래피 사이).
+   PC의 wikiTestSection과 데이터는 같지만 화면에 따라 하나만 보임 */
+.wiki-career-mobile-section{ margin:20px 0; }
+.wiki-career-mobile-toggle{
+  display:block; width:100%; padding:12px; text-align:center;
+  background:var(--bg2); border:.5px solid rgba(240,180,41,.35); border-radius:var(--r);
+  color:var(--gold); font-size:13px; font-family:var(--font-mono); cursor:pointer;
+}
+.wiki-career-mobile-box{
+  margin-top:10px; padding:14px; background:var(--bg2);
+  border:.5px solid var(--border); border-radius:var(--r);
+}
+.wiki-career-mobile-text{
+  font-size:13px; line-height:1.7; color:var(--text); white-space:pre-line;
+  max-height:calc(1.7em * 5); overflow-y:auto; padding-right:6px; /* 5줄 정도만, 그 안에서 스크롤 */
+}
+
+/* [2026-07-19 신규] PC/모바일 중 하나만 보이게 — 화면 폭 641px 기준으로 서로 반대로 숨김 */
+@media(min-width:641px){
+  .wiki-career-mobile-section{ display:none !important; }
+}
+@media(max-width:640px){
+  #wikiTestSection{ display:none !important; }
+}
 .wiki-test-source a{ color:var(--muted); }
 .bio-text{font-size:14px;color:var(--muted2);line-height:1.8;
   display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
@@ -534,9 +563,8 @@ body.layout-test .person-like-btn{ display:flex }
     </div>
   </div><!-- /hero-wrap -->
 
-  <!-- [2026-07-19 신규] 위키백과 보강 데이터 테스트 섹션 (?wikitest=1일 때만 노출)
-       ⚠️ person-info 밖으로 분리 — 이름/약력(person-info)은 레이아웃 테스트 모드에서
-       오른쪽 컬럼 맨 위로 통째로 이동되는데, 이 섹션은 왼쪽에 그대로 남아있어야 함 -->
+  <!-- [2026-07-19 신규] 전체이력 — PC 전용(왼쪽 컬럼, 사진 밑). 모바일은 별도 위치(랭킹위젯~필모그래피 사이)에
+       독립된 버튼+박스를 따로 둠 (아래 wikiCareerMobileSection 참고) -->
   <div class="wiki-test-section" id="wikiTestSection">
     <span class="wiki-test-badge">🧪 위키 데이터 테스트</span>
     <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
@@ -598,6 +626,18 @@ body.layout-test .person-like-btn{ display:flex }
       <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('rankingWidgetRow',-1)" aria-label="이전 작품">‹</button>
       <div class="ranking-widget-row" id="rankingWidgetRow"></div>
       <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('rankingWidgetRow',1)" aria-label="다음 작품">›</button>
+    </div>
+  </div>
+
+  <!-- [2026-07-19 신규] 전체이력 — 모바일 전용(PC에서는 CSS로 숨김, 왼쪽 컬럼의 wikiTestSection이 대신 보임).
+       버튼 누르면 5줄 높이 박스가 펼쳐지고 그 안에서만 스크롤 (페이지 길이 안 늘어남) -->
+  <div class="wiki-career-mobile-section" id="wikiCareerMobileSection" style="display:none">
+    <button class="wiki-career-mobile-toggle" id="wikiCareerMobileToggle" onclick="toggleWikiCareerMobile()">
+      🧪 전체 이력 더보기 ▾
+    </button>
+    <div class="wiki-career-mobile-box" id="wikiCareerMobileBox" style="display:none">
+      <div class="wiki-career-mobile-text" id="wikiCareerMobileText"></div>
+      <div class="wiki-test-source" id="wikiSourceMobile"></div>
     </div>
   </div>
 
@@ -766,7 +806,17 @@ function toggleWikiCareer(){
   const el  = document.getElementById('wikiCareerPreview');
   const btn = document.getElementById('wikiCareerToggle');
   el.classList.toggle('collapsed', !wikiCareerExpanded);
+  el.classList.toggle('expanded', wikiCareerExpanded);
   btn.textContent = wikiCareerExpanded ? '접기 ▴' : '전체 이력 더보기 ▾';
+}
+
+/* [2026-07-19 신규] 모바일 전용 — 버튼 누르면 박스가 나타나고, 그 안에서만 스크롤 */
+function toggleWikiCareerMobile(){
+  const box = document.getElementById('wikiCareerMobileBox');
+  const btn = document.getElementById('wikiCareerMobileToggle');
+  const show = box.style.display === 'none';
+  box.style.display = show ? 'block' : 'none';
+  btn.textContent = show ? '🧪 전체 이력 접기 ▴' : '🧪 전체 이력 더보기 ▾';
 }
 
 /* [2026-07-19 신규] 위키백과 보강 데이터 테스트 로드
@@ -817,16 +867,21 @@ async function loadWikiTest(personId){
 
     if(d.career_history){
       document.getElementById('wikiCareerPreview').textContent = d.career_history;
+      document.getElementById('wikiCareerMobileText').textContent = d.career_history; // [2026-07-19 신규] 모바일용
     } else {
       document.getElementById('wikiCareerToggle').style.display = 'none';
     }
 
     if(d.source_url){
-      document.getElementById('wikiSource').innerHTML =
-        `출처: <a href="${d.source_url}" target="_blank" rel="noopener">위키백과</a> (CC BY-SA)`;
+      const sourceHtml = `출처: <a href="${d.source_url}" target="_blank" rel="noopener">위키백과</a> (CC BY-SA)`;
+      document.getElementById('wikiSource').innerHTML = sourceHtml;
+      document.getElementById('wikiSourceMobile').innerHTML = sourceHtml; // [2026-07-19 신규] 모바일용
     }
 
     document.getElementById('wikiTestSection').style.display = 'block';
+    if(d.career_history){
+      document.getElementById('wikiCareerMobileSection').style.display = 'block'; // [2026-07-19 신규]
+    }
   }catch(e){
     console.log('[wiki-test] load failed:', e.message); // 실패해도 화면엔 영향 없음
   }
