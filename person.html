@@ -254,7 +254,7 @@ body.layout-test .person-like-btn{ display:flex }
   display:inline-block; font-size:11px; font-weight:700; color:var(--gold);
   background:rgba(240,180,41,.12); border:.5px solid rgba(240,180,41,.35);
   border-radius:6px; padding:3px 8px; margin-bottom:12px;
-  font-family:var(--font-mono);
+  font-family:var(--font-mono); white-space:nowrap;
 }
 .wiki-test-summary{ font-size:14px; line-height:1.6; color:var(--text); margin-bottom:14px; }
 .wiki-test-meta{ display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:var(--muted); margin-bottom:14px; }
@@ -481,6 +481,12 @@ body.layout-test .person-like-btn{ display:flex }
     </div>
   </div>
 
+  </div><!-- /person-col-left -->
+
+  <div class="person-col-right">
+  <!-- [2026-07-19 이동] 대표작/랭킹위젯 — 왼쪽 컬럼(380px)이 좁아서 포스터가
+       눌려보이는 문제로 오른쪽(넓은 컬럼)으로 이동. 나중에 탭 UI로 재정리 예정,
+       지금은 필모그래피 위에 그대로 쌓는 구조. -->
   <!-- [2026-07-11 추가] 대표작(인기순 강조) -->
   <div id="knownForSection" class="known-for-section" style="display:none">
     <div class="section-title">🌟 대표작</div>
@@ -510,9 +516,6 @@ body.layout-test .person-like-btn{ display:flex }
     </div>
   </div>
 
-  </div><!-- /person-col-left -->
-
-  <div class="person-col-right">
   <!-- 필모그래피 -->
   <div id="filmographySection" class="filmography-section" style="display:none">
     <div class="section-title">
