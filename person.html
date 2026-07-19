@@ -340,22 +340,23 @@ body.layout-test .person-like-btn{ display:flex }
 }
 /* [2026-07-19 신규] 펼친 상태도 무한정 안 늘어나고 박스 안에서만 스크롤 (페이지 길이 유지) */
 .wiki-career-preview.expanded{
-  max-height:400px; overflow-y:auto; padding-right:8px;
+  max-height:calc(1.7em * 12); overflow-y:auto; padding-right:8px;
 }
 .wiki-career-toggle{
   margin-top:8px; background:none; border:none; color:var(--muted);
   font-size:12px; cursor:pointer; padding:0;
 }
 .wiki-test-source{ margin-top:14px; font-size:11px; color:var(--muted); }
+#wikiSource{ display:none; } /* [2026-07-20 신규] PC는 "전체 이력 더보기" 눌러야 출처도 같이 보이게 */
 
 /* [2026-07-19 신규] 전체이력 — 모바일 전용 UI (랭킹위젯~필모그래피 사이).
    PC의 wikiTestSection과 데이터는 같지만 화면에 따라 하나만 보임 */
-.wiki-career-mobile-section{ margin:20px 0; }
-/* [2026-07-20 수정] 검색엔진용이라 눈에 안 띄게 — 얇고 진한 회색톤 버튼 */
+.wiki-career-mobile-section{ margin:20px 0; text-align:center; }
+/* [2026-07-20 수정] 검색엔진용이라 눈에 안 띄게 — 얇고 진한 회색톤 버튼, 가운데 정렬, 글자 1px 키움 */
 .wiki-career-mobile-toggle{
-  display:block; width:auto; padding:6px 12px; text-align:center;
+  display:inline-block; width:auto; margin:0 auto; padding:6px 12px; text-align:center;
   background:transparent; border:.5px solid rgba(255,255,255,0.08); border-radius:6px;
-  color:var(--muted); font-size:11px; font-family:var(--font-sans); cursor:pointer;
+  color:var(--muted); font-size:12px; font-family:var(--font-sans); cursor:pointer;
 }
 .wiki-career-mobile-box{
   margin-top:10px; padding:14px; background:var(--bg);
@@ -797,6 +798,8 @@ let shownCount   = 0;
 /* [2026-07-19 신규] TMDB 약력(영어인 경우가 많음) — 위키 데이터 로드 시
    "위키 프로필이 40자 이내면 TMDB 약력과 같이 보여주기" 판단에 사용 */
 let tmdbBioText = '';
+/* [2026-07-20 신규] 모바일 "OO 전체 이력 더보기" 버튼 텍스트용 이름 저장 */
+let personDisplayName = '';
 
 /* ── 약력 펼치기 ── */
 let bioExpanded = false;
@@ -814,9 +817,11 @@ function toggleWikiCareer(){
   wikiCareerExpanded = !wikiCareerExpanded;
   const el  = document.getElementById('wikiCareerPreview');
   const btn = document.getElementById('wikiCareerToggle');
+  const src = document.getElementById('wikiSource');
   el.classList.toggle('collapsed', !wikiCareerExpanded);
   el.classList.toggle('expanded', wikiCareerExpanded);
   btn.textContent = wikiCareerExpanded ? '접기 ▴' : '전체 이력 더보기 ▾';
+  src.style.display = wikiCareerExpanded ? 'block' : 'none'; // [2026-07-20 신규]
 }
 
 /* [2026-07-19 신규] 모바일 전용 — 버튼 누르면 박스가 나타나고, 그 안에서만 스크롤 */
@@ -825,7 +830,9 @@ function toggleWikiCareerMobile(){
   const btn = document.getElementById('wikiCareerMobileToggle');
   const show = box.style.display === 'none';
   box.style.display = show ? 'block' : 'none';
-  btn.textContent = show ? '전체 이력 접기 ▴' : '전체 이력 더보기 ▾';
+  btn.textContent = show
+    ? `${personDisplayName} 전체 이력 접기 ▴`
+    : `${personDisplayName} 전체 이력 더보기 ▾`;
 }
 
 /* [2026-07-19 신규] 위키백과 보강 데이터 테스트 로드
@@ -890,6 +897,10 @@ async function loadWikiTest(personId){
     document.getElementById('wikiTestSection').style.display = 'block';
     if(d.career_history){
       document.getElementById('wikiCareerMobileSection').style.display = 'block'; // [2026-07-19 신규]
+      const mobileToggleBtn = document.getElementById('wikiCareerMobileToggle');
+      if(mobileToggleBtn && personDisplayName){
+        mobileToggleBtn.textContent = `${personDisplayName} 전체 이력 더보기 ▾`; // [2026-07-20 신규]
+      }
     }
   }catch(e){
     console.log('[wiki-test] load failed:', e.message); // 실패해도 화면엔 영향 없음
@@ -1237,6 +1248,7 @@ async function initPage(){
 
     document.getElementById('personName').textContent   = displayName;
     document.getElementById('personNameEn').textContent = enName;
+    personDisplayName = displayName; // [2026-07-20 신규]
 
     /* ③ 프로필 사진 */
     if(data.profile_path){
