@@ -460,8 +460,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:10px 20px;font-size:14px;opacity:.5;cursor:not-allowed">
           🔍 선택 매칭 시도 (<span id="pmSelectedCount">0</span>명)
         </button>
-        <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">⚠️ 실제 위키 검색 연결은 다음 단계에서 완성돼요</span>
+        <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">⚠️ 한 번에 너무 많이 선택하면 느릴 수 있어요 — 소수로 먼저 테스트 권장</span>
       </div>
+
+      <!-- [2026-07-20 신규] 매칭 시도 결과 표시 영역 -->
+      <div id="pmMatchResultWrap" style="display:none;margin-bottom:20px"></div>
 
       <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <thead>
@@ -778,7 +781,8 @@ function updatePmSelectAllState(){
 
 function updatePmSelectedCount(){
   const btn = document.getElementById('pmMatchBtn');
-  document.getElementById('pmSelectedCount').textContent = pmSelected.size;
+  const countEl = document.getElementById('pmSelectedCount');
+  if(countEl) countEl.textContent = pmSelected.size; // 매칭 진행 중엔 버튼 안이 잠깐 다른 텍스트라 span이 없을 수 있음
   const enabled = pmSelected.size > 0;
   btn.disabled = !enabled;
   btn.style.opacity = enabled ? '1' : '.5';
@@ -796,9 +800,102 @@ function pmNextPage(){
   loadPersonMatchCandidates();
 }
 
-function attemptPersonMatch(){
-  // [2026-07-20] 다음 단계에서 실제 위키 검색 엔드포인트와 연결 예정
-  showToast(`⚠️ 아직 준비 중이에요 — ${pmSelected.size}명 선택됨 (다음 단계에서 연결)`);
+async function attemptPersonMatch(){
+  if (!pmSelected.size) return;
+  const ids = [...pmSelected];
+  const btn = document.getElementById('pmMatchBtn');
+  const resultWrap = document.getElementById('pmMatchResultWrap');
+
+  btn.disabled = true;
+  btn.textContent = '매칭 시도 중...';
+  resultWrap.style.display = 'block';
+  resultWrap.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">위키백과 검색 중... (${ids.length}명, 시간이 좀 걸릴 수 있어요)</div>`;
+
+  try{
+    const res  = await fetch(`${API}/admin/persons/wiki-match-attempt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_ids: ids }),
+    });
+    const data = await res.json();
+
+    if(!res.ok || !data.ok){
+      resultWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">매칭 시도 실패: ${data.message || res.status}</div>`;
+      return;
+    }
+
+    const foundCount = data.results.filter(r => r.found).length;
+    resultWrap.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:13px;color:var(--muted2)">
+          ${data.results.length}명 시도 · <span style="color:var(--green)">${foundCount}명 매칭됨</span> ·
+          <span style="color:var(--muted)">${data.results.length - foundCount}명 실패</span>
+        </div>
+        ${foundCount > 0 ? `<button class="btn-primary" onclick="approveMatchedPersons()" style="padding:8px 16px;font-size:13px">✅ 매칭된 ${foundCount}명 전체 확정 승인</button>` : ''}
+      </div>
+    ` + data.results.map(r => `
+      <div style="background:var(--bg2);border:1px solid ${r.found ? 'rgba(52,211,153,.3)' : 'var(--border)'};border-radius:10px;padding:14px 16px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtmlPm(r.name_ko)}</span>
+          <span style="font-size:12px;color:${r.found ? 'var(--green)' : 'var(--muted)'}">${r.found ? '✅ 매칭됨' : '❌ 매칭 안 됨'}</span>
+        </div>
+        ${r.found ? `
+          <div style="font-size:12px;color:var(--muted2);line-height:1.6">
+            위키 문서: <a href="${r.wiki_source_url}" target="_blank" style="color:#7ec8e3">${escapeHtmlPm(r.wiki_title)}</a>
+            ${r.wiki_birth_year ? ` · 생년: ${r.wiki_birth_year}` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6">${escapeHtmlPm((r.wiki_summary||'').slice(0,150))}...</div>
+        ` : `<div style="font-size:12px;color:var(--muted)">후보를 못 찾았거나 생년월일이 안 맞았어요. person_wiki_match_queue에 실패로 기록됐어요.</div>`}
+      </div>
+    `).join('');
+
+    // [2026-07-20 신규] 승인 버튼에서 쓸 수 있게 매칭된 tmdb_id 목록 저장
+    window.__pmMatchedIds = data.results.filter(r => r.found).map(r => r.tmdb_id);
+
+    showToast(`✅ ${data.results.length}명 시도, ${foundCount}명 매칭됨`);
+  }catch(e){
+    resultWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = `🔍 선택 매칭 시도 (<span id="pmSelectedCount">${pmSelected.size}</span>명)`;
+  }
+}
+
+/* [2026-07-20 신규] 매칭된 인물들을 확정 승인 — person_wiki_cache에 실제 반영 */
+async function approveMatchedPersons(){
+  const ids = window.__pmMatchedIds || [];
+  if(!ids.length) return;
+  const resultWrap = document.getElementById('pmMatchResultWrap');
+
+  showToast(`승인 처리 중... (${ids.length}명)`);
+
+  try{
+    const res  = await fetch(`${API}/admin/persons/wiki-approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_ids: ids }),
+    });
+    const data = await res.json();
+
+    if(!res.ok || !data.ok){
+      showToast(`❌ 승인 실패: ${data.message || res.status}`);
+      return;
+    }
+
+    showToast(`✅ ${data.approvedCount}명 확정! 인물페이지에 반영됐어요`);
+    resultWrap.innerHTML += `
+      <div style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);border-radius:10px;padding:14px 16px;margin-top:10px;font-size:13px;color:var(--green)">
+        ✅ ${data.approvedCount}명 확정 승인 완료 — /person/{id} 페이지에서 바로 확인 가능해요.
+        ${data.approved.map(a => `<div style="margin-top:4px;color:var(--muted2)">→ ${escapeHtmlPm(a.person_name)} (tmdb_id: ${a.tmdb_id})</div>`).join('')}
+      </div>
+    `;
+
+    // 승인된 사람들은 목록에서 자동으로 사라지게(=매칭완료 목록이라 재조회 필요) 새로고침
+    ids.forEach(id => pmSelected.delete(id));
+    loadPersonMatchCandidates();
+  }catch(e){
+    showToast(`❌ 네트워크 오류: ${e.message}`);
+  }
 }
 
 /* ══════════════════════════════════════════════════════
