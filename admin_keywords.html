@@ -101,6 +101,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🔍 검색어 로그
         </button>
+        <button id="tabPersonMatch" onclick="switchPageTab('personMatch')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🎭 인물 매칭
+        </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
     </div>
@@ -397,6 +401,85 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   </div>
 
+  <!-- ══ 인물 매칭 탭 ══ -->
+  <div class="wrap" id="personMatchWrap" style="display:none">
+
+    <!-- 서브탭 -->
+    <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:20px;width:fit-content">
+      <button id="subTabPmList" onclick="switchPersonMatchSubTab('list')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:rgba(55,138,221,.2);color:#7ec8e3;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+        인물매칭
+      </button>
+      <button id="subTabPmSearch" onclick="switchPersonMatchSubTab('search')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+        인물 개별 검색
+      </button>
+    </div>
+
+    <!-- 서브탭: 인물매칭 (대량 처리) -->
+    <div id="pmListWrap">
+      <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 아직 위키백과 매칭이 안 된 인물 목록입니다. 여기선 <span style="color:var(--gold)">목록 조회만</span> 하고
+        위키백과 검색은 하지 않아요 — 원하는 인물만 체크한 뒤 "선택 매칭 시도"를 눌러야 그때 검색이 시작됩니다.
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+        <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px">
+          <button id="pmSortPopularity" onclick="setPmSort('popularity')"
+            style="padding:5px 14px;border-radius:6px;border:none;background:rgba(52,211,153,.2);color:var(--green);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+            인기순
+          </button>
+          <button id="pmSortName" onclick="setPmSort('name')"
+            style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">
+            이름순
+          </button>
+        </div>
+        <div style="font-size:13px;color:var(--muted);font-family:var(--mono)" id="pmTotalCount"></div>
+        <button class="btn-secondary" onclick="loadPersonMatchCandidates()" style="padding:5px 14px;font-size:12px;margin-left:auto">🔄 새로고침</button>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+        <button class="btn-primary" id="pmMatchBtn" onclick="attemptPersonMatch()" disabled
+          style="padding:10px 20px;font-size:14px;opacity:.5;cursor:not-allowed">
+          🔍 선택 매칭 시도 (<span id="pmSelectedCount">0</span>명)
+        </button>
+        <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">⚠️ 실제 위키 검색 연결은 다음 단계에서 완성돼요</span>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+        <thead>
+          <tr>
+            <th style="width:6%;background:var(--bg3);text-align:center;padding:12px 10px;border-bottom:1px solid var(--border)">
+              <input type="checkbox" id="pmSelectAll" onchange="togglePmSelectAll(this.checked)">
+            </th>
+            <th style="width:10%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)"></th>
+            <th style="width:24%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">이름</th>
+            <th style="width:15%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">구분</th>
+            <th style="width:20%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">생년월일</th>
+            <th style="width:15%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">인기도</th>
+          </tr>
+        </thead>
+        <tbody id="pmTbody">
+          <tr><td colspan="6" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+
+      <div style="display:flex;justify-content:center;gap:10px;padding:20px 0;align-items:center">
+        <button class="btn-secondary" onclick="pmPrevPage()" id="pmPrevBtn" style="padding:8px 16px;font-size:13px">← 이전 50명</button>
+        <span style="font-size:13px;color:var(--muted);font-family:var(--mono)" id="pmPageInfo"></span>
+        <button class="btn-secondary" onclick="pmNextPage()" id="pmNextBtn" style="padding:8px 16px;font-size:13px">다음 50명 →</button>
+      </div>
+    </div>
+
+    <!-- 서브탭: 인물 개별 검색 (다음 단계에서 제작) -->
+    <div id="pmSearchWrap" style="display:none">
+      <div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">
+        이 기능은 다음 단계에서 만들 예정이에요.
+      </div>
+    </div>
+
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -522,6 +605,7 @@ const PAGE_TABS = [
   { key: 'keywordTranslate', wrapId: 'keywordTranslateWrap', btnId: 'tabKeywordTranslate', title: '🔤 키워드 번역', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'ott',              wrapId: 'ottWrap',              btnId: 'tabOtt',              title: '🎬 OTT 수집',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'searchLog',        wrapId: 'searchLogWrap',        btnId: 'tabSearchLog',        title: '🔍 검색어 로그', onColor: 'rgba(230,57,70,.2)',  onText: 'var(--accent)' },
+  { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
 ];
 let currentPageTab = 'keyword';
 function switchPageTab(tab) {
@@ -536,12 +620,145 @@ function switchPageTab(tab) {
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
   if (tab === 'searchLog') loadSearchLogs(1);
+  if (tab === 'personMatch') loadPersonMatchCandidates();
 }
 
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ══════════════════════════════════════════════════════
+   [2026-07-20 신규] 인물 매칭 — 후보 목록 조회 (서브탭: 인물매칭)
+   실제 위키 검색은 아직 연결 안 함 — 목록 조회 + 선택까지만
+══════════════════════════════════════════════════════ */
+let pmSort      = 'popularity'; // 'popularity' | 'name'
+let pmOffset    = 0;
+const PM_LIMIT  = 50;
+let pmTotal     = 0;
+let pmItems     = [];
+let pmSelected  = new Set(); // 체크된 tmdb_id 모음 (페이지 넘어가도 유지)
+
+function switchPersonMatchSubTab(sub){
+  const isList = sub === 'list';
+  document.getElementById('pmListWrap').style.display   = isList ? 'block' : 'none';
+  document.getElementById('pmSearchWrap').style.display = isList ? 'none'  : 'block';
+  document.getElementById('subTabPmList').style.background   = isList ? 'rgba(55,138,221,.2)' : 'transparent';
+  document.getElementById('subTabPmList').style.color        = isList ? '#7ec8e3' : 'var(--muted2)';
+  document.getElementById('subTabPmSearch').style.background = isList ? 'transparent' : 'rgba(55,138,221,.2)';
+  document.getElementById('subTabPmSearch').style.color      = isList ? 'var(--muted2)' : '#7ec8e3';
+}
+
+function setPmSort(sort){
+  if (pmSort === sort) return;
+  pmSort   = sort;
+  pmOffset = 0;
+  document.getElementById('pmSortPopularity').style.background = sort === 'popularity' ? 'rgba(52,211,153,.2)' : 'transparent';
+  document.getElementById('pmSortPopularity').style.color      = sort === 'popularity' ? 'var(--green)' : 'var(--muted2)';
+  document.getElementById('pmSortName').style.background       = sort === 'name' ? 'rgba(52,211,153,.2)' : 'transparent';
+  document.getElementById('pmSortName').style.color            = sort === 'name' ? 'var(--green)' : 'var(--muted2)';
+  loadPersonMatchCandidates();
+}
+
+async function loadPersonMatchCandidates(){
+  const tbody = document.getElementById('pmTbody');
+  tbody.innerHTML = '<tr><td colspan="6" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>';
+
+  try{
+    const res  = await fetch(`${API}/admin/persons/wiki-candidates?sort=${pmSort}&offset=${pmOffset}&limit=${PM_LIMIT}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){
+      tbody.innerHTML = `<tr><td colspan="6" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:14px">불러오기 실패: ${data.message||res.status}</td></tr>`;
+      return;
+    }
+
+    pmItems = data.items || [];
+    pmTotal = data.total || 0;
+
+    if(!pmItems.length){
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">더 이상 없어요 — 남은 미매칭 인물이 없습니다.</td></tr>';
+    } else {
+      tbody.innerHTML = pmItems.map(p => `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="text-align:center;padding:10px">
+            <input type="checkbox" class="pm-row-check" data-id="${p.tmdb_id}"
+              ${pmSelected.has(p.tmdb_id) ? 'checked' : ''} onchange="togglePmRow(${p.tmdb_id}, this.checked)">
+          </td>
+          <td style="padding:10px 16px">
+            ${p.profile_path
+              ? `<img src="https://poster.ottrank.kr/tmdb-img/w92${p.profile_path}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
+              : `<div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)">?</div>`}
+          </td>
+          <td style="padding:10px 16px;font-size:13px;color:var(--text)">${escapeHtmlPm(p.name || '')}</td>
+          <td style="padding:10px 16px;font-size:12px;color:var(--muted2)">${p.job === 'direct' ? '감독' : '배우'}</td>
+          <td style="padding:10px 16px;font-size:12px;color:var(--muted2);font-family:var(--mono)">${p.birthday || '-'}</td>
+          <td style="padding:10px 16px;font-size:12px;color:var(--muted2);font-family:var(--mono)">${p.popularity ? p.popularity.toFixed(1) : '-'}</td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('pmTotalCount').textContent = `미매칭 전체 ${pmTotal.toLocaleString()}명`;
+    document.getElementById('pmPageInfo').textContent =
+      pmTotal ? `${pmOffset + 1}~${Math.min(pmOffset + PM_LIMIT, pmTotal)} / ${pmTotal}` : '-';
+    document.getElementById('pmPrevBtn').disabled = pmOffset <= 0;
+    document.getElementById('pmNextBtn').disabled = pmOffset + PM_LIMIT >= pmTotal;
+
+    updatePmSelectAllState();
+    updatePmSelectedCount();
+  }catch(e){
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:14px">네트워크 오류: ${e.message}</td></tr>`;
+  }
+}
+
+function escapeHtmlPm(s){
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function togglePmRow(id, checked){
+  if(checked) pmSelected.add(id); else pmSelected.delete(id);
+  updatePmSelectAllState();
+  updatePmSelectedCount();
+}
+
+function togglePmSelectAll(checked){
+  pmItems.forEach(p => {
+    if(checked) pmSelected.add(p.tmdb_id); else pmSelected.delete(p.tmdb_id);
+  });
+  document.querySelectorAll('.pm-row-check').forEach(cb => cb.checked = checked);
+  updatePmSelectedCount();
+}
+
+function updatePmSelectAllState(){
+  const allChecked = pmItems.length > 0 && pmItems.every(p => pmSelected.has(p.tmdb_id));
+  document.getElementById('pmSelectAll').checked = allChecked;
+}
+
+function updatePmSelectedCount(){
+  const btn = document.getElementById('pmMatchBtn');
+  document.getElementById('pmSelectedCount').textContent = pmSelected.size;
+  const enabled = pmSelected.size > 0;
+  btn.disabled = !enabled;
+  btn.style.opacity = enabled ? '1' : '.5';
+  btn.style.cursor  = enabled ? 'pointer' : 'not-allowed';
+}
+
+function pmPrevPage(){
+  if(pmOffset <= 0) return;
+  pmOffset = Math.max(0, pmOffset - PM_LIMIT);
+  loadPersonMatchCandidates();
+}
+function pmNextPage(){
+  if(pmOffset + PM_LIMIT >= pmTotal) return;
+  pmOffset += PM_LIMIT;
+  loadPersonMatchCandidates();
+}
+
+function attemptPersonMatch(){
+  // [2026-07-20] 다음 단계에서 실제 위키 검색 엔드포인트와 연결 예정
+  showToast(`⚠️ 아직 준비 중이에요 — ${pmSelected.size}명 선택됨 (다음 단계에서 연결)`);
 }
 
 /* ══════════════════════════════════════════════════════
