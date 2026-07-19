@@ -503,12 +503,14 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
       if (!existing) {
         const mtypes = media_type ? [media_type] : ["movie", "tv"];
+        let anySuccess = false; // TMDB로부터 정상 응답을 한 번이라도 받았는지 (네트워크 오류와 "진짜 키워드 없음"을 구분하기 위함)
         for (const mtype of mtypes) {
           try {
             const resp = await fetch(
               `https://api.themoviedb.org/3/${mtype}/${parseInt(tmdb_id)}/keywords?api_key=${env.TMDB_API_KEY}`
             );
             if (!resp.ok) continue;
+            anySuccess = true;
             const data   = await resp.json();
             const kwList = data.keywords || data.results || []; // 영화: keywords, TV: results
             if (kwList.length) {
@@ -517,7 +519,12 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             }
           } catch (e) { /* 네트워크 오류 — 다음 media_type으로 계속 시도, 실패해도 등록 자체는 진행 */ }
         }
-        if (keywordsVal && keywordsVal.split(",").includes("softcore")) {
+        // [2026-07-19 추가] "TMDB 응답은 정상인데 키워드가 진짜 비어있는 작품"도 성인물 신호로 채택.
+        // 실측: 정상 작품은 keywords가 없는 경우가 0건, softcore 미검출 성인물 4건은 전부 keywords NULL이었음.
+        // 단, TMDB 응답 자체를 못 받은 경우(anySuccess=false)는 네트워크 오류일 뿐이라 제외 — 오탐 방지.
+        const isSoftcore   = keywordsVal && keywordsVal.split(",").includes("softcore");
+        const isEmptyReal  = anySuccess && !keywordsVal;
+        if (isSoftcore || isEmptyReal) {
           adultFlagVal = 1;
           mediaTypeForInsert = "movie"; // 성인물은 movie로 통일 (기존 원칙과 동일)
         }
