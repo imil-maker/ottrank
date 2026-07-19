@@ -3337,51 +3337,84 @@ export async function handleAdmin(path, request, env, url, headers) {
       const results = [];
       const updates = [];
 
+      // [2026-07-20 신규] 위키백과(Wikimedia) API는 User-Agent 헤더 없는 요청을
+      // 차단/제한하는 정책이 있음 — 이게 빠져있어서 전체 매칭이 실패했던 원인.
+      const WIKI_UA = { "User-Agent": "OttrankBot/1.0 (https://ottrank.kr; 오뜨랑 인물 위키매칭)" };
+
       for (const p of people) {
         const searchName = p.name_ko || p.name;
         const tmdbYear   = (p.birthday || "").slice(0, 4);
         let matched = null;
+        let debugInfo = null; // [2026-07-20 신규] 실패 이유를 화면에서 바로 볼 수 있게
 
         try {
           // 1단계: 위키백과 검색 — 후보 최대 5개
           const searchRes = await fetch(
-            `https://ko.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchName)}&limit=5&namespace=0&format=json`
+            `https://ko.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchName)}&limit=5&namespace=0&format=json`,
+            { headers: WIKI_UA }
           );
-          const searchData = await searchRes.json();
-          const titles = searchData[1] || [];
-          const urls   = searchData[3] || [];
+          if (!searchRes.ok) {
+            debugInfo = `검색 요청 실패 (HTTP ${searchRes.status})`;
+          } else {
+            const searchData = await searchRes.json();
+            const titles = searchData[1] || [];
+            const urls   = searchData[3] || [];
+
+          if (!titles.length) {
+            debugInfo = "위키백과 검색 결과 자체가 없음";
+          }
+
+          // [2026-07-20 신규] "공유"처럼 흔한 단어인 이름은 위키백과에서
+          // "이름 (배우)"로 동음이의 구분돼 있어서, 일반 검색 상위 5개 안에
+          // 아예 안 들어올 수 있음 — 검색 결과와 무관하게 "{이름} (배우)" 문서를
+          // 항상 후보 맨 앞에 직접 추가로 확인
+          const disambigTitle = `${searchName} (배우)`;
+          if (!titles.includes(disambigTitle)) {
+            titles.unshift(disambigTitle);
+            urls.unshift(`https://ko.wikipedia.org/wiki/${encodeURIComponent(disambigTitle.replace(/ /g, "_"))}`);
+          }
 
           for (let i = 0; i < titles.length; i++) {
-            const title   = titles[i];
-            const pageUrl = urls[i];
+              const title   = titles[i];
+              const pageUrl = urls[i];
 
-            // 2단계: 후보 문서 요약(첫 문단) 조회 — 생년도 대조용
-            const extractRes = await fetch(
-              `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json`
-            );
-            const extractData = await extractRes.json();
-            const pages    = (extractData.query && extractData.query.pages) || {};
-            const pageObj  = Object.values(pages)[0];
-            const extract  = (pageObj && pageObj.extract) || "";
+              // 2단계: 후보 문서 요약(첫 문단) 조회 — 생년도 대조용
+              const extractRes = await fetch(
+                `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json`,
+                { headers: WIKI_UA }
+              );
+              if (!extractRes.ok) {
+                debugInfo = `본문 조회 실패 (HTTP ${extractRes.status}, 후보: ${title})`;
+                continue;
+              }
+              const extractData = await extractRes.json();
+              const pages    = (extractData.query && extractData.query.pages) || {};
+              const pageObj  = Object.values(pages)[0];
+              const extract  = (pageObj && pageObj.extract) || "";
 
-            const yearMatch = extract.match(/(\d{4})년/);
-            const wikiYear  = yearMatch ? yearMatch[1] : null;
+              const yearMatch = extract.match(/(\d{4})년/);
+              const wikiYear  = yearMatch ? yearMatch[1] : null;
 
-            // 3단계: 생년도 일치 → 확정. 생년월일 정보가 없고 후보 1명뿐이면 잠정 채택.
-            const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
-            const isOnlyCandidate = !tmdbYear && titles.length === 1;
-            if (isYearMatch || isOnlyCandidate) {
-              matched = {
-                wiki_title: title,
-                wiki_birth_year: wikiYear || "",
-                wiki_summary: extract.slice(0, 200),
-                wiki_source_url: pageUrl,
-              };
-              break;
+              // 3단계: 생년도 일치 → 확정. 생년월일 정보가 없고 후보 1명뿐이면 잠정 채택.
+              const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
+              const isOnlyCandidate = !tmdbYear && titles.length === 1;
+              if (isYearMatch || isOnlyCandidate) {
+                matched = {
+                  wiki_title: title,
+                  wiki_birth_year: wikiYear || "",
+                  wiki_summary: extract.slice(0, 200),
+                  wiki_source_url: pageUrl,
+                };
+                break;
+              }
+              // 마지막 후보까지 다 봤는데 매칭 안 됐을 때를 위한 디버그 정보
+              if (i === titles.length - 1 && !matched) {
+                debugInfo = `후보 ${titles.length}개 확인함(${titles.join(', ')}) — 생년도 일치하는 후보 없음(TMDB: ${tmdbYear || '없음'})`;
+              }
             }
           }
         } catch (e) {
-          // 이 인물만 실패 처리, 나머지는 계속 진행
+          debugInfo = `요청 중 오류: ${e.message}`;
         }
 
         results.push({
@@ -3392,6 +3425,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           wiki_birth_year: matched ? matched.wiki_birth_year : null,
           wiki_summary: matched ? matched.wiki_summary : null,
           wiki_source_url: matched ? matched.wiki_source_url : null,
+          debug: matched ? null : debugInfo,
         });
 
         updates.push(
@@ -3478,11 +3512,14 @@ export async function handleAdmin(path, request, env, url, headers) {
           .trim();
       };
 
+      const WIKI_UA_APPROVE = { "User-Agent": "OttrankBot/1.0 (https://ottrank.kr; 오뜨랑 인물 위키매칭)" };
+
       for (const q of queued) {
         try {
           const res = await fetch(
             `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(q.wiki_title)}` +
-            `&prop=extracts|revisions|extlinks&explaintext=1&rvprop=content&rvslots=main&ellimit=500&format=json`
+            `&prop=extracts|revisions|extlinks&explaintext=1&rvprop=content&rvslots=main&ellimit=500&format=json`,
+            { headers: WIKI_UA_APPROVE }
           );
           const data = await res.json();
           const pages   = (data.query && data.query.pages) || {};
@@ -3504,16 +3541,23 @@ export async function handleAdmin(path, request, env, url, headers) {
           const awardsMatch = fullText.match(/==+\s*수상[^=\n]*==+\n+([\s\S]*?)(?=\n==+|$)/);
           const awardsText = awardsMatch ? awardsMatch[1].trim().slice(0, 2000) : null;
 
-          // ④⑤ 데뷔작/학력 — 원본 wikitext의 인포박스 템플릿({{배우 정보 ... }})에서 파싱
+          // ④⑤ 데뷔작/학력 — 원본 wikitext의 인포박스 템플릿에서 파싱.
+          // [2026-07-20 수정] 배우 인포박스가 "배우 정보" 하나가 아니라 3종류임을
+          // 위키백과 틀 문서로 확인함 — 3개 다 확인. 필드명도 틀마다 달라서
+          // ("데뷔작" vs "데뷔작(곡)") 괄호 변형까지 허용하도록 정규식 수정.
+          //  · {{배우 정보}}   — 데뷔작 있음, 학력 없음
+          //  · {{연예인 정보}} — 데뷔작(곡) 있음, 학력 있음
+          //  · {{영화인 정보}} — 데뷔작/학력 둘 다 없음(그래서 그냥 못 찾는 게 정상)
           const revisions = (pageObj && pageObj.revisions) || [];
           const wikitext = (revisions[0] && revisions[0].slots && revisions[0].slots.main &&
                              revisions[0].slots.main["*"]) || "";
-          const infoboxMatch = wikitext.match(/\{\{(?:배우 정보|인물 정보)[\s\S]*?\n\}\}/);
+          const infoboxMatch = wikitext.match(/\{\{(?:배우 정보|연예인 정보|영화인 정보)[\s\S]*?\n\}\}/);
           const infobox = infoboxMatch ? infoboxMatch[0] : "";
 
           let debutWork = null, debutYear = null, education = null;
           if (infobox) {
-            const debutField = infobox.match(/\|\s*데뷔(?:작|년도)?\s*=\s*([^\|\n]+)/);
+            // "데뷔작 =" 또는 "데뷔작(곡) =" 둘 다 매칭 — 필드명 뒤에 괄호가 붙어도 허용
+            const debutField = infobox.match(/\|\s*데뷔(?:작|년도)?(?:\([^)]*\))?\s*=\s*([^\|\n]+)/);
             if (debutField) {
               const raw = cleanWikitext(debutField[1]);
               const yearInDebut = raw.match(/(\d{4})/);
@@ -3521,7 +3565,7 @@ export async function handleAdmin(path, request, env, url, headers) {
               // 연도·괄호 빼고 작품명만 남기기
               debutWork = raw.replace(/\(?\d{4}\)?[년,\s]*/g, "").trim().slice(0, 100) || null;
             }
-            const eduField = infobox.match(/\|\s*학력\s*=\s*([^\|\n]+)/);
+            const eduField = infobox.match(/\|\s*학력(?:\([^)]*\))?\s*=\s*([^\|\n]+)/);
             if (eduField) {
               education = cleanWikitext(eduField[1]).slice(0, 200) || null;
             }
