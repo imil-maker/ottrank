@@ -3205,14 +3205,21 @@ export async function handleAdmin(path, request, env, url, headers) {
             continue;
           }
           const data = await resp.json();
-          const alsoKnown   = data.also_known_as || [];
-          const hasKorean   = alsoKnown.some(n => /[가-힣]/.test(n)) ? 1 : 0;
+          const alsoKnown     = data.also_known_as || [];
+          const placeOfBirth  = data.place_of_birth || "";
+          // [2026-07-20 수정] 유명 외국 배우는 팬들이 등록한 한글 번역명이 also_known_as에
+          // 섞여있어서(예: Julianne Moore → "줄리안 무어"), 한글 존재만으로 판정하면
+          // 인기 많은 외국 배우일수록 오탐이 늘어남. 출생지로 교차검증 — 출생지가 있는데
+          // 한국/서울이 아니면 한글 이름이 있어도 외국인으로 판정.
+          const hasKoreanInList  = alsoKnown.some(n => /[가-힣]/.test(n));
+          const looksNonKorean   = placeOfBirth && !/Korea|한국|Seoul|서울/i.test(placeOfBirth);
+          const hasKorean = (hasKoreanInList && !looksNonKorean) ? 1 : 0;
           updates.push(
             env.DB.prepare(
               `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ? WHERE tmdb_id = ?`
             ).bind(
               data.birthday || "", data.popularity || null, data.profile_path || null,
-              hasKorean, data.gender || null, data.place_of_birth || null,
+              hasKorean, data.gender || null, placeOfBirth || null,
               row.tmdb_id
             )
           );
