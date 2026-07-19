@@ -1749,7 +1749,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const { results: targets } = await env.DB.prepare(`
         SELECT tmdb_id, media_type FROM works
         WHERE (keywords IS NULL OR keywords = '')
-        AND (adult_flag IS NULL OR adult_flag != 1)
+        AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
         LIMIT ?
       `).bind(limit).all();
 
@@ -1803,7 +1803,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (updates.length) await env.DB.batch(updates);
 
       const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM works WHERE (keywords IS NULL OR keywords = '') AND (adult_flag IS NULL OR adult_flag != 1)"
+        "SELECT COUNT(*) as cnt FROM works WHERE (keywords IS NULL OR keywords = '') AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))"
       ).first();
 
       return new Response(JSON.stringify({
