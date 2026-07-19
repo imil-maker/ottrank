@@ -491,11 +491,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
     </div>
 
-    <!-- 서브탭: 인물 개별 검색 (다음 단계에서 제작) -->
+    <!-- 서브탭: 인물 개별 검색 (2026-07-20 신규) -->
     <div id="pmSearchWrap" style="display:none">
-      <div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">
-        이 기능은 다음 단계에서 만들 예정이에요.
+      <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 이름으로 인물 1명을 찾아서, 아직 안 이어졌으면 매칭하고 · 이미 이어졌으면
+        위키 데이터 중 <span style="color:var(--gold)">특정 항목만 인물페이지에서 숨길 수 있어요</span>
+        (데이터는 안 지워지고 다시 체크하면 복구돼요).
       </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <input type="text" id="pmSearchInput" placeholder="배우 이름으로 검색 (예: 이병헌)"
+          style="flex:1;max-width:320px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:var(--sans)"
+          onkeydown="if(event.key==='Enter'){ event.preventDefault(); pmSearchByName(); }">
+        <button class="btn-primary" onclick="pmSearchByName()" style="padding:10px 20px;font-size:14px">🔍 검색</button>
+      </div>
+
+      <div id="pmSearchResultsWrap" style="margin-bottom:20px"></div>
+      <div id="pmSearchDetailWrap"></div>
     </div>
 
   </div>
@@ -893,6 +905,193 @@ async function approveMatchedPersons(){
     // 승인된 사람들은 목록에서 자동으로 사라지게(=매칭완료 목록이라 재조회 필요) 새로고침
     ids.forEach(id => pmSelected.delete(id));
     loadPersonMatchCandidates();
+  }catch(e){
+    showToast(`❌ 네트워크 오류: ${e.message}`);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   [2026-07-20 신규] 서브탭: 인물 개별 검색
+   이름 검색 → 미매칭이면 그 사람 1명만 매칭 시도(대량매칭과 동일 API 재사용) →
+   이미 매칭됐으면 항목별 체크박스로 보여주고, 체크 해제한 항목은
+   hidden_fields로 저장(데이터는 안 지우고 숨김만 — 복구 가능)
+   ══════════════════════════════════════════════════════════════ */
+
+/* 이름으로 인물 검색 (기존 /admin/persons/search 재사용, matched 여부도 같이 옴) */
+async function pmSearchByName(){
+  const q = document.getElementById('pmSearchInput').value.trim();
+  const resultsWrap = document.getElementById('pmSearchResultsWrap');
+  document.getElementById('pmSearchDetailWrap').innerHTML = '';
+  if(!q){ resultsWrap.innerHTML = ''; return; }
+
+  resultsWrap.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">검색 중...</div>`;
+  try{
+    const res  = await fetch(`${API}/admin/persons/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){ resultsWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">검색 실패</div>`; return; }
+    if(!data.items.length){ resultsWrap.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">검색 결과가 없어요</div>`; return; }
+
+    resultsWrap.innerHTML = data.items.map(p => `
+      <div onclick="pmSelectPerson(${p.tmdb_id})"
+        style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;transition:border-color .15s"
+        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <span style="font-size:14px;font-weight:600;color:var(--text)">
+          ${escapeHtmlPm(p.name_ko || p.name)}${p.name_ko && p.name_ko !== p.name ? ` <span style="font-weight:400;color:var(--muted);font-size:12px">(${escapeHtmlPm(p.name)})</span>` : ''}
+        </span>
+        <span style="font-size:12px;color:${p.matched ? 'var(--green)' : 'var(--muted)'}">${p.matched ? '✅ 매칭됨' : '⬜ 미매칭'}</span>
+      </div>
+    `).join('');
+  }catch(e){
+    resultsWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }
+}
+
+/* 인물 1명 클릭 → 상세 조회해서 매칭여부에 따라 분기 렌더링 */
+async function pmSelectPerson(tmdbId){
+  const detailWrap = document.getElementById('pmSearchDetailWrap');
+  detailWrap.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>`;
+  try{
+    const res  = await fetch(`${API}/admin/persons/wiki-detail/${tmdbId}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){ detailWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">조회 실패: ${data.message || res.status}</div>`; return; }
+
+    if(!data.matched) renderPmSearchUnmatched(data.person);
+    else renderPmSearchMatched(data);
+  }catch(e){
+    detailWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }
+}
+
+/* 미매칭 인물 — 대량매칭과 동일한 결과카드 스타일로 1명만 매칭 시도 */
+function renderPmSearchUnmatched(person){
+  const detailWrap = document.getElementById('pmSearchDetailWrap');
+  detailWrap.innerHTML = `
+    <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--muted2)">
+      ⬜ <b style="color:var(--text)">${escapeHtmlPm(person.name_ko || person.name)}</b>은(는) 아직 위키백과와 연결 안 됐어요.
+    </div>
+    <button class="btn-primary" id="pmSearchMatchBtn" onclick="pmSearchAttemptMatch(${person.tmdb_id})" style="padding:10px 20px;font-size:14px">🔍 위키백과 매칭 시도</button>
+    <div id="pmSearchMatchResultWrap" style="margin-top:16px"></div>
+  `;
+}
+
+async function pmSearchAttemptMatch(tmdbId){
+  const btn = document.getElementById('pmSearchMatchBtn');
+  const resultWrap = document.getElementById('pmSearchMatchResultWrap');
+  btn.disabled = true;
+  btn.textContent = '매칭 시도 중...';
+  resultWrap.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">위키백과 검색 중...</div>`;
+
+  try{
+    const res  = await fetch(`${API}/admin/persons/wiki-match-attempt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_ids: [tmdbId] }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok || !data.results.length){
+      resultWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">매칭 시도 실패: ${data.message || res.status}</div>`;
+      return;
+    }
+    const r = data.results[0];
+    resultWrap.innerHTML = `
+      <div style="background:var(--bg2);border:1px solid ${r.found ? 'rgba(52,211,153,.3)' : 'var(--border)'};border-radius:10px;padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtmlPm(r.name_ko)}</span>
+          <span style="font-size:12px;color:${r.found ? 'var(--green)' : 'var(--muted)'}">${r.found ? '✅ 매칭됨' : '❌ 매칭 안 됨'}</span>
+        </div>
+        ${r.found ? `
+          <div style="font-size:12px;color:var(--muted2);line-height:1.6">
+            위키 문서: <a href="${r.wiki_source_url}" target="_blank" style="color:#7ec8e3">${escapeHtmlPm(r.wiki_title)}</a>
+            ${r.wiki_birth_year ? ` · 생년: ${r.wiki_birth_year}` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6">${escapeHtmlPm((r.wiki_summary||'').slice(0,150))}...</div>
+          <button class="btn-primary" onclick="pmSearchApprove(${tmdbId})" style="margin-top:10px;padding:8px 16px;font-size:13px">✅ 확정 승인</button>
+        ` : `<div style="font-size:12px;color:var(--muted)">${escapeHtmlPm(r.debug || '후보를 못 찾았거나 생년월일이 안 맞았어요.')}</div>`}
+      </div>
+    `;
+  }catch(e){
+    resultWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '🔍 위키백과 매칭 시도';
+  }
+}
+
+async function pmSearchApprove(tmdbId){
+  showToast('승인 처리 중...');
+  try{
+    const res  = await fetch(`${API}/admin/persons/wiki-approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_ids: [tmdbId] }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok || !data.approvedCount){
+      showToast(`❌ 승인 실패: ${data.message || res.status}`);
+      return;
+    }
+    showToast('✅ 확정 승인 완료! 인물페이지에 반영됐어요');
+    // 승인 직후 바로 항목별 체크박스 화면으로 전환
+    pmSelectPerson(tmdbId);
+  }catch(e){
+    showToast(`❌ 네트워크 오류: ${e.message}`);
+  }
+}
+
+/* 이미 매칭된 인물 — 실제 값이 있는 항목만 체크박스로 노출.
+   값 자체가 없는 항목은 "숨김"과 헷갈리지 않게 아예 목록에서 뺌. */
+function renderPmSearchMatched(data){
+  const detailWrap = document.getElementById('pmSearchDetailWrap');
+  const w = data.wiki;
+  const hidden = new Set(data.hiddenFields || []);
+
+  const fields = [];
+  if(w.bio_summary)    fields.push({ key: 'bio_summary',    label: '요약',     preview: w.bio_summary });
+  if(w.career_history) fields.push({ key: 'career_history', label: '전체이력', preview: w.career_history });
+  if(w.awards_text)    fields.push({ key: 'awards_text',    label: '수상내역', preview: w.awards_text });
+  if(w.debut_work)     fields.push({ key: 'debut_work',     label: '데뷔작',   preview: `${w.debut_work}${w.debut_year ? ' ('+w.debut_year+')' : ''}` });
+  if(w.education)      fields.push({ key: 'education',      label: '학력',     preview: w.education });
+  if(w.kmdb_id)         fields.push({ key: 'kmdb_id',         label: 'KMDb',      preview: w.kmdb_id });
+  if(w.imdb_id)         fields.push({ key: 'imdb_id',         label: 'IMDb',      preview: w.imdb_id });
+
+  detailWrap.innerHTML = `
+    <div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--muted2);line-height:1.7">
+      ✅ <b style="color:var(--text)">${escapeHtmlPm(data.person.name_ko || data.person.name)}</b>은(는) 위키백과와 이미 연결돼 있어요.
+      체크 해제하면 그 항목만 인물페이지에서 사라져요 (데이터는 안 지워지고 다시 체크하면 복구돼요).
+    </div>
+    ${fields.length ? fields.map(f => `
+      <label style="display:flex;gap:10px;align-items:flex-start;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" data-field="${f.key}" ${hidden.has(f.key) ? '' : 'checked'} style="margin-top:2px;flex-shrink:0">
+        <div style="min-width:0">
+          <div style="font-size:14px;font-weight:600;color:var(--text)">${f.label}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtmlPm(f.preview)}</div>
+        </div>
+      </label>
+    `).join('') : `<div style="padding:16px;color:var(--muted);font-size:13px">위키에서 가져온 세부 항목이 없어요.</div>`}
+    ${w.source_url ? `<div style="font-size:12px;color:var(--muted);margin:10px 0">출처: <a href="${w.source_url}" target="_blank" style="color:#7ec8e3">${escapeHtmlPm(w.wiki_title || '')}</a></div>` : ''}
+    ${fields.length ? `<button class="btn-primary" onclick="pmSaveHiddenFields(${data.person.tmdb_id})" style="margin-top:10px;padding:10px 20px;font-size:14px">💾 저장</button>` : ''}
+  `;
+}
+
+async function pmSaveHiddenFields(tmdbId){
+  const detailWrap = document.getElementById('pmSearchDetailWrap');
+  const boxes = [...detailWrap.querySelectorAll('input[type=checkbox][data-field]')];
+  const hiddenFields = boxes.filter(c => !c.checked).map(c => c.dataset.field);
+
+  showToast('저장 중...');
+  try{
+    const res  = await fetch(`${API}/admin/persons/wiki-hidden-fields`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, hidden_fields: hiddenFields }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){ showToast(`❌ 저장 실패: ${data.message || res.status}`); return; }
+    showToast('✅ 저장됐어요! 인물페이지에 바로 반영돼요');
   }catch(e){
     showToast(`❌ 네트워크 오류: ${e.message}`);
   }
