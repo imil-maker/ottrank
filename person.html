@@ -213,6 +213,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* 약력 */
 .bio-section{margin-bottom:0}
+
+/* [2026-07-19 신규] 위키백과 보강 데이터 — 테스트 전용 섹션
+   ?wikitest=1 파라미터 있을 때만 JS에서 display:block으로 켜짐.
+   기존 화면 요소는 전혀 안 건드리고 독립된 새 섹션으로만 추가됨. */
+.wiki-test-section{
+  display:none; margin:16px 0 24px; padding:20px;
+  background:var(--bg2); border:.5px solid var(--border); border-radius:var(--r-lg);
+}
+.wiki-test-badge{
+  display:inline-block; font-size:11px; font-weight:700; color:var(--gold);
+  background:rgba(240,180,41,.12); border:.5px solid rgba(240,180,41,.35);
+  border-radius:6px; padding:3px 8px; margin-bottom:12px;
+  font-family:var(--font-mono);
+}
+.wiki-test-summary{ font-size:14px; line-height:1.6; color:var(--text); margin-bottom:14px; }
+.wiki-test-meta{ display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:var(--muted); margin-bottom:14px; }
+.wiki-test-meta b{ color:var(--text); font-weight:600; }
+.wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
+.wiki-career-preview{ font-size:14px; line-height:1.7; color:var(--text); white-space:pre-line; }
+.wiki-career-preview.collapsed{
+  max-height:calc(1.7em * 4); overflow:hidden;
+}
+.wiki-career-toggle{
+  margin-top:8px; background:none; border:none; color:var(--info);
+  font-size:13px; cursor:pointer; padding:0;
+}
+.wiki-test-source{ margin-top:14px; font-size:11px; color:var(--muted); }
+.wiki-test-source a{ color:var(--muted); }
 .bio-text{font-size:14px;color:var(--muted2);line-height:1.8;
   display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
   transition:all .3s}
@@ -383,6 +411,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
         <div class="bio-section">
           <div class="bio-text" id="bioText"></div>
           <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
+        </div>
+
+        <!-- [2026-07-19 신규] 위키백과 보강 데이터 테스트 섹션 (?wikitest=1일 때만 노출) -->
+        <div class="wiki-test-section" id="wikiTestSection">
+          <span class="wiki-test-badge">🧪 위키 데이터 테스트</span>
+          <div class="wiki-test-summary" id="wikiSummary"></div>
+          <div class="wiki-test-meta" id="wikiMeta"></div>
+          <div class="wiki-test-awards" id="wikiAwards"></div>
+          <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
+          <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
+          <div class="wiki-test-source" id="wikiSource"></div>
         </div>
       </div>
     </div>
@@ -572,6 +611,59 @@ function toggleBio(){
   const btn= document.getElementById('bioToggle');
   el.classList.toggle('expanded', bioExpanded);
   btn.textContent = bioExpanded ? '접기 ▴' : '더보기 ▾';
+}
+
+/* [2026-07-19 신규] 위키 전체이력 펼치기 */
+let wikiCareerExpanded = false;
+function toggleWikiCareer(){
+  wikiCareerExpanded = !wikiCareerExpanded;
+  const el  = document.getElementById('wikiCareerPreview');
+  const btn = document.getElementById('wikiCareerToggle');
+  el.classList.toggle('collapsed', !wikiCareerExpanded);
+  btn.textContent = wikiCareerExpanded ? '접기 ▴' : '전체 이력 더보기 ▾';
+}
+
+/* [2026-07-19 신규] 위키백과 보강 데이터 테스트 로드
+   ?wikitest=1 있을 때만 동작. 실패하거나 캐시에 데이터가 없으면
+   섹션을 그냥 숨긴 채로 두고 조용히 종료 — 기존 화면에 영향 전혀 없음. */
+async function loadWikiTest(personId){
+  const wikitest = new URLSearchParams(location.search).get('wikitest');
+  if(wikitest !== '1') return;
+
+  try{
+    const res  = await fetch(`${OTTRANK_API}/person-wiki/${personId}`);
+    const json = await res.json();
+    const d = json && json.ok ? json.data : null;
+    if(!d) return; // 캐시에 데이터 없음 — 조용히 종료
+
+    if(d.bio_summary){
+      document.getElementById('wikiSummary').textContent = d.bio_summary;
+    }
+
+    const metaParts = [];
+    if(d.debut_work) metaParts.push(`<span><b>데뷔작</b> ${d.debut_work}${d.debut_year ? ' ('+d.debut_year+')' : ''}</span>`);
+    if(d.education)  metaParts.push(`<span><b>학력</b> ${d.education}</span>`);
+    document.getElementById('wikiMeta').innerHTML = metaParts.join('');
+
+    if(d.awards_text){
+      document.getElementById('wikiAwards').innerHTML = `<b style="color:var(--text)">수상내역</b> ${d.awards_text}`;
+    }
+
+    if(d.career_history){
+      document.getElementById('wikiCareerPreview').textContent = d.career_history;
+    } else {
+      document.getElementById('wikiCareerToggle').style.display = 'none';
+    }
+
+    if(d.source_url){
+      document.getElementById('wikiSource').innerHTML =
+        `출처: <a href="${d.source_url}" target="_blank" rel="noopener">위키백과</a> (CC BY-SA)`;
+    }
+
+    document.getElementById('wikiTestSection').style.display = 'block';
+  }catch(e){
+    console.log('[wiki-test] load failed:', e.message); // 실패해도 화면엔 영향 없음
+  }
 }
 
 /* ── 탭 전환 ── */
@@ -953,6 +1045,9 @@ async function initPage(){
     /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 이 인물과 무관한 전역 데이터라
        personId 로딩 성공 여부와 상관없이 독립적으로 호출, await 없이 별도 호출 */
     loadRankingWidget();
+
+    /* [2026-07-19 신규] 위키백과 보강 데이터 테스트 — ?wikitest=1일 때만 내부에서 동작 */
+    loadWikiTest(personId);
 
     /* ⑤ 약력 — ko-KR 없으면 영어 fallback */
     let bio = data.biography || '';
