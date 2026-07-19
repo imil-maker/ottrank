@@ -309,16 +309,10 @@ body.layout-test .person-like-btn{ display:flex }
    ?wikitest=1 파라미터 있을 때만 JS에서 display:block으로 켜짐.
    기존 화면 요소는 전혀 안 건드리고 독립된 새 섹션으로만 추가됨. */
 .wiki-test-section{
-  display:none; margin:16px 0 24px; padding:20px;
-  background:var(--bg2); border:.5px solid var(--border); border-radius:var(--r-lg);
+  display:none; margin:16px 0 24px; padding:16px;
+  background:var(--bg); border:.5px solid rgba(255,255,255,0.05); border-radius:var(--r);
 }
-.wiki-test-badge{
-  display:inline-block; font-size:11px; font-weight:700; color:var(--gold);
-  background:rgba(240,180,41,.12); border:.5px solid rgba(240,180,41,.35);
-  border-radius:6px; padding:3px 8px; margin-bottom:12px;
-  font-family:var(--font-mono); white-space:nowrap;
-}
-.wiki-test-summary{ font-size:14px; line-height:1.6; color:var(--text); margin-bottom:14px; }
+.wiki-test-summary{ font-size:14px; line-height:1.6; color:var(--muted); margin-bottom:14px; }
 .wiki-test-meta{ display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:var(--muted); margin-bottom:14px; }
 
 /* [2026-07-19 신규] 데뷔작/학력 — 오른쪽 프로필(person-info) 안, 메타칩과 약력 사이에 표시 */
@@ -339,7 +333,8 @@ body.layout-test .person-like-btn{ display:flex }
 }
 .wiki-test-meta b{ color:var(--text); font-weight:600; }
 .wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
-.wiki-career-preview{ font-size:14px; line-height:1.7; color:var(--text); white-space:pre-line; }
+/* [2026-07-20 수정] 검색엔진용 데이터라 사람 눈에 안 띄게 — 글자 연한 회색톤 */
+.wiki-career-preview{ font-size:13px; line-height:1.7; color:var(--muted); white-space:pre-line; }
 .wiki-career-preview.collapsed{
   max-height:calc(1.7em * 4); overflow:hidden;
 }
@@ -348,26 +343,41 @@ body.layout-test .person-like-btn{ display:flex }
   max-height:400px; overflow-y:auto; padding-right:8px;
 }
 .wiki-career-toggle{
-  margin-top:8px; background:none; border:none; color:var(--info);
-  font-size:13px; cursor:pointer; padding:0;
+  margin-top:8px; background:none; border:none; color:var(--muted);
+  font-size:12px; cursor:pointer; padding:0;
 }
 .wiki-test-source{ margin-top:14px; font-size:11px; color:var(--muted); }
 
 /* [2026-07-19 신규] 전체이력 — 모바일 전용 UI (랭킹위젯~필모그래피 사이).
    PC의 wikiTestSection과 데이터는 같지만 화면에 따라 하나만 보임 */
 .wiki-career-mobile-section{ margin:20px 0; }
+/* [2026-07-20 수정] 검색엔진용이라 눈에 안 띄게 — 얇고 진한 회색톤 버튼 */
 .wiki-career-mobile-toggle{
-  display:block; width:100%; padding:12px; text-align:center;
-  background:var(--bg2); border:.5px solid rgba(240,180,41,.35); border-radius:var(--r);
-  color:var(--gold); font-size:13px; font-family:var(--font-mono); cursor:pointer;
+  display:block; width:auto; padding:6px 12px; text-align:center;
+  background:transparent; border:.5px solid rgba(255,255,255,0.08); border-radius:6px;
+  color:var(--muted); font-size:11px; font-family:var(--font-sans); cursor:pointer;
 }
 .wiki-career-mobile-box{
-  margin-top:10px; padding:14px; background:var(--bg2);
-  border:.5px solid var(--border); border-radius:var(--r);
+  margin-top:10px; padding:14px; background:var(--bg);
+  border:.5px solid rgba(255,255,255,0.05); border-radius:var(--r);
 }
 .wiki-career-mobile-text{
-  font-size:13px; line-height:1.7; color:var(--text); white-space:pre-line;
+  font-size:13px; line-height:1.7; color:var(--muted); white-space:pre-line;
   max-height:calc(1.7em * 5); overflow-y:auto; padding-right:6px; /* 5줄 정도만, 그 안에서 스크롤 */
+}
+
+/* [2026-07-20 신규] 스크롤바를 얇고 눈에 안 띄게 (Chrome/Safari + Firefox 둘 다 대응) */
+.wiki-career-preview.expanded,
+.wiki-career-mobile-text{
+  scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.12) transparent;
+}
+.wiki-career-preview.expanded::-webkit-scrollbar,
+.wiki-career-mobile-text::-webkit-scrollbar{ width:5px; }
+.wiki-career-preview.expanded::-webkit-scrollbar-track,
+.wiki-career-mobile-text::-webkit-scrollbar-track{ background:transparent; }
+.wiki-career-preview.expanded::-webkit-scrollbar-thumb,
+.wiki-career-mobile-text::-webkit-scrollbar-thumb{
+  background:rgba(255,255,255,0.12); border-radius:10px;
 }
 
 /* [2026-07-19 신규] PC/모바일 중 하나만 보이게 — 화면 폭 641px 기준으로 서로 반대로 숨김 */
@@ -566,7 +576,6 @@ body.layout-test .person-like-btn{ display:flex }
   <!-- [2026-07-19 신규] 전체이력 — PC 전용(왼쪽 컬럼, 사진 밑). 모바일은 별도 위치(랭킹위젯~필모그래피 사이)에
        독립된 버튼+박스를 따로 둠 (아래 wikiCareerMobileSection 참고) -->
   <div class="wiki-test-section" id="wikiTestSection">
-    <span class="wiki-test-badge">🧪 위키 데이터 테스트</span>
     <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
     <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
     <div class="wiki-test-source" id="wikiSource"></div>
@@ -633,7 +642,7 @@ body.layout-test .person-like-btn{ display:flex }
        버튼 누르면 5줄 높이 박스가 펼쳐지고 그 안에서만 스크롤 (페이지 길이 안 늘어남) -->
   <div class="wiki-career-mobile-section" id="wikiCareerMobileSection" style="display:none">
     <button class="wiki-career-mobile-toggle" id="wikiCareerMobileToggle" onclick="toggleWikiCareerMobile()">
-      🧪 전체 이력 더보기 ▾
+      전체 이력 더보기 ▾
     </button>
     <div class="wiki-career-mobile-box" id="wikiCareerMobileBox" style="display:none">
       <div class="wiki-career-mobile-text" id="wikiCareerMobileText"></div>
@@ -816,7 +825,7 @@ function toggleWikiCareerMobile(){
   const btn = document.getElementById('wikiCareerMobileToggle');
   const show = box.style.display === 'none';
   box.style.display = show ? 'block' : 'none';
-  btn.textContent = show ? '🧪 전체 이력 접기 ▴' : '🧪 전체 이력 더보기 ▾';
+  btn.textContent = show ? '전체 이력 접기 ▴' : '전체 이력 더보기 ▾';
 }
 
 /* [2026-07-19 신규] 위키백과 보강 데이터 테스트 로드
