@@ -54,7 +54,7 @@ function _dbMatchStatements(env, term, capLimit) {
     env.DB.prepare(`
       SELECT tmdb_id FROM works
       WHERE (',' || REPLACE(genre, ', ', ',') || ',') LIKE ('%,' || ? || ',%')
-        AND (adult_flag IS NULL OR adult_flag != 1)
+        AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
         AND poster_path IS NOT NULL AND poster_path != ''
       ORDER BY (original_language = 'ko') DESC, tmdb_rating DESC
       LIMIT ?
@@ -91,7 +91,7 @@ async function _fetchRelated(env, words, excludeIds, cap) {
       SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
       FROM works
       WHERE tmdb_id IN (${placeholders})
-        AND (adult_flag IS NULL OR adult_flag != 1)
+        AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
         AND poster_path IS NOT NULL AND poster_path != ''
     `).bind(...dbIdList).all();
     dbDetail = res.results;
@@ -211,7 +211,7 @@ export async function handleSearch(path, request, env, url, headers) {
           SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
           FROM works
           WHERE tmdb_id IN (${idPlaceholders})
-            AND (adult_flag IS NULL OR adult_flag != 1)
+            AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
             AND poster_path IS NOT NULL AND poster_path != ''
         `).bind(...allIds).all();
         workRows = res.results;
@@ -378,7 +378,7 @@ export async function handleSearch(path, request, env, url, headers) {
         SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
         FROM works
         WHERE tmdb_id IN (${placeholders})
-          AND (adult_flag IS NULL OR adult_flag != 1)
+          AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
           AND poster_path IS NOT NULL AND poster_path != ''
       `).bind(...ids).all();
 
