@@ -52,6 +52,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .page-wrap{max-width:900px;margin:0 auto;padding:24px 20px 80px}
 /* [2026-07-19 신규] 레이아웃 테스트 모드일 때만 폭 확장 — 일반 방문자는 900px 그대로 */
 body.layout-test .page-wrap{max-width:1200px}
+/* [2026-07-19 신규] 헤더(스티키)와 본문 사이 간격 20px로 */
+@media(min-width:641px){
+  body.layout-test .page-wrap{padding-top:20px}
+}
 
 /* [2026-07-19 신규] 2단 레이아웃 뼈대 (1단계 — 구조만, 내용 재배치는 다음 단계)
    ⚠️ 일반 방문자에게는 절대 안 보임 — body에 layout-test 클래스가 있을 때만
@@ -316,11 +320,12 @@ body.layout-test .person-like-btn{ display:flex }
 }
 .profile-debut-edu b{ color:var(--text); font-weight:600; margin-right:4px; }
 
-/* [2026-07-19 신규] 수상내역 — 약력 바로 아래, 데뷔작/학력과 동일한 줄+여백 스타일 */
+/* [2026-07-19 신규] 수상내역 — 약력 바로 아래. 대표작과의 경계선 1개만 남김
+   (원래 위아래 2줄이었는데 겹쳐 보인다는 피드백으로 아래쪽 줄만 유지) */
 .profile-awards{
   font-size:13px; color:var(--muted2); line-height:1.7;
-  margin:12px 0 24px; padding:10px 0;
-  border-top:.5px solid var(--border); border-bottom:.5px solid var(--border);
+  margin:0 0 20px; padding-bottom:16px;
+  border-bottom:.5px solid var(--border);
 }
 .wiki-test-meta b{ color:var(--text); font-weight:600; }
 .wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
@@ -727,7 +732,7 @@ let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
 let actCredits   = [];   // 출연
 let directCredits= [];   // 연출
 let currentTab   = 'all';
-const PAGE_SIZE  = 24;
+const PAGE_SIZE  = 30;
 let shownCount   = 0;
 
 /* [2026-07-19 신규] TMDB 약력(영어인 경우가 많음) — 위키 데이터 로드 시
