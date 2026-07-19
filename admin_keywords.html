@@ -423,6 +423,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         위키백과 검색은 하지 않아요 — 원하는 인물만 체크한 뒤 "선택 매칭 시도"를 눌러야 그때 검색이 시작됩니다.
       </div>
 
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px">
+          <button id="pmNatAll" onclick="setPmNationality('all')"
+            style="padding:5px 14px;border-radius:6px;border:none;background:rgba(55,138,221,.2);color:#7ec8e3;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+            전체
+          </button>
+          <button id="pmNatKorean" onclick="setPmNationality('korean')"
+            style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">
+            한국인
+          </button>
+          <button id="pmNatForeign" onclick="setPmNationality('foreign')"
+            style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">
+            외국인
+          </button>
+        </div>
+      </div>
+
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
         <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px">
           <button id="pmSortPopularity" onclick="setPmSort('popularity')"
@@ -634,6 +651,7 @@ function showToast(msg){
    실제 위키 검색은 아직 연결 안 함 — 목록 조회 + 선택까지만
 ══════════════════════════════════════════════════════ */
 let pmSort      = 'popularity'; // 'popularity' | 'name'
+let pmNationality = 'all';      // [2026-07-20 신규] 'all' | 'korean' | 'foreign'
 let pmOffset    = 0;
 const PM_LIMIT  = 50;
 let pmTotal     = 0;
@@ -648,6 +666,19 @@ function switchPersonMatchSubTab(sub){
   document.getElementById('subTabPmList').style.color        = isList ? '#7ec8e3' : 'var(--muted2)';
   document.getElementById('subTabPmSearch').style.background = isList ? 'transparent' : 'rgba(55,138,221,.2)';
   document.getElementById('subTabPmSearch').style.color      = isList ? 'var(--muted2)' : '#7ec8e3';
+}
+
+function setPmNationality(nat){
+  if (pmNationality === nat) return;
+  pmNationality = nat;
+  pmOffset = 0;
+  const map = { all: 'pmNatAll', korean: 'pmNatKorean', foreign: 'pmNatForeign' };
+  Object.entries(map).forEach(([key, id]) => {
+    const isOn = key === nat;
+    document.getElementById(id).style.background = isOn ? 'rgba(55,138,221,.2)' : 'transparent';
+    document.getElementById(id).style.color       = isOn ? '#7ec8e3' : 'var(--muted2)';
+  });
+  loadPersonMatchCandidates();
 }
 
 function setPmSort(sort){
@@ -666,7 +697,7 @@ async function loadPersonMatchCandidates(){
   tbody.innerHTML = '<tr><td colspan="6" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>';
 
   try{
-    const res  = await fetch(`${API}/admin/persons/wiki-candidates?sort=${pmSort}&offset=${pmOffset}&limit=${PM_LIMIT}`, {
+    const res  = await fetch(`${API}/admin/persons/wiki-candidates?sort=${pmSort}&nationality=${pmNationality}&offset=${pmOffset}&limit=${PM_LIMIT}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const data = await res.json();
