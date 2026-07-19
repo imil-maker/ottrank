@@ -19,6 +19,7 @@
    hot100.js    : /hot100, /admin/calc-hot100, /admin/hot100/boosts*, /admin/hot100/frontend-tabs*,
                   /admin/hot100/backfill-logos*  (HOT100 통합 랭킹 + 히어로 로고 백필)
    image-proxy.js : /tmdb-img/*  (TMDB 포스터 캐싱 프록시, poster.ottrank.kr, 2026-07-17 신설)
+   person-wiki.js : /person-wiki/*  (인물 위키백과 보강 데이터, 테스트용, 2026-07-19 신설)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -33,6 +34,7 @@ import { handleContents  } from "./routes/contents.js";
 import { handleBlog      } from "./routes/blog.js";
 import { handleInquiry   } from "./routes/inquiry.js";
 import { handleImageProxy } from "./routes/image-proxy.js";
+import { handlePersonWiki } from "./routes/person-wiki.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -117,6 +119,11 @@ export default {
       path === "/search-log"
     )) {
       res = await handleSearch(path, request, env, url, headers);
+    }
+
+    // 3-2. 인물 위키백과 보강 데이터 (테스트용, 2026-07-19 신규)
+    if (!res && path.startsWith("/person-wiki")) {
+      res = await handlePersonWiki(path, request, env, url, headers);
     }
 
     // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
