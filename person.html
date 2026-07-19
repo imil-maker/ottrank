@@ -77,13 +77,12 @@ body.layout-test .page-wrap{max-width:1200px}
 body.layout-test .person-col-left > *{ margin-bottom:24px }
 body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
 
-/* [2026-07-19 신규] 왼쪽 컬럼(380px)은 폭이 좁아서, 사진+약력이 가로로 배치되는
+/* [2026-07-19 신규] 왼쪽 컬럼(380px)은 폭이 좁아서, 사진이 가로로 배치되는
    기존 PC 스타일 대신 세로로 확실히 쌓이게 강제함 (기존 모바일 스타일과 동일 패턴 재사용,
    "혹시 wrap될 수도"에 기대지 않고 명시적으로 고정) */
 body.layout-test .person-hero{ flex-direction:column; gap:16px; align-items:center }
 body.layout-test .person-photo-wrap{ width:180px }
 body.layout-test .person-photo{ width:180px }
-body.layout-test .person-info{ width:100%; text-align:center }
 body.layout-test .mobile-photo-row{ position:relative; display:flex; justify-content:center; width:100% }
 body.layout-test .back-btn{
   position:absolute; top:0; left:0; z-index:5;
@@ -93,7 +92,15 @@ body.layout-test .back-btn{
 body.layout-test .back-label{ display:none }
 body.layout-test .back-arrow{ font-size:16px; line-height:1; color:#fff }
 body.layout-test .hero-line-break{ display:none }
-body.layout-test .person-meta-row{ justify-content:center }
+
+/* [2026-07-19 신규] person-info(이름/SNS/공유/메타/약력)는 JS가 오른쪽 컬럼
+   맨 위로 옮김 — 왼쪽의 좁은 가운데정렬 스타일이 아니라, 넓은 오른쪽 컬럼에
+   맞는 왼쪽정렬 + 아래쪽 구분선으로 표시 */
+body.layout-test .person-info{
+  width:100%; text-align:left; margin-bottom:28px;
+  padding-bottom:24px; border-bottom:.5px solid var(--border);
+}
+body.layout-test .person-meta-row{ justify-content:flex-start }
 
 /* [2026-07-19 신규] 좋아요 버튼 — 자리만, 기능은 다음 단계에서 연결.
    일반 방문자에겐 안 보이고, 레이아웃 테스트 모드에서만 노출 */
@@ -473,20 +480,22 @@ body.layout-test .person-like-btn{ display:flex }
           <div class="bio-text" id="bioText"></div>
           <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
         </div>
-
-        <!-- [2026-07-19 신규] 위키백과 보강 데이터 테스트 섹션 (?wikitest=1일 때만 노출) -->
-        <div class="wiki-test-section" id="wikiTestSection">
-          <span class="wiki-test-badge">🧪 위키 데이터 테스트</span>
-          <div class="wiki-test-summary" id="wikiSummary"></div>
-          <div class="wiki-test-meta" id="wikiMeta"></div>
-          <div class="wiki-test-awards" id="wikiAwards"></div>
-          <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
-          <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
-          <div class="wiki-test-source" id="wikiSource"></div>
-        </div>
       </div>
     </div>
   </div><!-- /hero-wrap -->
+
+  <!-- [2026-07-19 신규] 위키백과 보강 데이터 테스트 섹션 (?wikitest=1일 때만 노출)
+       ⚠️ person-info 밖으로 분리 — 이름/약력(person-info)은 레이아웃 테스트 모드에서
+       오른쪽 컬럼 맨 위로 통째로 이동되는데, 이 섹션은 왼쪽에 그대로 남아있어야 함 -->
+  <div class="wiki-test-section" id="wikiTestSection">
+    <span class="wiki-test-badge">🧪 위키 데이터 테스트</span>
+    <div class="wiki-test-summary" id="wikiSummary"></div>
+    <div class="wiki-test-meta" id="wikiMeta"></div>
+    <div class="wiki-test-awards" id="wikiAwards"></div>
+    <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
+    <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
+    <div class="wiki-test-source" id="wikiSource"></div>
+  </div>
 
   <!-- ⚠️ 2026-07-11 재수정: 사진 컬럼(200px) 안에 갤러리를 넣었더니 대표작처럼
        한 줄에 다 보이던 게 좁아져서 스크롤바가 두껍게 생기는 문제 발생 → PC는
@@ -510,6 +519,9 @@ body.layout-test .person-like-btn{ display:flex }
   </div><!-- /person-col-left -->
 
   <div class="person-col-right">
+  <!-- [2026-07-19 신규] 이름/SNS/공유/메타/약력이 여기로 이동해서 들어옴 (JS에서 처리) -->
+  <div id="profileHeaderAnchor"></div>
+
   <!-- [2026-07-19 이동] 대표작/랭킹위젯 — 왼쪽 컬럼(380px)이 좁아서 포스터가
        눌려보이는 문제로 오른쪽(넓은 컬럼)으로 이동. 나중에 탭 UI로 재정리 예정,
        지금은 필모그래피 위에 그대로 쌓는 구조. -->
@@ -668,6 +680,14 @@ const personId = (typeof window.__PERSON_ID__ !== 'undefined' && window.__PERSON
    (데이터 로딩 성공 여부와 무관하게 CSS만 바로 적용됨, 일반 방문자는 영향 없음) */
 if(new URLSearchParams(location.search).get('wikitest') === '1'){
   document.body.classList.add('layout-test');
+
+  // 이름/SNS/공유/메타/약력(person-info)을 오른쪽 컬럼 맨 위로 이동
+  // (내용은 아직 비어있는 상태 — initPage()가 나중에 채워도 이미 옮겨진 자리에 그대로 채워짐)
+  const profileHeaderAnchor = document.getElementById('profileHeaderAnchor');
+  const personInfo = document.querySelector('.person-info');
+  if(profileHeaderAnchor && personInfo){
+    profileHeaderAnchor.parentNode.insertBefore(personInfo, profileHeaderAnchor.nextSibling);
+  }
 }
 
 /* ── 필모그래피 상태 ── */
@@ -677,6 +697,10 @@ let directCredits= [];   // 연출
 let currentTab   = 'all';
 const PAGE_SIZE  = 24;
 let shownCount   = 0;
+
+/* [2026-07-19 신규] TMDB 약력(영어인 경우가 많음) — 위키 데이터 로드 시
+   "위키 프로필이 40자 이내면 TMDB 약력과 같이 보여주기" 판단에 사용 */
+let tmdbBioText = '';
 
 /* ── 약력 펼치기 ── */
 let bioExpanded = false;
@@ -713,6 +737,22 @@ async function loadWikiTest(personId){
 
     if(d.bio_summary){
       document.getElementById('wikiSummary').textContent = d.bio_summary;
+
+      /* [2026-07-19 신규] 오른쪽 상단 프로필의 "약력" 자리를 위키 요약글로 대체.
+         TMDB 약력은 영어인 경우가 대부분이라, 한국어인 위키 요약글을 우선시함.
+         단, 위키 요약글이 너무 짧으면(40자 미만) 정보가 부족하니 TMDB 약력을 이어붙임. */
+      const bioEl = document.getElementById('bioText');
+      if(bioEl){
+        const combined = d.bio_summary.length < 40 && tmdbBioText
+          ? `${d.bio_summary} ${tmdbBioText}`
+          : d.bio_summary;
+        bioEl.textContent = combined;
+        requestAnimationFrame(()=>{
+          const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
+          const toggleBtn = document.getElementById('bioToggle');
+          if(toggleBtn) toggleBtn.style.display = (bioEl.scrollHeight > lineH * 4 + 4) ? 'inline' : 'none';
+        });
+      }
     }
 
     const metaParts = [];
@@ -1135,6 +1175,7 @@ async function initPage(){
       }catch(e){}
     }
     const bioEl = document.getElementById('bioText');
+    tmdbBioText = bio; // [2026-07-19 신규] 위키 데이터 로드 시 참조용으로 저장
     if(bio){
       bioEl.textContent = bio;
       requestAnimationFrame(()=>{
