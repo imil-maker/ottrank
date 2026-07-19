@@ -3538,8 +3538,12 @@ export async function handleAdmin(path, request, env, url, headers) {
           const careerHistory = fullText.slice(0, 8000); // 너무 길면 잘라냄(안전장치)
 
           // ③ 수상내역(awards_text) = "== 수상" 포함 섹션 헤더 다음 텍스트, 다음 섹션 헤더 전까지
-          const awardsMatch = fullText.match(/==+\s*수상[^=\n]*==+\n+([\s\S]*?)(?=\n==+|$)/);
-          const awardsText = awardsMatch ? awardsMatch[1].trim().slice(0, 2000) : null;
+          // [2026-07-20 수정] \n+(탐욕적)가 섹션 사이 줄바꿈을 한번에 다 삼켜버려서,
+          // 수상 섹션에 실제 내용이 없을 때 다음 섹션 제목("== 각주 ==")까지 그대로
+          // 캡처되던 버그. \n*로 바꾸고, 내용이 비어있으면(수상 항목이 실제로 없으면) null 처리.
+          const awardsMatch = fullText.match(/==+\s*수상[^=\n]*==+\n*([\s\S]*?)(?=\n==+\s|$)/);
+          const awardsRaw = awardsMatch ? awardsMatch[1].trim() : "";
+          const awardsText = (awardsRaw && !/^==/.test(awardsRaw)) ? awardsRaw.slice(0, 2000) : null;
 
           // ④⑤ 데뷔작/학력 — 원본 wikitext의 인포박스 템플릿에서 파싱.
           // [2026-07-20 수정] 배우 인포박스가 "배우 정보" 하나가 아니라 3종류임을
