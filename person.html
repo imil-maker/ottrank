@@ -401,6 +401,13 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 .section-title{font-size:17px;font-weight:700;margin-bottom:16px;
   display:flex;align-items:center;gap:10px}
 .section-title small{font-size:13px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
+/* [2026-07-20 신규] 필모그래피 정렬 토글 버튼 */
+.filmo-sort-toggle{
+  margin-left:auto; padding:5px 12px; font-size:12px; font-weight:500;
+  background:transparent; border:.5px solid var(--border); border-radius:20px;
+  color:var(--muted); cursor:pointer; font-family:var(--font-sans);
+}
+.filmo-sort-toggle:hover{background:var(--bg3); color:var(--text); border-color:var(--border2)}
 
 /* 탭 */
 .tab-row{display:flex;gap:6px;margin-bottom:20px}
@@ -657,6 +664,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   <div id="filmographySection" class="filmography-section" style="display:none">
     <div class="section-title">
       🎬 필모그래피 <small id="filmCount"></small>
+      <button class="filmo-sort-toggle" id="filmoSortToggle" onclick="toggleFilmoSort()">연도순 보기</button>
     </div>
     <div class="tab-row">
       <button class="tab-btn on" id="tabAll"   onclick="switchTab('all')">전체</button>
@@ -812,6 +820,7 @@ let directCredits= [];   // 연출
 let currentTab   = 'all';
 const PAGE_SIZE  = 30;
 let shownCount   = 0;
+let filmoSortMode = 'ott'; // [2026-07-20 신규] 'ott'(OTT 있는 작품 우선, 기본값) | 'year'(연도순)
 
 /* [2026-07-19 신규] TMDB 약력(영어인 경우가 많음) — 위키 데이터 로드 시
    "위키 프로필이 40자 이내면 TMDB 약력과 같이 보여주기" 판단에 사용 */
@@ -934,9 +943,23 @@ function switchTab(tab){
 
 /* ── 현재 탭 데이터 ── */
 function currentList(){
-  if(currentTab==='act')    return actCredits;
-  if(currentTab==='direct') return directCredits;
-  return allCredits;
+  const base = currentTab==='act' ? actCredits
+    : currentTab==='direct' ? directCredits
+    : allCredits;
+  // [2026-07-20 신규] 기본값은 OTT 있는 작품 우선 — 원래 연도순 배열을 안정정렬로
+  // 재배치만 하는 거라, 같은 그룹(OTT 있음/없음) 안에서는 연도순이 그대로 유지됨
+  return filmoSortMode==='ott' ? sortByOtt(base) : base;
+}
+
+/* [2026-07-20 신규] OTT 뱃지 있는 작품을 앞으로 — 안정정렬(stable partition) */
+function sortByOtt(list){
+  const withOtt = [];
+  const withoutOtt = [];
+  list.forEach(item=>{
+    const keys = ottBadgeCache[item.id];
+    (keys && keys.length) ? withOtt.push(item) : withoutOtt.push(item);
+  });
+  return [...withOtt, ...withoutOtt];
 }
 
 /* [2026-07-11 추가] HTML 이스케이프 — 작품 제목/배역명에 특수문자(따옴표, <, > 등)가
@@ -1059,6 +1082,15 @@ async function loadOttBadges(items){
     const els = document.querySelectorAll(`#ottBadge-${item.id}-${item.media_type||'tv'}`);
     els.forEach(el => { el.innerHTML = keys.map(ottLogoHtml).join(''); });
   });
+}
+
+/* [2026-07-20 신규] 필모그래피 정렬 토글 — OTT 우선(기본) ↔ 연도순 */
+function toggleFilmoSort(){
+  filmoSortMode = (filmoSortMode==='ott') ? 'year' : 'ott';
+  document.getElementById('filmoSortToggle').textContent =
+    filmoSortMode==='ott' ? '연도순 보기' : 'OTT 우선 보기';
+  shownCount = 0;
+  renderWorks();
 }
 
 /* ── 더보기 ── */
@@ -1437,6 +1469,12 @@ async function initPage(){
       document.getElementById('tabAll').textContent    = `전체 (${allCredits.length})`;
       document.getElementById('tabAct').textContent    = `출연 (${actCredits.length})`;
       document.getElementById('tabDirect').textContent = `연출 (${directCredits.length})`;
+
+      // [2026-07-20 신규] "OTT 있는 작품 우선" 정렬이 기본값이라, 렌더 전에
+      // 전체 작품의 OTT 여부를 미리 한 번에 조회해둠 (loadOttBadges 재사용 —
+      // 아직 카드가 없어 화면 반영은 안 되지만 ottBadgeCache는 채워짐, 중복요청 없음)
+      await loadOttBadges(allCredits);
+
       renderWorks();
 
       // [2026-07-11 추가] 대표작(popularity 기반 + 게스트출연 감점) — 이미 받아온
