@@ -129,17 +129,15 @@ body.layout-test .person-info{
   padding-bottom:24px; border-bottom:.5px solid var(--border);
 }
 body.layout-test .person-meta-row{ justify-content:flex-start }
-
-/* [2026-07-19 신규] 좋아요 버튼 — 자리만, 기능은 다음 단계에서 연결.
-   일반 방문자에겐 안 보이고, 레이아웃 테스트 모드에서만 노출 */
-.person-like-btn{
-  display:none; align-items:center; justify-content:center; gap:6px;
-  width:100%; padding:10px; margin-top:12px;
-  background:var(--bg2); border:.5px solid var(--border); border-radius:var(--r);
-  color:var(--muted); font-size:13px; font-family:var(--font-sans);
-  cursor:default; /* 아직 기능 없음 표시 */
+/* [2026-07-20 신규] 모바일에서는 이름+인스타+공유 줄을 가운데 정렬 */
+@media(max-width:640px){
+  body.layout-test .person-info{ text-align:center }
 }
-body.layout-test .person-like-btn{ display:flex }
+
+/* [2026-07-20 수정] 기능 없는 상태로 노출하지 않기로 결정 — 다시 숨김 (여백도 없앰) */
+.person-like-btn{
+  display:none;
+}
 
 /* ── 뒤로가기 ── */
 /* [2026-07-11 6차 수정] back-btn이 person-hero 안(mobile-photo-row 안)으로 이동했지만,
@@ -210,11 +208,12 @@ body.layout-test .person-like-btn{ display:flex }
 .toast.show{opacity:1}
 
 /* [2026-07-11 추가] 랭킹 배지 — 필모그래피 카드에 지금 랭킹에 있으면 표시 */
+/* [2026-07-20 수정] left:6px 고정 대신 가운데 정렬로 변경 */
 .work-rank-badge{display:none;align-items:center;gap:3px;position:absolute;
-  bottom:6px;left:6px;background:rgba(230,57,70,.92);color:#fff;
+  bottom:6px;left:50%;transform:translateX(-50%);background:rgba(230,57,70,.92);color:#fff;
   font-size:10px;font-weight:700;font-family:var(--font-mono);
   padding:3px 7px;border-radius:5px;backdrop-filter:blur(4px);
-  box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap}
 
 /* [2026-07-11 추가] 대표작(인기순) 섹션 — 가로 스크롤 */
 .known-for-section{margin-top:8px}
@@ -228,7 +227,7 @@ body.layout-test .person-like-btn{ display:flex }
    헤더(OTT 네임태그 + 제목)는 netflix.html의 .sec-num/.sec-title 패턴을 재현. */
 .ranking-widget-section{margin:32px 0;padding:18px 18px 20px;
   background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg)}
-.ranking-widget-hd{display:flex;align-items:center;gap:10px;margin-bottom:14px;
+.ranking-widget-hd{display:flex;align-items:center;gap:10px;margin-bottom:8px;
   flex-wrap:wrap;text-decoration:none;cursor:pointer}
 .ranking-widget-hd .sec-num{font-family:var(--font-mono);font-size:12px;font-weight:700;
   padding:3px 10px;border-radius:4px;letter-spacing:1px;white-space:nowrap}
@@ -294,7 +293,8 @@ body.layout-test .person-like-btn{ display:flex }
 /* ── 인물 정보 ── */
 .person-info{flex:1;min-width:0}
 .person-name{font-size:34px;font-weight:900;line-height:1.1;letter-spacing:-.5px;margin-bottom:4px}
-.person-name-en{font-size:15px;color:var(--muted);font-family:var(--font-mono);margin-bottom:16px}
+.person-name-en{display:none} /* [2026-07-20 수정] 이름 옆 괄호 표기 방식으로 변경, 기존 별도줄은 숨김 */
+.person-name-en-inline{font-size:16px;color:var(--muted);font-weight:400;margin-left:6px} /* [2026-07-20 신규] */
 .person-meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
 .person-meta-chip{display:inline-flex;align-items:center;gap:5px;
   padding:5px 12px;border-radius:20px;border:.5px solid var(--border);
@@ -1389,8 +1389,10 @@ async function initPage(){
         <img src="${s.icon}" alt="${s.label}" onerror="this.style.display='none'">
       </a>`).join('');
     const shareTagHtml = `<button class="share-tag" id="shareBtn"
-        onclick="event.stopPropagation();shareProfile()">🔗 공유하기</button>`;
-    nameEl.innerHTML = nameEl.textContent
+        onclick="event.stopPropagation();shareProfile()">🔗 공유</button>`;
+    const enNameHtml = enName
+      ? `<span class="person-name-en-inline">(${escHtml(enName)})</span>` : ''; // [2026-07-20 신규]
+    nameEl.innerHTML = nameEl.textContent + enNameHtml
       + `<span class="person-social-row">${iconsHtml}${shareTagHtml}</span>`;
 
     /* ⑦ SEO */
