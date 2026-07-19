@@ -3164,6 +3164,11 @@ export async function handleAdmin(path, request, env, url, headers) {
   // /admin/persons/collect보다 인원수를 작게 잡음(기본 20, 최대 50).
   // 생년월일이 TMDB에도 없는 인물은 NULL로 남기지 않고 빈 문자열('')로 표시해서
   // "조회 안 함"과 "조회했지만 값 없음"을 구분(sentinel 원칙, 무한 재시도 방지).
+  // [2026-07-20 수정] has_korean_name(한국 배우 여부)/gender/place_of_birth 추가.
+  // TMDB 인물상세 응답에 also_known_as(다른이름 목록)·gender·place_of_birth가
+  // 이미 다 포함돼 있어서 추가 API 호출 없이 같이 채움. WHERE 조건에
+  // has_korean_name IS NULL도 추가해서, 이 컬럼 생기기 전에 이미 생년월일까지
+  // 끝났던 인물도 자동으로 다시 대상에 포함(생년월일은 이미 있으니 재조회만 함).
   if (path === "/admin/persons/backfill-meta" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -3174,7 +3179,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const { results: targets } = await env.DB.prepare(`
         SELECT tmdb_id FROM persons
-        WHERE birthday IS NULL
+        WHERE birthday IS NULL OR has_korean_name IS NULL
         LIMIT ?
       `).bind(limit).all();
 
@@ -3193,27 +3198,33 @@ export async function handleAdmin(path, request, env, url, headers) {
             `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
           );
           if (!resp.ok) {
-            // 인물 자체가 TMDB에서 삭제/비공개 등 — 빈 문자열로 마킹해 재시도 안 하게
+            // 인물 자체가 TMDB에서 삭제/비공개 등 — 마킹해 재시도 안 하게
             updates.push(
-              env.DB.prepare(`UPDATE persons SET birthday = '' WHERE tmdb_id = ?`).bind(row.tmdb_id)
+              env.DB.prepare(`UPDATE persons SET birthday = '', has_korean_name = 0 WHERE tmdb_id = ?`).bind(row.tmdb_id)
             );
             continue;
           }
           const data = await resp.json();
+          const alsoKnown   = data.also_known_as || [];
+          const hasKorean   = alsoKnown.some(n => /[가-힣]/.test(n)) ? 1 : 0;
           updates.push(
             env.DB.prepare(
-              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ? WHERE tmdb_id = ?`
-            ).bind(data.birthday || "", data.popularity || null, data.profile_path || null, row.tmdb_id)
+              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ? WHERE tmdb_id = ?`
+            ).bind(
+              data.birthday || "", data.popularity || null, data.profile_path || null,
+              hasKorean, data.gender || null, data.place_of_birth || null,
+              row.tmdb_id
+            )
           );
           updatedCount++;
         } catch (e) {
-          // 네트워크 오류 등 — 이번엔 스킵, 다음 배치에서 재시도(빈 문자열로 마킹 안 함)
+          // 네트워크 오류 등 — 이번엔 스킵, 다음 배치에서 재시도(마킹 안 함)
         }
       }
       if (updates.length) await env.DB.batch(updates);
 
       const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL"
+        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL OR has_korean_name IS NULL"
       ).first();
 
       return new Response(JSON.stringify({
@@ -3231,6 +3242,10 @@ export async function handleAdmin(path, request, env, url, headers) {
   // [2026-07-20 신규] 위키 매칭 대상 후보 목록 — person_wiki_cache에 아직 없는
   // 인물만, 인기순 또는 이름순으로 50개씩. 여기선 위키 검색을 전혀 안 하고
   // DB 조회만 하므로 빠름 — "매칭 시도" 버튼은 다음 단계에서 별도로 만듦.
+  // [2026-07-20 수정] nationality 파라미터로 전체/한국인/외국인 선택 가능
+  // (all|korean|foreign, 기본값 all) — TMDB 인기도가 전세계 기준이라 필터 없이
+  // 인기순 정렬하면 할리우드 배우들이 상위를 다 차지하는 문제가 있어서,
+  // 관리자가 직접 고를 수 있게 탭으로 분리함.
   if (path === "/admin/persons/wiki-candidates" && request.method === "GET") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -3239,15 +3254,22 @@ export async function handleAdmin(path, request, env, url, headers) {
       const sort   = url.searchParams.get("sort") === "name" ? "name" : "popularity";
       const limit  = Math.min(parseInt(url.searchParams.get("limit")) || 50, 100);
       const offset = Math.max(parseInt(url.searchParams.get("offset")) || 0, 0);
+      const nationality = url.searchParams.get("nationality") || "all"; // all | korean | foreign
       const orderBy = sort === "name"
         ? "p.name ASC"
         : "p.popularity DESC NULLS LAST"; // D1(SQLite)은 NULLS LAST 지원 — 인기도 없는 인물은 뒤로
 
+      let nationalityCond = "";
+      if (nationality === "korean")  nationalityCond = "AND p.has_korean_name = 1";
+      if (nationality === "foreign") nationalityCond = "AND p.has_korean_name = 0";
+      // all이면 조건 없음 — has_korean_name이 아직 안 채워진(NULL) 인물도 포함됨
+
       const { results } = await env.DB.prepare(`
-        SELECT p.tmdb_id, p.name, p.job, p.birthday, p.popularity, p.profile_path
+        SELECT p.tmdb_id, p.name, p.job, p.birthday, p.popularity, p.profile_path,
+               p.gender, p.place_of_birth, p.has_korean_name
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
-        WHERE w.tmdb_person_id IS NULL
+        WHERE w.tmdb_person_id IS NULL ${nationalityCond}
         ORDER BY ${orderBy}
         LIMIT ? OFFSET ?
       `).bind(limit, offset).all();
@@ -3255,7 +3277,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const totalRow = await env.DB.prepare(`
         SELECT COUNT(*) as cnt FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
-        WHERE w.tmdb_person_id IS NULL
+        WHERE w.tmdb_person_id IS NULL ${nationalityCond}
       `).first();
 
       return new Response(JSON.stringify({
