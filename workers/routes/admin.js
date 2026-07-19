@@ -3169,6 +3169,10 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 이미 다 포함돼 있어서 추가 API 호출 없이 같이 채움. WHERE 조건에
   // has_korean_name IS NULL도 추가해서, 이 컬럼 생기기 전에 이미 생년월일까지
   // 끝났던 인물도 자동으로 다시 대상에 포함(생년월일은 이미 있으니 재조회만 함).
+  // [2026-07-20 재수정] name_ko(한글 대표이름) 추가 — person.html이 이미 쓰고 있는
+  // "also_known_as에서 한글 포함된 첫 이름을 대표이름으로" 로직을 그대로 재사용.
+  // WHERE 조건에 name_ko IS NULL도 추가해서, 이전 배치에서 이미 처리됐지만
+  // 한글 이름은 못 뽑았던 인물도 다시 대상에 포함.
   if (path === "/admin/persons/backfill-meta" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -3179,7 +3183,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const { results: targets } = await env.DB.prepare(`
         SELECT tmdb_id FROM persons
-        WHERE birthday IS NULL OR has_korean_name IS NULL
+        WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL
         LIMIT ?
       `).bind(limit).all();
 
@@ -3200,7 +3204,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           if (!resp.ok) {
             // 인물 자체가 TMDB에서 삭제/비공개 등 — 마킹해 재시도 안 하게
             updates.push(
-              env.DB.prepare(`UPDATE persons SET birthday = '', has_korean_name = 0 WHERE tmdb_id = ?`).bind(row.tmdb_id)
+              env.DB.prepare(`UPDATE persons SET birthday = '', has_korean_name = 0, name_ko = '' WHERE tmdb_id = ?`).bind(row.tmdb_id)
             );
             continue;
           }
@@ -3214,12 +3218,17 @@ export async function handleAdmin(path, request, env, url, headers) {
           const hasKoreanInList  = alsoKnown.some(n => /[가-힣]/.test(n));
           const looksNonKorean   = placeOfBirth && !/Korea|한국|Seoul|서울/i.test(placeOfBirth);
           const hasKorean = (hasKoreanInList && !looksNonKorean) ? 1 : 0;
+          // [2026-07-20 신규] 한글 대표이름 — person.html과 동일 로직(also_known_as에서
+          // 한글 포함된 첫 항목). has_korean_name 판정과 무관하게, 한글이 실제로 있으면
+          // 그냥 저장(오탐 방지용 출생지 교차검증은 "한국인 여부" 판정에만 적용하고,
+          // 이름 자체는 있는 그대로 보여주는 게 맞음). 없으면 빈 문자열로 마킹.
+          const koName = alsoKnown.find(n => /[가-힣]/.test(n)) || "";
           updates.push(
             env.DB.prepare(
-              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ? WHERE tmdb_id = ?`
+              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ?, name_ko = ? WHERE tmdb_id = ?`
             ).bind(
               data.birthday || "", data.popularity || null, data.profile_path || null,
-              hasKorean, data.gender || null, placeOfBirth || null,
+              hasKorean, data.gender || null, placeOfBirth || null, koName,
               row.tmdb_id
             )
           );
@@ -3231,7 +3240,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (updates.length) await env.DB.batch(updates);
 
       const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL OR has_korean_name IS NULL"
+        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL"
       ).first();
 
       return new Response(JSON.stringify({
@@ -3273,7 +3282,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const { results } = await env.DB.prepare(`
         SELECT p.tmdb_id, p.name, p.job, p.birthday, p.popularity, p.profile_path,
-               p.gender, p.place_of_birth, p.has_korean_name
+               p.gender, p.place_of_birth, p.has_korean_name, p.name_ko
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
         WHERE w.tmdb_person_id IS NULL ${nationalityCond}
