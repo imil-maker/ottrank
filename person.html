@@ -65,9 +65,35 @@ body.layout-test .page-wrap{max-width:1200px}
     column-gap:32px;
     align-items:start;
   }
+  /* [2026-07-19 신규] 그리드 아이템 기본값(min-width:auto)이 가로 스크롤 카드행의
+     콘텐츠 폭만큼 컬럼 자체를 밀어내는 CSS 함정 방지 — 이전에 대표작 카드에서
+     겪었던 flex min-width 버그와 같은 종류. 이걸 안 넣으면 전체 폭이 1200px을
+     넘어 화면 밖까지 늘어남 */
+  body.layout-test .person-col-left,
+  body.layout-test .person-col-right{
+    min-width:0;
+  }
 }
 body.layout-test .person-col-left > *{ margin-bottom:24px }
 body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
+
+/* [2026-07-19 신규] 왼쪽 컬럼(380px)은 폭이 좁아서, 사진+약력이 가로로 배치되는
+   기존 PC 스타일 대신 세로로 확실히 쌓이게 강제함 (기존 모바일 스타일과 동일 패턴 재사용,
+   "혹시 wrap될 수도"에 기대지 않고 명시적으로 고정) */
+body.layout-test .person-hero{ flex-direction:column; gap:16px; align-items:center }
+body.layout-test .person-photo-wrap{ width:180px }
+body.layout-test .person-photo{ width:180px }
+body.layout-test .person-info{ width:100%; text-align:center }
+body.layout-test .mobile-photo-row{ position:relative; display:flex; justify-content:center; width:100% }
+body.layout-test .back-btn{
+  position:absolute; top:0; left:0; z-index:5;
+  padding:9px; border-radius:50%; gap:0; margin:0;
+  background:rgba(10,10,14,.55); border-color:rgba(255,255,255,.3); backdrop-filter:blur(2px);
+}
+body.layout-test .back-label{ display:none }
+body.layout-test .back-arrow{ font-size:16px; line-height:1; color:#fff }
+body.layout-test .hero-line-break{ display:none }
+body.layout-test .person-meta-row{ justify-content:center }
 
 /* [2026-07-19 신규] 좋아요 버튼 — 자리만, 기능은 다음 단계에서 연결.
    일반 방문자에겐 안 보이고, 레이아웃 테스트 모드에서만 노출 */
