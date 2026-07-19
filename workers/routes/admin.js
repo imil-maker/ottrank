@@ -63,6 +63,8 @@
    POST   /admin/persons/collect
    POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설)
    GET    /admin/persons/wiki-candidates ← 위키 매칭 후보 목록(2026-07-20 신설)
+   POST   /admin/persons/wiki-match-attempt ← 실제 위키 검색+매칭 시도(2026-07-20 신설)
+   POST   /admin/persons/wiki-approve   ← 매칭 확정 승인, person_wiki_cache 반영(2026-07-20 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -3301,6 +3303,279 @@ export async function handleAdmin(path, request, env, url, headers) {
         items: results,
         total: totalRow?.cnt || 0,
         offset, limit,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/wiki-match-attempt ───────────────────
+  // [2026-07-20 신규] 선택된 인물들 실제 위키백과 검색 + 생년도 대조 매칭 시도.
+  // 가벼운 정보만(제목/생년/짧은 요약/링크) person_wiki_match_queue에 저장 —
+  // 수상내역·전체이력 같은 무거운 파싱은 여기서 안 하고, 나중에 "승인" 시점에
+  // person_wiki_cache로 확정 이동하면서 별도로 처리할 예정(A안, 이전에 합의됨).
+  // ⚠️ 인물 1명당 위키 요청이 최대 6번(검색 1 + 후보별 본문조회 최대 5) 나갈 수 있어서,
+  // 한 번에 너무 많이 선택하면 느려지거나 타임아웃 위험 있음 — 실사용하며 적정 인원 확인 필요.
+  if (path === "/admin/persons/wiki-match-attempt" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbIds = Array.isArray(body.tmdb_ids)
+        ? body.tmdb_ids.map(n => parseInt(n)).filter(n => Number.isInteger(n)).slice(0, 50)
+        : [];
+      if (!tmdbIds.length) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_ids가 필요해요" }), { status: 400, headers });
+      }
+
+      const placeholders = tmdbIds.map(() => "?").join(",");
+      const { results: people } = await env.DB.prepare(
+        `SELECT tmdb_id, name, name_ko, birthday, popularity, profile_path FROM persons WHERE tmdb_id IN (${placeholders})`
+      ).bind(...tmdbIds).all();
+
+      const results = [];
+      const updates = [];
+
+      for (const p of people) {
+        const searchName = p.name_ko || p.name;
+        const tmdbYear   = (p.birthday || "").slice(0, 4);
+        let matched = null;
+
+        try {
+          // 1단계: 위키백과 검색 — 후보 최대 5개
+          const searchRes = await fetch(
+            `https://ko.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchName)}&limit=5&namespace=0&format=json`
+          );
+          const searchData = await searchRes.json();
+          const titles = searchData[1] || [];
+          const urls   = searchData[3] || [];
+
+          for (let i = 0; i < titles.length; i++) {
+            const title   = titles[i];
+            const pageUrl = urls[i];
+
+            // 2단계: 후보 문서 요약(첫 문단) 조회 — 생년도 대조용
+            const extractRes = await fetch(
+              `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json`
+            );
+            const extractData = await extractRes.json();
+            const pages    = (extractData.query && extractData.query.pages) || {};
+            const pageObj  = Object.values(pages)[0];
+            const extract  = (pageObj && pageObj.extract) || "";
+
+            const yearMatch = extract.match(/(\d{4})년/);
+            const wikiYear  = yearMatch ? yearMatch[1] : null;
+
+            // 3단계: 생년도 일치 → 확정. 생년월일 정보가 없고 후보 1명뿐이면 잠정 채택.
+            const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
+            const isOnlyCandidate = !tmdbYear && titles.length === 1;
+            if (isYearMatch || isOnlyCandidate) {
+              matched = {
+                wiki_title: title,
+                wiki_birth_year: wikiYear || "",
+                wiki_summary: extract.slice(0, 200),
+                wiki_source_url: pageUrl,
+              };
+              break;
+            }
+          }
+        } catch (e) {
+          // 이 인물만 실패 처리, 나머지는 계속 진행
+        }
+
+        results.push({
+          tmdb_id: p.tmdb_id,
+          name_ko: p.name_ko || p.name,
+          found: !!matched,
+          wiki_title: matched ? matched.wiki_title : null,
+          wiki_birth_year: matched ? matched.wiki_birth_year : null,
+          wiki_summary: matched ? matched.wiki_summary : null,
+          wiki_source_url: matched ? matched.wiki_source_url : null,
+        });
+
+        updates.push(
+          env.DB.prepare(`
+            INSERT INTO person_wiki_match_queue
+              (tmdb_person_id, person_name, popularity, profile_path, tmdb_birthday,
+               wiki_title, wiki_birth_year, wiki_summary, wiki_source_url, match_found)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(tmdb_person_id) DO UPDATE SET
+              wiki_title = excluded.wiki_title,
+              wiki_birth_year = excluded.wiki_birth_year,
+              wiki_summary = excluded.wiki_summary,
+              wiki_source_url = excluded.wiki_source_url,
+              match_found = excluded.match_found
+          `).bind(
+            p.tmdb_id, p.name_ko || p.name, p.popularity || null, p.profile_path || null, p.birthday || null,
+            matched ? matched.wiki_title : null,
+            matched ? matched.wiki_birth_year : null,
+            matched ? matched.wiki_summary : null,
+            matched ? matched.wiki_source_url : null,
+            matched ? 1 : 0
+          )
+        );
+      }
+
+      if (updates.length) await env.DB.batch(updates);
+
+      return new Response(JSON.stringify({ ok: true, results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/wiki-approve ─────────────────────────
+  // [2026-07-20 신규] person_wiki_match_queue에서 매칭된(match_found=1) 인물들을
+  // 확정 승인 — 위키 문서를 다시 한 번 열어서 이번엔 전체 데이터를 긁어와
+  // person_wiki_cache에 저장. 이 순간부터 실제 /person/{id} 페이지에 반영됨.
+  //
+  // 데이터 소스가 3가지로 나뉨 (한 번의 API 호출로 다 같이 조회):
+  //  1) prop=extracts(explaintext) — 본문 줄글. 요약/전체이력/수상내역 추출용.
+  //     ⚠️ 인포박스(데뷔작/학력 등)는 여기 안 나옴 — 위키 텍스트 추출 API는
+  //     본문 산문만 뽑고 인포박스 템플릿은 원래 제외함.
+  //  2) prop=revisions(rvprop=content) — 원본 wikitext. {{배우 정보 ...}} 인포박스
+  //     템플릿 안의 |데뷔작=, |학력= 같은 필드를 정규식으로 직접 파싱.
+  //  3) prop=extlinks — 외부링크 목록. kmdb.or.kr, imdb.com 링크에서 ID 추출.
+  //
+  // ⚠️ 데뷔작/학력은 배우마다 위키 문서 작성 방식이 달라서 100% 정확히 안 뽑힐 수
+  // 있음 — 인포박스 필드명이 없거나 형식이 다르면 그냥 빈 값으로 남김(억지 추측 안 함).
+  if (path === "/admin/persons/wiki-approve" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbIds = Array.isArray(body.tmdb_ids)
+        ? body.tmdb_ids.map(n => parseInt(n)).filter(n => Number.isInteger(n)).slice(0, 50)
+        : [];
+      if (!tmdbIds.length) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_ids가 필요해요" }), { status: 400, headers });
+      }
+
+      const placeholders = tmdbIds.map(() => "?").join(",");
+      const { results: queued } = await env.DB.prepare(
+        `SELECT tmdb_person_id, person_name, wiki_title, wiki_source_url
+         FROM person_wiki_match_queue
+         WHERE tmdb_person_id IN (${placeholders}) AND match_found = 1`
+      ).bind(...tmdbIds).all();
+
+      const approved = [];
+      const failed = [];
+      const updates = [];
+
+      // wikitext 마크업 잔여물 정리용 헬퍼 — [[링크|표시]] → 표시, '''굵게''' → 굵게, <ref>...</ref> 제거 등
+      const cleanWikitext = (s) => {
+        if (!s) return "";
+        return s
+          .replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, "")   // 각주 통째로 제거
+          .replace(/<ref[^>]*\/>/g, "")
+          .replace(/\[\[([^\|\]]+)\|([^\]]+)\]\]/g, "$2") // [[문서명|표시]] → 표시
+          .replace(/\[\[([^\]]+)\]\]/g, "$1")              // [[문서명]] → 문서명
+          .replace(/'''?/g, "")                             // '''굵게''' / ''기울임''
+          .replace(/<[^>]+>/g, "")                          // 남은 HTML 태그
+          .replace(/\{\{[^}]*\}\}/g, "")                    // 남은 소형 템플릿({{efn}} 등)
+          .trim();
+      };
+
+      for (const q of queued) {
+        try {
+          const res = await fetch(
+            `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(q.wiki_title)}` +
+            `&prop=extracts|revisions|extlinks&explaintext=1&rvprop=content&rvslots=main&ellimit=500&format=json`
+          );
+          const data = await res.json();
+          const pages   = (data.query && data.query.pages) || {};
+          const pageObj = Object.values(pages)[0];
+          const fullText = (pageObj && pageObj.extract) || "";
+
+          if (!fullText) {
+            failed.push({ tmdb_id: q.tmdb_person_id, reason: "본문 조회 실패" });
+            continue;
+          }
+
+          // ① 요약(bio_summary) = 첫 문단(첫 줄바꿈 전까지)
+          const bioSummary = fullText.split("\n")[0].slice(0, 500);
+
+          // ② 전체이력(career_history) = 전체 본문 그대로 (person.html에서 "더보기"로 접어서 보여줌)
+          const careerHistory = fullText.slice(0, 8000); // 너무 길면 잘라냄(안전장치)
+
+          // ③ 수상내역(awards_text) = "== 수상" 포함 섹션 헤더 다음 텍스트, 다음 섹션 헤더 전까지
+          const awardsMatch = fullText.match(/==+\s*수상[^=\n]*==+\n+([\s\S]*?)(?=\n==+|$)/);
+          const awardsText = awardsMatch ? awardsMatch[1].trim().slice(0, 2000) : null;
+
+          // ④⑤ 데뷔작/학력 — 원본 wikitext의 인포박스 템플릿({{배우 정보 ... }})에서 파싱
+          const revisions = (pageObj && pageObj.revisions) || [];
+          const wikitext = (revisions[0] && revisions[0].slots && revisions[0].slots.main &&
+                             revisions[0].slots.main["*"]) || "";
+          const infoboxMatch = wikitext.match(/\{\{(?:배우 정보|인물 정보)[\s\S]*?\n\}\}/);
+          const infobox = infoboxMatch ? infoboxMatch[0] : "";
+
+          let debutWork = null, debutYear = null, education = null;
+          if (infobox) {
+            const debutField = infobox.match(/\|\s*데뷔(?:작|년도)?\s*=\s*([^\|\n]+)/);
+            if (debutField) {
+              const raw = cleanWikitext(debutField[1]);
+              const yearInDebut = raw.match(/(\d{4})/);
+              debutYear = yearInDebut ? yearInDebut[1] : null;
+              // 연도·괄호 빼고 작품명만 남기기
+              debutWork = raw.replace(/\(?\d{4}\)?[년,\s]*/g, "").trim().slice(0, 100) || null;
+            }
+            const eduField = infobox.match(/\|\s*학력\s*=\s*([^\|\n]+)/);
+            if (eduField) {
+              education = cleanWikitext(eduField[1]).slice(0, 200) || null;
+            }
+          }
+
+          // ⑥⑦ KMDb / IMDb ID — 외부링크 목록에서 추출 (HTML 파싱 없이 API로 바로)
+          const extlinks = (pageObj && pageObj.extlinks) || [];
+          let kmdbId = null, imdbId = null;
+          for (const link of extlinks) {
+            const url = link["*"] || "";
+            const kmdbMatch = url.match(/kmdb\.or\.kr\/db\/per\/(\d+)/);
+            if (kmdbMatch) kmdbId = kmdbMatch[1];
+            const imdbMatch = url.match(/imdb\.com\/name\/(nm\d+)/);
+            if (imdbMatch) imdbId = imdbMatch[1];
+          }
+
+          updates.push(
+            env.DB.prepare(`
+              INSERT INTO person_wiki_cache
+                (tmdb_person_id, wiki_title, bio_summary, career_history, awards_text,
+                 debut_work, debut_year, education, kmdb_id, imdb_id, source_url)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(tmdb_person_id) DO UPDATE SET
+                wiki_title = excluded.wiki_title,
+                bio_summary = excluded.bio_summary,
+                career_history = excluded.career_history,
+                awards_text = excluded.awards_text,
+                debut_work = excluded.debut_work,
+                debut_year = excluded.debut_year,
+                education = excluded.education,
+                kmdb_id = excluded.kmdb_id,
+                imdb_id = excluded.imdb_id,
+                source_url = excluded.source_url
+            `).bind(
+              q.tmdb_person_id, q.wiki_title, bioSummary, careerHistory, awardsText,
+              debutWork, debutYear, education, kmdbId, imdbId, q.wiki_source_url
+            )
+          );
+          approved.push({
+            tmdb_id: q.tmdb_person_id, person_name: q.person_name, wiki_title: q.wiki_title,
+            debut_work: debutWork, education: education, kmdb_id: kmdbId, imdb_id: imdbId,
+          });
+        } catch (e) {
+          failed.push({ tmdb_id: q.tmdb_person_id, reason: e.message });
+        }
+      }
+
+      if (updates.length) await env.DB.batch(updates);
+
+      return new Response(JSON.stringify({
+        ok: true,
+        approved,
+        failed,
+        approvedCount: approved.length,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
