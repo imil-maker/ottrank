@@ -50,6 +50,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 /* ── 페이지 래퍼 ── */
 .page-wrap{max-width:900px;margin:0 auto;padding:24px 20px 80px}
+/* [2026-07-19 신규] 레이아웃 테스트 모드일 때만 폭 확장 — 일반 방문자는 900px 그대로 */
+body.layout-test .page-wrap{max-width:1200px}
+
+/* [2026-07-19 신규] 2단 레이아웃 뼈대 (1단계 — 구조만, 내용 재배치는 다음 단계)
+   ⚠️ 일반 방문자에게는 절대 안 보임 — body에 layout-test 클래스가 있을 때만
+   (JS에서 ?wikitest=1일 때만 이 클래스를 붙임) 작동. 실제 배포해도 안전함.
+   PC(641px 이상): 왼쪽 380px 고정 + 오른쪽 나머지.
+   모바일(640px 이하): 그리드 해제하고 기존처럼 세로로 그대로 쌓임(순서 안 바뀜) */
+@media(min-width:641px){
+  body.layout-test .person-layout{
+    display:grid;
+    grid-template-columns:380px 1fr;
+    column-gap:32px;
+    align-items:start;
+  }
+}
+body.layout-test .person-col-left > *{ margin-bottom:24px }
+body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
+
+/* [2026-07-19 신규] 좋아요 버튼 — 자리만, 기능은 다음 단계에서 연결.
+   일반 방문자에겐 안 보이고, 레이아웃 테스트 모드에서만 노출 */
+.person-like-btn{
+  display:none; align-items:center; justify-content:center; gap:6px;
+  width:100%; padding:10px; margin-top:12px;
+  background:var(--bg2); border:.5px solid var(--border); border-radius:var(--r);
+  color:var(--muted); font-size:13px; font-family:var(--font-sans);
+  cursor:default; /* 아직 기능 없음 표시 */
+}
+body.layout-test .person-like-btn{ display:flex }
 
 /* ── 뒤로가기 ── */
 /* [2026-07-11 6차 수정] back-btn이 person-hero 안(mobile-photo-row 안)으로 이동했지만,
@@ -374,6 +403,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <!-- 본문 -->
 <div class="page-wrap">
+<div class="person-layout">
+<div class="person-col-left">
 
   <!-- [2026-07-11 5차 수정] 뒤로가기와 사진을 같은 줄(flex row)에 두는 최종 구조.
        계산값(calc/transform) 없이 실제 flex 레이아웃으로 처리 — 사진이 가운데
@@ -400,6 +431,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
           <div class="person-photo" id="personPhoto">
             <div class="person-photo-ph" id="personPhotoPh">?</div>
           </div>
+          <!-- [2026-07-19 신규] 좋아요 버튼 — 자리만, 기능은 다음 단계 -->
+          <button class="person-like-btn" id="personLikeBtn" disabled>
+            🤍 좋아요 (준비 중)
+          </button>
         </div>
       </div>
 
@@ -475,6 +510,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     </div>
   </div>
 
+  </div><!-- /person-col-left -->
+
+  <div class="person-col-right">
   <!-- 필모그래피 -->
   <div id="filmographySection" class="filmography-section" style="display:none">
     <div class="section-title">
@@ -490,7 +528,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       더보기
     </button>
   </div>
+  </div><!-- /person-col-right -->
 
+</div><!-- /person-layout -->
 </div><!-- /page-wrap -->
 
 <!-- [2026-07-11 추가] 공유하기 토스트 알림 (my_review.html과 동일 패턴) -->
@@ -594,6 +634,12 @@ mobileGalleryMQ.addEventListener('change', relocatePhotoGallery);
 const personId = (typeof window.__PERSON_ID__ !== 'undefined' && window.__PERSON_ID__)
   ? String(window.__PERSON_ID__)
   : new URLSearchParams(location.search).get('id');
+
+/* [2026-07-19 신규] ?wikitest=1이면 레이아웃 테스트 모드 즉시 켜기
+   (데이터 로딩 성공 여부와 무관하게 CSS만 바로 적용됨, 일반 방문자는 영향 없음) */
+if(new URLSearchParams(location.search).get('wikitest') === '1'){
+  document.body.classList.add('layout-test');
+}
 
 /* ── 필모그래피 상태 ── */
 let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
