@@ -2559,6 +2559,22 @@ async function loadTmdb(){
 
     // Render basic info immediately
     const title=worksData?.title_ko||det.name||det.title||WORK.title;
+
+    // [2026-07-20 추가] 포르노그라피 즉시 차단(추가 조회 없음, 지연 없음)
+    // - worksData.adult_flag===2(이미 DB에 저장된 경우)는 위쪽에서 이미 처리됨(재방문 케이스)
+    // - 여기는 "신규 등록되는 작품"의 최초 방문을 위한 체크 — title만 보고 즉시 판단하므로
+    //   TMDB 키워드 조회 같은 추가 API 호출이 없어 일반 작품 로딩 속도엔 전혀 영향 없음
+    // - videos.js의 title_ko 신호(①일본어+20자 ②NTR단독단어 ③中出し/手コキ)와 동일 기준
+    {
+      const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF]/.test(title||'');
+      const isLongJapaneseTitle = hasJapanese && title.length>=20;
+      const hasPornTitleWord = /\bNTR\b/.test(title||'') || (title||'').includes('中出し') || (title||'').includes('手コキ');
+      if(isLongJapaneseTitle || hasPornTitleWord){
+        window.location.replace('/');
+        return;
+      }
+    }
+
     // English title: works DB first, fallback TMDB
     const origTitle=worksData?.title_en||det.original_name||det.original_title||'';
     const year=(det.release_year||(det.first_air_date||det.release_date||'').slice(0,4))||'';
