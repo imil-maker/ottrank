@@ -329,11 +329,13 @@ body.layout-test .person-like-btn{ display:flex }
 }
 .profile-debut-edu b{ color:var(--text); font-weight:600; margin-right:4px; }
 
-/* [2026-07-19 신규] 수상내역 — 약력 바로 아래, 데뷔작/학력과 동일한 줄+여백 스타일 */
+/* [2026-07-19 신규] 수상내역 — 약력 바로 아래. 윗줄만 유지(약력과 구분),
+   아랫줄은 뺌 — person-info 전체의 아래쪽 줄이 대표작 앞 구분선 역할을 이미 하고 있어서
+   바로 밑에 또 줄이 있으면 줄 2개가 겹쳐 보임 */
 .profile-awards{
   font-size:13px; color:var(--muted2); line-height:1.7;
-  margin:12px 0 24px; padding:10px 0;
-  border-top:.5px solid var(--border); border-bottom:.5px solid var(--border);
+  margin-top:12px; padding-top:10px;
+  border-top:.5px solid var(--border);
 }
 .wiki-test-meta b{ color:var(--text); font-weight:600; }
 .wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
