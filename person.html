@@ -744,8 +744,6 @@ async function loadWikiTest(personId){
     if(!d) return; // 캐시에 데이터 없음 — 조용히 종료
 
     if(d.bio_summary){
-      document.getElementById('wikiSummary').textContent = d.bio_summary;
-
       /* [2026-07-19 신규] 오른쪽 상단 프로필의 "약력" 자리를 위키 요약글로 대체.
          TMDB 약력은 영어인 경우가 대부분이라, 한국어인 위키 요약글을 우선시함.
          단, 위키 요약글이 너무 짧으면(40자 미만) 정보가 부족하니 TMDB 약력을 이어붙임. */
