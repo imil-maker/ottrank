@@ -1130,13 +1130,23 @@ function goWork(el){
 function fmtBirth(dateStr){
   if(!dateStr) return '';
   const [y,m,d] = dateStr.split('-');
+  // [2026-07-20 신규] 정확한 월/일을 모를 때는 "00-00"으로 저장하기로 함(관리자 요청) —
+  // 이 경우 특정 날짜(예: 1월 1일)로 오해되지 않게 "YYYY년생"으로만 표시
+  if(m === '00' || d === '00') return `${y}년생`;
   return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`;
 }
 
 /* ── 나이 계산 ── */
 function calcAge(birthday, deathday){
   if(!birthday) return '';
+  const [by, bm, bd] = birthday.split('-');
   const end = deathday ? new Date(deathday) : new Date();
+  // [2026-07-20 신규] 월/일 모르면(00-00) 정확한 생일 기준 계산이 불가능하니
+  // 연도 차이로만 대략 계산(최대 ±1살 오차 있을 수 있음)
+  if(bm === '00' || bd === '00'){
+    const age = end.getFullYear() - parseInt(by, 10);
+    return deathday ? `향년 ${age}세` : `${age}세`;
+  }
   const birth = new Date(birthday);
   let age = end.getFullYear() - birth.getFullYear();
   const m = end.getMonth() - birth.getMonth();
