@@ -329,7 +329,27 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   font-size:13px; color:var(--muted2); line-height:1.7;
   margin-top:12px; padding-top:10px;
   border-top:.5px solid var(--border);
+}
+.profile-awards-text{
   white-space:pre-line; /* [2026-07-20 신규] 입력창에서 엔터로 나눈 줄이 화면에도 줄바꿈되게 */
+}
+/* [2026-07-20 신규] 수상내역 "더보기" — 약력(bio-toggle)과 동일 스타일 재사용,
+   모바일에서 2줄 넘을 때만 등장(JS가 계산). PC는 아래 min-width 미디어쿼리로 항상 숨김 */
+.profile-awards-toggle{
+  display:none; margin-top:6px; background:none; border:none; color:var(--info);
+  font-size:13px; cursor:pointer; font-family:var(--font-mono); padding:0;
+}
+.profile-awards-toggle:hover{text-decoration:underline}
+@media(max-width:640px){
+  .profile-awards-text{
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; transition:all .3s;
+  }
+  .profile-awards-text.expanded{ -webkit-line-clamp:unset; overflow:visible; }
+}
+@media(min-width:641px){
+  /* PC는 오른쪽 컬럼이 넓어 잘릴 일이 없으므로 항상 전체 노출, 버튼도 항상 숨김 */
+  .profile-awards-toggle{ display:none !important; }
 }
 .wiki-test-meta b{ color:var(--text); font-weight:600; }
 .wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
@@ -584,8 +604,13 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
           <div class="bio-text" id="bioText"></div>
           <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
         </div>
-        <!-- [2026-07-19 신규] 수상내역 — 약력 바로 아래, 대표작(TMDB)보다 먼저 보이는 위치 -->
-        <div class="profile-awards" id="profileAwards" style="display:none"></div>
+        <!-- [2026-07-19 신규] 수상내역 — 약력 바로 아래, 대표작(TMDB)보다 먼저 보이는 위치
+             [2026-07-20 신규] 모바일 2줄 초과 시 더보기 버튼용으로 텍스트/버튼 분리 -->
+        <div class="profile-awards" id="profileAwards" style="display:none">
+          <b style="color:var(--text)">🏆 수상내역</b>
+          <div class="profile-awards-text" id="profileAwardsText"></div>
+          <button class="profile-awards-toggle" id="profileAwardsToggle" onclick="toggleAwards()">더보기 ▾</button>
+        </div>
       </div>
     </div>
   </div><!-- /hero-wrap -->
@@ -851,6 +876,16 @@ function toggleBio(){
   btn.textContent = bioExpanded ? '접기 ▴' : '더보기 ▾';
 }
 
+/* [2026-07-20 신규] 수상내역 펼치기 — 약력(toggleBio)과 동일 패턴, 모바일 2줄 기준 */
+let awardsExpanded = false;
+function toggleAwards(){
+  awardsExpanded = !awardsExpanded;
+  const el = document.getElementById('profileAwardsText');
+  const btn= document.getElementById('profileAwardsToggle');
+  el.classList.toggle('expanded', awardsExpanded);
+  btn.textContent = awardsExpanded ? '접기 ▴' : '더보기 ▾';
+}
+
 /* [2026-07-19 신규] 위키 전체이력 펼치기 */
 let wikiCareerExpanded = false;
 function toggleWikiCareer(){
@@ -934,8 +969,15 @@ async function loadWikiTest(personId){
 
     if(d.awards_text){
       const awardsEl = document.getElementById('profileAwards');
-      awardsEl.innerHTML = `<b style="color:var(--text)">🏆 수상내역</b><br>${d.awards_text}`;
+      const awardsTextEl = document.getElementById('profileAwardsText');
+      awardsTextEl.textContent = d.awards_text;
       awardsEl.style.display = 'block';
+      // [2026-07-20 신규] 모바일 2줄 초과 여부 계산 — 약력(bioText)과 동일 패턴
+      requestAnimationFrame(()=>{
+        const lineH = parseFloat(getComputedStyle(awardsTextEl).lineHeight) || 22;
+        const toggleBtn = document.getElementById('profileAwardsToggle');
+        if(toggleBtn) toggleBtn.style.display = (awardsTextEl.scrollHeight > lineH * 2 + 4) ? 'inline' : 'none';
+      });
     }
 
     if(d.career_history){
