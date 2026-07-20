@@ -3243,6 +3243,23 @@ export async function handleAdmin(path, request, env, url, headers) {
           // 네트워크 오류 등 — 이번엔 스킵, 다음 배치에서 재시도(마킹 안 함)
         }
       }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        processed: targets.length,
+        updated: updatedCount,
+        remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── POST /admin/persons/refill-korean-name ────────────────────
   // [2026-07-20 신규] "인물 상세정보 채우기"(backfill-meta)와 완전히 분리된 전용 배치.
   // name_ko='' AND has_korean_name=0으로 확정 마킹됐던 사람들을 다시 TMDB로 재조회함.
