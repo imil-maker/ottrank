@@ -738,7 +738,10 @@ async function loadPersonMatchCandidates(){
               ? `<img src="https://poster.ottrank.kr/tmdb-img/w92${p.profile_path}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
               : `<div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)">?</div>`}
           </td>
-          <td style="padding:10px 16px;font-size:13px;color:var(--text)">${pmDisplayName(p)}</td>
+          <td style="padding:10px 16px;font-size:13px;color:var(--text)">
+            ${pmDisplayName(p)}
+            <a href="/person/${p.tmdb_id}" target="_blank" onclick="event.stopPropagation()" style="margin-left:6px;font-size:11px;color:#7ec8e3;text-decoration:none" title="인물페이지 새 탭으로 열기">🔗</a>
+          </td>
           <td style="padding:10px 16px;font-size:12px;color:var(--muted2)">${p.job === 'direct' ? '감독' : '배우'}</td>
           <td style="padding:10px 16px;font-size:12px;color:var(--muted2);font-family:var(--mono)">${p.birthday || '-'}</td>
           <td style="padding:10px 16px;font-size:12px;color:var(--muted2);font-family:var(--mono)">${p.popularity ? p.popularity.toFixed(1) : '-'}</td>
@@ -854,7 +857,9 @@ async function attemptPersonMatch(){
     ` + data.results.map(r => `
       <div style="background:var(--bg2);border:1px solid ${r.found ? 'rgba(52,211,153,.3)' : 'var(--border)'};border-radius:10px;padding:14px 16px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtmlPm(r.name_ko)}</span>
+          <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtmlPm(r.name_ko)}
+            <a href="/person/${r.tmdb_id}" target="_blank" style="margin-left:6px;font-size:11px;color:#7ec8e3;text-decoration:none" title="인물페이지 새 탭으로 열기">🔗</a>
+          </span>
           <span style="font-size:12px;color:${r.found ? 'var(--green)' : 'var(--muted)'}">${r.found ? '✅ 매칭됨' : '❌ 매칭 안 됨'}</span>
         </div>
         ${r.found ? `
@@ -1099,7 +1104,9 @@ async function pmSearchAttemptMatch(tmdbId){
     resultWrap.innerHTML = `
       <div style="background:var(--bg2);border:1px solid ${r.found ? 'rgba(52,211,153,.3)' : 'var(--border)'};border-radius:10px;padding:14px 16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtmlPm(r.name_ko)}</span>
+          <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtmlPm(r.name_ko)}
+            <a href="/person/${r.tmdb_id}" target="_blank" style="margin-left:6px;font-size:11px;color:#7ec8e3;text-decoration:none" title="인물페이지 새 탭으로 열기">🔗</a>
+          </span>
           <span style="font-size:12px;color:${r.found ? 'var(--green)' : 'var(--muted)'}">${r.found ? '✅ 매칭됨' : '❌ 매칭 안 됨'}</span>
         </div>
         ${r.found ? `
