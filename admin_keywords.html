@@ -101,6 +101,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🔍 검색어 로그
         </button>
+        <button id="tabPageLog" onclick="switchPageTab('pageLog')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          📊 페이지 로그
+        </button>
         <button id="tabPersonMatch" onclick="switchPageTab('personMatch')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎭 인물 매칭
@@ -401,6 +405,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   </div>
 
+  <!-- ══ 페이지 로그 섹션 (2026-07-21 신규) ══ -->
+  <div class="wrap" id="pageLogWrap" style="display:none">
+
+    <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 작품페이지·인물페이지가 열릴 때마다 실시간으로 기록됩니다. 최근 조회 순으로 보여줘요
+      (몇 초~1분 정도 약간의 지연이 있을 수 있어요). 클릭하면 그 페이지로 바로 이동합니다.
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:20px">
+      <button class="btn-secondary" onclick="loadPageLogs()" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <thead>
+        <tr>
+          <th style="width:15%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">구분</th>
+          <th style="width:55%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">제목</th>
+          <th style="width:30%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">조회 시각</th>
+        </tr>
+      </thead>
+      <tbody id="plTbody">
+        <tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+
+  </div>
+
+
   <!-- ══ 인물 매칭 탭 ══ -->
   <div class="wrap" id="personMatchWrap" style="display:none">
 
@@ -590,6 +622,48 @@ function renderSlPagination(current, total){
 
   el.innerHTML = parts.join('');
 }
+
+/* [2026-07-21 신규] 페이지 로그(실시간 작품/인물 조회) 목록 로드 */
+function fmtAeTime(iso){
+  if(!iso) return '-';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return iso;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+async function loadPageLogs(){
+  const tbody = document.getElementById('plTbody');
+  tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
+
+  try{
+    const res = await fetch(`${API}/admin/track/logs?limit=50`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const json = await res.json();
+    if(!json.ok){
+      tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
+      return;
+    }
+
+    const rows = (json.items || []).map(item => `
+      <tr>
+        <td style="padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);color:${item.type === 'work' ? 'var(--gold)' : '#7ec8e3'};font-family:var(--mono)">
+          ${item.type === 'work' ? '🎬 작품' : '🎭 인물'}
+        </td>
+        <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border)">
+          <a href="${item.url}" target="_blank" rel="noopener"
+            style="font-weight:600;color:var(--text);text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${hescSl(item.title)}</a>
+        </td>
+        <td style="padding:12px 16px;font-size:12.5px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--muted)">${fmtAeTime(item.viewed_at)}</td>
+      </tr>
+    `).join('');
+
+    tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 조회 로그가 없습니다</td></tr>`;
+  }catch(e){
+    tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</td></tr>`;
+  }
+}
+
 </script>
 
 <script>
@@ -637,6 +711,7 @@ const PAGE_TABS = [
   { key: 'keywordTranslate', wrapId: 'keywordTranslateWrap', btnId: 'tabKeywordTranslate', title: '🔤 키워드 번역', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'ott',              wrapId: 'ottWrap',              btnId: 'tabOtt',              title: '🎬 OTT 수집',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'searchLog',        wrapId: 'searchLogWrap',        btnId: 'tabSearchLog',        title: '🔍 검색어 로그', onColor: 'rgba(230,57,70,.2)',  onText: 'var(--accent)' },
+  { key: 'pageLog',          wrapId: 'pageLogWrap',          btnId: 'tabPageLog',          title: '📊 페이지 로그', onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
 ];
 let currentPageTab = 'keyword';
@@ -652,6 +727,7 @@ function switchPageTab(tab) {
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
   if (tab === 'searchLog') loadSearchLogs(1);
+  if (tab === 'pageLog') loadPageLogs();
   if (tab === 'personMatch') loadPersonMatchCandidates();
 }
 
