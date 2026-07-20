@@ -67,6 +67,7 @@
    POST   /admin/persons/wiki-approve   ← 매칭 확정 승인, person_wiki_cache 반영(2026-07-20 신설)
    GET    /admin/persons/wiki-detail/:tmdb_id ← 인물 1명 위키 상세(매칭여부+항목별 숨김여부)(2026-07-20 신설)
    POST   /admin/persons/wiki-hidden-fields   ← 항목별 숨김/복구 저장(2026-07-20 신설)
+   POST   /admin/persons/wiki-manual-save     ← 10개 항목 직접 입력/수정 저장(2026-07-20 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -3733,17 +3734,94 @@ export async function handleAdmin(path, request, env, url, headers) {
       ).bind(tmdbId).first();
 
       if (!wiki) {
-        return new Response(JSON.stringify({ ok: true, matched: false, person }), { headers });
+        // [2026-07-20 수정] 미매칭이어도 프론트에서 10개 항목을 전부 입력폼으로
+        // 보여줄 수 있게, null로 채운 wiki 객체를 항상 내려줌 (매칭 여부는 matched로 구분)
+        return new Response(JSON.stringify({
+          ok: true, matched: false, person,
+          wiki: {
+            wiki_title: null, bio_summary: null, career_history: null, awards_text: null,
+            debut_work: null, debut_year: null, education: null,
+            kmdb_id: null, imdb_id: null, source_url: null,
+          },
+          hiddenFields: [],
+        }), { headers });
       }
 
       const hiddenFields = (wiki.hidden_fields || "")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
+      delete wiki.hidden_fields; // hiddenFields 배열로 이미 내려주므로 원본 컬럼은 응답에서 뺌
 
       return new Response(JSON.stringify({
         ok: true, matched: true, person, wiki, hiddenFields,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/wiki-manual-save ──────────────────────
+  // [2026-07-20 신규] "인물 개별 검색"에서 10개 항목을 관리자가 직접 입력/수정해서
+  // 저장. 위키 매칭 여부와 무관하게 항상 사용 가능 — 매칭 안 된 사람도 이 API로
+  // person_wiki_cache에 행을 새로 만들 수 있음(위키에서 온 것처럼 취급).
+  // wiki-approve(자동 매칭 승인)와 동일한 테이블에 동일한 방식(UPSERT)으로 저장하므로,
+  // 이후에는 person.html/person-wiki.js 입장에서 자동매칭 데이터와 완전히 동일하게 동작함.
+  if (path === "/admin/persons/wiki-manual-save" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const ALLOWED_HIDDEN_FIELDS = [
+        "bio_summary", "career_history", "awards_text",
+        "debut_work", "education", "kmdb_id", "imdb_id",
+      ];
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      if (!Number.isInteger(tmdbId)) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+
+      // 빈 문자열은 null로 정리(sentinel 원칙 — "입력 안 함"을 명확히 구분)
+      const norm = (v) => (typeof v === "string" && v.trim() !== "") ? v.trim() : null;
+      const wikiTitle    = norm(body.wiki_title);
+      const bioSummary   = norm(body.bio_summary);
+      const careerHistory= norm(body.career_history);
+      const awardsText   = norm(body.awards_text);
+      const debutWork    = norm(body.debut_work);
+      const debutYear    = norm(body.debut_year);
+      const education    = norm(body.education);
+      const kmdbId       = norm(body.kmdb_id);
+      const imdbId       = norm(body.imdb_id);
+      const sourceUrl    = norm(body.source_url);
+
+      const hiddenFields = Array.isArray(body.hidden_fields)
+        ? body.hidden_fields.filter((f) => ALLOWED_HIDDEN_FIELDS.includes(f))
+        : [];
+
+      await env.DB.prepare(`
+        INSERT INTO person_wiki_cache
+          (tmdb_person_id, wiki_title, bio_summary, career_history, awards_text,
+           debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(tmdb_person_id) DO UPDATE SET
+          wiki_title = excluded.wiki_title,
+          bio_summary = excluded.bio_summary,
+          career_history = excluded.career_history,
+          awards_text = excluded.awards_text,
+          debut_work = excluded.debut_work,
+          debut_year = excluded.debut_year,
+          education = excluded.education,
+          kmdb_id = excluded.kmdb_id,
+          imdb_id = excluded.imdb_id,
+          source_url = excluded.source_url,
+          hidden_fields = excluded.hidden_fields
+      `).bind(
+        tmdbId, wikiTitle, bioSummary, careerHistory, awardsText,
+        debutWork, debutYear, education, kmdbId, imdbId, sourceUrl, hiddenFields.join(",")
+      ).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
