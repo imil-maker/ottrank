@@ -16,7 +16,12 @@
 
 /**
  * GET /person-wiki/:tmdb_person_id
- * → { ok: true, data: {...} }  또는  { ok: true, data: null } (캐시 없음)
+ * → { ok: true, data: {...} | null, manual: {...} | null }
+ *   - data: person_wiki_cache 매칭 데이터(요약/전체이력/수상내역 등). 매칭 없으면 null.
+ *   - manual: persons 테이블에 관리자가 직접 채워둔 생년월일/성별/출생지.
+ *     [2026-07-20 재수정] 이 세 항목은 평생 거의 안 바뀌는 정보라, 프론트에서
+ *     "한 번 확정한 이 값(manual)을 우선 쓰고, manual이 없을 때만 TMDB 값을 쓰는"
+ *     방식으로 처리함 — 위키 매칭 여부와 무관하게 항상 조회해서 내려줌.
  */
 export async function handlePersonWiki(path, request, env, url, headers) {
   try {
@@ -70,8 +75,33 @@ export async function handlePersonWiki(path, request, env, url, headers) {
       if (hidden.includes("imdb_id")) data.imdb_id = null;
     }
 
-    // row가 null이어도(캐시 없음) 정상 응답 — ok:true, data:null
-    return new Response(JSON.stringify({ ok: true, data }), {
+    // [2026-07-20 신규] persons 테이블의 수동 입력값 — 위키 매칭 여부와 무관하게
+    // 항상 조회. TMDB에 없는 생년월일/성별/출생지를 관리자가 직접 채워둔 경우
+    // (예: 최정규 감독). [2026-07-20 재수정] 프론트에서 이 값을 "우선" 쓰고,
+    // 없을 때만 TMDB 값을 쓰도록 처리함 (생년월일 등은 평생 안 바뀌는 정보라서).
+    // 값이 하나도 없으면 그냥 manual:null로 내려서 프론트가 신경 안 써도 되게 함.
+    const person = await env.DB.prepare(
+      `SELECT birthday, gender, place_of_birth FROM persons WHERE tmdb_id = ?`
+    )
+      .bind(tmdbPersonId)
+      .first();
+
+    let manual = null;
+    if (person) {
+      const hasBirthday = person.birthday && person.birthday !== "";
+      const hasGender = !!person.gender;
+      const hasPlace = person.place_of_birth && person.place_of_birth !== "";
+      if (hasBirthday || hasGender || hasPlace) {
+        manual = {
+          birthday: hasBirthday ? person.birthday : null,
+          gender: hasGender ? person.gender : null,
+          place_of_birth: hasPlace ? person.place_of_birth : null,
+        };
+      }
+    }
+
+    // row/person이 둘 다 없어도(캐시·수동값 없음) 정상 응답 — ok:true, data:null, manual:null
+    return new Response(JSON.stringify({ ok: true, data, manual }), {
       status: 200,
       headers,
     });
