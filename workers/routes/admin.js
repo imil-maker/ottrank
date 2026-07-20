@@ -14,6 +14,7 @@
    DELETE /admin/rank-override
    GET    /admin/works                (?sort=recent 기본값=created_at DESC, ?sort=updated=updated_at DESC)
                                        (?filter=adult_confirmed → adult_flag=1 확정 성인물만, 2026-07-13 신설)
+   POST   /admin/works/register                         ← works 관리 "➕ 작품 등록" 전용 수동 등록, 성인물 필터 없음(2026-07-21 신설)
    PATCH  /admin/works/:tmdb_id
    PATCH  /admin/works/:tmdb_id/hero-backdrop  ← 핫100 히어로 캐러셀 배경이미지 수동 선택(2026-07-11 신설, 다른 필드는 안 건드리는 격리된 엔드포인트)
    PATCH  /admin/works/:tmdb_id/adult-flag     ← works 관리 19금 체크박스(2026-07-13 신설, adult_flag만 건드리는 격리된 엔드포인트)
@@ -1073,6 +1074,48 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
       const { results } = await env.DB.prepare(query).bind(...params).all();
       return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/register ──────────────────────────────────
+  // [2026-07-21 신규] works 관리 "➕ 작품 등록" 버튼 전용. 공개 등록 경로(videos.js의
+  // POST /works/register)와 달리 성인물(softcore) 필터를 거치지 않음 — 관리자가 직접
+  // 골라서 등록하는 것이므로 자동판별이 불필요하다고 판단(사용자 확인).
+  // 이미 등록된 tmdb_id면 덮어쓰지 않고 안내만 반환.
+  if (path === "/admin/works/register" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbId    = parseInt(body.tmdb_id) || null;
+      const titleKo   = (body.title_ko || "").trim();
+      const titleEn   = (body.title_en || "").trim();
+      const poster    = body.poster_path || null;
+      const mediaType = ["movie", "tv"].includes(body.media_type) ? body.media_type : null;
+
+      if (!tmdbId || !titleKo) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id, title_ko는 필수예요" }), { status: 400, headers });
+      }
+
+      const existing = await env.DB.prepare(
+        "SELECT tmdb_id, title_ko FROM works WHERE tmdb_id = ?"
+      ).bind(tmdbId).first();
+      if (existing) {
+        return new Response(JSON.stringify({
+          ok: false, message: `이미 등록된 작품이에요 (${existing.title_ko || tmdbId})`,
+        }), { status: 409, headers });
+      }
+
+      await env.DB.prepare(`
+        INSERT INTO works
+          (tmdb_id, title_ko, title_en, poster_path, media_type, match_source, confidence_score, first_matched_date)
+        VALUES (?, ?, ?, ?, ?, 'admin', 100, date('now'))
+      `).bind(tmdbId, titleKo, titleEn || "", poster, mediaType).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
