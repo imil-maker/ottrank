@@ -914,6 +914,7 @@ async function loadWikiTest(personId){
           ? `${d.bio_summary} ${tmdbBioText}`
           : d.bio_summary;
         bioEl.textContent = combined;
+        wikiBioApplied = true; // [2026-07-20 신규] TMDB 약력 폴백이 이걸 덮어쓰지 않게 표시
         requestAnimationFrame(()=>{
           const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
           const toggleBtn = document.getElementById('bioToggle');
@@ -1179,6 +1180,11 @@ function calcAge(birthday, deathday){
    수동입력값(manual)으로 빈 항목만 보완하기 위해 필요 (아래 loadWikiTest 참고) */
 let tmdbMeta = { birthday: '', deathday: '', gender: null, place_of_birth: '' };
 
+/* [2026-07-20 신규] 영어 약력이 먼저 번쩍이고 한글로 바뀌는 깜빡임 방지용 플래그.
+   loadWikiTest가 bio_summary로 이미 화면을 채웠으면 true — 이후 TMDB 약력 폴백을
+   또 덮어쓰지 않게 막는 용도 (아래 initPage 참고) */
+let wikiBioApplied = false;
+
 /* [2026-07-20 신규] 메타 칩(생년월일/나이/사망일/성별/출생지) 렌더링 —
    TMDB 값과 persons 테이블 수동입력값(manual)을 합쳐서 넘겨받음.
    TMDB에 없는 항목만 manual 값으로 채워지는 방식(TMDB 값이 항상 우선). */
@@ -1376,6 +1382,7 @@ async function initPage(){
       `<p>잘못된 접근입니다.</p>`;
     return;
   }
+  wikiBioApplied = false; // [2026-07-20 신규] 혹시 모를 재호출 대비 초기화
 
   try{
     /* ① TMDB Person + external_ids + combined_credits 한 번에 호출 */
@@ -1435,10 +1442,10 @@ async function initPage(){
        personId 로딩 성공 여부와 상관없이 독립적으로 호출, await 없이 별도 호출 */
     loadRankingWidget();
 
-    /* [2026-07-20 수정] 위키백과 보강 데이터 — 항상 조회 시도 (2026-07-20부터 전체 적용) */
-    loadWikiTest(personId);
-
-    /* ⑤ 약력 — ko-KR 없으면 영어 fallback */
+    /* ⑤ 약력 준비 — ko-KR 없으면 영어 fallback. [2026-07-20 수정] 여기서 바로
+       화면에 그리지 않음 — 영어 약력이 먼저 번쩍 보였다가 위키 한글 요약으로
+       바뀌는 깜빡임이 있었음. TMDB 약력은 변수로만 준비해두고(tmdbBioText),
+       실제 화면 표시는 아래에서 위키 로딩까지 기다린 뒤 딱 한 번만 결정함. */
     let bio = data.biography || '';
     if(!bio){
       try{
@@ -1448,19 +1455,31 @@ async function initPage(){
         bio = enData.biography || '';
       }catch(e){}
     }
-    const bioEl = document.getElementById('bioText');
-    tmdbBioText = bio; // [2026-07-19 신규] 위키 데이터 로드 시 참조용으로 저장
-    if(bio){
-      bioEl.textContent = bio;
-      requestAnimationFrame(()=>{
-        const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
-        if(bioEl.scrollHeight > lineH * 4 + 4){
-          document.getElementById('bioToggle').style.display = 'inline';
+    tmdbBioText = bio; // loadWikiTest 안에서 "위키 요약이 짧으면 이어붙이기"용으로 참조
+
+    /* [2026-07-20 수정] 위키백과 보강 데이터 로딩 + 약력 최종 결정은 별도로 병렬
+       처리(await 안 함) — SNS/SEO/필모그래피 등 아래 이어지는 렌더링이 위키 로딩
+       때문에 늦어지지 않게 함. 늦어지는 건 약력 텍스트 하나뿐이고, 나머지는
+       기존과 동일한 속도로 진행됨. 내부에서 bio_summary가 있으면 loadWikiTest가
+       bioEl을 직접 채우고 wikiBioApplied=true로 표시함. */
+    (async () => {
+      await loadWikiTest(personId);
+      if(!wikiBioApplied){
+        // 위키가 약력을 못 채웠을 때만 TMDB 약력(또는 안내문구)으로 폴백
+        const bioEl = document.getElementById('bioText');
+        if(bio){
+          bioEl.textContent = bio;
+          requestAnimationFrame(()=>{
+            const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
+            if(bioEl.scrollHeight > lineH * 4 + 4){
+              document.getElementById('bioToggle').style.display = 'inline';
+            }
+          });
+        } else {
+          bioEl.textContent = '약력 정보가 없습니다.';
         }
-      });
-    } else {
-      bioEl.textContent = '약력 정보가 없습니다.';
-    }
+      }
+    })();
 
     /* ⑥ SNS 아이콘 + 공유버튼 — 이름 옆 한 줄에 나란히 표시
        [2026-07-11 재수정] 공유버튼을 이름 아래 별도 줄에 뒀더니 위치가 어색하다는
