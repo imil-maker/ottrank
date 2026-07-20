@@ -3905,7 +3905,11 @@ async function loadPlatforms(){
       renderRankRow([]); // chip-rank 칩만 제거 (chip-top10/chip-manual 유지)
       // [2026-07-20 수정] work_ott 전체 로고(loadOttLogos)가 이미 채워졌으면 그대로 유지 —
       // "랭킹 데이터 없음"이 "OTT 서비스 안 함"을 의미하지 않으므로 함부로 지우지 않는다.
-      if(!WORK._hasOttLogos){
+      // [2026-07-20 추가 수정] 박스오피스(WORK.platform==='boxoffice')는 순위 정보가 이 API가
+      // 아니라 /rankings/boxoffice-stats에 따로 있어서, 이 API 응답이 비어있는 게 정상임.
+      // "데이터 없음"으로 오판해서 이미 표시된 박스오피스 뱃지를 지우던 버그 수정 —
+      // 박스오피스로 확정된 상태면 이 분기에서는 뱃지를 건드리지 않는다.
+      if(!WORK._hasOttLogos&&WORK.platform!=='boxoffice'){
         const pc=document.getElementById('platformPills');
         if(pc)pc.innerHTML='';
       }
