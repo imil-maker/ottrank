@@ -503,14 +503,12 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
       if (!existing) {
         const mtypes = media_type ? [media_type] : ["movie", "tv"];
-        let anySuccess = false; // TMDB로부터 정상 응답을 한 번이라도 받았는지 (네트워크 오류와 "진짜 키워드 없음"을 구분하기 위함)
         for (const mtype of mtypes) {
           try {
             const resp = await fetch(
               `https://api.themoviedb.org/3/${mtype}/${parseInt(tmdb_id)}/keywords?api_key=${env.TMDB_API_KEY}`
             );
             if (!resp.ok) continue;
-            anySuccess = true;
             const data   = await resp.json();
             const kwList = data.keywords || data.results || []; // 영화: keywords, TV: results
             if (kwList.length) {
@@ -519,11 +517,13 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
             }
           } catch (e) { /* 네트워크 오류 — 다음 media_type으로 계속 시도, 실패해도 등록 자체는 진행 */ }
         }
-        // [2026-07-19 추가] "TMDB 응답은 정상인데 키워드가 진짜 비어있는 작품"도 성인물 신호로 채택.
-        // 실측: 정상 작품은 keywords가 없는 경우가 0건, softcore 미검출 성인물 4건은 전부 keywords NULL이었음.
-        // 단, TMDB 응답 자체를 못 받은 경우(anySuccess=false)는 네트워크 오류일 뿐이라 제외 — 오탐 방지.
-        const isSoftcore   = keywordsVal && keywordsVal.split(",").includes("softcore");
-        const isEmptyReal  = anySuccess && !keywordsVal;
+        // [2026-07-19 추가 → 2026-07-21 수정] "키워드 없음 = 성인물" 조건 제거함.
+        // 사유: 실측 결과 전체 works 3,360건 중 634건(약 19%)이 TMDB에 원래부터 키워드가 없는
+        // 정상 작품(주로 국내 구작/마이너 작품)이었음. "정상 작품은 keywords 없는 경우가 0건"이라던
+        // 기존 실측은 keywords_collect 배치로 __NONE__ 처리가 다 끝난 뒤의 IS NULL 카운트였고,
+        // __NONE__(확인 후 진짜 없음)은 그 카운트에 안 잡혀서 생긴 착시였음. 그래서 이 조건 하나로
+        // 신석기 블루스, 아들, 우리 선희 등 정상 국내 영화 다수가 오탐으로 성인물 처리됐음.
+        const isSoftcore = keywordsVal && keywordsVal.split(",").includes("softcore");
 
         // [2026-07-20 추가] 포르노그라피 자동 판별 (adult_flag=2, 일반 성인물=1보다 강한 차단 대상)
         // 실측으로 검증된 3가지 신호만 사용 — 셋 중 하나라도 걸리면 포르노로 확정:
@@ -542,7 +542,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         if (isLongJapaneseTitle || hasPornTitleWord || hasPornKeyword) {
           adultFlagVal = 2; // 포르노그라피 — 검색/키워드수집 제외 + 화면 이미지 비노출 대상
           mediaTypeForInsert = "movie";
-        } else if (isSoftcore || isEmptyReal) {
+        } else if (isSoftcore) {
           adultFlagVal = 1;
           mediaTypeForInsert = "movie"; // 성인물은 movie로 통일 (기존 원칙과 동일)
         }
