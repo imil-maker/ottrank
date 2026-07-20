@@ -414,7 +414,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     </div>
 
     <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:20px">
-      <button class="btn-secondary" onclick="loadPageLogs()" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
+      <button class="btn-secondary" onclick="loadPageLogs(1)" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
     </div>
 
     <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
@@ -429,6 +429,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
       </tbody>
     </table>
+
+    <div style="display:flex;justify-content:center;gap:6px;padding:20px 0" id="plPagination"></div>
 
   </div>
 
@@ -553,11 +555,24 @@ const API_SL = 'https://ottrank-api.tdidream.workers.dev';
 const SL_PAGE_SIZE = 50;
 
 function hescSl(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function fmtSlTime(iso){
-  if(!iso) return '-';
-  const m = iso.match(/^\d{4}-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
-  return m ? `${m[1]}.${m[2]} ${m[3]}:${m[4]}` : iso;
+/* [2026-07-21 수정] 한국시간(KST, UTC+9) 변환 — 관리자 브라우저의 시스템 시간대 설정에
+   기대지 않고 항상 정확히 KST로 보여주기 위해, UTC 인스턴트를 직접 계산해서 +9시간 함.
+   D1의 created_at은 'YYYY-MM-DD HH:MM:SS' 형식(UTC, 시간대 표시 없음)이라 그대로 두면
+   JS가 로컬 시간대로 잘못 해석할 수 있어서, 'T'+'Z'를 붙여 UTC임을 명시. */
+function fmtKst(input, withSeconds){
+  if(!input) return '-';
+  let iso = input;
+  if(typeof iso === 'string' && iso.includes(' ') && !iso.includes('T')){
+    iso = iso.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return input;
+  const kst = new Date(d.getTime() + 9*60*60*1000);
+  const p = (n) => String(n).padStart(2, '0');
+  const base = `${p(kst.getUTCMonth()+1)}.${p(kst.getUTCDate())} ${p(kst.getUTCHours())}:${p(kst.getUTCMinutes())}`;
+  return withSeconds ? `${base}:${p(kst.getUTCSeconds())}` : base;
 }
+function fmtSlTime(iso){ return fmtKst(iso, false); }
 
 /* 검색어 로그 목록 로드 — page 번호로 그 페이지만 딱 조회해서 표로 교체 (누적 X) */
 async function loadSearchLogs(page){
@@ -624,24 +639,21 @@ function renderSlPagination(current, total){
 }
 
 /* [2026-07-21 신규] 페이지 로그(실시간 작품/인물 조회) 목록 로드 */
-function fmtAeTime(iso){
-  if(!iso) return '-';
-  const d = new Date(iso);
-  if(isNaN(d.getTime())) return iso;
-  const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
-async function loadPageLogs(){
+const PL_PAGE_SIZE = 50;
+function fmtAeTime(iso){ return fmtKst(iso, true); }
+async function loadPageLogs(page){
+  page = page || 1;
   const tbody = document.getElementById('plTbody');
   tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
 
   try{
-    const res = await fetch(`${API}/admin/track/logs?limit=50`, {
+    const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const json = await res.json();
     if(!json.ok){
       tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
+      document.getElementById('plPagination').innerHTML = '';
       return;
     }
 
@@ -659,9 +671,42 @@ async function loadPageLogs(){
     `).join('');
 
     tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 조회 로그가 없습니다</td></tr>`;
+
+    const totalPages = Math.max(1, Math.ceil((json.total || 0) / PL_PAGE_SIZE));
+    renderPlPagination(page, totalPages);
   }catch(e){
     tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</td></tr>`;
+    document.getElementById('plPagination').innerHTML = '';
   }
+}
+
+/* 페이지 로그 페이지네이션 — 검색어 로그(renderSlPagination)와 동일 패턴 */
+function renderPlPagination(current, total){
+  const el = document.getElementById('plPagination');
+  if(!el) return;
+  if(total <= 1){ el.innerHTML = ''; return; }
+
+  let start = Math.max(1, current - 2);
+  let end   = Math.min(total, start + 4);
+  if(end - start < 4) start = Math.max(1, end - 4);
+
+  const parts = [];
+  parts.push(`<button class="btn-secondary" onclick="loadPageLogs(${current-1})" ${current===1?'disabled':''}>‹</button>`);
+  if(start > 1){
+    parts.push(`<button class="btn-secondary" onclick="loadPageLogs(1)">1</button>`);
+    if(start > 2) parts.push(`<span style="color:var(--muted);padding:0 4px">…</span>`);
+  }
+  for(let i=start;i<=end;i++){
+    parts.push(`<button class="btn-secondary" onclick="loadPageLogs(${i})"
+      style="${i===current?'background:rgba(55,138,221,.15);border-color:#7ec8e3;color:#7ec8e3;font-weight:700':''}">${i}</button>`);
+  }
+  if(end < total){
+    if(end < total-1) parts.push(`<span style="color:var(--muted);padding:0 4px">…</span>`);
+    parts.push(`<button class="btn-secondary" onclick="loadPageLogs(${total})">${total}</button>`);
+  }
+  parts.push(`<button class="btn-secondary" onclick="loadPageLogs(${current+1})" ${current===total?'disabled':''}>›</button>`);
+
+  el.innerHTML = parts.join('');
 }
 
 </script>
@@ -727,7 +772,7 @@ function switchPageTab(tab) {
   });
   if (tab === 'keywordTranslate') loadKeywordReview();
   if (tab === 'searchLog') loadSearchLogs(1);
-  if (tab === 'pageLog') loadPageLogs();
+  if (tab === 'pageLog') loadPageLogs(1);
   if (tab === 'personMatch') loadPersonMatchCandidates();
 }
 
