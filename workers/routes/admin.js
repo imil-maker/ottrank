@@ -69,6 +69,7 @@
    GET    /admin/persons/wiki-detail/:tmdb_id ← 인물 1명 위키 상세(매칭여부+항목별 숨김여부)(2026-07-20 신설)
    POST   /admin/persons/wiki-hidden-fields   ← 항목별 숨김/복구 저장(2026-07-20 신설)
    POST   /admin/persons/wiki-manual-save     ← 10개 항목 직접 입력/수정 저장(2026-07-20 신설)
+   POST   /admin/persons/ai-draft             ← AI(웹서치) 프로필 초안 생성, 저장 안 함(2026-07-20 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -3920,7 +3921,107 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
-  // ── POST /admin/persons/wiki-hidden-fields ────────────────────
+  // ── POST /admin/persons/ai-draft ───────────────────────────────
+  // [2026-07-20 신규] "인물 개별 검색"에서 AI(Claude + 웹서치)로 프로필 초안을 생성.
+  // ⚠️ DB에 절대 저장하지 않음 — 입력폼에 초안 텍스트만 채워주고, 관리자가 눈으로
+  // 검증한 뒤 직접 "저장" 버튼을 눌러야 실제 반영됨(wiki-manual-save 재사용).
+  // 전체이력(career_history)은 대상에서 제외 — 분량이 많아 오류 가능성이 커서
+  // 관리자 판단으로 뺌. KMDb/IMDb ID도 대상 아님 — AI가 지어낼 위험이 있는 식별자라
+  // AI 추측이 아니라 검증 가능한 조회(위키 매칭 등)로만 채워야 함.
+  if (path === "/admin/persons/ai-draft" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    if (!env.ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({
+        ok: false, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다"
+      }), { status: 500, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      if (!Number.isInteger(tmdbId)) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+
+      const person = await env.DB.prepare(
+        `SELECT tmdb_id, name, name_ko, job FROM persons WHERE tmdb_id = ?`
+      ).bind(tmdbId).first();
+      if (!person) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+
+      const displayName = person.name_ko || person.name;
+      const jobLabel = person.job === "direct" ? "감독" : "배우";
+
+      const systemPrompt =
+        "너는 한국 OTT 서비스에 등록할 배우/감독 인물 정보를 조사하는 리서처다. " +
+        "web_search로 이 인물에 대한 신뢰할 수 있는 정보(위키백과, 뉴스, 공식 프로필 등)를 찾아서 정리해라. " +
+        "가장 중요한 원칙: 검색으로 확인 안 된 내용은 절대 추측하거나 지어내지 마라. " +
+        "특히 수상 이름·연도, 학교 이름, 데뷔작 제목·연도처럼 사실관계가 명확해야 하는 항목은 " +
+        "검색 결과로 명확히 확인된 것만 적고, 확실하지 않으면 그 필드는 빈 문자열로 남겨라. " +
+        "요약(profile)은 500~700자 분량의 한국어 문장으로, 이 인물의 데뷔·주요 활동·대표작 중심으로 " +
+        "자연스러운 소개글 형태로 작성해라(개조식 나열 금지). " +
+        "반드시 아래 JSON 형식 하나만 출력하고, 다른 설명이나 코드블록은 절대 포함하지 마라. " +
+        '출력 형식: {"profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
+
+      const userPrompt = `인물: ${displayName} (${jobLabel})\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
+
+      const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 4000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+        }),
+      });
+
+      if (!claudeResp.ok) {
+        const errText = await claudeResp.text().catch(() => "");
+        return new Response(JSON.stringify({
+          ok: false, message: `Claude API 오류 (status ${claudeResp.status})`, detail: errText.slice(0, 300),
+        }), { status: 502, headers });
+      }
+
+      const claudeData = await claudeResp.json();
+      // web_search 사용 시 응답에 여러 종류의 블록(text, server_tool_use, web_search_tool_result 등)이
+      // 섞여서 옴 — 그중 텍스트 블록만 모아서 최종 JSON을 파싱함
+      const rawText = (claudeData.content || [])
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+
+      let parsed;
+      try {
+        const cleaned = rawText.replace(/```json|```/g, "").trim();
+        parsed = JSON.parse(cleaned);
+      } catch (e) {
+        return new Response(JSON.stringify({
+          ok: false, message: "AI 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300),
+        }), { status: 502, headers });
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        draft: {
+          bio_summary: parsed.profile || "",
+          education: parsed.education || "",
+          awards_text: parsed.awards || "",
+          debut_work: parsed.debut_work || "",
+          debut_year: parsed.debut_year || "",
+        },
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
   // [2026-07-20 신규] "인물 개별 검색"에서 체크 해제한 항목 저장.
   // 데이터는 절대 지우지 않고 hidden_fields 컬럼에 콤마로 목록만 남김 —
   // person-wiki.js(공개 API)가 응답 시점에 해당 항목만 걸러서 안 보여줌.
