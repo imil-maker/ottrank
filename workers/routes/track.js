@@ -64,12 +64,17 @@ export async function handleTrack(path, request, env, url, headers) {
           message: "CF_ACCOUNT_ID / CF_AE_API_TOKEN 환경변수가 설정되지 않았어요 (Settings → Variables and Secrets 확인)",
         }), { status: 500, headers });
       }
-      const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1), 200);
+      const limit  = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1), 200);
+      const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
+      const offset = (page - 1) * limit;
 
       // Analytics Engine SQL API — writeDataPoint(blobs:[type, id]) 그대로 조회.
       // 데이터셋 이름은 바인딩 만들 때 정한 "ottrank_page_views" (바인딩 변수명 PAGE_VIEWS와는 별개).
-      const sql = `SELECT blob1 AS type, blob2 AS ref_id, timestamp FROM ottrank_page_views ORDER BY timestamp DESC LIMIT ${limit}`;
-      const aeRes = await fetch(
+      // [2026-07-21 수정] 페이지네이션 지원 — OFFSET 추가 + 전체 개수(total)도 별도 쿼리로 조회.
+      const sql = `SELECT blob1 AS type, blob2 AS ref_id, timestamp FROM ottrank_page_views ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+      const countSql = `SELECT COUNT(*) AS cnt FROM ottrank_page_views`;
+
+      const aeQuery = (query) => fetch(
         `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
         {
           method: "POST",
@@ -77,9 +82,11 @@ export async function handleTrack(path, request, env, url, headers) {
             "Authorization": `Bearer ${env.CF_AE_API_TOKEN}`,
             "Content-Type": "text/plain",
           },
-          body: sql,
+          body: query,
         }
       );
+
+      const [aeRes, aeCountRes] = await Promise.all([aeQuery(sql), aeQuery(countSql)]);
       if (!aeRes.ok) {
         const errText = await aeRes.text().catch(() => "");
         return new Response(JSON.stringify({
@@ -89,6 +96,13 @@ export async function handleTrack(path, request, env, url, headers) {
       }
       const aeJson = await aeRes.json();
       const rows = aeJson.data || [];
+
+      let total = rows.length + offset; // 전체 개수 조회 실패해도 최소한 이 페이지만큼은 있다고 표시
+      if (aeCountRes.ok) {
+        const countJson = await aeCountRes.json().catch(() => null);
+        const cnt = countJson?.data?.[0]?.cnt;
+        if (typeof cnt === "number") total = cnt;
+      }
 
       // 작품/인물 제목을 D1에서 한 번에 조회해서 붙임 (건마다 조회하지 않고 IN절로 한 번에)
       const workIds   = [...new Set(rows.filter(r => r.type === "work").map(r => parseInt(r.ref_id, 10)).filter(Number.isInteger))];
@@ -135,7 +149,10 @@ export async function handleTrack(path, request, env, url, headers) {
         };
       });
 
-      return new Response(JSON.stringify({ ok: true, items }), { headers });
+      return new Response(JSON.stringify({
+        ok: true, items, page, limit, total,
+        has_more: offset + items.length < total,
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
