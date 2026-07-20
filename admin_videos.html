@@ -2110,11 +2110,71 @@ function dcRenderConflicts() {
   document.getElementById('dcConflictCount').textContent = dcConflicts.length;
   if (!dcConflicts.length) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
-  list.innerHTML = dcConflicts.map(c => `
-    <div style="padding:6px 0;border-bottom:1px solid var(--border)">
-      tmdb:${c.tmdb_id} — 이미 <b style="color:var(--info)">${c.existing_media_type}</b>(${_escDc(c.existing_title||'')})로 등록됨,
-      이번엔 <b style="color:var(--gold)">${c.requested_media_type}</b>(${_escDc(c.requested_title||'')})로 시도 → 건너뜀
-    </div>`).join('');
+  list.innerHTML = dcConflicts.map((c, i) => {
+    const posterHtml = (path) => path
+      ? `<img src="${IMG}${path}" style="width:46px;height:69px;object-fit:cover;border-radius:4px;flex-shrink:0">`
+      : `<div style="width:46px;height:69px;background:var(--bg3);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">🎬</div>`;
+    return `
+    <div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <span style="color:var(--muted);white-space:nowrap">tmdb:${c.tmdb_id}</span>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        ${posterHtml(c.existing_poster)}
+        <div>
+          <div style="color:var(--info);font-weight:700">${c.existing_media_type} (기존)</div>
+          <div style="color:var(--muted2)">${_escDc(c.existing_title||'')}</div>
+        </div>
+      </div>
+
+      <button class="btn-sm" style="background:rgba(55,138,221,.15);color:var(--info);border:1px solid rgba(55,138,221,.3)"
+        onclick="dcResolveConflict(${i}, 'existing')">✅ 기존 유지</button>
+
+      <span style="color:var(--muted)">vs</span>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        ${posterHtml(c.requested_poster)}
+        <div>
+          <div style="color:var(--gold);font-weight:700">${c.requested_media_type} (신규)</div>
+          <div style="color:var(--muted2)">${_escDc(c.requested_title||'')}</div>
+        </div>
+      </div>
+
+      <button class="btn-sm" style="background:rgba(240,180,41,.15);color:var(--gold);border:1px solid rgba(240,180,41,.3)"
+        onclick="dcResolveConflict(${i}, 'requested')">✅ 신규로 교체</button>
+
+      <span id="dcConflictStatus-${i}" style="font-size:11px;color:var(--muted)"></span>
+    </div>`;
+  }).join('');
+}
+
+// 관리자가 충돌 후보 중 하나를 골라 확정 — 'requested' 선택 시 기존 PATCH(수정)와
+// 동일한 엔드포인트로 title_ko/poster_path/media_type을 덮어씀. 'existing' 선택은
+// DB에 이미 그 값이 저장돼 있는 상태 그대로이므로 API 호출 없이 목록에서만 제거.
+async function dcResolveConflict(idx, choice) {
+  const c = dcConflicts[idx];
+  if (!c) return;
+  const statusEl = document.getElementById(`dcConflictStatus-${idx}`);
+
+  if (choice === 'requested') {
+    if (statusEl) statusEl.textContent = '저장 중...';
+    try {
+      const res = await fetch(`${API}/admin/works/${c.tmdb_id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${ADMIN_SECRET}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title_ko: c.requested_title,
+          poster_path: c.requested_poster,
+          media_type: c.requested_media_type,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) { if (statusEl) statusEl.textContent = `실패: ${json.message||''}`; return; }
+    } catch (e) { if (statusEl) statusEl.textContent = `오류: ${e.message}`; return; }
+  }
+
+  dcConflicts.splice(idx, 1);
+  dcRenderConflicts();
+  showToast(choice === 'requested' ? `✅ tmdb:${c.tmdb_id} → ${c.requested_media_type}로 교체됨` : `✅ tmdb:${c.tmdb_id} 기존 유지`);
 }
 function _escDc(s){ return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
