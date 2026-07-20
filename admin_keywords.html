@@ -945,6 +945,7 @@ async function pmSearchByName(){
         onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
         <span style="font-size:14px;font-weight:600;color:var(--text)">
           ${escapeHtmlPm(p.name_ko || p.name)}${p.name_ko && p.name_ko !== p.name ? ` <span style="font-weight:400;color:var(--muted);font-size:12px">(${escapeHtmlPm(p.name)})</span>` : ''}
+          <a href="/person/${p.tmdb_id}" target="_blank" onclick="event.stopPropagation()" style="margin-left:8px;font-size:12px;color:#7ec8e3;text-decoration:none" title="인물페이지 새 탭으로 열기">🔗 페이지</a>
         </span>
         <span style="font-size:12px;color:${p.matched ? 'var(--green)' : 'var(--muted)'}">${p.matched ? '✅ 매칭됨' : '⬜ 미매칭'}</span>
       </div>
@@ -1040,13 +1041,17 @@ function renderPmSearchForm(data){
 
   detailWrap.innerHTML = `
     <div style="background:${data.matched ? 'rgba(52,211,153,.08)' : 'rgba(230,57,70,.08)'};border:1px solid ${data.matched ? 'rgba(52,211,153,.25)' : 'rgba(230,57,70,.25)'};border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--muted2);line-height:1.7">
-      ${data.matched ? '✅' : '⬜'} <b style="color:var(--text)">${escapeHtmlPm(person.name_ko || person.name)}</b>${data.matched ? '은(는) 위키백과와 이미 연결돼 있어요.' : '은(는) 아직 위키백과와 연결 안 됐어요 — 아래에서 바로 직접 입력하거나, 매칭을 먼저 시도해서 자동으로 채울 수 있어요.'}
+      ${data.matched ? '✅' : '⬜'} <b style="color:var(--text)">${escapeHtmlPm(person.name_ko || person.name)}</b>
+      <a href="/person/${person.tmdb_id}" target="_blank" style="margin-left:6px;font-size:12px;color:#7ec8e3;text-decoration:none">🔗 인물페이지에서 확인</a>
+      ${data.matched ? '은(는) 위키백과와 이미 연결돼 있어요.' : '은(는) 아직 위키백과와 연결 안 됐어요 — 아래에서 바로 직접 입력하거나, 매칭을 먼저 시도해서 자동으로 채울 수 있어요.'}
       체크 해제하면 그 항목만 인물페이지에서 사라져요 (데이터는 안 지워지고 다시 체크하면 복구돼요).
     </div>
     ${!data.matched ? `
       <button class="btn-secondary" id="pmSearchMatchBtn" onclick="pmSearchAttemptMatch(${person.tmdb_id})" style="padding:8px 16px;font-size:13px;margin-bottom:16px">🔍 위키백과 매칭 시도 (자동 채우기)</button>
       <div id="pmSearchMatchResultWrap" style="margin-bottom:16px"></div>
     ` : ''}
+    <button class="btn-secondary" id="pmAiDraftBtn" onclick="pmFillAiDraft(${person.tmdb_id})" style="padding:8px 16px;font-size:13px;margin-bottom:6px">🤖 AI로 초안 채우기 (요약·학력·수상내역·데뷔작)</button>
+    <div id="pmAiDraftStatus" style="font-size:12px;color:var(--muted);margin-bottom:16px;display:none"></div>
     ${rowsHtml}
     <button class="btn-primary" onclick="pmSaveManual(${person.tmdb_id})" style="margin-top:10px;padding:10px 20px;font-size:14px">💾 저장</button>
   `;
@@ -1164,6 +1169,68 @@ async function pmSaveManual(tmdbId){
     pmSelectPerson(tmdbId);
   }catch(e){
     showToast(`❌ 네트워크 오류: ${e.message}`);
+  }
+}
+
+/* [2026-07-20 신규] AI(Claude + 웹서치)로 프로필 초안 생성 — 요약/학력/수상내역/데뷔작만 대상.
+   전체이력(career_history)은 분량이 많아 오류 가능성이 커서 제외, KMDb/IMDb ID도
+   AI가 지어낼 위험이 있는 식별자라 제외(관리자 판단으로 결정된 범위).
+   ⚠️ DB에 절대 자동 저장 안 함 — 입력창에 텍스트만 채워주고, 관리자가 검증 후
+   직접 "저장" 버튼을 눌러야 실제 반영됨. */
+async function pmFillAiDraft(tmdbId){
+  const btn = document.getElementById('pmAiDraftBtn');
+  const statusEl = document.getElementById('pmAiDraftStatus');
+  btn.disabled = true;
+  btn.textContent = '🤖 AI가 조사 중... (웹서치 포함이라 시간이 좀 걸려요)';
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = '';
+
+  try{
+    const res  = await fetch(`${API}/admin/persons/ai-draft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){
+      statusEl.style.color = 'var(--accent)';
+      statusEl.textContent = `❌ 초안 생성 실패: ${data.message || res.status}`;
+      return;
+    }
+
+    const detailWrap = document.getElementById('pmSearchDetailWrap');
+    const d = data.draft;
+    // 값이 있는 항목만 입력창에 채움 — AI가 "모르겠다"고 빈 값으로 남긴 항목은 그대로 둠
+    if(d.bio_summary){
+      const el = detailWrap.querySelector('[data-value="bio_summary"]');
+      if(el) el.value = d.bio_summary;
+    }
+    if(d.education){
+      const el = detailWrap.querySelector('[data-value="education"]');
+      if(el) el.value = d.education;
+    }
+    if(d.awards_text){
+      const el = detailWrap.querySelector('[data-value="awards_text"]');
+      if(el) el.value = d.awards_text;
+    }
+    if(d.debut_work){
+      const el = detailWrap.querySelector('[data-value="debut_work"]');
+      if(el) el.value = d.debut_work;
+    }
+    if(d.debut_year){
+      const el = detailWrap.querySelector('[data-value="debut_year"]');
+      if(el) el.value = d.debut_year;
+    }
+
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = '✅ AI 초안이 채워졌어요 — 내용을 꼭 검증한 뒤 저장 버튼을 눌러주세요. (아직 저장 안 됨)';
+  }catch(e){
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = `❌ 네트워크 오류: ${e.message}`;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '🤖 AI로 초안 채우기 (요약·학력·수상내역·데뷔작)';
   }
 }
 
