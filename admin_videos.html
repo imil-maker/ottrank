@@ -632,6 +632,49 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <div style="border-top:1px solid var(--border);margin:24px 0"></div>
 
+    <!-- [2026-07-20 신규] 한국이름 재채우기 — backfill-meta와 완전히 분리된 전용 배치.
+         name_ko=''로 확정 마킹됐지만 나중에 TMDB에 한글 이름이 생긴 사람들을 복구 (예수정 케이스) -->
+    <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 위 배치가 예전에 <span style="color:var(--gold)">"한글이름 없음"으로 확정</span>해둔 인물들을 다시 TMDB로
+      재조회해요. 그때는 TMDB에 한글 이름이 없었지만 나중에 채워진 경우를 복구하기 위한 용도예요
+      (생년월일 등 다른 값은 안 건드리고 한글이름만 다시 확인).
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">재확인한 인물</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="knProcessed">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">새로 채워진 인물</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="knUpdated">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남은 인물</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="knRemaining">-</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="knStartBtn" onclick="startKoreanNameRefill()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 한국이름 재채우기
+        </button>
+        <button class="btn-secondary" id="knStopBtn" onclick="stopKoreanNameRefill()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="knStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <div id="knLogWrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="knLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:24px 0"></div>
+
     <!-- 인물 검색 + 삭제 -->
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px">
       <h3 style="margin-bottom:14px">🔍 인물 검색 · 삭제</h3>
@@ -2359,6 +2402,118 @@ function stopPersonBackfill() {
   setTimeout(() => {
     document.getElementById('bmStopBtn').disabled = false;
     document.getElementById('bmStopBtn').textContent = '⏸ 중단';
+  }, 1500);
+}
+
+/* ══════════════════════════════════════════════════════
+   [2026-07-20 신규] 한국이름 재채우기 — backfill-meta와 완전히 분리된 전용 배치.
+   /admin/persons/refill-korean-name 을 remaining이 0 될 때까지 반복 호출
+   (위 인물 상세정보 채우기와 완전히 동일한 배치+반복 패턴, 변수명만 kn* 로 분리)
+══════════════════════════════════════════════════════ */
+let knRunning        = false;
+let knStopRequested  = false;
+let knTotalProcessed = 0;
+let knTotalUpdated   = 0;
+
+function knLog(msg, isError) {
+  const logWrap = document.getElementById('knLogWrap');
+  const logEl   = document.getElementById('knLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function knUpdateCounters(remaining) {
+  document.getElementById('knProcessed').textContent = knTotalProcessed;
+  document.getElementById('knUpdated').textContent   = knTotalUpdated;
+  document.getElementById('knRemaining').textContent = remaining === null ? '-' : remaining;
+}
+
+async function startKoreanNameRefill() {
+  if (knRunning) return;
+  knRunning        = true;
+  knStopRequested  = false;
+  knTotalProcessed = 0;
+  knTotalUpdated   = 0;
+
+  const startBtn   = document.getElementById('knStartBtn');
+  const stopBtn    = document.getElementById('knStopBtn');
+  const statusLine = document.getElementById('knStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '채우는 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('knLog').innerHTML = '';
+  knUpdateCounters(null);
+  knLog('한국이름 재채우기 시작');
+
+  let batchNum = 0;
+
+  try {
+    while (true) {
+      if (knStopRequested) {
+        knLog('사용자 요청으로 중단됨');
+        break;
+      }
+      batchNum++;
+      statusLine.textContent = `${batchNum}번째 배치 처리 중...`;
+
+      let res, data;
+      try {
+        res = await fetch(`${API}/admin/persons/refill-korean-name`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+          body: JSON.stringify({ limit: 20 }),
+        });
+        data = await res.json();
+      } catch (e) {
+        knLog(`네트워크 오류 — 배치 ${batchNum} 실패: ${e.message}`, true);
+        statusLine.textContent = '네트워크 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        knLog(`API 오류 — 배치 ${batchNum}: ${data.message || res.status}`, true);
+        statusLine.textContent = 'API 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      knTotalProcessed += data.processed || 0;
+      knTotalUpdated   += data.updated || 0;
+      knUpdateCounters(data.remaining);
+      knLog(`배치 ${batchNum}: 재확인 ${data.processed}명 · 새로 채움 ${data.updated}명 · 남은 인물 ${data.remaining}명`);
+
+      if (!data.processed || data.remaining === 0) {
+        statusLine.textContent = `✅ 완료! ${knTotalProcessed}명 재확인, ${knTotalUpdated}명 새로 채워짐`;
+        knLog('모든 인물 재확인 완료');
+        showToast('✅ 한국이름 재채우기 완료!');
+        break;
+      }
+
+      // 다음 배치 전 짧은 대기 (Workers/TMDB 부하 방지)
+      await _sleep(400);
+    }
+  } finally {
+    knRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 한국이름 재채우기';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopKoreanNameRefill() {
+  if (!knRunning) return;
+  knStopRequested = true;
+  document.getElementById('knStopBtn').disabled = true;
+  document.getElementById('knStopBtn').textContent = '중단 중...';
+  setTimeout(() => {
+    document.getElementById('knStopBtn').disabled = false;
+    document.getElementById('knStopBtn').textContent = '⏸ 중단';
   }, 1500);
 }
 
