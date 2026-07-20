@@ -2139,7 +2139,8 @@ let _saveDropdownOpen=false; // 드롭다운 열림 여부
 function updateSEO(title,overview,posterUrl,platform,rank){
   const t=title||WORK.title;
   // 미디어 타입 라벨 — 영화/드라마 2분류 (세부 장르는 화면 태그에서 별도 노출)
-  const typeLabel=WORK.type==='movie'?'영화':'드라마';
+  const isMovie=WORK.type==='movie';
+  const typeLabel=isMovie?'영화':'드라마';
   // 순위 정보가 있을 때만 "N위" 문구 포함 — 랭킹 미진입작/직접 진입 시(플랫폼·순위 미확정) "OTT -위" 노출 방지
   const hasRank=rank&&rank!=='-'&&rank!=='0';
   const pName=hasRank?(PC[platform]||platform||'OTT'):'';
@@ -2150,16 +2151,32 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   //   사이트 내 IMDb 카드에서 확인 가능. (JSON-LD 구조화 데이터의 실제 평점 값은 검색엔진용
   //   정보이며 화면에 노출되지 않으므로 그대로 유지)
   const hasImdb=!!WORK.imdbRating;
-  const titleMid=['평점',hasImdb?'IMDb 평점':null,hasRank?'순위':'후기','추천'].filter(Boolean).join('·');
   const imdbDescPart=hasImdb?', IMDb 평점':'';
-  // [2026-07-18] 실시간 순위 숫자(N위)는 노출 즉시 변동되는 값이라 타이틀/설명에서 제거.
-  //   "OTT명 N위" → "OTT명 순위"로 고정 문구만 노출 (검색결과에 옛 순위 숫자가 캐싱되어 남는 문제 방지)
-  const seoT=hasRank
-    ? `${t} ${titleMid} | ${typeLabel} ${pName} 순위 다시보기 | 오뜨랑`
-    : `${t} ${titleMid} | ${typeLabel} 오뜨랑`;
-  const seoD=hasRank
-    ? `${t} 평점, ${pName} 순위${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
-    : `${t} 평점${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`;
+  let seoT,seoD;
+  if(isMovie){
+    // [2026-07-20 신규] 영화 전용 SEO 문구 — 동명 드라마(리메이크 등)와 검색엔진이 혼동해
+    // "몇부작" 같은 드라마 용어로 잘못 재구성하는 것을 방지하기 위해, 제목에 "(영화)"를
+    // 명시하고 드라마/OTT 정주행 느낌의 "다시보기"·"순위"보다 "줄거리" 중심으로 문구 구성.
+    // (실제 화면에도 "줄거리" 섹션이 있어 콘텐츠와도 일치함)
+    const titleMidMovie=['평점',hasImdb?'IMDb 평점':null,'후기','줄거리'].filter(Boolean).join('·');
+    seoT=hasRank
+      ? `${t}(영화) ${titleMidMovie} | ${pName} 순위·정보 | 오뜨랑`
+      : `${t}(영화) ${titleMidMovie} | 오뜨랑`;
+    seoD=hasRank
+      ? `${t}(영화) 평점${imdbDescPart}, 줄거리, 관람 후기와 ${pName} 순위 정보를 오뜨랑에서 확인하세요.`
+      : `${t}(영화) 평점${imdbDescPart}, 줄거리와 관람 후기를 오뜨랑에서 확인하세요.`;
+  }else{
+    // 드라마 — 기존 로직 그대로 유지
+    const titleMid=['평점',hasImdb?'IMDb 평점':null,hasRank?'순위':'후기','추천'].filter(Boolean).join('·');
+    // [2026-07-18] 실시간 순위 숫자(N위)는 노출 즉시 변동되는 값이라 타이틀/설명에서 제거.
+    //   "OTT명 N위" → "OTT명 순위"로 고정 문구만 노출 (검색결과에 옛 순위 숫자가 캐싱되어 남는 문제 방지)
+    seoT=hasRank
+      ? `${t} ${titleMid} | ${typeLabel} ${pName} 순위 다시보기 | 오뜨랑`
+      : `${t} ${titleMid} | ${typeLabel} 오뜨랑`;
+    seoD=hasRank
+      ? `${t} 평점, ${pName} 순위${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
+      : `${t} 평점${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`;
+  }
   const s=WORK.season||1,y=WORK.year||(new Date().getFullYear()),tid=WORK.tmdb_id||'';
   const slug=`${s}-${y}${tid}`;
   const canonical=`https://ottrank.kr/title/${slug}`;
