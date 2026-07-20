@@ -661,6 +661,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
     <div style="font-size:15px;font-weight:600">🎬 works 테이블 관리</div>
     <input class="date-inp" type="text" id="worksSearchInp" placeholder="제목 검색..." oninput="searchWorksTable(this.value)" style="width:200px">
+    <button class="btn-sm" style="background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3)"
+      onclick="openWorksModalNew()">➕ 작품 등록</button>
     <button class="btn-load" onclick="loadWorks()" style="margin-left:auto">새로고침</button>
     <span id="worksStat" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
   </div>
@@ -4278,6 +4280,94 @@ function openWorksModalEl(btn) {
   const posterPath = btn.dataset.poster   || '';
   const mediaType = btn.dataset.mediaType || '';
   openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType);
+}
+
+/* ── works 신규 등록 모달 열기 ── */
+// 기존 openWorksModal(수정용)과 동일한 editOverlay를 재활용하되, 모든 필드를 빈 상태로 시작.
+// 저장 버튼 핸들러만 saveNewWorkFromModal로 교체 — 기존 PATCH(수정) 대신 신규 INSERT를 호출함.
+function openWorksModalNew() {
+  worksModalTmdbId = null; // PATCH 대상 없음 — 신규 등록 모드 표시
+  document.getElementById('editId').value       = '';
+  document.getElementById('editTitleKo').value  = '';
+  document.getElementById('editTitleEn').value  = '';
+  document.getElementById('editTmdbId').value   = '';
+  document.getElementById('modalSub').textContent = '작품 신규 등록 — 검색해서 선택하세요';
+
+  // TMDB 검색 블록 초기화 (기존 검색 UI 그대로 재사용)
+  document.getElementById('editTmdbSearchQuery').value = '';
+  document.getElementById('editTmdbResults').innerHTML = '';
+  document.getElementById('editTmdbResults').style.display = 'none';
+  document.getElementById('editTmdbSelected').style.display = 'none';
+
+  const el = document.getElementById('posterPreview');
+  el.innerHTML = '<span style="font-size:12px;color:var(--muted)">작품을 검색해서 선택하세요</span>';
+
+  // media_type 라디오 초기화(미정)
+  document.querySelectorAll('input[name="editMediaType"]').forEach(radio => { radio.checked = false; });
+  updateMediaTypeStyle('');
+
+  // 시즌 입력창 숨김 (신규 등록엔 불필요)
+  document.getElementById('editSeasonRow').style.display = 'none';
+  document.getElementById('editSeasonInp').value         = '';
+  document.getElementById('editSeasonPosterWrap').style.display = 'none';
+
+  // 저장 버튼 → 신규 등록 모드
+  const saveBtn = document.getElementById('editSaveBtn');
+  if (saveBtn) {
+    saveBtn.textContent = '➕ 등록';
+    saveBtn.onclick     = saveNewWorkFromModal;
+  }
+
+  document.getElementById('editOverlay').classList.add('show');
+
+  // 신규 등록은 아직 tmdb_id가 없으므로 OTT 오버라이드 섹션 숨김
+  const ottSec = document.getElementById('ottOverrideSection');
+  if (ottSec) { ottSec.style.display = 'none'; window._currentOttTmdbId = null; }
+}
+
+/* ── works 신규 등록 저장 — 성인물 필터 없이 즉시 INSERT (관리자 직접 선택이므로) ── */
+async function saveNewWorkFromModal() {
+  const tmdb_id   = parseInt(document.getElementById('editTmdbId').value) || null;
+  const title_ko  = document.getElementById('editTitleKo').value.trim();
+  let   title_en  = document.getElementById('editTitleEn').value.trim();
+  const mediaTypeEl = document.querySelector('input[name="editMediaType"]:checked');
+  const media_type  = mediaTypeEl?.value || null;
+
+  if (!tmdb_id || !title_ko) {
+    showToast('⚠️ 작품을 검색해서 선택해주세요', 'err');
+    return;
+  }
+
+  // poster_path — saveWorkFromModal과 동일한 패턴: 저장 시점에 TMDB에서 다시 조회
+  let poster_path = null;
+  const mtypes = media_type === 'movie' ? ['movie', 'tv'] : ['tv', 'movie'];
+  for (const mtype of mtypes) {
+    try {
+      const resp = await fetch(`${TMDB_PROXY}/${mtype}/${tmdb_id}?language=ko-KR`);
+      const data = await resp.json();
+      if (data.poster_path) {
+        poster_path = data.poster_path;
+        if (!title_en) title_en = data.original_name || data.original_title || '';
+        break;
+      }
+    } catch (e) {}
+  }
+
+  try {
+    const res = await fetch(`${API}/admin/works/register`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdb_id, title_ko, title_en: title_en || null, poster_path, media_type }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(`✅ "${title_ko}" 등록 완료!`, 'ok');
+      closeWorksModal();
+      loadWorks();
+    } else {
+      showToast(json.message || '등록 실패', 'err');
+    }
+  } catch (e) { showToast(e.message, 'err'); }
 }
 
 /* ── works 전용 수정 모달 열기 ── */
