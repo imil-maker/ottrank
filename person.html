@@ -1074,18 +1074,21 @@ function workCardHtml(item){
   const role     = escHtml(roleRaw);
   const year     = (item.release_date||item.first_air_date||'').slice(0,4);
   const rating   = item.vote_average ? item.vote_average.toFixed(1).replace(/\.0$/,'') : ''; // [2026-07-20 신규]
-  const mediaType= item.media_type || 'tv';
+  // [2026-07-21 수정] media_type을 모를 때 'tv'로 억지로 채우지 않음 — data-type이 빈 값이면
+  // goWork()가 이걸 "확정 안 됨"으로 정확히 넘겨서, 목적지 페이지의 잘못된 확정 방지로 이어짐.
+  const mediaType= item.media_type || '';
+  const badgeMediaType = mediaType || 'tv'; // 배지 DOM id 등 화면 표시용 키는 기존처럼 'tv' 폴백 유지(단순 id 문자열이라 안전)
   const poster   = item.poster_path
     ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
     : `<div class="work-poster-ph">🎬</div>`;
   // [2026-07-11 추가] 랭킹 배지 placeholder — loadRankBadges()가 데이터 도착 후 채움
-  const badgeId = `rankBadge-${item.id}-${mediaType}`;
+  const badgeId = `rankBadge-${item.id}-${badgeMediaType}`;
   return `
     <a class="work-card" data-tmdb="${item.id}" data-type="${mediaType}"
        data-title="${title}" onclick="goWork(this)">
       <div class="work-poster">
         ${poster}
-        <div class="work-ott-badges" id="ottBadge-${item.id}-${mediaType}"></div>
+        <div class="work-ott-badges" id="ottBadge-${item.id}-${badgeMediaType}"></div>
         <span class="work-rank-badge" id="${badgeId}"></span>
       </div>
       <div class="work-title">${title}</div>
@@ -1095,7 +1098,7 @@ function workCardHtml(item){
         ${rating?`<span class="work-rating">★ ${rating}</span>`:''}
       </div>
       <div class="work-role">
-        <span class="work-type-dot ${mediaType}"></span>${role}
+        <span class="work-type-dot ${badgeMediaType}"></span>${role}
       </div>
     </a>`;
 }
@@ -1195,7 +1198,10 @@ function loadMore(){
 /* ── 작품 상세 이동 ── */
 function goWork(el){
   const tmdbId= parseInt(el.dataset.tmdb);
-  const type  = el.dataset.type || 'tv';
+  // [2026-07-21 수정] data-type이 비어있으면(=media_type을 몰랐던 카드) 'tv'로 억지로 채우지 않고
+  // null로 넘김 — 목적지 페이지가 이걸 "확정된 값"으로 착각해서 movie 쪽을 아예 확인 안 하는
+  // 버그(스타트렉 199 사례) 방지.
+  const type  = el.dataset.type || null;
   const title = el.dataset.title || '';
   if(!tmdbId) return;
   const y    = new Date().getFullYear();
@@ -1391,7 +1397,9 @@ async function loadRankingWidget(){
    클릭 시 이동은 기존 goWork()를 그대로 재사용(작품 상세페이지, media_type 포함) */
 function rankingWidgetCardHtml(item){
   const title     = escHtml(item.title_ko || item.title_en || '');
-  const mediaType = item.media_type || 'tv'; // works에 media_type 미확정인 극소수 케이스 — 기존 goWork 폴백과 동일 관례
+  // [2026-07-21 수정] media_type 미확정 케이스를 'tv'로 억지로 채우지 않음 —
+  // goWork()가 data-type을 그대로 읽어서 목적지 페이지에 넘기므로, 빈 값이면 정확히 "확정 안 됨"으로 전달됨.
+  const mediaType = item.media_type || '';
   const poster    = item.poster_path
     ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
     : `<div class="work-poster-ph">🎬</div>`;
