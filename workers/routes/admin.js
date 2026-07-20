@@ -2668,19 +2668,32 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       if (!results.length) {
         return new Response(JSON.stringify({
-          ok: true, attempted: 0, inserted: 0, skipped: 0,
+          ok: true, attempted: 0, inserted: 0, skipped: 0, conflicts: [],
           hasNextPage: false, nextPage: page + 1, totalPages,
         }), { headers });
       }
 
       // ② 이미 works에 있는 tmdb_id는 제외 (기존 데이터 보호 — 절대 덮어쓰지 않음)
+      // [2026-07-21 수정] 기존엔 tmdb_id만 보고 무조건 건너뛰었음. 이제 media_type까지 같이 조회해서,
+      // "이미 같은 타입으로 등록된 정상 중복"과 "다른 타입으로 이미 등록돼 있어 저장 자체가 불가능한
+      // 충돌(예: movie로 등록된 199인데 tv 199도 존재)"을 구분함 — 충돌은 조용히 버리지 않고 목록으로 반환.
       const ids = results.map(r => r.id);
       const placeholders = ids.map(() => "?").join(",");
       const { results: existingRows } = await env.DB.prepare(
-        `SELECT tmdb_id FROM works WHERE tmdb_id IN (${placeholders})`
+        `SELECT tmdb_id, title_ko, media_type FROM works WHERE tmdb_id IN (${placeholders})`
       ).bind(...ids).all();
-      const existingSet = new Set((existingRows || []).map(r => r.tmdb_id));
-      const newItems = results.filter(r => !existingSet.has(r.id));
+      const existingMap = new Map((existingRows || []).map(r => [r.tmdb_id, r]));
+      const newItems  = results.filter(r => !existingMap.has(r.id));
+      const conflicts = results
+        .filter(r => existingMap.has(r.id) && existingMap.get(r.id).media_type && existingMap.get(r.id).media_type !== mediaType)
+        .map(r => ({
+          tmdb_id: r.id,
+          existing_title: existingMap.get(r.id).title_ko,
+          existing_media_type: existingMap.get(r.id).media_type,
+          requested_title: r.name || r.title || "",
+          requested_media_type: mediaType,
+        }));
+      const skippedDup = existingMap.size - conflicts.length; // 같은 타입으로 이미 있는 정상 중복
 
       // ③ 신규 작품만 상세정보 조회 후 works INSERT (기존 랭킹 등록 로직과 동일한 TMDB 조회 패턴)
       const updates = [];
@@ -2756,8 +2769,9 @@ export async function handleAdmin(path, request, env, url, headers) {
         ok: true,
         attempted: results.length,
         inserted,
-        skipped: results.length - newItems.length,
+        skipped: skippedDup,
         skippedAdult,
+        conflicts,
         hasNextPage: page < totalPages,
         nextPage: page + 1,
         totalPages,
