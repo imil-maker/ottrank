@@ -191,8 +191,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-wish-btn{display:flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--r);background:rgba(255,255,255,.1);border:.5px solid rgba(255,255,255,.2);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font-sans);transition:all .15s;backdrop-filter:blur(8px)}
 .hero-wish-btn:hover{background:rgba(255,255,255,.18)}
 .hero-wish-btn.wished{background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.5);color:var(--gold)}
-.hero-share-btn{display:flex;align-items:center;gap:5px;padding:9px 14px;border-radius:var(--r);background:transparent;border:.5px solid rgba(255,255,255,.15);color:rgba(255,255,255,.65);font-size:15px;cursor:pointer;font-family:var(--font-sans);transition:all .15s}
-.hero-share-btn:hover{background:rgba(255,255,255,.08);color:#fff}
+.hero-share-btn{display:flex;align-items:center;gap:5px;padding:9px 14px;border-radius:20px;background:rgba(240,180,41,.18);border:.5px solid rgba(240,180,41,.4);color:var(--gold);font-size:15px;cursor:pointer;font-family:var(--font-sans);transition:background .15s}
+.hero-share-btn:hover{background:rgba(240,180,41,.28)}
 
 /* ── 저장하기 드롭다운 ── */
 .save-dropdown-wrap{position:relative;flex-shrink:0}
@@ -484,12 +484,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .c-like:hover{color:var(--accent);border-color:rgba(230,57,70,.4);background:var(--danger-bg)}
 .c-like.liked{color:var(--accent);border-color:rgba(230,57,70,.5);background:var(--danger-bg)}
 .c-share{
-  font-size:13px;color:var(--muted);cursor:pointer;
+  font-size:13px;color:var(--gold);cursor:pointer;
   font-family:var(--font-mono);display:inline-flex;align-items:center;gap:4px;
-  padding:4px 10px;border-radius:20px;border:.5px solid var(--border);
-  background:none;transition:all .15s;
+  padding:4px 10px;border-radius:20px;border:.5px solid rgba(240,180,41,.4);
+  background:rgba(240,180,41,.18);transition:background .15s;
 }
-.c-share:hover{color:var(--info);border-color:var(--info-border);background:var(--info-bg)}
+.c-share:hover{background:rgba(240,180,41,.28)}
 .c-delete-btn{
   background:none;border:.5px solid rgba(230,57,70,.25);
   font-size:13px;color:var(--accent);cursor:pointer;
@@ -1480,7 +1480,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
           </div>
         </div>
         <button class="hero-share-btn" onclick="shareNative()">
-          <i class="ti ti-share" style="font-size:18px"></i> 공유
+          🔗 공유
         </button>
         <div id="heroRankRow" style="display:contents"></div>
       </div>
@@ -3371,8 +3371,7 @@ async function likeComment(id){
 }
 function shareComment(id,user){
   const url=`${getShareUrl()}#cmt_${id}`;
-  if(navigator.share)navigator.share({title:`${WORK.title} 후기 | 오뜨랑`,text:`오뜨랑에서 "${WORK.title}" ${user}님의 후기를 확인해보세요!`,url}).then(()=>_claimShareOtt()).catch(()=>{});
-  else navigator.clipboard.writeText(url).then(()=>showToast('후기 링크가 복사됐어요!'));
+  copyShareLink(url);
 }
 function renderPagination(){
   const total=Math.ceil(ALL_COMMENTS.length/PER_PAGE);
@@ -3388,17 +3387,33 @@ function goPage(p){const t=Math.ceil(ALL_COMMENTS.length/PER_PAGE);if(p<1||p>t)r
 /* == Share == */
 function getShareUrl(){const s=WORK.season||1,y=WORK.year||new Date().getFullYear(),tid=WORK.tmdb_id||'';return`https://ottrank.kr/title/${s}-${y}${tid}`;}
 function shareNative(){
-  const url=getShareUrl();const title=document.getElementById('mainTitle').textContent||WORK.title;
-  if(navigator.share)navigator.share({title:`${title} | 오뜨랑`,text:`"${title}" OTT 평점·후기를 오뜨랑에서 확인해보세요!`,url}).then(()=>_claimShareOtt()).catch(()=>{});
-  else navigator.clipboard.writeText(url).then(()=>showToast('링크가 복사됐어요!'));
+  copyShareLink(getShareUrl());
+}
+/* [2026-07-20 수정] 인물페이지(person.html)의 공유 방식과 동일하게 통일 —
+   공유창(navigator.share) 없이 항상 클립보드로 바로 복사, 안내 문구도
+   로그인 여부와 상관없이 동일한 한 가지 문구만 노출. 포인트 적립(+10 오뜨)은
+   로그인 상태일 때 화면 문구 없이 백그라운드에서 조용히 처리됨. */
+async function copyShareLink(url){
+  try{
+    await navigator.clipboard.writeText(url);
+  }catch(e){
+    fallbackCopyShare(url);
+  }
+  showToast('이 페이지 주소가 복사되었습니다.');
+  _claimShareOtt();
+}
+function fallbackCopyShare(text){
+  const ta=document.createElement('textarea');
+  ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');}catch(e){ /* 복사 실패해도 조용히 무시 */ }
+  document.body.removeChild(ta);
 }
 async function _claimShareOtt(){
   const sid=localStorage.getItem('ottrang_sid');if(!sid)return;
   try{
-    const r=await fetch(`${API}/reviews/share`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid}}).then(r=>r.json());
-    if(r?.ok&&!r?.already)showToast('🎉 공유 완료! +10 오뜨 획득');
-    else showToast('공유 완료!');
-  }catch(e){}
+    await fetch(`${API}/reviews/share`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sid}});
+  }catch(e){ /* 포인트 적립 실패해도 공유 자체는 이미 완료된 것이므로 조용히 무시 */ }
 }
 function showToast(msg){const t=document.getElementById('shareToast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 
