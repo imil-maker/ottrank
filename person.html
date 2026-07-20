@@ -880,7 +880,27 @@ async function loadWikiTest(personId){
   try{
     const res  = await fetch(`${OTTRANK_API}/person-wiki/${personId}`);
     const json = await res.json();
-    const d = json && json.ok ? json.data : null;
+    if(!json || !json.ok) return;
+
+    // [2026-07-20 재수정] 생년월일/성별/출생지는 평생 거의 안 바뀌는 정보라,
+    // "한 번 확정하면 계속 쓰는" persons 테이블 수동입력값(manual)을 우선시하고
+    // manual이 없을 때만 TMDB 값을 씀 (기존엔 반대였음 — TMDB 우선이었음).
+    // 위키 매칭 여부(json.data)와 무관하게 항상 처리 — early return 전에 실행.
+    const manual = json.manual;
+    if(manual){
+      const merged = {
+        birthday: manual.birthday || tmdbMeta.birthday || '',
+        deathday: tmdbMeta.deathday, // 사망일은 TMDB 전용 — 수동 보완 대상 아님
+        gender: manual.gender || tmdbMeta.gender || null,
+        place_of_birth: manual.place_of_birth || tmdbMeta.place_of_birth || '',
+      };
+      const changed = merged.birthday !== tmdbMeta.birthday ||
+                       merged.gender !== tmdbMeta.gender ||
+                       merged.place_of_birth !== tmdbMeta.place_of_birth;
+      if(changed) renderMetaChips(merged);
+    }
+
+    const d = json.data;
     if(!d) return; // 캐시에 데이터 없음 — 조용히 종료
 
     if(d.bio_summary){
@@ -1154,6 +1174,37 @@ function calcAge(birthday, deathday){
   return deathday ? `향년 ${age}세` : `${age}세`;
 }
 
+/* [2026-07-20 신규] TMDB 원본 메타값 보관 — 위키 로딩 시점에 persons 테이블
+   수동입력값(manual)으로 빈 항목만 보완하기 위해 필요 (아래 loadWikiTest 참고) */
+let tmdbMeta = { birthday: '', deathday: '', gender: null, place_of_birth: '' };
+
+/* [2026-07-20 신규] 메타 칩(생년월일/나이/사망일/성별/출생지) 렌더링 —
+   TMDB 값과 persons 테이블 수동입력값(manual)을 합쳐서 넘겨받음.
+   TMDB에 없는 항목만 manual 값으로 채워지는 방식(TMDB 값이 항상 우선). */
+function renderMetaChips(meta){
+  const chips = [];
+  if(meta.birthday){
+    chips.push(`<span class="person-meta-chip">
+      <span class="chip-label">생년월일</span>${fmtBirth(meta.birthday)}
+    </span>`);
+    const age = calcAge(meta.birthday, meta.deathday);
+    if(age) chips.push(`<span class="person-meta-chip">${age}</span>`);
+  }
+  if(meta.deathday){
+    chips.push(`<span class="person-meta-chip">
+      <span class="chip-label">사망일</span>${fmtBirth(meta.deathday)}
+    </span>`);
+  }
+  const genderText = genderLabel(meta.gender);
+  if(genderText) chips.push(`<span class="person-meta-chip">${genderText}</span>`);
+  if(meta.place_of_birth){
+    chips.push(`<span class="person-meta-chip">
+      <span class="chip-label">출생지</span>${meta.place_of_birth}
+    </span>`);
+  }
+  document.getElementById('personMetaRow').innerHTML = chips.join('');
+}
+
 /* ── 성별 ── */
 function genderLabel(g){
   if(g===1) return '여성';
@@ -1363,28 +1414,18 @@ async function initPage(){
       document.getElementById('personPhotoPh').textContent = (displayName||'?')[0];
     }
 
-    /* ④ 메타 칩 (생년월일, 나이, 성별, 출생지) */
-    const chips = [];
-    if(data.birthday){
-      chips.push(`<span class="person-meta-chip">
-        <span class="chip-label">생년월일</span>${fmtBirth(data.birthday)}
-      </span>`);
-      const age = calcAge(data.birthday, data.deathday);
-      if(age) chips.push(`<span class="person-meta-chip">${age}</span>`);
-    }
-    if(data.deathday){
-      chips.push(`<span class="person-meta-chip">
-        <span class="chip-label">사망일</span>${fmtBirth(data.deathday)}
-      </span>`);
-    }
-    const gender = genderLabel(data.gender);
-    if(gender) chips.push(`<span class="person-meta-chip">${gender}</span>`);
-    if(data.place_of_birth){
-      chips.push(`<span class="person-meta-chip">
-        <span class="chip-label">출생지</span>${data.place_of_birth}
-      </span>`);
-    }
-    document.getElementById('personMetaRow').innerHTML = chips.join('');
+    /* ④ 메타 칩 (생년월일, 나이, 성별, 출생지)
+       [2026-07-20 수정] TMDB에 값이 없는 항목(예: 최정규 감독처럼 TMDB에
+       생년월일 자체가 없는 인물)을 나중에 위키 로딩 시점에 persons 테이블
+       수동입력값(manual)으로 보완할 수 있게, 원본 TMDB 값을 따로 저장해두고
+       칩 렌더링 자체는 재사용 함수(renderMetaChips)로 분리함 */
+    tmdbMeta = {
+      birthday: data.birthday || '',
+      deathday: data.deathday || '',
+      gender: data.gender || null,
+      place_of_birth: data.place_of_birth || '',
+    };
+    renderMetaChips(tmdbMeta);
 
     /* [2026-07-11 추가] 사진 갤러리 — 메인 흐름을 안 막게 await 없이 별도 호출 */
     loadPhotoGallery(personId, IMG_PROFILE);
