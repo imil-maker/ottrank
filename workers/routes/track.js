@@ -70,11 +70,11 @@ export async function handleTrack(path, request, env, url, headers) {
 
       // Analytics Engine SQL API — writeDataPoint(blobs:[type, id]) 그대로 조회.
       // 데이터셋 이름은 바인딩 만들 때 정한 "ottrank_page_views" (바인딩 변수명 PAGE_VIEWS와는 별개).
-      // [2026-07-21 수정] 페이지네이션 지원 — OFFSET 추가 + 전체 개수(total)도 별도 쿼리로 조회.
+      // [2026-07-21 수정] 전체 개수(COUNT) 조회는 실패 가능성이 있고 API 호출도 1번 더 필요해서
+      // 아예 제거 — 대신 "이번 페이지가 꽉 찼으면 다음 페이지도 있다"는 has_more만 판단.
+      // 숫자 페이지 버튼(1,2,3...) 대신 이전/다음 버튼만 쓰는 방식으로 화면도 맞춰 변경함.
       const sql = `SELECT blob1 AS type, blob2 AS ref_id, timestamp FROM ottrank_page_views ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
-      const countSql = `SELECT COUNT(*) AS cnt FROM ottrank_page_views`;
-
-      const aeQuery = (query) => fetch(
+      const aeRes = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
         {
           method: "POST",
@@ -82,11 +82,9 @@ export async function handleTrack(path, request, env, url, headers) {
             "Authorization": `Bearer ${env.CF_AE_API_TOKEN}`,
             "Content-Type": "text/plain",
           },
-          body: query,
+          body: sql,
         }
       );
-
-      const [aeRes, aeCountRes] = await Promise.all([aeQuery(sql), aeQuery(countSql)]);
       if (!aeRes.ok) {
         const errText = await aeRes.text().catch(() => "");
         return new Response(JSON.stringify({
@@ -96,13 +94,7 @@ export async function handleTrack(path, request, env, url, headers) {
       }
       const aeJson = await aeRes.json();
       const rows = aeJson.data || [];
-
-      let total = rows.length + offset; // 전체 개수 조회 실패해도 최소한 이 페이지만큼은 있다고 표시
-      if (aeCountRes.ok) {
-        const countJson = await aeCountRes.json().catch(() => null);
-        const cnt = countJson?.data?.[0]?.cnt;
-        if (typeof cnt === "number") total = cnt;
-      }
+      const hasMore = rows.length === limit; // 이번 페이지가 꽉 찼으면 다음 페이지도 있다고 판단
 
       // 작품/인물 제목을 D1에서 한 번에 조회해서 붙임 (건마다 조회하지 않고 IN절로 한 번에)
       const workIds   = [...new Set(rows.filter(r => r.type === "work").map(r => parseInt(r.ref_id, 10)).filter(Number.isInteger))];
@@ -150,8 +142,7 @@ export async function handleTrack(path, request, env, url, headers) {
       });
 
       return new Response(JSON.stringify({
-        ok: true, items, page, limit, total,
-        has_more: offset + items.length < total,
+        ok: true, items, page, limit, has_more: hasMore,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
