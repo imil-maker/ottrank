@@ -3788,8 +3788,11 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (!q) {
         return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
       }
+      // [2026-07-20 수정] 동명이인 구분용으로 birthday/gender/place_of_birth 추가.
+      // 이름만으로는 서로 다른 사람인지 구분이 안 돼서(예: 황정민 배우 2명),
+      // 검색 결과 목록에서 바로 구분할 수 있게 화면에 같이 내려줌.
       const { results: items } = await env.DB.prepare(`
-        SELECT p.tmdb_id, p.name, p.name_ko, p.job,
+        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday, p.gender, p.place_of_birth,
                CASE WHEN w.tmdb_person_id IS NULL THEN 0 ELSE 1 END AS matched
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
@@ -3945,7 +3948,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       const person = await env.DB.prepare(
-        `SELECT tmdb_id, name, name_ko, job FROM persons WHERE tmdb_id = ?`
+        `SELECT tmdb_id, name, name_ko, job, birthday, gender, place_of_birth FROM persons WHERE tmdb_id = ?`
       ).bind(tmdbId).first();
       if (!person) {
         return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
@@ -3954,18 +3957,31 @@ export async function handleAdmin(path, request, env, url, headers) {
       const displayName = person.name_ko || person.name;
       const jobLabel = person.job === "direct" ? "감독" : "배우";
 
+      // [2026-07-20 신규] 동명이인 오조사 방지용 — 생년월일/성별/출생지를 같이 알려줘서
+      // "그 이름을 가진 여러 사람 중 정확히 이 사람"을 찾도록 함 (황정민 배우 2명 케이스에서 발견)
+      const identifiers = [];
+      if (person.birthday && !person.birthday.includes("00-00")) identifiers.push(`생년월일 ${person.birthday}`);
+      if (person.gender === 1) identifiers.push("여성");
+      if (person.gender === 2) identifiers.push("남성");
+      if (person.place_of_birth) identifiers.push(`출생지 ${person.place_of_birth}`);
+      const identifierText = identifiers.length ? ` (${identifiers.join(", ")})` : "";
+
       const systemPrompt =
         "너는 한국 OTT 서비스에 등록할 배우/감독 인물 정보를 조사하는 리서처다. " +
         "web_search로 이 인물에 대한 신뢰할 수 있는 정보(위키백과, 뉴스, 공식 프로필 등)를 찾아서 정리해라. " +
+        "⚠️ 동명이인 주의: 같은 이름을 가진 사람이 여러 명일 수 있다. 반드시 함께 제공되는 " +
+        "생년월일/성별/출생지와 일치하는 사람의 정보만 사용해라. 일치하는 사람을 못 찾겠으면 " +
+        "모든 필드를 빈 문자열로 남겨라(다른 동명이인 정보를 절대 섞지 마라). " +
         "가장 중요한 원칙: 검색으로 확인 안 된 내용은 절대 추측하거나 지어내지 마라. " +
         "특히 수상 이름·연도, 학교 이름, 데뷔작 제목·연도처럼 사실관계가 명확해야 하는 항목은 " +
         "검색 결과로 명확히 확인된 것만 적고, 확실하지 않으면 그 필드는 빈 문자열로 남겨라. " +
         "요약(profile)은 500~700자 분량의 한국어 문장으로, 이 인물의 데뷔·주요 활동·대표작 중심으로 " +
         "자연스러운 소개글 형태로 작성해라(개조식 나열 금지). " +
-        "반드시 아래 JSON 형식 하나만 출력하고, 다른 설명이나 코드블록은 절대 포함하지 마라. " +
+        "검색과 조사 과정은 네 안에서만 하고, 최종 답변 메시지에는 다른 설명·인사말·검색 과정 서술을 " +
+        "일절 남기지 말고 아래 JSON 객체 하나만 정확히 출력해라(코드블록 금지). " +
         '출력 형식: {"profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
 
-      const userPrompt = `인물: ${displayName} (${jobLabel})\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
+      const userPrompt = `인물: ${displayName}${identifierText} — 직업: ${jobLabel}\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
 
       const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -3991,17 +4007,18 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       const claudeData = await claudeResp.json();
-      // web_search 사용 시 응답에 여러 종류의 블록(text, server_tool_use, web_search_tool_result 등)이
-      // 섞여서 옴 — 그중 텍스트 블록만 모아서 최종 JSON을 파싱함
-      const rawText = (claudeData.content || [])
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("");
+      // [2026-07-20 수정] web_search 사용 시 중간에 "~를 검색해볼게요" 같은 서술이 섞인
+      // 텍스트 블록이 여러 개 나올 수 있어서, 전부 이어붙이면 JSON.parse가 깨짐.
+      // ① 텍스트 블록 중 마지막 것(최종 답변)만 사용 ② 그 안에서도 첫 '{'부터 마지막
+      // '}'까지만 정규식으로 잘라내서, 앞뒤에 설명이 섞여 있어도 JSON만 뽑아냄.
+      const textBlocks = (claudeData.content || []).filter((b) => b.type === "text");
+      const rawText = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
 
       let parsed;
       try {
-        const cleaned = rawText.replace(/```json|```/g, "").trim();
-        parsed = JSON.parse(cleaned);
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("JSON 형식을 찾을 수 없음");
+        parsed = JSON.parse(jsonMatch[0]);
       } catch (e) {
         return new Response(JSON.stringify({
           ok: false, message: "AI 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300),
