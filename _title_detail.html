@@ -2386,7 +2386,11 @@ async function loadGallery(){
     const res=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/images`);
     const data=await res.json();
     allGalleryImages=(data.backdrops||[]).slice(0,10); // 최대 10장(5페이지)까지 확보
-    if(!allGalleryImages.length)return;
+    if(!allGalleryImages.length){
+      const gsEl=document.getElementById('gallerySection');
+      if(gsEl) gsEl.style.display='none'; // 관련이미지 없으면 타이틀까지 숨김
+      return;
+    }
     renderGalleryPage(0);
   }catch(e){}
 }
@@ -3021,13 +3025,16 @@ function renderYtPage(page){
   ytPage=page;
   const total=allYtVideos.length;
   const subtitleEl=document.getElementById('ytSubtitle');
+  const ytSectionEl=document.getElementById('ytSectionWrap');
   if(!total){
     document.getElementById('ytArea').innerHTML='';
     if(subtitleEl) subtitleEl.textContent='';
     const pgElEmpty=document.getElementById('ytPagination');
     if(pgElEmpty)pgElEmpty.style.display='none';
+    if(ytSectionEl) ytSectionEl.style.display='none'; // 관련영상 없으면 타이틀까지 숨김
     return;
   }
+  if(ytSectionEl) ytSectionEl.style.display=''; // 이후 영상이 채워지면(DB 영상 재조회 등) 다시 노출
   if(subtitleEl) subtitleEl.textContent=`${total}개 영상`;
 
   // 페이지별 시작/끝 인덱스 — 항상 2개씩 균등 분할
