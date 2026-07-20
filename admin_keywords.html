@@ -763,6 +763,12 @@ function escapeHtmlPm(s){
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+/* [2026-07-20 신규] value="..." 같은 HTML 속성 안에 넣을 때는 따옴표까지 이스케이프해야
+   안전함(escapeHtmlPm은 텍스트 노드용이라 따옴표는 안 건드림) */
+function escapeAttrPm(s){
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // [2026-07-20 신규] 한글이름(name_ko) 있으면 "한글이름 (기타이름)", 없으면 기타이름만
 function pmDisplayName(p){
   const other = escapeHtmlPm(p.name || '');
@@ -959,25 +965,101 @@ async function pmSelectPerson(tmdbId){
     const data = await res.json();
     if(!res.ok || !data.ok){ detailWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">조회 실패: ${data.message || res.status}</div>`; return; }
 
-    if(!data.matched) renderPmSearchUnmatched(data.person);
-    else renderPmSearchMatched(data);
+    renderPmSearchForm(data);
   }catch(e){
     detailWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
   }
 }
 
-/* 미매칭 인물 — 대량매칭과 동일한 결과카드 스타일로 1명만 매칭 시도 */
-function renderPmSearchUnmatched(person){
+/* [2026-07-20 신규] 매칭 여부와 상관없이 10개 항목을 항상 입력폼으로 노출.
+   값이 있으면 미리 채워두고, 없으면 빈 칸으로 직접 입력 가능 —
+   위키 매칭을 아예 안 거치고 관리자가 손으로 채워서 저장해도 위키에서 온 것과 동일하게 취급됨. */
+function renderPmSearchForm(data){
   const detailWrap = document.getElementById('pmSearchDetailWrap');
-  detailWrap.innerHTML = `
-    <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--muted2)">
-      ⬜ <b style="color:var(--text)">${escapeHtmlPm(person.name_ko || person.name)}</b>은(는) 아직 위키백과와 연결 안 됐어요.
+  const w = data.wiki || {};
+  const hidden = new Set(data.hiddenFields || []);
+  const person = data.person;
+
+  // 체크박스 있는 텍스트 영역(긴 글) 행
+  const textareaRow = (key, label) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px">
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer">
+        <input type="checkbox" data-field="${key}" ${hidden.has(key) ? '' : 'checked'}>
+        <span style="font-size:14px;font-weight:600;color:var(--text)">${label}</span>
+      </label>
+      <textarea data-value="${key}" rows="3" placeholder="값이 없어요 — 직접 입력하거나 매칭 시도로 채워보세요"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);padding:8px 10px;resize:vertical;box-sizing:border-box">${escapeHtmlPm(w[key] || '')}</textarea>
     </div>
-    <button class="btn-primary" id="pmSearchMatchBtn" onclick="pmSearchAttemptMatch(${person.tmdb_id})" style="padding:10px 20px;font-size:14px">🔍 위키백과 매칭 시도</button>
-    <div id="pmSearchMatchResultWrap" style="margin-top:16px"></div>
   `;
+
+  // 체크박스 있는 한 줄 입력 행
+  const textRow = (key, label) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;width:130px;flex-shrink:0">
+        <input type="checkbox" data-field="${key}">
+        <span style="font-size:14px;font-weight:600;color:var(--text)">${label}</span>
+      </label>
+      <input type="text" data-value="${key}" value="${escapeAttrPm(w[key] || '')}" placeholder="값이 없어요 — 직접 입력"
+        style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);padding:8px 10px;box-sizing:border-box">
+    </div>
+  `;
+  // 위 textRow의 체크박스는 아래서 checked 상태를 별도로 채워줌(템플릿 리터럴 안에서 조건 중복 줄이기 위함)
+
+  // 체크박스 없는 참고용 한 줄 입력 행 (위키문서제목/출처URL)
+  const plainRow = (key, label) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:14px;font-weight:600;color:var(--text);width:130px;flex-shrink:0;padding-left:24px">${label}</span>
+      <input type="text" data-value="${key}" value="${escapeAttrPm(w[key] || '')}" placeholder="값이 없어요 — 직접 입력"
+        style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);padding:8px 10px;box-sizing:border-box">
+    </div>
+  `;
+
+  const rowsHtml = [
+    plainRow('wiki_title', '위키 문서 제목'),
+    textareaRow('bio_summary', '요약'),
+    textareaRow('career_history', '전체이력'),
+    textareaRow('awards_text', '수상내역'),
+    // 데뷔작 + 데뷔년도는 체크박스 하나(debut_work)를 같이 씀
+    `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px">
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer">
+        <input type="checkbox" data-field="debut_work" ${hidden.has('debut_work') ? '' : 'checked'}>
+        <span style="font-size:14px;font-weight:600;color:var(--text)">데뷔작</span>
+      </label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" data-value="debut_work" value="${escapeAttrPm(w.debut_work || '')}" placeholder="작품명"
+          style="flex:2;min-width:140px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;box-sizing:border-box">
+        <input type="text" data-value="debut_year" value="${escapeAttrPm(w.debut_year || '')}" placeholder="연도"
+          style="flex:1;min-width:80px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;box-sizing:border-box">
+      </div>
+    </div>`,
+    textRow('education', '학력'),
+    textRow('kmdb_id', 'KMDb ID'),
+    textRow('imdb_id', 'IMDb ID'),
+    plainRow('source_url', '출처 URL'),
+  ].join('');
+
+  detailWrap.innerHTML = `
+    <div style="background:${data.matched ? 'rgba(52,211,153,.08)' : 'rgba(230,57,70,.08)'};border:1px solid ${data.matched ? 'rgba(52,211,153,.25)' : 'rgba(230,57,70,.25)'};border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--muted2);line-height:1.7">
+      ${data.matched ? '✅' : '⬜'} <b style="color:var(--text)">${escapeHtmlPm(person.name_ko || person.name)}</b>${data.matched ? '은(는) 위키백과와 이미 연결돼 있어요.' : '은(는) 아직 위키백과와 연결 안 됐어요 — 아래에서 바로 직접 입력하거나, 매칭을 먼저 시도해서 자동으로 채울 수 있어요.'}
+      체크 해제하면 그 항목만 인물페이지에서 사라져요 (데이터는 안 지워지고 다시 체크하면 복구돼요).
+    </div>
+    ${!data.matched ? `
+      <button class="btn-secondary" id="pmSearchMatchBtn" onclick="pmSearchAttemptMatch(${person.tmdb_id})" style="padding:8px 16px;font-size:13px;margin-bottom:16px">🔍 위키백과 매칭 시도 (자동 채우기)</button>
+      <div id="pmSearchMatchResultWrap" style="margin-bottom:16px"></div>
+    ` : ''}
+    ${rowsHtml}
+    <button class="btn-primary" onclick="pmSaveManual(${person.tmdb_id})" style="margin-top:10px;padding:10px 20px;font-size:14px">💾 저장</button>
+  `;
+
+  // textRow의 체크박스 checked 상태는 hidden 여부에 따라 여기서 일괄 세팅
+  // (템플릿 리터럴 안에서 매번 조건 쓰는 대신 DOM에서 한 번에 처리)
+  ['education', 'kmdb_id', 'imdb_id'].forEach(key => {
+    const cb = detailWrap.querySelector(`input[type=checkbox][data-field="${key}"]`);
+    if(cb) cb.checked = !hidden.has(key);
+  });
 }
 
+/* 매칭 시도(자동 채우기) — 성공하면 그 자리에서 바로 승인까지 진행 후 폼을 다시 그림 */
 async function pmSearchAttemptMatch(tmdbId){
   const btn = document.getElementById('pmSearchMatchBtn');
   const resultWrap = document.getElementById('pmSearchMatchResultWrap');
@@ -1009,15 +1091,15 @@ async function pmSearchAttemptMatch(tmdbId){
             ${r.wiki_birth_year ? ` · 생년: ${r.wiki_birth_year}` : ''}
           </div>
           <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6">${escapeHtmlPm((r.wiki_summary||'').slice(0,150))}...</div>
-          <button class="btn-primary" onclick="pmSearchApprove(${tmdbId})" style="margin-top:10px;padding:8px 16px;font-size:13px">✅ 확정 승인</button>
-        ` : `<div style="font-size:12px;color:var(--muted)">${escapeHtmlPm(r.debug || '후보를 못 찾았거나 생년월일이 안 맞았어요.')}</div>`}
+          <button class="btn-primary" onclick="pmSearchApprove(${tmdbId})" style="margin-top:10px;padding:8px 16px;font-size:13px">✅ 확정 승인 (10개 항목 채우기)</button>
+        ` : `<div style="font-size:12px;color:var(--muted)">${escapeHtmlPm(r.debug || '후보를 못 찾았거나 생년월일이 안 맞았어요.')} — 아래 입력폼에 직접 채워도 돼요.</div>`}
       </div>
     `;
   }catch(e){
     resultWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
   }finally{
     btn.disabled = false;
-    btn.textContent = '🔍 위키백과 매칭 시도';
+    btn.textContent = '🔍 위키백과 매칭 시도 (자동 채우기)';
   }
 }
 
@@ -1035,67 +1117,57 @@ async function pmSearchApprove(tmdbId){
       return;
     }
     showToast('✅ 확정 승인 완료! 인물페이지에 반영됐어요');
-    // 승인 직후 바로 항목별 체크박스 화면으로 전환
+    // 승인 직후 채워진 값으로 입력폼을 다시 불러옴
     pmSelectPerson(tmdbId);
   }catch(e){
     showToast(`❌ 네트워크 오류: ${e.message}`);
   }
 }
 
-/* 이미 매칭된 인물 — 실제 값이 있는 항목만 체크박스로 노출.
-   값 자체가 없는 항목은 "숨김"과 헷갈리지 않게 아예 목록에서 뺌. */
-function renderPmSearchMatched(data){
+/* [2026-07-20 신규] 입력폼의 10개 항목 값 + 체크박스 상태를 한 번에 모아서 저장.
+   매칭 여부와 무관하게 항상 이 함수 하나로 저장됨 — 직접 입력만 해도 위키에서 온 것처럼 반영됨. */
+async function pmSaveManual(tmdbId){
   const detailWrap = document.getElementById('pmSearchDetailWrap');
-  const w = data.wiki;
-  const hidden = new Set(data.hiddenFields || []);
-
-  const fields = [];
-  if(w.bio_summary)    fields.push({ key: 'bio_summary',    label: '요약',     preview: w.bio_summary });
-  if(w.career_history) fields.push({ key: 'career_history', label: '전체이력', preview: w.career_history });
-  if(w.awards_text)    fields.push({ key: 'awards_text',    label: '수상내역', preview: w.awards_text });
-  if(w.debut_work)     fields.push({ key: 'debut_work',     label: '데뷔작',   preview: `${w.debut_work}${w.debut_year ? ' ('+w.debut_year+')' : ''}` });
-  if(w.education)      fields.push({ key: 'education',      label: '학력',     preview: w.education });
-  if(w.kmdb_id)         fields.push({ key: 'kmdb_id',         label: 'KMDb',      preview: w.kmdb_id });
-  if(w.imdb_id)         fields.push({ key: 'imdb_id',         label: 'IMDb',      preview: w.imdb_id });
-
-  detailWrap.innerHTML = `
-    <div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--muted2);line-height:1.7">
-      ✅ <b style="color:var(--text)">${escapeHtmlPm(data.person.name_ko || data.person.name)}</b>은(는) 위키백과와 이미 연결돼 있어요.
-      체크 해제하면 그 항목만 인물페이지에서 사라져요 (데이터는 안 지워지고 다시 체크하면 복구돼요).
-    </div>
-    ${fields.length ? fields.map(f => `
-      <label style="display:flex;gap:10px;align-items:flex-start;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;cursor:pointer">
-        <input type="checkbox" data-field="${f.key}" ${hidden.has(f.key) ? '' : 'checked'} style="margin-top:2px;flex-shrink:0">
-        <div style="min-width:0">
-          <div style="font-size:14px;font-weight:600;color:var(--text)">${f.label}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtmlPm(f.preview)}</div>
-        </div>
-      </label>
-    `).join('') : `<div style="padding:16px;color:var(--muted);font-size:13px">위키에서 가져온 세부 항목이 없어요.</div>`}
-    ${w.source_url ? `<div style="font-size:12px;color:var(--muted);margin:10px 0">출처: <a href="${w.source_url}" target="_blank" style="color:#7ec8e3">${escapeHtmlPm(w.wiki_title || '')}</a></div>` : ''}
-    ${fields.length ? `<button class="btn-primary" onclick="pmSaveHiddenFields(${data.person.tmdb_id})" style="margin-top:10px;padding:10px 20px;font-size:14px">💾 저장</button>` : ''}
-  `;
-}
-
-async function pmSaveHiddenFields(tmdbId){
-  const detailWrap = document.getElementById('pmSearchDetailWrap');
+  const getVal = (key) => {
+    const el = detailWrap.querySelector(`[data-value="${key}"]`);
+    return el ? el.value.trim() : '';
+  };
   const boxes = [...detailWrap.querySelectorAll('input[type=checkbox][data-field]')];
   const hiddenFields = boxes.filter(c => !c.checked).map(c => c.dataset.field);
 
+  const payload = {
+    tmdb_id: tmdbId,
+    wiki_title: getVal('wiki_title'),
+    bio_summary: getVal('bio_summary'),
+    career_history: getVal('career_history'),
+    awards_text: getVal('awards_text'),
+    debut_work: getVal('debut_work'),
+    debut_year: getVal('debut_year'),
+    education: getVal('education'),
+    kmdb_id: getVal('kmdb_id'),
+    imdb_id: getVal('imdb_id'),
+    source_url: getVal('source_url'),
+    hidden_fields: hiddenFields,
+  };
+
   showToast('저장 중...');
   try{
-    const res  = await fetch(`${API}/admin/persons/wiki-hidden-fields`, {
+    const res  = await fetch(`${API}/admin/persons/wiki-manual-save`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
-      body: JSON.stringify({ tmdb_id: tmdbId, hidden_fields: hiddenFields }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if(!res.ok || !data.ok){ showToast(`❌ 저장 실패: ${data.message || res.status}`); return; }
     showToast('✅ 저장됐어요! 인물페이지에 바로 반영돼요');
+    // 매칭 안 된 상태였으면 이제 매칭된 상태로 바뀌었을 수 있으니 새로고침
+    pmSelectPerson(tmdbId);
   }catch(e){
     showToast(`❌ 네트워크 오류: ${e.message}`);
   }
 }
+
+
 
 /* ══════════════════════════════════════════════════════
    키워드 수집 (TMDB → works.keywords 일괄 채우기)
