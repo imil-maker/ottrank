@@ -292,8 +292,11 @@ function fmtScore(r){ if(!r||r<=0) return null; return parseFloat(r).toFixed(1).
 
 function goWork(tmdbId, type, title){
   if(!tmdbId) return;
+  // [2026-07-21 수정] type을 모르면(빈 값) 'tv'로 억지로 채우지 않고 null 그대로 넘김.
+  // 예전엔 여기서 'tv'로 채워버려서, 목적지 페이지가 이걸 "확정된 값"으로 착각하고
+  // movie/tv 둘 다 실제 존재하는 tmdb_id(예: 199)에서 movie 쪽을 확인도 안 해보는 버그가 있었음.
   sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id:tmdbId, type:type||'tv', platform:'', rank:1, title, season:1, year:new Date().getFullYear()
+    tmdb_id:tmdbId, type:type||null, platform:'', rank:1, title, season:1, year:new Date().getFullYear()
   }));
   location.href = slug(tmdbId);
 }
