@@ -2642,6 +2642,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       // ③ 신규 작품만 상세정보 조회 후 works INSERT (기존 랭킹 등록 로직과 동일한 TMDB 조회 패턴)
       const updates = [];
       let inserted = 0;
+      let skippedAdult = 0;
       for (const item of newItems) {
         let titleKo = null, titleEn = null, poster = null, genre = null,
             rating  = null, year = null, overview = "";
@@ -2662,6 +2663,22 @@ export async function handleAdmin(path, request, env, url, headers) {
         } catch (e) { /* ko 상세조회 실패 시 discover 목록값으로 폴백 */ }
 
         if (!titleKo) continue; // 제목조차 못 가져오면 등록 스킵 (불완전 데이터 방지)
+
+        // [2026-07-21 추가] softcore 키워드 체크 — 걸리면 등록 자체를 건너뜀.
+        // discover API는 TMDB adult 필드에 의존하는데, 마이너/구작 국내 콘텐츠는 이 필드
+        // 신뢰도가 낮아 성인물이 그대로 섞여 들어오는 문제가 실제로 있었음(videos.js와 동일 원칙).
+        let isSoftcore = false;
+        try {
+          const kwResp = await fetch(
+            `https://api.themoviedb.org/3/${mediaType}/${item.id}/keywords?api_key=${env.TMDB_API_KEY}`
+          );
+          if (kwResp.ok) {
+            const kwData = await kwResp.json();
+            const kwList = kwData.keywords || kwData.results || []; // 영화: keywords, TV: results
+            isSoftcore = kwList.some(k => k.name === "softcore");
+          }
+        } catch (e) { /* 키워드 조회 실패해도 등록 자체는 진행 (오탐 방지 — 응답실패와 진짜없음 구분 원칙) */ }
+        if (isSoftcore) { skippedAdult++; continue; }
 
         try {
           const enResp = await fetch(
@@ -2697,6 +2714,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         attempted: results.length,
         inserted,
         skipped: results.length - newItems.length,
+        skippedAdult,
         hasNextPage: page < totalPages,
         nextPage: page + 1,
         totalPages,
