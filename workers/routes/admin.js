@@ -33,7 +33,6 @@
    POST   /admin/works/sync-rating-single       ← 특정 작품 평점 강제 동기화(2026-07-13 신설)
    GET    /admin/rankings/rating-check          ← 카테고리별 평점 비교 리스트(2026-07-14 신설, "OTT 평점 반영" 탭)
    GET    /admin/search-logs                    ← 검색어 로그 목록(2026-07-18 신설)
-   GET    /admin/track/logs                     ← 실시간 작품/인물 조회 로그 목록(Analytics Engine, 2026-07-21 신설)
    GET    /admin/grade-settings
    PUT    /admin/grade-settings
    POST   /admin/grade-settings/assign
@@ -4779,100 +4778,6 @@ export async function handleAdmin(path, request, env, url, headers) {
         ok: true, data: results, page, limit, total,
         has_more: offset + results.length < total,
       }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
-
-  // ── GET /admin/track/logs ─────────────────────────────────────
-  // [2026-07-21 신설] 실시간 조회 로그 목록 (관리자 전용). track.js가 Analytics Engine에
-  // 기록해둔 최근 조회 이벤트(작품/인물)를 최신순으로 가져와서, D1에서 제목/이름을 붙여 반환.
-  // TOP10 집계(같은 작품이 몇 번 조회됐는지 세는 것)는 다음 단계에서 별도 엔드포인트로 추가 예정 —
-  // 여기는 우선 "최근에 어떤 작품/인물이 조회됐는지" 목록만 보여줌.
-  if (path === "/admin/track/logs" && request.method === "GET") {
-    const isAuthed = await _checkAuth(request, env);
-    if (!isAuthed) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      if (!env.CF_ACCOUNT_ID || !env.CF_AE_API_TOKEN) {
-        return new Response(JSON.stringify({
-          ok: false,
-          message: "CF_ACCOUNT_ID / CF_AE_API_TOKEN 환경변수가 설정되지 않았어요 (Settings → Variables and Secrets 확인)",
-        }), { status: 500, headers });
-      }
-      const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1), 200);
-
-      // Analytics Engine SQL API — track.js의 writeDataPoint(blobs:[type, id]) 그대로 조회.
-      // 데이터셋 이름은 바인딩 만들 때 정한 "ottrank_page_views" (바인딩 변수명 PAGE_VIEWS와는 별개).
-      const sql = `SELECT blob1 AS type, blob2 AS ref_id, timestamp FROM ottrank_page_views ORDER BY timestamp DESC LIMIT ${limit}`;
-      const aeRes = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${env.CF_AE_API_TOKEN}`,
-            "Content-Type": "text/plain",
-          },
-          body: sql,
-        }
-      );
-      if (!aeRes.ok) {
-        const errText = await aeRes.text().catch(() => "");
-        return new Response(JSON.stringify({
-          ok: false,
-          message: `Analytics Engine 조회 실패 (HTTP ${aeRes.status}): ${errText.slice(0, 300)}`,
-        }), { status: 500, headers });
-      }
-      const aeJson = await aeRes.json();
-      const rows = aeJson.data || [];
-
-      // 작품/인물 제목을 D1에서 한 번에 조회해서 붙임 (건마다 조회하지 않고 IN절로 한 번에)
-      const workIds   = [...new Set(rows.filter(r => r.type === "work").map(r => parseInt(r.ref_id, 10)).filter(Number.isInteger))];
-      const personIds = [...new Set(rows.filter(r => r.type === "person").map(r => parseInt(r.ref_id, 10)).filter(Number.isInteger))];
-
-      const workMap = {};
-      if (workIds.length) {
-        const ph = workIds.map(() => "?").join(",");
-        const { results } = await env.DB.prepare(
-          `SELECT tmdb_id, title_ko, media_type, release_year FROM works WHERE tmdb_id IN (${ph})`
-        ).bind(...workIds).all();
-        results.forEach(w => { workMap[w.tmdb_id] = w; });
-      }
-      const personMap = {};
-      if (personIds.length) {
-        const ph = personIds.map(() => "?").join(",");
-        const { results } = await env.DB.prepare(
-          `SELECT tmdb_id, name, name_ko FROM persons WHERE tmdb_id IN (${ph})`
-        ).bind(...personIds).all();
-        results.forEach(p => { personMap[p.tmdb_id] = p; });
-      }
-
-      const currentYear = new Date().getFullYear();
-      const items = rows.map(r => {
-        const id = parseInt(r.ref_id, 10);
-        if (r.type === "work") {
-          const w = workMap[id];
-          const year = (w && w.release_year) || currentYear;
-          return {
-            type: "work",
-            id,
-            title: w ? w.title_ko : `(D1에 없는 작품 #${id})`,
-            url: `/title/1-${year}${id}`,
-            viewed_at: r.timestamp,
-          };
-        }
-        const p = personMap[id];
-        return {
-          type: "person",
-          id,
-          title: p ? (p.name_ko || p.name) : `(D1에 없는 인물 #${id})`,
-          url: `/person/${id}`,
-          viewed_at: r.timestamp,
-        };
-      });
-
-      return new Response(JSON.stringify({ ok: true, items }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
