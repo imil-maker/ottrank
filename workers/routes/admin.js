@@ -3204,8 +3204,13 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       for (const row of targets) {
         try {
+          // [2026-07-20 수정] language=ko-KR 추가 — TMDB는 also_known_as(팬 등록 별칭)와
+          // 별개로, 유명인의 경우 커뮤니티가 등록한 "공식 번역 이름"이 language=ko-KR을
+          // 붙였을 때만 name 필드에 통째로 담겨 나옴(예: 조지 루카스 — also_known_as엔
+          // 한글이 아예 없지만 language=ko-KR로 조회하면 name="조지 루카스"로 옴).
+          // 이 파라미터 없이는 이 번역 이름을 놓치게 되어 커버리지가 크게 줄어들었음.
           const resp = await fetch(
-            `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
+            `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
           );
           if (!resp.ok) {
             // 인물 자체가 TMDB에서 삭제/비공개 등 — 마킹해 재시도 안 하게
@@ -3221,14 +3226,18 @@ export async function handleAdmin(path, request, env, url, headers) {
           // 섞여있어서(예: Julianne Moore → "줄리안 무어"), 한글 존재만으로 판정하면
           // 인기 많은 외국 배우일수록 오탐이 늘어남. 출생지로 교차검증 — 출생지가 있는데
           // 한국/서울이 아니면 한글 이름이 있어도 외국인으로 판정.
-          const hasKoreanInList  = alsoKnown.some(n => /[가-힣]/.test(n));
+          // [2026-07-20 재수정] name 필드 자체가 language=ko-KR로 번역되어 오는 경우도
+          // "한글 존재"로 같이 판정 대상에 포함 (조지 루카스 케이스).
+          const nameIsKorean    = /[가-힣]/.test(data.name || "");
+          const hasKoreanInList = nameIsKorean || alsoKnown.some(n => /[가-힣]/.test(n));
           const looksNonKorean   = placeOfBirth && !/Korea|한국|Seoul|서울/i.test(placeOfBirth);
           const hasKorean = (hasKoreanInList && !looksNonKorean) ? 1 : 0;
           // [2026-07-20 신규] 한글 대표이름 — person.html과 동일 로직(also_known_as에서
           // 한글 포함된 첫 항목). has_korean_name 판정과 무관하게, 한글이 실제로 있으면
           // 그냥 저장(오탐 방지용 출생지 교차검증은 "한국인 여부" 판정에만 적용하고,
           // 이름 자체는 있는 그대로 보여주는 게 맞음). 없으면 빈 문자열로 마킹.
-          const koName = alsoKnown.find(n => /[가-힣]/.test(n)) || "";
+          // [2026-07-20 재수정] name 필드가 번역된 경우 그 값을 우선 사용(person.html과 동일 우선순위).
+          const koName = nameIsKorean ? data.name : (alsoKnown.find(n => /[가-힣]/.test(n)) || "");
           updates.push(
             env.DB.prepare(
               `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ?, name_ko = ? WHERE tmdb_id = ?`
@@ -3291,8 +3300,10 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       for (const row of targets) {
         try {
+          // [2026-07-20 수정] language=ko-KR 추가 — TMDB 공식 번역 이름(name 필드)이
+          // 이 파라미터 없이는 안 옴 (조지 루카스 케이스에서 발견된 원인)
           const resp = await fetch(
-            `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
+            `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
           );
           if (!resp.ok) {
             // 조회 자체가 실패 — 재확인은 했다는 표시만 남기고 값은 그대로 둠(다음날 재시도 가능하게)
@@ -3304,8 +3315,11 @@ export async function handleAdmin(path, request, env, url, headers) {
           const data = await resp.json();
           const alsoKnown    = data.also_known_as || [];
           const placeOfBirth = data.place_of_birth || "";
-          // person.html이 이름 표시에 쓰는 것과 완전히 동일한 로직 — also_known_as에서 한글 포함된 첫 항목
-          const koName = alsoKnown.find(n => /[가-힣]/.test(n)) || "";
+          // person.html이 이름 표시에 쓰는 것과 완전히 동일한 로직 —
+          // [2026-07-20 재수정] name 필드가 language=ko-KR로 번역되어 왔으면 그걸 우선 사용하고,
+          // 없으면 also_known_as에서 한글 포함된 첫 항목 사용 (person.html과 완전히 동일한 우선순위)
+          const nameIsKorean = /[가-힣]/.test(data.name || "");
+          const koName = nameIsKorean ? data.name : (alsoKnown.find(n => /[가-힣]/.test(n)) || "");
           // has_korean_name 판정도 backfill-meta와 동일한 출생지 교차검증 유지
           const hasKoreanInList = koName !== "";
           const looksNonKorean  = placeOfBirth && !/Korea|한국|Seoul|서울/i.test(placeOfBirth);
