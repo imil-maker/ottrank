@@ -2644,6 +2644,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const body = await request.json().catch(() => ({}));
       const mediaType = body.media_type;
       const page = Math.max(parseInt(body.page) || 1, 1);
+      const year = parseInt(body.year) || null; // [2026-07-21 추가] 연도 지정 시 그 해 작품만 조회
 
       if (!["movie", "tv"].includes(mediaType)) {
         return new Response(JSON.stringify({
@@ -2652,9 +2653,14 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       // ① TMDB discover — 인기순 한국 작품 목록 조회
+      // [2026-07-21 수정] 연도 미지정 시 인기순 정렬만으로는 1960년대 등 무명 구작이 많이
+      // 섞여 들어오는 문제가 있어, year가 오면 그 연도로 좁혀서(그 안에서는 인기순 유지) 조회.
+      const yearParam = year
+        ? (mediaType === "movie" ? `&primary_release_year=${year}` : `&first_air_date_year=${year}`)
+        : "";
       const discoverUrl = mediaType === "movie"
-        ? `https://api.themoviedb.org/3/discover/movie?api_key=${env.TMDB_API_KEY}&language=ko-KR&region=KR&with_original_language=ko&sort_by=popularity.desc&page=${page}`
-        : `https://api.themoviedb.org/3/discover/tv?api_key=${env.TMDB_API_KEY}&language=ko-KR&with_origin_country=KR&sort_by=popularity.desc&page=${page}`;
+        ? `https://api.themoviedb.org/3/discover/movie?api_key=${env.TMDB_API_KEY}&language=ko-KR&region=KR&with_original_language=ko&sort_by=popularity.desc${yearParam}&page=${page}`
+        : `https://api.themoviedb.org/3/discover/tv?api_key=${env.TMDB_API_KEY}&language=ko-KR&with_origin_country=KR&sort_by=popularity.desc${yearParam}&page=${page}`;
 
       const discoverResp = await fetch(discoverUrl);
       if (!discoverResp.ok) {
