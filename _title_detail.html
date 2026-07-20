@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title id="seoTitle">작품 상세 | 오뜨랑 — OTT 랭킹·평점·후기</title>
-<meta id="seoDesc" name="description" content="OTT 작품 평점, 넷플릭스 순위, 넷플릭스 추천, 사용자 후기, 순위 히스토리를 오뜨랑에서 확인하세요.">
-<meta id="seoKw" name="keywords" content="OTT 평점, 드라마 후기, 영화 후기, 넷플릭스 평점, 티빙 평점, 넷플릭스 순위, 넷플릭스 추천, 해외반응">
+<meta id="seoDesc" name="description" content="OTT 작품 평점, 넷플릭스 순위, 넷플릭스 추천, 사용자 후기, 순위, 다시보기를 오뜨랑에서 확인하세요.">
+<meta id="seoKw" name="keywords" content="OTT 평점, 드라마 후기, 영화 후기, 넷플릭스 평점, 티빙, 디즈니플러스, 넷플릭스 순위, 넷플릭스 추천, 다시보기">
 <meta name="robots" content="index, follow">
 <link id="seoCanonical" rel="canonical" href="https://ottrank.kr/title.html">
 <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
@@ -2155,7 +2155,7 @@ function updateSEO(title,overview,posterUrl,platform,rank){
   // [2026-07-18] 실시간 순위 숫자(N위)는 노출 즉시 변동되는 값이라 타이틀/설명에서 제거.
   //   "OTT명 N위" → "OTT명 순위"로 고정 문구만 노출 (검색결과에 옛 순위 숫자가 캐싱되어 남는 문제 방지)
   const seoT=hasRank
-    ? `${t} ${titleMid} | ${typeLabel} ${pName} 순위 | 오뜨랑`
+    ? `${t} ${titleMid} | ${typeLabel} ${pName} 순위 다시보기 | 오뜨랑`
     : `${t} ${titleMid} | ${typeLabel} 오뜨랑`;
   const seoD=hasRank
     ? `${t} 평점, ${pName} 순위${imdbDescPart}, 사용자 후기와 추천 정보를 오뜨랑에서 확인하세요.`
