@@ -3488,14 +3488,25 @@ export async function handleAdmin(path, request, env, url, headers) {
               const pages    = (extractData.query && extractData.query.pages) || {};
               const pageObj  = Object.values(pages)[0];
               const extract  = (pageObj && pageObj.extract) || "";
+              const pageMissing = !pageObj || ("missing" in pageObj) || !extract;
 
-              const yearMatch = extract.match(/(\d{4})년/);
-              const wikiYear  = yearMatch ? yearMatch[1] : null;
+              // [2026-07-20 수정] "이름(YYYY년 ...)" 형식처럼 이름 바로 뒤 괄호 안에 나오는
+              // 연도를 우선 생년으로 인정 — 본문 중간에 나오는 다른 연도(데뷔작 등)를
+              // 생년으로 잘못 집는 것을 줄임. 못 찾으면 기존처럼 첫 "OOOO년" 패턴으로 폴백.
+              const nameYearMatch  = extract.match(/\((\d{4})년/);
+              const looseYearMatch = extract.match(/(\d{4})년/);
+              const wikiYear = (nameYearMatch && nameYearMatch[1]) || (looseYearMatch && looseYearMatch[1]) || null;
 
               // 3단계: 생년도 일치 → 확정. 생년월일 정보가 없고 후보 1명뿐이면 잠정 채택.
               const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
               const isOnlyCandidate = !tmdbYear && titles.length === 1;
-              if (isYearMatch || isOnlyCandidate) {
+              // [2026-07-20 신규] 매칭 기준 완화(관리자 판단) — "{이름} (배우)"로 명시적으로
+              // 분리된 위키 문서가 실제 존재하면, 생년이 안 맞거나 아예 없어도 일단 매칭시킴.
+              // 동음이의 구분용 문서라 이름이 겹칠 위험이 낮고, 오매칭이어도 나중에 관리자가
+              // 눈으로 보고 고치면 되므로 "일단 매칭되는 것"을 우선함. 반도체 검사 수준의
+              // 엄격한 대조는 불필요하다는 판단.
+              const isDisambigPageExists = title === disambigTitle && !pageMissing;
+              if (isYearMatch || isOnlyCandidate || isDisambigPageExists) {
                 matched = {
                   wiki_title: title,
                   wiki_birth_year: wikiYear || "",
