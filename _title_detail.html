@@ -92,6 +92,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .hero-poster img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px}
 .platform-pill{position:absolute;top:10px;left:10px;color:#fff;font-size:13px;font-weight:700;padding:3px 10px;border-radius:4px;font-family:var(--font-mono);letter-spacing:.5px;backdrop-filter:blur(4px)}
+/* [2026-07-20 신규] OTT 원형 로고 — 인물페이지(person.html) 필모그래피 카드와 동일 스타일.
+   #platformPills가 이미 flex row 컨테이너(인라인 스타일)라서 로고를 이 안에 나란히 채움. */
+.hero-poster .ott-logo{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.hero-poster .ott-logo-ph{width:22px;height:22px;border-radius:50%;flex-shrink:0;font-size:11px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.6)}
 
 /* 히어로 정보 */
 .hero-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;padding-bottom:4px}
@@ -738,11 +742,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   }
   .mob-poster-img img{ width:100%;height:100%;object-fit:cover;display:block; }
   .mob-pill{
-    position:absolute;top:7px;left:7px;
-    color:#fff;font-size:11px;font-weight:700;
-    padding:2px 7px;border-radius:4px;
-    font-family:var(--font-mono);
+    position:absolute;top:7px;left:7px;right:7px;
+    display:flex;flex-wrap:wrap;gap:3px;
   }
+  /* [2026-07-20 신규] 박스오피스 텍스트 뱃지는 그대로 쓰되(inline style로 자체 색상 지정),
+     OTT 로고는 여기서 크기만 통일 (person.html보다 살짝 작게 — 모바일 포스터 폭이 좁아서) */
+  .mob-poster-img .ott-logo{width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .mob-poster-img .ott-logo-ph{width:18px;height:18px;border-radius:50%;flex-shrink:0;font-size:9px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.6)}
   .mob-info-col{
     flex:1;min-width:0;
     display:flex;flex-direction:column;gap:6px;
@@ -1768,13 +1774,12 @@ function syncMobHero(){
     mi.src=pi.src;mi.alt=pi.alt||'작품 포스터';mi.style.display='block';
     if(mp)mp.style.display='none';
   }
-  // OTT pill
-  const pills=document.querySelectorAll('#platformPills .platform-pill');
+  // OTT pill — 이제 텍스트 1개가 아니라 로고 여러 개라, 통째로 복사
+  const pillsContainer=document.getElementById('platformPills');
   const mobPill=document.getElementById('mobPlatformPill');
-  if(pills.length&&mobPill){
-    mobPill.textContent=pills[0].textContent;
-    mobPill.style.background=pills[0].style.background||pills[0].style.backgroundColor||'';
-    mobPill.style.display='block';
+  if(pillsContainer&&mobPill){
+    mobPill.innerHTML=pillsContainer.innerHTML;
+    mobPill.style.display=pillsContainer.innerHTML?'flex':'none';
   }
   // 제목
   const mt=document.getElementById('mainTitle');
@@ -1809,6 +1814,41 @@ const OTT_SEARCH_URL={
   wavve   :(t)=>`https://www.wavve.com/search?searchWord=${encodeURIComponent(t)}`,
   boxoffice:(t)=>`https://cgv.co.kr/cnm/movieBook`,
 };
+/* [2026-07-20 신규] OTT 원형 로고 — person.html(인물페이지)과 동일한 상수/함수 재사용.
+   기존 platform-pill(텍스트 뱃지, 1개만 표시)을 대체 — 아래 "보러가기" 섹션에 이미
+   OTT별 바로가기 링크가 있으므로, 여기 로고는 클릭 링크 없이 순수 표시 전용. */
+const OTT_META={
+  netflix: { name:'넷플릭스',   color:'#e50914', file:'netflix' },
+  tving:   { name:'티빙',       color:'#ff153c', file:'tving' },
+  disney:  { name:'디즈니+',   color:'#06b6d4', file:'disneyplus' },
+  wavve:   { name:'웨이브',     color:'#0070f3', file:'wavve' },
+  watcha:  { name:'왓챠',       color:'#ff0558', file:'watcha' },
+  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay' },
+};
+function ottLogoHtml(key){
+  const meta=OTT_META[key];
+  if(!meta)return '';
+  return `<img class="ott-logo" src="/img/${meta.file}-icon.jpg" alt="${meta.name}" title="${meta.name}"
+    onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
+}
+/* [2026-07-20 신규] 작품 하나(WORK.tmdb_id)가 서비스 중인 모든 OTT 로고 로드.
+   work_ott 테이블(=/works/ott-map) 기준 — 크롤링 순위 데이터와 달리 "1위 플랫폼"이
+   아니라 "실제 서비스 중인 모든 플랫폼"을 알려줌. */
+async function loadOttLogos(){
+  if(!WORK.tmdb_id)return;
+  const pc=document.getElementById('platformPills');
+  if(!pc)return;
+  try{
+    const res=await fetch(`${OTTRANK_API}/works/ott-map?tmdb_ids=${WORK.tmdb_id}`);
+    const json=await res.json();
+    const keys=(json.ok&&json.map&&json.map[WORK.tmdb_id])||null;
+    if(keys&&keys.length){
+      WORK._hasOttLogos=true;
+      pc.innerHTML=keys.map(ottLogoHtml).join('');
+      syncMobHero();
+    }
+  }catch(e){ /* 실패해도 조용히 무시 — 아래 loadPlatforms()의 순위 기반 로고가 최소한의 표시를 대신함 */ }
+}
 const ETAG_EMOJI={'긴장감 넘침':'😰','몰입감 최고':'🔥','도파민 터짐':'💥','짜릿함':'⚡','가슴 먹먹':'🥲','황당함':'😳','빅웃음 보장':'😂','기빨림 주의':'😩','감동적':'🥹','슬프다':'😭','재미있음':'🤣','결말이 아쉬움':'😤','독특한 설정':'🤯','정주행 필수':'📺','연기력 최고':'👏','소름 돋음':'😱','지루했어요':'💤','설레는 로맨스':'💕'};
 const COUNTRY_MAP={'KR':'한국','US':'미국','JP':'일본','GB':'영국','FR':'프랑스','DE':'독일','CN':'중국','TH':'태국','IN':'인도','IT':'이탈리아','ES':'스페인','AU':'호주','CA':'캐나다','MX':'멕시코','TW':'대만'};
 const CERT_MAP={'ALL':'전체관람가','12':'12세이상','15':'15세이상','18':'청소년관람불가','G':'전체관람가','PG':'PG','PG-13':'13세이상','R':'17세이상','TV-Y':'전체','TV-G':'전체','TV-PG':'보호자지도','TV-14':'14세이상','TV-MA':'성인','NR':'등급없음'};
@@ -2684,26 +2724,18 @@ async function loadTmdb(){
       syncMobHero();   // 포스터 세팅 직후 즉시 모바일 동기화 (타이밍 문제 해결)
     }
 
-    // platform pill — 내부 접근 시 임시로 1개 표시 (loadPlatforms에서 최종 업데이트)
-    if(WORK.platform&&PC[WORK.platform]&&WORK.platform!=='boxoffice'){
+    // OTT 로고 — 최종 목록(work_ott 전체)은 loadOttLogos()가 비동기로 채움.
+    // 그 전까지, 순위 데이터로 이미 알고 있는 대표 플랫폼 로고 1개를 임시로 먼저 보여줘서
+    // 화면이 비어있는 시간을 최소화 (loadOttLogos 완료 시 자동으로 덮어써짐)
+    if(WORK.platform&&OTT_META[WORK.platform]){
       const pillsContainer=document.getElementById('platformPills');
-      if(pillsContainer){
-        const fn=OTT_SEARCH_URL[WORK.platform];
-        const url=fn?fn(title):'#';
-        const color=CC[WORK.platform]||'#888';
-        pillsContainer.innerHTML=`<a class="platform-pill" href="${url}" target="_blank" rel="noopener"
-          style="display:inline-block;white-space:nowrap;background:${color};text-decoration:none;color:#fff;
-          font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;
-          font-family:var(--font-mono);letter-spacing:.5px;
-          box-shadow:0 1px 4px rgba(0,0,0,.5)">
-          ${PC[WORK.platform]}
-        </a>`;
-      }
+      if(pillsContainer)pillsContainer.innerHTML=ottLogoHtml(WORK.platform);
     }else if(WORK.platform==='boxoffice'){
-      // 박스오피스는 기존 방식 유지
+      // 박스오피스(아직 OTT 서비스 전)는 기존 텍스트 뱃지 방식 유지
       const pill=document.getElementById('platformPills');
       if(pill)pill.innerHTML=`<span class="platform-pill" style="display:block;background:#888;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;font-family:var(--font-mono)">박스오피스</span>`;
     }
+    loadOttLogos(); // work_ott 전체 목록으로 최종 업데이트 (비동기, 결과 기다리지 않음)
 
     // title/orig/genre
     document.getElementById('mainTitle').textContent=title;
@@ -3871,9 +3903,12 @@ async function loadPlatforms(){
       // 수동 카테고리 데이터일 수 있으므로 rank 리셋 + 기존 순위 칩 제거
       WORK.rank='-';
       renderRankRow([]); // chip-rank 칩만 제거 (chip-top10/chip-manual 유지)
-      // 확인 안 된 플랫폼 임시 뱃지가 남아있을 수 있으므로 포스터 위 뱃지도 안전하게 비움
-      const pc=document.getElementById('platformPills');
-      if(pc)pc.innerHTML='';
+      // [2026-07-20 수정] work_ott 전체 로고(loadOttLogos)가 이미 채워졌으면 그대로 유지 —
+      // "랭킹 데이터 없음"이 "OTT 서비스 안 함"을 의미하지 않으므로 함부로 지우지 않는다.
+      if(!WORK._hasOttLogos){
+        const pc=document.getElementById('platformPills');
+        if(pc)pc.innerHTML='';
+      }
       // 순위 없음이 확정된 시점에 SEO 메타 재갱신 — "OTT -위" 같은 깨진 타이틀 방지
       updateSEO(WORK.title,'',WORK.poster_path||null,WORK.platform,WORK.rank);
       return;
@@ -3885,23 +3920,18 @@ async function loadPlatforms(){
     WORK.platform=platforms[0].platform;
     WORK.rank=platforms[0].rank||'-';
 
-    // 포스터 위 OTT pill — 박스오피스는 기존 방식 유지, 나머지는 1순위 1개 표시
-    const pillsContainer=document.getElementById('platformPills');
-    if(pillsContainer){
-      if(WORK.platform==='boxoffice'){
-        pillsContainer.innerHTML=`<span class="platform-pill" style="display:block;background:#888;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;font-family:var(--font-mono)">박스오피스</span>`;
-      }else{
-        const p=platforms[0];
-        const fn=OTT_SEARCH_URL[p.platform];
-        const url=fn?fn(WORK.title):'#';
-        const color=CC[p.platform]||'#888';
-        pillsContainer.innerHTML=`<a class="platform-pill" href="${url}" target="_blank" rel="noopener"
-          style="display:inline-block;white-space:nowrap;background:${color};text-decoration:none;color:#fff;
-          font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;
-          font-family:var(--font-mono);letter-spacing:.5px;
-          box-shadow:0 1px 4px rgba(0,0,0,.5)">
-          ${PC[p.platform]||p.platform}
-        </a>`;
+    // 포스터 위 OTT 로고 — work_ott 전체 로고(loadOttLogos)가 이미 떠 있으면 순위 1위
+    // 플랫폼도 이미 그 안에 포함돼 있을 것이므로 건드리지 않음. 아직 안 떠 있는 경우에만
+    // (work_ott 미등록 신작 등) 순위 데이터의 대표 플랫폼 로고 1개라도 최소한 보여줌.
+    if(!WORK._hasOttLogos){
+      const pillsContainer=document.getElementById('platformPills');
+      if(pillsContainer){
+        if(WORK.platform==='boxoffice'){
+          pillsContainer.innerHTML=`<span class="platform-pill" style="display:block;background:#888;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;font-family:var(--font-mono)">박스오피스</span>`;
+        }else{
+          pillsContainer.innerHTML=ottLogoHtml(platforms[0].platform);
+        }
+        syncMobHero();
       }
     }
 
