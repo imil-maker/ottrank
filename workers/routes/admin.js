@@ -62,6 +62,7 @@
    DELETE /admin/works/pinned-similar
    POST   /admin/persons/collect
    POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설)
+   POST   /admin/persons/refill-korean-name ← 한글이름만 재확인(격리, 2026-07-20 신설)
    GET    /admin/persons/wiki-candidates ← 위키 매칭 후보 목록(2026-07-20 신설)
    POST   /admin/persons/wiki-match-attempt ← 실제 위키 검색+매칭 시도(2026-07-20 신설)
    POST   /admin/persons/wiki-approve   ← 매칭 확정 승인, person_wiki_cache 반영(2026-07-20 신설)
@@ -3242,10 +3243,71 @@ export async function handleAdmin(path, request, env, url, headers) {
           // 네트워크 오류 등 — 이번엔 스킵, 다음 배치에서 재시도(마킹 안 함)
         }
       }
+  // ── POST /admin/persons/refill-korean-name ────────────────────
+  // [2026-07-20 신규] "인물 상세정보 채우기"(backfill-meta)와 완전히 분리된 전용 배치.
+  // name_ko='' AND has_korean_name=0으로 확정 마킹됐던 사람들을 다시 TMDB로 재조회함.
+  // 예전엔 TMDB에 한글 이름이 없었지만(또는 그 당시 코드 버그로) '' 확정 마킹됐다가,
+  // 나중에 TMDB에 한글 이름이 생긴 사람들을 복구하기 위한 목적 (예수정 케이스에서 발견).
+  // birthday/popularity 등 다른 필드는 절대 안 건드림 — name_ko/has_korean_name만 격리해서 갱신.
+  if (path === "/admin/persons/refill-korean-name" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 20, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id FROM persons
+        WHERE name_ko = '' AND has_korean_name = 0 AND name_ko_checked_at IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, processed: 0, updated: 0, remaining: 0, message: "재확인할 인물 없음"
+        }), { headers });
+      }
+
+      const updates = [];
+      let updatedCount = 0;
+
+      for (const row of targets) {
+        try {
+          const resp = await fetch(
+            `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}`
+          );
+          if (!resp.ok) {
+            // 조회 자체가 실패 — 재확인은 했다는 표시만 남기고 값은 그대로 둠(다음날 재시도 가능하게)
+            updates.push(
+              env.DB.prepare(`UPDATE persons SET name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`).bind(row.tmdb_id)
+            );
+            continue;
+          }
+          const data = await resp.json();
+          const alsoKnown    = data.also_known_as || [];
+          const placeOfBirth = data.place_of_birth || "";
+          // person.html이 이름 표시에 쓰는 것과 완전히 동일한 로직 — also_known_as에서 한글 포함된 첫 항목
+          const koName = alsoKnown.find(n => /[가-힣]/.test(n)) || "";
+          // has_korean_name 판정도 backfill-meta와 동일한 출생지 교차검증 유지
+          const hasKoreanInList = koName !== "";
+          const looksNonKorean  = placeOfBirth && !/Korea|한국|Seoul|서울/i.test(placeOfBirth);
+          const hasKorean = (hasKoreanInList && !looksNonKorean) ? 1 : 0;
+
+          updates.push(
+            env.DB.prepare(
+              `UPDATE persons SET name_ko = ?, has_korean_name = ?, name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`
+            ).bind(koName, hasKorean, row.tmdb_id)
+          );
+          if (koName) updatedCount++;
+        } catch (e) {
+          // 네트워크 오류 — 이번엔 스킵, 다음 배치에서 재시도(재확인 표시 안 남김)
+        }
+      }
       if (updates.length) await env.DB.batch(updates);
 
       const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL"
+        "SELECT COUNT(*) as cnt FROM persons WHERE name_ko = '' AND has_korean_name = 0 AND name_ko_checked_at IS NULL"
       ).first();
 
       return new Response(JSON.stringify({
@@ -3259,7 +3321,7 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
-  // ── GET /admin/persons/wiki-candidates ───────────────────────
+
   // [2026-07-20 신규] 위키 매칭 대상 후보 목록 — person_wiki_cache에 아직 없는
   // 인물만, 인기순 또는 이름순으로 50개씩. 여기선 위키 검색을 전혀 안 하고
   // DB 조회만 하므로 빠름 — "매칭 시도" 버튼은 다음 단계에서 별도로 만듦.
