@@ -2680,7 +2680,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const ids = results.map(r => r.id);
       const placeholders = ids.map(() => "?").join(",");
       const { results: existingRows } = await env.DB.prepare(
-        `SELECT tmdb_id, title_ko, media_type FROM works WHERE tmdb_id IN (${placeholders})`
+        `SELECT tmdb_id, title_ko, media_type, poster_path FROM works WHERE tmdb_id IN (${placeholders})`
       ).bind(...ids).all();
       const existingMap = new Map((existingRows || []).map(r => [r.tmdb_id, r]));
       const newItems  = results.filter(r => !existingMap.has(r.id));
@@ -2690,8 +2690,10 @@ export async function handleAdmin(path, request, env, url, headers) {
           tmdb_id: r.id,
           existing_title: existingMap.get(r.id).title_ko,
           existing_media_type: existingMap.get(r.id).media_type,
+          existing_poster: existingMap.get(r.id).poster_path,
           requested_title: r.name || r.title || "",
           requested_media_type: mediaType,
+          requested_poster: r.poster_path || null,
         }));
       const skippedDup = existingMap.size - conflicts.length; // 같은 타입으로 이미 있는 정상 중복
 
