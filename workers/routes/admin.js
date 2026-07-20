@@ -3490,22 +3490,42 @@ export async function handleAdmin(path, request, env, url, headers) {
               const extract  = (pageObj && pageObj.extract) || "";
               const pageMissing = !pageObj || ("missing" in pageObj) || !extract;
 
-              // [2026-07-20 수정] "이름(YYYY년 ...)" 형식처럼 이름 바로 뒤 괄호 안에 나오는
-              // 연도를 우선 생년으로 인정 — 본문 중간에 나오는 다른 연도(데뷔작 등)를
-              // 생년으로 잘못 집는 것을 줄임. 못 찾으면 기존처럼 첫 "OOOO년" 패턴으로 폴백.
-              const nameYearMatch  = extract.match(/\((\d{4})년/);
-              const looseYearMatch = extract.match(/(\d{4})년/);
-              const wikiYear = (nameYearMatch && nameYearMatch[1]) || (looseYearMatch && looseYearMatch[1]) || null;
+              // [2026-07-20 수정] 위키 표기 방식이 다양함 — "이름(YYYY년 ~)", "이름(예명, YYYY년 ~)",
+              // "이름(영어: Name; YYYY년 ~)"처럼 부가정보가 연도보다 먼저 나오는 경우도 있어서,
+              // 괄호 안 전체를 먼저 확인. 1900~현재 연도 범위를 벗어나면 오탐(전화번호/작품연도 등)으로
+              // 보고 무시. 괄호 안에서 못 찾으면 본문 전체 첫 "YYYY년"으로 폴백.
+              const CURRENT_YEAR = new Date().getFullYear();
+              const isPlausibleYear = (y) => { const n = parseInt(y, 10); return n >= 1900 && n <= CURRENT_YEAR; };
+              const extractBirthYear = (text) => {
+                const parenMatch = text.match(/\(([^)]{0,80})\)/);
+                if (parenMatch) {
+                  const y = parenMatch[1].match(/(\d{4})년/);
+                  if (y && isPlausibleYear(y[1])) return y[1];
+                }
+                const loose = text.match(/(\d{4})년/);
+                if (loose && isPlausibleYear(loose[1])) return loose[1];
+                return null;
+              };
+              const wikiYear = extractBirthYear(extract);
 
               // 3단계: 생년도 일치 → 확정. 생년월일 정보가 없고 후보 1명뿐이면 잠정 채택.
               const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
+              // [2026-07-20 신규] 생년도가 서로 "다른 것으로 확인"되면(둘 다 값이 있고 불일치)
+              // 동음이의 구분 문서("{이름} (배우)")라도 이 후보는 완전히 제외하고 다음 후보로 —
+              // 동명이인 오매칭(예: 김미경 1965년생에 김미경 1963년생 위키가 붙는 사고) 방지.
+              const isYearConflict = tmdbYear && wikiYear && tmdbYear !== wikiYear;
               const isOnlyCandidate = !tmdbYear && titles.length === 1;
               // [2026-07-20 신규] 매칭 기준 완화(관리자 판단) — "{이름} (배우)"로 명시적으로
-              // 분리된 위키 문서가 실제 존재하면, 생년이 안 맞거나 아예 없어도 일단 매칭시킴.
-              // 동음이의 구분용 문서라 이름이 겹칠 위험이 낮고, 오매칭이어도 나중에 관리자가
-              // 눈으로 보고 고치면 되므로 "일단 매칭되는 것"을 우선함. 반도체 검사 수준의
-              // 엄격한 대조는 불필요하다는 판단.
+              // 분리된 위키 문서가 실제 존재하면, 생년 정보가 아예 없을 때는 일단 매칭시킴.
+              // 단, 생년이 서로 다르다고 "확인된" 경우는 위 isYearConflict에서 걸러지고 여기까지
+              // 오지 않음 — "정보 없음"과 "다른 사람으로 확인됨"을 구분해서 처리.
               const isDisambigPageExists = title === disambigTitle && !pageMissing;
+              if (isYearConflict) {
+                if (i === titles.length - 1 && !matched) {
+                  debugInfo = `후보 ${titles.length}개 확인함(${titles.join(', ')}) — 생년도가 달라 제외됨(TMDB: ${tmdbYear}, 위키: ${wikiYear})`;
+                }
+                continue;
+              }
               if (isYearMatch || isOnlyCandidate || isDisambigPageExists) {
                 matched = {
                   wiki_title: title,
