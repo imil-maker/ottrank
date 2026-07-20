@@ -1759,6 +1759,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* == Constants == */
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
+
+/* [2026-07-21 신규] 실시간 조회 이벤트 전송 — 관리자 화면에서 "지금 인기 작품/인물"을
+   보여주기 위한 신호. 응답을 기다리지 않는 fire-and-forget 방식이라 페이지 로딩 속도에
+   영향 없음. 실패해도 화면엔 영향 없게 조용히 무시. */
+function trackPageView(type, id){
+  try{
+    fetch(`${OTTRANK_API}/track/view`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type, id}),
+    }).catch(()=>{});
+  }catch(e){ /* 조용히 무시 */ }
+}
 const IMG='https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-17] 캐싱 프록시로 변경
 
 /* ── 모바일 상단 블록 동기화 ── */
@@ -2647,6 +2660,9 @@ async function loadTmdb(){
         return;
       }
     }
+
+    // [2026-07-21 신규] 실시간 조회 이벤트 — 진짜 유효한 작품 페이지로 확인된 시점에만 전송
+    trackPageView('work', WORK.tmdb_id);
 
     // English title: works DB first, fallback TMDB
     const origTitle=worksData?.title_en||det.original_name||det.original_title||'';
