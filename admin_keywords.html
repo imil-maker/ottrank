@@ -939,17 +939,29 @@ async function pmSearchByName(){
     if(!res.ok || !data.ok){ resultsWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">검색 실패</div>`; return; }
     if(!data.items.length){ resultsWrap.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">검색 결과가 없어요</div>`; return; }
 
-    resultsWrap.innerHTML = data.items.map(p => `
+    // [2026-07-20 신규] 동명이인 구분용 — 생년월일/성별/출생지를 이름 아래 작은 글씨로 표시
+    const pmGenderLabel = (g) => g === 1 ? '여성' : (g === 2 ? '남성' : '');
+    resultsWrap.innerHTML = data.items.map(p => {
+      const idBits = [];
+      if(p.birthday && !p.birthday.includes('00-00')) idBits.push(p.birthday);
+      if(pmGenderLabel(p.gender)) idBits.push(pmGenderLabel(p.gender));
+      if(p.place_of_birth) idBits.push(p.place_of_birth);
+      const idLine = idBits.length ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${escapeHtmlPm(idBits.join(' · '))}</div>` : '';
+      return `
       <div onclick="pmSelectPerson(${p.tmdb_id})"
         style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;transition:border-color .15s"
         onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        <span style="font-size:14px;font-weight:600;color:var(--text)">
-          ${escapeHtmlPm(p.name_ko || p.name)}${p.name_ko && p.name_ko !== p.name ? ` <span style="font-weight:400;color:var(--muted);font-size:12px">(${escapeHtmlPm(p.name)})</span>` : ''}
-          <a href="/person/${p.tmdb_id}" target="_blank" onclick="event.stopPropagation()" style="margin-left:8px;font-size:12px;color:#7ec8e3;text-decoration:none" title="인물페이지 새 탭으로 열기">🔗 페이지</a>
-        </span>
+        <div>
+          <span style="font-size:14px;font-weight:600;color:var(--text)">
+            ${escapeHtmlPm(p.name_ko || p.name)}${p.name_ko && p.name_ko !== p.name ? ` <span style="font-weight:400;color:var(--muted);font-size:12px">(${escapeHtmlPm(p.name)})</span>` : ''}
+            <a href="/person/${p.tmdb_id}" target="_blank" onclick="event.stopPropagation()" style="margin-left:8px;font-size:12px;color:#7ec8e3;text-decoration:none" title="인물페이지 새 탭으로 열기">🔗 페이지</a>
+          </span>
+          ${idLine}
+        </div>
         <span style="font-size:12px;color:${p.matched ? 'var(--green)' : 'var(--muted)'}">${p.matched ? '✅ 매칭됨' : '⬜ 미매칭'}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }catch(e){
     resultsWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
   }
