@@ -1262,14 +1262,17 @@ function genderLabel(g){
 }
 
 /* ── SEO 업데이트 ── */
-function updateSEO(name, desc, imgUrl, jobLabel, instaId){
+function updateSEO(name, desc, imgUrl, jobLabel, instaId, enName){
   // title: "임윤아 출연작·필모그래피 | 배우 프로필 | 오뜨랑"
+  // [2026-07-20 신규] 두번째 이름(영문명/본명 등)이 있으면 "이름(두번째이름)" 형태로 병기
   const job = jobLabel || '배우';
-  const t = `${name} 필모그래피·출연작 | ${job} 프로필·나이 | 오뜨랑`;
+  const nameLabel = enName ? `${name}(${enName})` : name;
+  const t = `${nameLabel} 필모그래피·출연작 | ${job} 프로필·나이 | 오뜨랑`;
 
-  // keywords: 이름 변형 + 인스타 키워드 포함
+  // keywords: 이름 변형 + 인스타 키워드 포함 (두번째 이름 있으면 그 변형도 함께)
   const kw = [
     name,
+    enName || '',
     `${name} 출연작`,
     `${name} 드라마`,
     `${name} 영화`,
@@ -1278,6 +1281,8 @@ function updateSEO(name, desc, imgUrl, jobLabel, instaId){
     `${name} 나이`,
     `${name} 인스타그램`,
     `${name} SNS`,
+    enName ? `${enName} 필모그래피` : '',
+    enName ? `${enName} 프로필` : '',
     instaId ? `${name} 인스타 @${instaId}` : '',
     `${job} 프로필`,
     'OTT 배우',
@@ -1551,10 +1556,12 @@ async function initPage(){
     const profileImgUrl = data.profile_path
       ? `https://poster.ottrank.kr/tmdb-img/w342${data.profile_path}` : '';
     const jobLabel = data.known_for_department === 'Directing' ? '감독' : '배우';
+    // [2026-07-20 신규] 두번째 이름(영문명/본명 등)이 있으면 설명에도 "이름(두번째이름)"로 병기
+    const seoNameLabel = enName ? `${displayName}(${enName})` : displayName;
     const seoDesc = bio
-      ? bio.slice(0, 120).replace(/\n/g,' ') + '...'
-      : `${displayName} 필모그래피와 프로필을 오뜨랑에서 확인하세요.`;
-    updateSEO(displayName, seoDesc, profileImgUrl, jobLabel, ext.instagram_id);
+      ? `${seoNameLabel} - ${bio.slice(0, 110).replace(/\n/g,' ')}...`
+      : `${seoNameLabel} 필모그래피와 프로필을 오뜨랑에서 확인하세요.`;
+    updateSEO(displayName, seoDesc, profileImgUrl, jobLabel, ext.instagram_id, enName);
 
     /* ⑧ 필모그래피 */
     const credits = data.combined_credits || {};
