@@ -3514,6 +3514,40 @@ export async function handleAdmin(path, request, env, url, headers) {
           .trim();
       };
 
+      // [2026-07-20 신규] 전체이력(career_history) 정제 헬퍼.
+      // 위키 본문 줄글에는 "== 웹예능 ==" 처럼 제목만 있고 내용이 없는 섹션이 많고,
+      // "== 학력 ==" / "== 수상 ==" 처럼 이미 전용 칸(education/awardsText)으로
+      // 따로 뽑아낸 섹션도 그대로 남아있어서 중복으로 보임 — 둘 다 걸러냄.
+      // 섹션 헤더가 하나도 없는 문서(도입부만 있는 경우)는 원문 그대로 반환.
+      const stripSectionsAndEmpties = (text) => {
+        if (!text) return text;
+        const headerRe = /^(={2,6})\s*([^=\n]+?)\s*\1[ \t]*$/gm;
+        const matches = [];
+        let m;
+        while ((m = headerRe.exec(text)) !== null) {
+          matches.push({ index: m.index, headerEnd: m.index + m[0].length, level: m[1].length, title: m[2].trim() });
+        }
+        if (!matches.length) return text.trim();
+
+        // 첫 섹션 헤더 이전의 도입부 문단은 항상 유지
+        const intro = text.slice(0, matches[0].index).trim();
+
+        const kept = [];
+        for (let i = 0; i < matches.length; i++) {
+          const cur = matches[i];
+          const next = matches[i + 1];
+          const content = text.slice(cur.headerEnd, next ? next.index : text.length).trim();
+
+          const isDuplicateSection = /^(학력|수상|수상내역|수상 경력)/.test(cur.title);
+          if (!content || isDuplicateSection) continue; // 내용 없는 섹션 또는 이미 뽑아낸 섹션은 제외
+
+          const headerMark = "=".repeat(cur.level);
+          kept.push(`${headerMark} ${cur.title} ${headerMark}\n${content}`);
+        }
+
+        return [intro, ...kept].filter(Boolean).join("\n\n");
+      };
+
       const WIKI_UA_APPROVE = { "User-Agent": "OttrankBot/1.0 (https://ottrank.kr; 오뜨랑 인물 위키매칭)" };
 
       for (const q of queued) {
@@ -3535,9 +3569,6 @@ export async function handleAdmin(path, request, env, url, headers) {
 
           // ① 요약(bio_summary) = 첫 문단(첫 줄바꿈 전까지)
           const bioSummary = fullText.split("\n")[0].slice(0, 500);
-
-          // ② 전체이력(career_history) = 전체 본문 그대로 (person.html에서 "더보기"로 접어서 보여줌)
-          const careerHistory = fullText.slice(0, 8000); // 너무 길면 잘라냄(안전장치)
 
           // ③ 수상내역(awards_text) = "== 수상" 포함 섹션 헤더 다음 텍스트, 다음 섹션 헤더 전까지
           // [2026-07-20 수정] \n+(탐욕적)가 섹션 사이 줄바꿈을 한번에 다 삼켜버려서,
@@ -3576,6 +3607,22 @@ export async function handleAdmin(path, request, env, url, headers) {
               education = cleanWikitext(eduField[1]).slice(0, 200) || null;
             }
           }
+
+          // [2026-07-20 신규] 인포박스에 학력이 없는 배우(예: {{영화인 정보}} 틀을 쓰거나,
+          // 틀 안에 그냥 필드가 비어있는 경우) — 본문 "== 학력 ==" 섹션에서 대신 찾음.
+          // 수상내역과 동일한 방식(섹션 헤더~다음 섹션 헤더 전까지). 본문 학력 섹션은
+          // 보통 줄바꿈으로 나열된 리스트라 " · "로 이어붙여서 한 줄로 정리.
+          if (!education) {
+            const eduMatch = fullText.match(/==+\s*학력[^=\n]*==+\n*([\s\S]*?)(?=\n==+\s|$)/);
+            const eduRaw = eduMatch ? eduMatch[1].trim() : "";
+            if (eduRaw && !/^==/.test(eduRaw)) {
+              education = cleanWikitext(eduRaw.replace(/\n+/g, " · ")).slice(0, 300) || null;
+            }
+          }
+
+          // ② 전체이력(career_history) = 본문에서 빈 섹션·중복 섹션(학력/수상) 걸러낸 뒤 저장
+          // (person.html에서 "더보기"로 접어서 보여줌)
+          const careerHistory = stripSectionsAndEmpties(fullText).slice(0, 8000); // 너무 길면 잘라냄(안전장치)
 
           // ⑥⑦ KMDb / IMDb ID — 외부링크 목록에서 추출 (HTML 파싱 없이 API로 바로)
           const extlinks = (pageObj && pageObj.extlinks) || [];
