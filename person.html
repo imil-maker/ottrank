@@ -727,6 +727,19 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 /* ── 상수 ── */
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API = 'https://ottrank-api.tdidream.workers.dev'; // [2026-07-11 추가] 랭킹배지 조회용
+
+/* [2026-07-21 신규] 실시간 조회 이벤트 전송 — 관리자 화면에서 "지금 인기 작품/인물"을
+   보여주기 위한 신호. 응답을 기다리지 않는 fire-and-forget 방식이라 페이지 로딩 속도에
+   영향 없음. 실패해도 화면엔 영향 없게 조용히 무시. */
+function trackPageView(type, id){
+  try{
+    fetch(`${OTTRANK_API}/track/view`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type, id}),
+    }).catch(()=>{});
+  }catch(e){ /* 조용히 무시 */ }
+}
 const IMG        = 'https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-18] 캐싱 프록시로 변경
 const IMG_PROFILE= 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-18] 캐싱 프록시로 변경
 
@@ -1448,6 +1461,9 @@ async function initPage(){
         `<p>인물 정보를 찾을 수 없습니다.</p>`;
       return;
     }
+
+    // [2026-07-21 신규] 실시간 조회 이벤트 — 진짜 유효한 인물 페이지로 확인된 시점에만 전송
+    trackPageView('person', data.id);
 
     /* ── 로딩 숨김 / 콘텐츠 표시 ── */
     document.getElementById('pageLoading').style.display = 'none';
