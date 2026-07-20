@@ -589,6 +589,14 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
     </div>
   </div><!-- /hero-wrap -->
 
+  <!-- [2026-07-19 신규] 전체이력 — PC 전용(왼쪽 컬럼, 사진 밑). 모바일은 별도 위치(랭킹위젯~필모그래피 사이)에
+       독립된 버튼+박스를 따로 둠 (아래 wikiCareerMobileSection 참고) -->
+  <div class="wiki-test-section" id="wikiTestSection">
+    <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
+    <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
+    <div class="wiki-test-source" id="wikiSource"></div>
+  </div>
+
   <!-- ⚠️ 2026-07-11 재수정: 사진 컬럼(200px) 안에 갤러리를 넣었더니 대표작처럼
        한 줄에 다 보이던 게 좁아져서 스크롤바가 두껍게 생기는 문제 발생 → PC는
        원래 이 자리(화면 전체 폭, 대표작 섹션과 같은 방식)로 되돌림.
@@ -606,15 +614,6 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
       <div class="photo-gallery-row" id="photoGalleryRow"></div>
       <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('photoGalleryRow',1)" aria-label="다음 사진">›</button>
     </div>
-  </div>
-
-  <!-- [2026-07-20 수정] 갤러리를 위키박스보다 앞(사진 바로 밑)으로 옮김 —
-       PC 전용(왼쪽 컬럼, 사진 밑). 모바일은 별도 위치(랭킹위젯~필모그래피 사이)에
-       독립된 버튼+박스를 따로 둠 (아래 wikiCareerMobileSection 참고) -->
-  <div class="wiki-test-section" id="wikiTestSection">
-    <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
-    <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
-    <div class="wiki-test-source" id="wikiSource"></div>
   </div>
 
   </div><!-- /person-col-left -->
@@ -831,7 +830,9 @@ let shownCount   = 0;
 let filmoSortMode = 'ott'; // [2026-07-20 신규] 'ott'(OTT 있는 작품 우선, 기본값) | 'year'(연도순)
 
 /* [2026-07-19 신규] TMDB 약력(영어인 경우가 많음) — 위키 데이터 로드 시
-   "위키 프로필이 40자 이내면 TMDB 약력과 같이 보여주기" 판단에 사용 */
+   "위키 프로필이 80자 이내면 TMDB 약력과 같이 보여주기" 판단에 사용
+   ([2026-07-20 수정] 40자 → 80자 — 마동석처럼 "본명/영어이름/생년월일" 나열만 길고
+   실제 서술은 짧은 문장이 40자를 넘겨버려서 기준을 완화함) */
 let tmdbBioText = '';
 /* [2026-07-20 신규] 모바일 "OO 전체 이력 더보기" 버튼 텍스트용 이름 저장 */
 let personDisplayName = '';
@@ -882,10 +883,10 @@ async function loadWikiTest(personId){
     if(d.bio_summary){
       /* [2026-07-19 신규] 오른쪽 상단 프로필의 "약력" 자리를 위키 요약글로 대체.
          TMDB 약력은 영어인 경우가 대부분이라, 한국어인 위키 요약글을 우선시함.
-         단, 위키 요약글이 너무 짧으면(40자 미만) 정보가 부족하니 TMDB 약력을 이어붙임. */
+         단, 위키 요약글이 너무 짧으면(80자 미만) 정보가 부족하니 TMDB 약력을 이어붙임. */
       const bioEl = document.getElementById('bioText');
       if(bioEl){
-        const combined = d.bio_summary.length < 40 && tmdbBioText
+        const combined = d.bio_summary.length < 80 && tmdbBioText
           ? `${d.bio_summary} ${tmdbBioText}`
           : d.bio_summary;
         bioEl.textContent = combined;
