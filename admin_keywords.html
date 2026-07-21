@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.1 — admin_keywords.html (인물 좋아요 순위 탭 신규: 오늘/어제/1주일/1개월/1년, 50개씩 이전/다음 페이지네이션) -->
+<!-- 2026-07-22 rev.2 — admin_keywords.html (인물 좋아요 순위에 "전체" 탭 추가, 기본 선택값으로 변경) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -460,6 +460,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     </div>
 
     <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:20px;width:fit-content">
+      <button id="lrPeriodAll"       class="lr-period-btn" onclick="switchLikeRankingPeriod('all')">전체</button>
       <button id="lrPeriodToday"     class="lr-period-btn" onclick="switchLikeRankingPeriod('today')">오늘</button>
       <button id="lrPeriodYesterday" class="lr-period-btn" onclick="switchLikeRankingPeriod('yesterday')">어제</button>
       <button id="lrPeriodWeek"      class="lr-period-btn" onclick="switchLikeRankingPeriod('week')">1주일</button>
@@ -760,13 +761,14 @@ function renderPlPagination(current, hasMore){
 /* [2026-07-22 신규] 인물 좋아요 순위 — 기간(오늘/어제/1주일/1개월/1년) + 50개씩 페이지네이션.
    전체 개수는 안 세고(COUNT 쿼리 생략) has_more만으로 이전/다음 판단 — 페이지 로그 탭과 동일 패턴. */
 const LR_PERIODS = [
+  { key: 'all',        btnId: 'lrPeriodAll' },
   { key: 'today',     btnId: 'lrPeriodToday' },
   { key: 'yesterday', btnId: 'lrPeriodYesterday' },
   { key: 'week',      btnId: 'lrPeriodWeek' },
   { key: 'month',     btnId: 'lrPeriodMonth' },
   { key: 'year',      btnId: 'lrPeriodYear' },
 ];
-let lrCurrentPeriod = 'today';
+let lrCurrentPeriod = 'all';
 
 function switchLikeRankingPeriod(period){
   lrCurrentPeriod = period;
@@ -894,7 +896,7 @@ function switchPageTab(tab) {
   if (tab === 'searchLog') loadSearchLogs(1);
   if (tab === 'pageLog') loadPageLogs(1);
   if (tab === 'personMatch') loadPersonMatchCandidates();
-  if (tab === 'likeRanking') switchLikeRankingPeriod('today');
+  if (tab === 'likeRanking') switchLikeRankingPeriod('all');
 }
 
 function showToast(msg){
