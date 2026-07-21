@@ -1,5 +1,4 @@
-// 2026-07-22 rev.1 — admin.js (backfill-meta가 name_ko_checked_at을 안 남겨 refill-korean-name과
-// 대상이 즉시 겹치던 버그 수정 + 재확인 주기 1년 도입)
+// 2026-07-22 rev.2 — admin.js (backfill-meta name_ko_checked_at 버그수정+1년주기, 인물 좋아요 기간별 순위 API 신규)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -66,6 +65,7 @@
    POST   /admin/persons/collect
    POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설, 2026-07-22 name_ko_checked_at 기록 추가)
    POST   /admin/persons/refill-korean-name ← 한글이름만 재확인(격리, 2026-07-20 신설, 2026-07-22 1년 주기 재확인으로 변경)
+   GET    /admin/persons/like-ranking ← 인물 좋아요 기간별 순위(오늘/어제/1주일/1개월/1년, 2026-07-22 신설)
    GET    /admin/persons/wiki-candidates ← 위키 매칭 후보 목록(2026-07-20 신설)
    POST   /admin/persons/wiki-match-attempt ← 실제 위키 검색+매칭 시도(2026-07-20 신설)
    POST   /admin/persons/wiki-approve   ← 매칭 확정 승인, person_wiki_cache 반영(2026-07-20 신설)
@@ -3457,6 +3457,59 @@ export async function handleAdmin(path, request, env, url, headers) {
         processed: targets.length,
         updated: updatedCount,
         remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/like-ranking ────────────────────────────
+  // [2026-07-22 신규] 인물 좋아요 순위 — 어드민 "인물 좋아요 순위" 탭용.
+  // person_like_daily(날짜별 집계)를 기간별로 합산해서 순위를 매김. 50개씩,
+  // "이전/다음"만 있는 단순 페이지네이션(전체 개수 세는 COUNT 쿼리 없음 —
+  // limit+1개를 가져와서 남았으면 has_more=true로만 판단, 페이지 로그 탭과 동일 패턴).
+  // 기간은 전부 "오늘 포함 최근 N일" 롤링 방식(달력상 이번달/올해가 아님) — 계산이 단순하고
+  // "최근 인기"라는 목적에 더 잘 맞음.
+  if (path === "/admin/persons/like-ranking" && request.method === "GET") {
+    try {
+      const period = url.searchParams.get("period") || "today";
+      const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
+      const limit  = 50;
+      const offset = (page - 1) * limit;
+
+      const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const daysAgo = (n) => new Date(Date.now() + 9 * 60 * 60 * 1000 - n * 86400000).toISOString().slice(0, 10);
+
+      let startDate;
+      if (period === "today") startDate = kstToday;
+      else if (period === "yesterday") startDate = daysAgo(1);
+      else if (period === "week") startDate = daysAgo(6);
+      else if (period === "month") startDate = daysAgo(29);
+      else if (period === "year") startDate = daysAgo(364);
+      else startDate = kstToday; // 알 수 없는 값이면 안전하게 "오늘"로 폴백
+
+      const endDate = (period === "yesterday") ? daysAgo(1) : kstToday;
+
+      const { results } = await env.DB.prepare(`
+        SELECT d.tmdb_id, SUM(d.count) as total, p.name, p.name_ko, p.profile_path
+        FROM person_like_daily d
+        LEFT JOIN persons p ON p.tmdb_id = d.tmdb_id
+        WHERE d.like_date >= ? AND d.like_date <= ?
+        GROUP BY d.tmdb_id
+        ORDER BY total DESC
+        LIMIT ? OFFSET ?
+      `).bind(startDate, endDate, limit + 1, offset).all();
+
+      const hasMore = results.length > limit;
+      const items = results.slice(0, limit).map((r) => ({
+        tmdb_id: r.tmdb_id,
+        name: (r.name_ko && r.name_ko.trim()) ? r.name_ko : (r.name || `#${r.tmdb_id}`),
+        profile_path: r.profile_path,
+        like_count: r.total,
+      }));
+
+      return new Response(JSON.stringify({
+        ok: true, items, page, has_more: hasMore, period,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
