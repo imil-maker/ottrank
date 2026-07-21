@@ -1,3 +1,4 @@
+// 2026-07-22 rev.1 — auth.js (기존회원 로그인도 redirect 주소 있으면 원래 페이지로 복귀, 구글/카카오에 redirect 안전검증 추가)
 /* ══════════════════════════════════════════════════════════════
    인증 관련 API 라우트
    GET    /auth/google
@@ -95,7 +96,10 @@ export async function handleAuth(path, request, env, headers) {
       ).bind(sessionId, userRow.id, expiresAt).run();
 
       const googleState = url.searchParams.get("state") || "";
-      const googleAfter = googleState ? decodeURIComponent(googleState) : "";
+      let googleAfter = googleState ? decodeURIComponent(googleState) : "";
+      // [2026-07-22 추가] 우리 사이트 안의 주소("/"로 시작)일 때만 신뢰 — 외부 사이트로
+      // 리다이렉트되는 걸 방지(네이버 콜백엔 이미 있던 안전장치, 구글에도 동일하게 적용)
+      if (!googleAfter.startsWith("/")) googleAfter = "";
 
       // 기존 로그인 시 1일 1회 +3 오뜨 — users.last_login_bonus_date 기준으로 판단 (/auth/me와 동일 기준)
       if (!isNew) {
@@ -108,9 +112,11 @@ export async function handleAuth(path, request, env, headers) {
         }
       }
 
+      // [2026-07-22 수정] 기존회원도 redirect 주소가 있으면 원래 있던 페이지로 돌아감
+      // (예전엔 이 값을 신규가입자한테만 넘기고 기존회원은 무조건 mypage로 보냈음)
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (googleAfter ? `&redirect=${encodeURIComponent(googleAfter)}` : "")
-        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
+        : `https://ottrank.kr${googleAfter || '/mypage.html'}${googleAfter ? (googleAfter.includes('?') ? '&' : '?') : '?'}sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -209,9 +215,10 @@ export async function handleAuth(path, request, env, headers) {
         }
       }
 
+      // [2026-07-22 수정] 기존회원도 redirect 주소가 있으면 원래 있던 페이지로 돌아감
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (naverAfter ? `&redirect=${encodeURIComponent(naverAfter)}` : "")
-        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
+        : `https://ottrank.kr${naverAfter || '/mypage.html'}${naverAfter ? (naverAfter.includes('?') ? '&' : '?') : '?'}sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
@@ -293,7 +300,9 @@ export async function handleAuth(path, request, env, headers) {
       ).bind(sessionId, userRow.id, expiresAt).run();
 
       const stateParam = url.searchParams.get("state") || "";
-      const afterLogin = stateParam ? decodeURIComponent(stateParam) : "";
+      let afterLogin = stateParam ? decodeURIComponent(stateParam) : "";
+      // [2026-07-22 추가] 우리 사이트 안의 주소일 때만 신뢰(구글/네이버와 동일하게 통일)
+      if (!afterLogin.startsWith("/")) afterLogin = "";
 
       // 기존 로그인 시 1일 1회 +3 오뜨 — users.last_login_bonus_date 기준으로 판단 (/auth/me와 동일 기준)
       if (!isNew) {
@@ -306,9 +315,10 @@ export async function handleAuth(path, request, env, headers) {
         }
       }
 
+      // [2026-07-22 수정] 기존회원도 redirect 주소가 있으면 원래 있던 페이지로 돌아감
       const redirectTo = isNew
         ? `https://ottrank.kr/signup.html?sid=${sessionId}` + (afterLogin ? `&redirect=${encodeURIComponent(afterLogin)}` : "")
-        : `https://ottrank.kr/mypage.html?sid=${sessionId}`;
+        : `https://ottrank.kr${afterLogin || '/mypage.html'}${afterLogin ? (afterLogin.includes('?') ? '&' : '?') : '?'}sid=${sessionId}`;
 
       return new Response(null, {
         status: 302,
