@@ -1968,6 +1968,11 @@ export async function handleAdmin(path, request, env, url, headers) {
               const match = OTT_NAME_MATCH.find(([re]) => re.test(p.provider_name || ""));
               if (match) keys.add(match[1]);
             });
+          } else if (wpResp.status === 404) {
+            // [2026-07-21 추가] 404는 TMDB가 "이 작품엔 provider 데이터 자체가 없다"고 확정적으로
+            // 답하는 것 — 429(rate limit)/5xx(TMDB 서버 일시 문제)와 달리 재시도해도 안 바뀜.
+            // "확인했지만 OTT 없음"으로 확정 처리해서 재시도 대상에서 뺌.
+            anySuccess = true;
           } else {
             lastReason = `watch/providers ${wpResp.status}`;
           }
