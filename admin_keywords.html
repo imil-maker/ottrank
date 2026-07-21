@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.2 — admin_keywords.html (인물 좋아요 순위에 "전체" 탭 추가, 기본 선택값으로 변경) -->
+<!-- 2026-07-22 rev.3 — admin_keywords.html (프로필 수정요청 탭 신규: 기존/신규 약력 나란히 비교, 승인시 수정가능, 거절 가능) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -68,6 +68,26 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .lr-period-btn{padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)}
 .lr-period-btn.on{background:rgba(240,180,41,.2);color:var(--gold);font-weight:600}
 
+/* [2026-07-22 신규] 프로필 수정요청 카드 */
+.pea-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:16px}
+.pea-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px}
+.pea-head a{font-weight:700;color:var(--text);text-decoration:none;font-size:14px}
+.pea-head a:hover{color:var(--accent)}
+.pea-head .pea-sub{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.pea-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pea-cols label{display:block;font-size:12px;color:var(--muted2);margin-bottom:6px;font-weight:600}
+.pea-cols textarea{width:100%;min-height:120px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;padding:10px;color:var(--text);font-size:13px;line-height:1.6;
+  font-family:var(--sans);resize:vertical}
+.pea-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.pea-btns button{padding:8px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;
+  cursor:pointer;font-family:var(--sans)}
+.pea-reject-btn{background:var(--bg3);color:var(--muted2)}
+.pea-approve-btn{background:var(--green);color:#06210f}
+@media(max-width:640px){
+  .pea-cols{grid-template-columns:1fr}
+}
+
 </style>
 </head>
 <body>
@@ -118,6 +138,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabLikeRanking" onclick="switchPageTab('likeRanking')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           👍 인물 좋아요 순위
+        </button>
+        <button id="tabProfileEdits" onclick="switchPageTab('profileEdits')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          ✏️ 프로필 수정요청
         </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
@@ -485,6 +509,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   </div>
 
+  <!-- ══ 프로필 수정요청 탭 (2026-07-22 신규) ══ -->
+  <div class="wrap" id="profileEditsWrap" style="display:none">
+
+    <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 로그인한 사용자가 인물페이지에서 제출한 약력 수정 제안이에요. "승인"을 눌러야 실제 인물페이지에
+      반영돼요 — 오른쪽 칸(수정 요청 내용)은 저장 전에 직접 고쳐서 승인할 수도 있어요.
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:20px">
+      <button class="btn-secondary" onclick="loadProfileEdits(1)" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
+    </div>
+
+    <div id="peaList"></div>
+
+    <div style="display:flex;justify-content:center;gap:6px;padding:20px 0" id="peaPagination"></div>
+
+  </div>
+
   <!-- ══ 인물 매칭 탭 ══ -->
   <div class="wrap" id="personMatchWrap" style="display:none">
 
@@ -830,6 +872,118 @@ function renderLrPagination(current, hasMore){
   `;
 }
 
+/* [2026-07-22 신규] 프로필(약력) 수정요청 — 대기중인 것만 50개씩, 카드로 표시.
+   각 카드는 "기존 내용"(읽기전용)과 "수정 요청 내용"(관리자가 고쳐서 승인 가능한 입력창)을
+   나란히 보여줌. 승인/거절 누르면 그 카드만 목록에서 바로 제거(전체 새로고침 안 함). */
+let peaCurrentPage = 1;
+
+async function loadProfileEdits(page){
+  page = page || 1;
+  peaCurrentPage = page;
+  const list = document.getElementById('peaList');
+  list.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</div>`;
+
+  try{
+    const res = await fetch(`${API}/admin/persons/profile-edits?page=${page}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const json = await res.json();
+    if(!json.ok){
+      list.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</div>`;
+      document.getElementById('peaPagination').innerHTML = '';
+      return;
+    }
+
+    const items = json.items || [];
+    if(!items.length){
+      list.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">대기중인 수정요청이 없습니다</div>`;
+      document.getElementById('peaPagination').innerHTML = '';
+      return;
+    }
+
+    list.innerHTML = items.map(peaCardHtml).join('');
+    renderPeaPagination(page, !!json.has_more);
+  }catch(e){
+    list.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</div>`;
+    document.getElementById('peaPagination').innerHTML = '';
+  }
+}
+
+function peaCardHtml(item){
+  return `
+    <div class="pea-card" id="peaCard_${item.id}">
+      <div class="pea-head">
+        <a href="/person/${item.tmdb_id}" target="_blank" rel="noopener">${hescSl(item.person_name)}</a>
+        <span class="pea-sub">제출자: ${hescSl(item.submitter)} · ${fmtKst(item.created_at, true)}</span>
+      </div>
+      <div class="pea-cols">
+        <div>
+          <label>기존 내용</label>
+          <textarea readonly style="opacity:.7">${hescSl(item.old_bio || '(비어있음)')}</textarea>
+        </div>
+        <div>
+          <label>수정 요청 내용 (고쳐서 승인 가능)</label>
+          <textarea id="peaNewBio_${item.id}">${hescSl(item.new_bio)}</textarea>
+        </div>
+      </div>
+      <div class="pea-btns">
+        <button class="pea-reject-btn" onclick="rejectProfileEdit(${item.id})">거절</button>
+        <button class="pea-approve-btn" onclick="approveProfileEdit(${item.id})">✓ 승인(저장)</button>
+      </div>
+    </div>
+  `;
+}
+
+async function approveProfileEdit(id){
+  const bio = document.getElementById(`peaNewBio_${id}`)?.value.trim();
+  if(!bio){ showToast('내용이 비어있어요'); return; }
+  try{
+    const res = await fetch(`${API}/admin/persons/profile-edits/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ action: 'approve', bio }),
+    });
+    const json = await res.json();
+    if(json.ok){
+      showToast('✅ 승인 완료 — 인물페이지에 반영됐어요');
+      document.getElementById(`peaCard_${id}`)?.remove();
+    } else {
+      showToast('실패: ' + (json.message || ''));
+    }
+  }catch(e){
+    showToast('오류: ' + e.message);
+  }
+}
+
+async function rejectProfileEdit(id){
+  try{
+    const res = await fetch(`${API}/admin/persons/profile-edits/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ action: 'reject' }),
+    });
+    const json = await res.json();
+    if(json.ok){
+      showToast('거절 처리했어요');
+      document.getElementById(`peaCard_${id}`)?.remove();
+    } else {
+      showToast('실패: ' + (json.message || ''));
+    }
+  }catch(e){
+    showToast('오류: ' + e.message);
+  }
+}
+
+function renderPeaPagination(current, hasMore){
+  const el = document.getElementById('peaPagination');
+  if(!el) return;
+  el.innerHTML = `
+    <button class="btn-secondary" onclick="loadProfileEdits(${current-1})" ${current===1?'disabled':''}>‹ 이전</button>
+    <span style="padding:0 12px;color:var(--muted2);font-family:var(--mono);font-size:13px;display:flex;align-items:center">${current} 페이지</span>
+    <button class="btn-secondary" onclick="loadProfileEdits(${current+1})" ${hasMore?'':'disabled'}>다음 ›</button>
+  `;
+}
+
 </script>
 
 <script>
@@ -880,6 +1034,7 @@ const PAGE_TABS = [
   { key: 'pageLog',          wrapId: 'pageLogWrap',          btnId: 'tabPageLog',          title: '📊 페이지 로그', onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'likeRanking',      wrapId: 'likeRankingWrap',       btnId: 'tabLikeRanking',      title: '👍 인물 좋아요 순위', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
+  { key: 'profileEdits',     wrapId: 'profileEditsWrap',      btnId: 'tabProfileEdits',     title: '✏️ 프로필 수정요청', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
 ];
 let currentPageTab = 'keyword';
 function switchPageTab(tab) {
@@ -897,6 +1052,7 @@ function switchPageTab(tab) {
   if (tab === 'pageLog') loadPageLogs(1);
   if (tab === 'personMatch') loadPersonMatchCandidates();
   if (tab === 'likeRanking') switchLikeRankingPeriod('all');
+  if (tab === 'profileEdits') loadProfileEdits(1);
 }
 
 function showToast(msg){
