@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.5 — person.html (좋아요 박스 골드 배경으로 변경, 하트 애니메이션 2종 랜덤 혼합, 이름 섹션 위 10px 여백) -->
+<!-- 2026-07-22 rev.6 — person.html (다가오는 하트 뭉침 버그 수정: 360도 각도분산 적용, 좋아요 박스 더 밝은 골드톤으로 변경) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -144,12 +144,12 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   display:flex; align-items:center; justify-content:center; gap:6px;
   width:100%; margin-top:10px; padding:10px 0;
   border:none; border-radius:var(--r-lg);
-  background:rgba(240,180,41,.14); cursor:pointer; position:relative; overflow:visible;
+  background:rgba(255,214,92,.22); cursor:pointer; position:relative; overflow:visible;
   font-family:var(--font-mono); font-size:15px; font-weight:700; color:var(--text);
   transition:background .15s;
 }
-.person-like-btn:hover{background:rgba(240,180,41,.20)}
-.person-like-btn.liked{background:rgba(240,180,41,.28)}
+.person-like-btn:hover{background:rgba(255,214,92,.32)}
+.person-like-btn.liked{background:rgba(255,214,92,.42)}
 .person-like-btn:disabled{cursor:default}
 .person-like-btn .like-heart{font-size:22px; line-height:1; transition:transform .15s}
 .person-like-btn.liked .like-heart{transform:scale(1.15)}
@@ -986,9 +986,14 @@ function burstHearts(container){
     const dy = -Math.cos(angle) * dist - 20;
     p.style.setProperty('--dx', `${dx}px`);
     p.style.setProperty('--dy', `${dy}px`);
-    // zoom 타입은 멀리 안 날아가고 그 자리에서 살짝만 흔들리듯 움직이며 커지는 게 자연스러움
-    const dxZoom = (Math.random()*60 - 30);
-    const dyZoom = (Math.random()*60 - 30);
+    // zoom 타입도 float처럼 각도를 기반으로 넓게 흩어지게 함 — 기존엔 -30~30px 정사각형
+    // 범위 안에서만 랜덤이라 다들 중앙 근처에 몰려서(뭉쳐서) 날아오는 것처럼 보였음.
+    // 거리(dist)만 float보다 짧게 줘서 "멀리 안 날아가고 그 자리 근처에서 커진다"는
+    // 느낌은 유지하되, 각도(angleZoom)는 훨씬 넓은 범위(360도 전체)로 흩뿌림.
+    const angleZoom = Math.random() * Math.PI * 2; // 0~360도, 사방으로
+    const distZoom  = 60 + Math.random()*140; // px
+    const dxZoom = Math.cos(angleZoom) * distZoom;
+    const dyZoom = Math.sin(angleZoom) * distZoom;
     p.style.setProperty('--dxZoom', `${dxZoom}px`);
     p.style.setProperty('--dyZoom', `${dyZoom}px`);
     p.style.animationDelay = `${Math.random()*0.4}s`;
