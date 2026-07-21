@@ -163,6 +163,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .ott-logo-ph{width:24px;height:24px;border-radius:50%;flex-shrink:0;font-size:11px;color:#fff;font-weight:700;
   display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 
+/* [2026-07-21 추가] 인물 검색 섹션 — 작품 그리드 아래, 얇은 구분선으로만 분리 (별도 박스 없음, 작품과 동일한 카드 스타일 재사용) */
+.person-section{margin-top:8px}
+.person-section-title{font-size:15px;font-weight:700;color:var(--muted2);margin:28px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+@media (max-width:768px){
+  .person-section-title{margin:20px 0 12px;padding-top:16px}
+}
+
 .more-wrap{grid-column:1/-1;display:flex;justify-content:center;margin-top:8px}
 .more-btn{padding:10px 24px;border-radius:9px;border:1px solid var(--border2);background:var(--bg3);
   color:var(--text);font-size:13px;font-family:var(--sans);cursor:pointer;transition:background .15s}
@@ -227,6 +234,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="work-grid" id="workGrid">
       <div class="loading"><span class="spin"></span>검색 중...</div>
     </div>
+
+    <!-- [2026-07-21 추가] 인물 검색 섹션 — 작품 결과 아래, 결과 없으면 통째로 숨김(display:none 유지) -->
+    <div class="person-section" id="personSection" style="display:none">
+      <div class="person-section-title">인물</div>
+      <div class="work-grid" id="personGrid"></div>
+      <div class="more-wrap" id="personMoreWrap" style="display:none">
+        <button class="more-btn" id="personMoreBtn">더보기</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -235,6 +251,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 const API        = 'https://ottrank-api.tdidream.workers.dev';
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const IMG        = 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-18] 캐싱 프록시로 변경
+const IMG_PERSON = 'https://poster.ottrank.kr/tmdb-img/w185'; // [2026-07-21 추가] 인물 프로필사진 — 포스터보다 작은 사이즈면 충분
 // [2026-07-15] 더보기 기준 개수 — PC 15개 / 모바일(768px 이하) 10개
 // (header.html의 모바일 분기 기준과 동일하게 768px 사용)
 const PAGE_SIZE  = window.innerWidth <= 768 ? 10 : 15;
@@ -651,6 +668,79 @@ function workCard(w){
   return card;
 }
 
+/* ── 인물 검색 섹션 ──
+   [2026-07-21 추가] 작품 검색 요청과 동시에(병렬로) 출발시켜서 작품 화면 로딩엔 전혀 영향이
+   없도록 함(runSearch 안에서 await 없이 fire-and-forget으로 호출). persons 테이블만 가볍게
+   조회하는 전용 엔드포인트(/persons/search)라 TMDB 실시간 조회가 없어 응답이 빠름.
+   최대 10명씩, "더보기"로 다음 10명씩 추가 — 작품 더보기와 동일한 패턴. 결과가 아예 없으면
+   섹션 자체를 숨김(display:none 유지, 빈 섹션 노출 안 함). */
+const JOB_KO = { Acting:'배우', Directing:'감독', Writing:'작가', Production:'제작' };
+const PERSON_PAGE_SIZE = 10;
+let personOffset  = 0;
+let personHasMore = false;
+
+const personSection = document.getElementById('personSection');
+const personGrid     = document.getElementById('personGrid');
+const personMoreWrap = document.getElementById('personMoreWrap');
+const personMoreBtn  = document.getElementById('personMoreBtn');
+personMoreBtn.onclick = loadMorePersons;
+
+function personCard(p){
+  const photo = p.profile_path
+    ? `<img src="${IMG_PERSON}${p.profile_path}" alt="" loading="lazy">`
+    : `<div class="work-poster-ph">👤</div>`;
+  const jobLabel = JOB_KO[p.job] || '';
+
+  const card = document.createElement('div');
+  card.className = 'work-card';
+  card.innerHTML = `
+    <div class="work-poster">${photo}</div>
+    <div class="work-title">${hesc(p.name)}</div>
+    ${jobLabel ? `<div class="work-meta"><span class="work-meta-left">${jobLabel}</span></div>` : ''}
+  `;
+  card.onclick = ()=>{ if(p.tmdb_id) location.href = `/person/${p.tmdb_id}`; };
+  return card;
+}
+
+async function fetchPersonsPage(offset){
+  try{
+    const res = await fetch(`${API}/persons/search?q=${encodeURIComponent(q)}&limit=${PERSON_PAGE_SIZE}&offset=${offset}`);
+    return res.ok ? await res.json() : { data: [], has_more: false };
+  }catch(e){
+    return { data: [], has_more: false }; // 실패해도 작품 검색 결과엔 영향 없음 — 인물 섹션만 조용히 빠짐
+  }
+}
+
+// 검색 시작과 동시에(작품 요청과 병렬로) 호출 — await 하지 않음(runSearch 쪽에서 fire-and-forget)
+async function loadInitialPersons(){
+  const json = await fetchPersonsPage(0);
+  const list = json.data || [];
+  personHasMore = !!json.has_more;
+  personOffset  = PERSON_PAGE_SIZE;
+
+  if(!list.length){ personSection.style.display = 'none'; return; }
+
+  personGrid.innerHTML = '';
+  list.forEach(p => personGrid.appendChild(personCard(p)));
+  personSection.style.display = '';
+  personMoreWrap.style.display = personHasMore ? '' : 'none';
+}
+
+async function loadMorePersons(){
+  personMoreBtn.disabled = true;
+  personMoreBtn.textContent = '불러오는 중...';
+
+  const json = await fetchPersonsPage(personOffset);
+  const list = json.data || [];
+  personHasMore = !!json.has_more;
+  personOffset += PERSON_PAGE_SIZE;
+  list.forEach(p => personGrid.appendChild(personCard(p)));
+
+  personMoreBtn.disabled = false;
+  personMoreBtn.textContent = '더보기';
+  personMoreWrap.style.display = personHasMore ? '' : 'none';
+}
+
 /* ── 상태 ──
    [2026-07-15 재설계] 우리DB와 TMDB 보충결과를 처음부터 하나의 풀(pool)로 합쳐서 관리.
    화면엔 이 풀에서 PAGE_SIZE개씩 순서대로("더보기"마다) 꺼내서 보여준다.
@@ -839,6 +929,10 @@ async function runSearch(){
   }
 
   try{
+    // ── 0) 인물 검색은 작품 검색과 동시에(병렬로) 출발 — await 안 함, 도착하는 대로 알아서 화면에 얹힘.
+    //    작품 화면 로딩 흐름과 완전히 독립적이라 인물 쪽이 느리거나 실패해도 작품 결과엔 영향 없음.
+    loadInitialPersons();
+
     // ── 1) 우리 DB부터 먼저 기다렸다가 즉시 화면에 그림 (TMDB를 기다리지 않음) ──
     const res = await fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=0`);
     dbOffset = PAGE_SIZE;
