@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-21 rev.1 — index.html (HOT100 카드 우측상단 OTT 텍스트뱃지 → 원형 로고 전체표시로 변경) -->
 <html lang="ko"><head><meta charset="UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -707,8 +708,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-card-rank{position:absolute;top:5%;left:5%;font-family:'Bebas Neue',var(--sans),sans-serif;font-size:18cqw;font-weight:900;
   line-height:1;
   font-style:italic;letter-spacing:1px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
-.hh-card-platform{position:absolute;top:5%;right:5%;font-size:11px;font-weight:700;padding:4px 10px;
-  border-radius:5px;color:#fff;text-decoration:none;cursor:pointer}
+.hh-card-ott{position:absolute;top:5%;right:5%;display:flex;gap:4px;z-index:3}
+.hh-card-ott .ott-logo{width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.hh-card-ott .ott-logo-ph{width:24px;height:24px;border-radius:50%;flex-shrink:0;font-size:11px;color:#fff;font-weight:700;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 .hh-card-info{flex:1;position:relative;z-index:2;margin-top:-60px;background:transparent;display:flex;flex-direction:column;align-items:center;
   justify-content:flex-start;padding:10px 8% 0;text-align:center}
 .hh-card-title{color:#fff;font-family:'Black Han Sans',var(--sans),sans-serif;font-size:29px;letter-spacing:2px;
@@ -1673,6 +1676,25 @@ const HH_PLATFORM_ICON = {
 };
 const HH_PLATFORM_URL = { netflix:'/netflix', tving:'/tving', disney:'/disneyplus', coupang:'/coupangplay', wavve:'/wavve', boxoffice:'/boxoffice' };
 
+// [2026-07-21 추가] HOT100 카드 우측상단 OTT 표시 — 검색결과 페이지·작품페이지와 동일한
+// "원형 로고 + 서비스중인 OTT 전부" 패턴. 기존 HH_PLATFORM_ICON(탭 알약용, boxoffice 포함)과
+// 달리 이건 실제 서비스 OTT만 대상이라 별도 맵으로 분리(watcha 포함, boxoffice 제외 — work_ott엔
+// 랭킹 데이터도 섞여 들어와 'boxoffice' 값이 낄 수 있는데, 여기 없는 키는 그냥 무시하고 넘어감).
+const HH_OTT_LOGO_META = {
+  netflix: { name:'넷플릭스',   color:'#e50914', file:'netflix-icon.jpg' },
+  tving:   { name:'티빙',       color:'#ff153c', file:'tving-icon.jpg' },
+  disney:  { name:'디즈니+',   color:'#06b6d4', file:'disneyplus-icon.jpg' },
+  wavve:   { name:'웨이브',     color:'#0070f3', file:'wavve-icon.jpg' },
+  watcha:  { name:'왓챠',       color:'#ff0558', file:'watcha-icon.jpg' },
+  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay-icon.jpg' },
+};
+function _hhOttLogoHtml(key){
+  const meta = HH_OTT_LOGO_META[key];
+  if(!meta) return '';
+  return `<img class="ott-logo" src="${HH_ICON_BASE}${meta.file}" alt="${meta.name}" title="${meta.name}"
+    onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
+}
+
 function _hhEsc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 let hhTabsData = [];
@@ -1773,9 +1795,15 @@ function _hhCardHtml(item){
     : item.hero_backdrop_path
       ? `${HH_IMG_BACKDROP}${item.hero_backdrop_path}`
       : (item.poster_path ? `${HH_IMG}${item.poster_path}` : '');
-  const platformColor = PC[item.best_platform] || '#666';
-  const platformLabel = HH_PLATFORM_KO[item.best_platform] || item.best_platform || '';
   const bakedIn = !!item.hero_title_baked_in;
+
+  // [2026-07-21 변경] "1위 플랫폼 텍스트뱃지 1개" → "서비스중인 OTT 전체 원형 로고".
+  // item.ott_keys는 hot100.js가 work_ott 조회로 새로 채워주는 값 — 미확인/서비스없음이면 빈 배열.
+  // HH_OTT_LOGO_META에 없는 값(work_ott에 섞여드는 'boxoffice' 등)은 필터링해서 제외.
+  const validOttKeys = (item.ott_keys || []).filter(k => HH_OTT_LOGO_META[k]);
+  const ottLogosHtml = validOttKeys.length
+    ? `<div class="hh-card-ott">${validOttKeys.map(_hhOttLogoHtml).join('')}</div>`
+    : '';
 
   const titleOrLogoHtml = bakedIn
     ? ''
@@ -1798,8 +1826,7 @@ function _hhCardHtml(item){
         ${bg ? `<img src="${bg}" loading="lazy">` : `<div class="hh-card-ph">이미지 없음</div>`}
         <div class="hh-card-img-fade"></div>
         <span class="hh-card-rank">${item.rank}</span>
-        <a class="hh-card-platform" href="${HH_PLATFORM_URL[item.best_platform] || '#'}" target="_blank"
-           style="background:${platformColor}" onclick="event.stopPropagation()">${platformLabel}</a>
+        ${ottLogosHtml}
       </div>
       <div class="hh-card-info">${titleOrLogoHtml}</div>
       ${ratingHtml}
