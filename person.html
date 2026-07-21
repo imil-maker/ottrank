@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-22 rev.1 — person.html (인물 좋아요 기능 신규: 사진 밑 박스, 하트 파티클+사운드, 2초 쿨다운) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -135,9 +136,36 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   body.layout-test .person-info{ text-align:center }
 }
 
-/* [2026-07-20 수정] 기능 없는 상태로 노출하지 않기로 결정 — 다시 숨김 (여백도 없앰) */
+/* [2026-07-22 신규] 인물 좋아요 — 사진 바로 밑, 박스 형태로 복원(포스터 위 오버레이는
+   숫자가 잘 안 보여서 폐기 — 사진 innerHTML이 갤러리 클릭 시 통째로 교체되는 구조라
+   포스터 안에 두면 사라지는 버그 위험도 있었음, 사진 밖 별도 요소가 더 안전함).
+   사진 폭(200px/모바일 160px)에 맞춰 같이 줄어들도록 width:100% */
 .person-like-btn{
-  display:none;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  width:100%; margin-top:10px; padding:10px 0;
+  border:1px solid var(--border); border-radius:var(--r-lg);
+  background:var(--bg2); cursor:pointer; position:relative; overflow:visible;
+  font-family:var(--font-mono); font-size:15px; font-weight:700; color:var(--text);
+  transition:border-color .15s, background .15s;
+}
+.person-like-btn:hover{border-color:rgba(255,255,255,.25)}
+.person-like-btn:disabled{cursor:default}
+.person-like-btn .like-heart{font-size:22px; line-height:1; transition:transform .15s}
+.person-like-btn.liked .like-heart{transform:scale(1.15)}
+.person-like-btn .like-count{font-size:14px; color:var(--muted2)}
+
+/* 클릭 시 튀어 오르는 하트 파티클 — JS가 개수만큼 span을 만들어서 넣고,
+   애니메이션 끝나면 그 span들만 지움(버튼 자체 DOM은 안 건드림) */
+.like-burst{position:absolute; left:50%; top:0; width:0; height:0; pointer-events:none}
+.like-burst-particle{
+  position:absolute; left:0; top:0; font-size:16px;
+  animation:likeFloat .8s ease-out forwards;
+  will-change:transform, opacity;
+}
+@keyframes likeFloat{
+  0%{  transform:translate(-50%,0) scale(.6); opacity:0; }
+  15%{ opacity:1; }
+  100%{transform:translate(var(--dx),var(--dy)) scale(1); opacity:0; }
 }
 
 /* ── 뒤로가기 ── */
@@ -590,9 +618,11 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
           <div class="person-photo" id="personPhoto">
             <div class="person-photo-ph" id="personPhotoPh">?</div>
           </div>
-          <!-- [2026-07-19 신규] 좋아요 버튼 — 자리만, 기능은 다음 단계 -->
-          <button class="person-like-btn" id="personLikeBtn" disabled>
-            🤍 좋아요 (준비 중)
+          <!-- [2026-07-22 신규] 인물 좋아요 — 로그인/횟수 제한 없음, 클릭마다 하트 파티클+사운드,
+               2초간 비활성화 후 다시 누를 수 있음. 초기값은 loadWikiTest()가 like_count로 채움. -->
+          <button class="person-like-btn" id="personLikeBtn" onclick="toggleLike(this)">
+            <span class="like-heart" id="likeHeart">🤍</span>
+            <span class="like-count" id="likeCount" style="display:none">0</span>
           </button>
         </div>
       </div>
@@ -893,6 +923,93 @@ function toggleBio(){
   btn.textContent = bioExpanded ? '접기 ▴' : '더보기 ▾';
 }
 
+/* [2026-07-22 신규] 인물 좋아요 — 로그인/횟수 제한 없음. 클릭할 때마다 서버에 +1 요청을
+   보내되, 2초간 버튼을 비활성화해서 연타로 요청이 쏟아지는 걸 자연스럽게 막음
+   (관리자님 결정: "제한 없이, 많이 눌러도 좋다" — 그래도 클릭 한 번에 요청 한 번은 유지). */
+const LIKE_COOLDOWN_MS = 2000;
+const LIKE_EMOJIS = ['💕','💖','💗','❤️','💘','💓'];
+let likeCount = 0;
+let likeBusy  = false; // 쿨다운 중이면 true — 버튼 재클릭 방지
+
+// 사운드는 미리 한 번 만들어두고 재사용(클릭마다 새 Audio 객체를 만들면 첫 재생이
+// 느릴 수 있어서). 파일이 아직 안 올라와 있거나 재생 실패해도 화면 기능엔 영향 없음.
+const likeSound = new Audio('/img/heart-like.mp3');
+likeSound.preload = 'auto';
+
+function initLikeCount(count){
+  likeCount = count || 0;
+  const countEl = document.getElementById('likeCount');
+  if(!countEl) return;
+  if(likeCount > 0){
+    countEl.textContent = likeCount.toLocaleString();
+    countEl.style.display = '';
+  } else {
+    countEl.style.display = 'none';
+  }
+}
+
+// 버튼 안에 하트 이모지 여러 개를 즉석으로 만들어서 위로 퐁퐁 띄우고, 애니메이션이
+// 끝나면 그 요소들만 지움(버튼 자체 구조는 안 건드림). 개수는 일단 PC/모바일 동일하게
+// 시작 — 실제로 보고 나서 모바일만 개수 줄일지 다음에 조정하기로 함.
+function burstHearts(container){
+  const burst = document.createElement('div');
+  burst.className = 'like-burst';
+  const n = 6;
+  for(let i=0; i<n; i++){
+    const p = document.createElement('span');
+    p.className = 'like-burst-particle';
+    p.textContent = LIKE_EMOJIS[Math.floor(Math.random()*LIKE_EMOJIS.length)];
+    // 부채꼴로 퍼지면서 위로 — 각도를 좌우로 흩뿌리고, 거리도 조금씩 다르게 해서 자연스럽게
+    const angle = (Math.random()*140 - 70) * (Math.PI/180); // -70~70도
+    const dist  = 50 + Math.random()*30; // px
+    const dx = Math.sin(angle) * dist;
+    const dy = -Math.cos(angle) * dist - 20;
+    p.style.setProperty('--dx', `${dx}px`);
+    p.style.setProperty('--dy', `${dy}px`);
+    p.style.animationDelay = `${Math.random()*0.1}s`;
+    burst.appendChild(p);
+  }
+  container.appendChild(burst);
+  setTimeout(()=>burst.remove(), 1000); // 애니메이션(0.8s)보다 살짝 여유 두고 제거
+}
+
+function playLikeSound(){
+  try{
+    likeSound.currentTime = 0;
+    likeSound.play().catch(()=>{}); // 자동재생 정책 등으로 실패해도 조용히 무시
+  }catch(e){ /* 무시 */ }
+}
+
+async function toggleLike(btn){
+  if(likeBusy) return; // 쿨다운 중이면 무시
+  likeBusy = true;
+  btn.disabled = true;
+
+  const heartEl = document.getElementById('likeHeart');
+  heartEl.textContent = '❤️';
+  btn.classList.add('liked');
+  burstHearts(btn);
+  playLikeSound();
+
+  // 화면은 즉시 반응(낙관적 업데이트), 서버 응답은 뒤에서 조용히 받아서 정확한 값으로 보정
+  initLikeCount(likeCount + 1);
+
+  fetch(`${OTTRANK_API}/person-wiki/${personId}/like`, { method:'POST' })
+    .then(r => r.ok ? r.json() : null)
+    .then(json => {
+      if(json && json.ok && typeof json.like_count === 'number') initLikeCount(json.like_count);
+    })
+    .catch(()=>{ /* 실패해도 화면엔 이미 반영돼 있어 조용히 무시 */ });
+
+  // 2초 후 원상복귀 — 빈 하트로 돌아가고 다시 누를 수 있게 됨
+  setTimeout(()=>{
+    heartEl.textContent = '🤍';
+    btn.classList.remove('liked');
+    btn.disabled = false;
+    likeBusy = false;
+  }, LIKE_COOLDOWN_MS);
+}
+
 /* [2026-07-20 신규] 수상내역 펼치기 — 약력(toggleBio)과 동일 패턴, 모바일 2줄 기준 */
 let awardsExpanded = false;
 function toggleAwards(){
@@ -934,6 +1051,10 @@ async function loadWikiTest(personId){
     const res  = await fetch(`${OTTRANK_API}/person-wiki/${personId}`);
     const json = await res.json();
     if(!json || !json.ok) return;
+
+    // [2026-07-22 신규] 좋아요 초기값 — 0이면 하트만, 1 이상이면 숫자까지 표시.
+    // data(위키 매칭)나 manual 여부와 무관하게 항상 처리(early return보다 위에 둠).
+    if(typeof json.like_count === 'number') initLikeCount(json.like_count);
 
     // [2026-07-20 재수정] 생년월일/성별/출생지는 평생 거의 안 바뀌는 정보라,
     // "한 번 확정하면 계속 쓰는" persons 테이블 수동입력값(manual)을 우선시하고
