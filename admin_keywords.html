@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-21 rev.1 — admin_keywords.html (조회 로그 목록에 메인/OTT/커뮤니티 종류 라벨 추가) -->
+<!-- 2026-07-21 rev.2 — admin_keywords.html (페이지 종류 라벨을 개별 아이콘 대신 통일된 "📄 페이지" 하나로 단순화) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -645,27 +645,22 @@ function renderSlPagination(current, total){
   el.innerHTML = parts.join('');
 }
 
-/* [2026-07-21 추가] 조회 로그 "종류" 라벨/색상 맵 — 작품/인물 2종에서 메인/OTT 6종/커뮤니티까지 8종으로 확장.
-   맵에 없는 값(예상 못한 새 타입)이 와도 에러 없이 타입명 그대로 표시되도록 폴백 처리. */
+/* [2026-07-21 rev.2 수정] 조회 로그 "종류" 라벨 — 처음엔 메인/OTT/커뮤니티도 각각 다른
+   아이콘+이름으로 표시했었는데, 어차피 구체적인 페이지 이름(넷플릭스/박스오피스 등)은
+   "제목" 칸에 이미 나오고 있어서 왼쪽 "구분" 칸까지 다 다르면 오히려 산만하다는 피드백.
+   그래서 작품/인물은 그대로 두고, 나머지(메인/OTT 6종/커뮤니티)는 전부 "📄 페이지"라는
+   하나의 통일된 라벨+색상으로만 구분되게 단순화. 맵에 없는 값이 와도(work/person이 아니면)
+   전부 이 폴백으로 떨어지므로 새 종류가 추가돼도 코드 수정 없이 안전하게 동작함. */
 const PL_TYPE_META = {
-  work:      { label: '🎬 작품',       color: 'var(--gold)' },
-  person:    { label: '🎭 인물',       color: '#7ec8e3' },
-  main:      { label: '🏠 메인',       color: '#a78bfa' },
-  netflix:   { label: '🎥 넷플릭스',   color: '#e50914' },
-  tving:     { label: '🎥 티빙',       color: '#ff153c' },
-  disney:    { label: '🎥 디즈니+',   color: '#06b6d4' },
-  wavve:     { label: '🎥 웨이브',     color: '#0070f3' },
-  coupang:   { label: '🎥 쿠팡플레이', color: '#1ac44d' },
-  boxoffice: { label: '🍿 박스오피스', color: '#f0b429' },
-  community: { label: '💬 커뮤니티',   color: '#34d399' },
+  work:   { label: '🎬 작품', color: 'var(--gold)' },
+  person: { label: '🎭 인물', color: '#7ec8e3' },
 };
+const PL_PAGE_FALLBACK = { label: '📄 페이지', color: '#a78bfa' };
 function plTypeLabel(type){
-  const meta = PL_TYPE_META[type];
-  return meta ? meta.label : type;
+  return (PL_TYPE_META[type] || PL_PAGE_FALLBACK).label;
 }
 function plTypeColor(type){
-  const meta = PL_TYPE_META[type];
-  return meta ? meta.color : 'var(--muted)';
+  return (PL_TYPE_META[type] || PL_PAGE_FALLBACK).color;
 }
 
 /* [2026-07-21 신규] 페이지 로그(실시간 작품/인물 조회) 목록 로드 */
