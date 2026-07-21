@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-21 rev.2 — admin_keywords.html (페이지 종류 라벨을 개별 아이콘 대신 통일된 "📄 페이지" 하나로 단순화) -->
+<!-- 2026-07-22 rev.1 — admin_keywords.html (인물 좋아요 순위 탭 신규: 오늘/어제/1주일/1개월/1년, 50개씩 이전/다음 페이지네이션) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -63,6 +63,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 /* ── 토스트 ── */
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;border-radius:22px;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s;font-family:var(--mono)}
 .toast.show{opacity:1}
+
+/* [2026-07-22 신규] 인물 좋아요 순위 — 기간 선택 버튼 */
+.lr-period-btn{padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)}
+.lr-period-btn.on{background:rgba(240,180,41,.2);color:var(--gold);font-weight:600}
+
 </style>
 </head>
 <body>
@@ -109,6 +114,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabPersonMatch" onclick="switchPageTab('personMatch')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎭 인물 매칭
+        </button>
+        <button id="tabLikeRanking" onclick="switchPageTab('likeRanking')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          👍 인물 좋아요 순위
         </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
@@ -442,6 +451,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   </div>
 
 
+  <!-- ══ 인물 좋아요 순위 탭 (2026-07-22 신규) ══ -->
+  <div class="wrap" id="likeRankingWrap" style="display:none">
+
+    <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 인물페이지 좋아요(하트) 버튼 기준 순위예요. 기간은 전부 "오늘 포함 최근 N일" 롤링 방식이에요
+      (달력상 이번달/올해가 아니라 지금부터 거슬러 올라간 기간). 50개씩 보여줘요.
+    </div>
+
+    <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:20px;width:fit-content">
+      <button id="lrPeriodToday"     class="lr-period-btn" onclick="switchLikeRankingPeriod('today')">오늘</button>
+      <button id="lrPeriodYesterday" class="lr-period-btn" onclick="switchLikeRankingPeriod('yesterday')">어제</button>
+      <button id="lrPeriodWeek"      class="lr-period-btn" onclick="switchLikeRankingPeriod('week')">1주일</button>
+      <button id="lrPeriodMonth"     class="lr-period-btn" onclick="switchLikeRankingPeriod('month')">1개월</button>
+      <button id="lrPeriodYear"      class="lr-period-btn" onclick="switchLikeRankingPeriod('year')">1년</button>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <thead>
+        <tr>
+          <th style="width:10%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">순위</th>
+          <th style="width:60%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">인물</th>
+          <th style="width:30%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">좋아요 수</th>
+        </tr>
+      </thead>
+      <tbody id="lrTbody">
+        <tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+
+    <div style="display:flex;justify-content:center;gap:6px;padding:20px 0" id="lrPagination"></div>
+
+  </div>
+
   <!-- ══ 인물 매칭 탭 ══ -->
   <div class="wrap" id="personMatchWrap" style="display:none">
 
@@ -715,6 +757,77 @@ function renderPlPagination(current, hasMore){
   `;
 }
 
+/* [2026-07-22 신규] 인물 좋아요 순위 — 기간(오늘/어제/1주일/1개월/1년) + 50개씩 페이지네이션.
+   전체 개수는 안 세고(COUNT 쿼리 생략) has_more만으로 이전/다음 판단 — 페이지 로그 탭과 동일 패턴. */
+const LR_PERIODS = [
+  { key: 'today',     btnId: 'lrPeriodToday' },
+  { key: 'yesterday', btnId: 'lrPeriodYesterday' },
+  { key: 'week',      btnId: 'lrPeriodWeek' },
+  { key: 'month',     btnId: 'lrPeriodMonth' },
+  { key: 'year',      btnId: 'lrPeriodYear' },
+];
+let lrCurrentPeriod = 'today';
+
+function switchLikeRankingPeriod(period){
+  lrCurrentPeriod = period;
+  LR_PERIODS.forEach(p => {
+    document.getElementById(p.btnId).classList.toggle('on', p.key === period);
+  });
+  loadLikeRanking(1);
+}
+
+async function loadLikeRanking(page){
+  page = page || 1;
+  const tbody = document.getElementById('lrTbody');
+  tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
+
+  try{
+    const res = await fetch(`${API}/admin/persons/like-ranking?period=${lrCurrentPeriod}&page=${page}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const json = await res.json();
+    if(!json.ok){
+      tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
+      document.getElementById('lrPagination').innerHTML = '';
+      return;
+    }
+
+    const rankBase = (page - 1) * 50;
+    const rows = (json.items || []).map((item, i) => {
+      const photo = item.profile_path
+        ? `<img src="https://image.tmdb.org/t/p/w92${item.profile_path}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px">`
+        : `<span style="display:inline-block;width:32px;height:32px;border-radius:50%;background:var(--bg3);vertical-align:middle;margin-right:8px"></span>`;
+      return `
+        <tr>
+          <td style="padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--muted2)">${rankBase + i + 1}</td>
+          <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border)">
+            <a href="/person/${item.tmdb_id}" target="_blank" rel="noopener"
+              style="display:flex;align-items:center;font-weight:600;color:var(--text);text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${photo}${hescSl(item.name)}</a>
+          </td>
+          <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--gold);font-weight:700">${(item.like_count||0).toLocaleString()}</td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">이 기간에 좋아요 기록이 없습니다</td></tr>`;
+
+    renderLrPagination(page, !!json.has_more);
+  }catch(e){
+    tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</td></tr>`;
+    document.getElementById('lrPagination').innerHTML = '';
+  }
+}
+
+function renderLrPagination(current, hasMore){
+  const el = document.getElementById('lrPagination');
+  if(!el) return;
+  el.innerHTML = `
+    <button class="btn-secondary" onclick="loadLikeRanking(${current-1})" ${current===1?'disabled':''}>‹ 이전</button>
+    <span style="padding:0 12px;color:var(--muted2);font-family:var(--mono);font-size:13px;display:flex;align-items:center">${current} 페이지</span>
+    <button class="btn-secondary" onclick="loadLikeRanking(${current+1})" ${hasMore?'':'disabled'}>다음 ›</button>
+  `;
+}
+
 </script>
 
 <script>
@@ -764,6 +877,7 @@ const PAGE_TABS = [
   { key: 'searchLog',        wrapId: 'searchLogWrap',        btnId: 'tabSearchLog',        title: '🔍 검색어 로그', onColor: 'rgba(230,57,70,.2)',  onText: 'var(--accent)' },
   { key: 'pageLog',          wrapId: 'pageLogWrap',          btnId: 'tabPageLog',          title: '📊 페이지 로그', onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
+  { key: 'likeRanking',      wrapId: 'likeRankingWrap',       btnId: 'tabLikeRanking',      title: '👍 인물 좋아요 순위', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
 ];
 let currentPageTab = 'keyword';
 function switchPageTab(tab) {
@@ -780,6 +894,7 @@ function switchPageTab(tab) {
   if (tab === 'searchLog') loadSearchLogs(1);
   if (tab === 'pageLog') loadPageLogs(1);
   if (tab === 'personMatch') loadPersonMatchCandidates();
+  if (tab === 'likeRanking') switchLikeRankingPeriod('today');
 }
 
 function showToast(msg){
