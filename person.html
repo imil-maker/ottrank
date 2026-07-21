@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.3 — person.html (하트 애니메이션 속도 대폭 완화: 0.8s→3s, 천천히 떠올랐다 사라지게) -->
+<!-- 2026-07-22 rev.5 — person.html (좋아요 박스 골드 배경으로 변경, 하트 애니메이션 2종 랜덤 혼합, 이름 섹션 위 10px 여백) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -143,31 +143,44 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 .person-like-btn{
   display:flex; align-items:center; justify-content:center; gap:6px;
   width:100%; margin-top:10px; padding:10px 0;
-  border:1px solid var(--border); border-radius:var(--r-lg);
-  background:var(--bg2); cursor:pointer; position:relative; overflow:visible;
+  border:none; border-radius:var(--r-lg);
+  background:rgba(240,180,41,.14); cursor:pointer; position:relative; overflow:visible;
   font-family:var(--font-mono); font-size:15px; font-weight:700; color:var(--text);
-  transition:border-color .15s, background .15s;
+  transition:background .15s;
 }
-.person-like-btn:hover{border-color:rgba(255,255,255,.25)}
+.person-like-btn:hover{background:rgba(240,180,41,.20)}
+.person-like-btn.liked{background:rgba(240,180,41,.28)}
 .person-like-btn:disabled{cursor:default}
 .person-like-btn .like-heart{font-size:22px; line-height:1; transition:transform .15s}
 .person-like-btn.liked .like-heart{transform:scale(1.15)}
-.person-like-btn .like-label{font-size:14px; color:var(--muted2)}
+.person-like-btn .like-label{font-size:14px; color:var(--muted2); font-family:var(--font-sans)}
 .person-like-btn .like-count{font-size:14px; color:var(--muted2)}
 
 /* 클릭 시 튀어 오르는 하트 파티클 — JS가 개수만큼 span을 만들어서 넣고,
-   애니메이션 끝나면 그 span들만 지움(버튼 자체 DOM은 안 건드림) */
+   애니메이션 끝나면 그 span들만 지움(버튼 자체 DOM은 안 건드림).
+   [2026-07-22 추가] 타입 2종을 하트마다 랜덤으로 섞음 — 입체감을 주기 위함
+   ① like-float: 위로 두둥실 떠오르며 사라짐 (기존)
+   ② like-zoom : 작게 시작해서 화면 쪽으로 커지며 다가오다가 사라짐 (신규) */
 .like-burst{position:absolute; left:50%; top:0; width:0; height:0; pointer-events:none}
 .like-burst-particle{
   position:absolute; left:0; top:0; font-size:16px;
-  animation:likeFloat 3s ease-out forwards;
   will-change:transform, opacity;
 }
+.like-burst-particle.like-float{ animation:likeFloat 3s ease-out forwards; }
+.like-burst-particle.like-zoom{  animation:likeZoom 3s ease-out forwards; }
 @keyframes likeFloat{
   0%{  transform:translate(-50%,0) scale(.6); opacity:0; }
   10%{ opacity:1; }
   70%{ opacity:1; }
   100%{transform:translate(var(--dx),var(--dy)) scale(1); opacity:0; }
+}
+/* 화면 쪽으로 다가오는 느낌 — 이동은 float보다 훨씬 적게(살짝만 흔들리듯) 하고,
+   대신 scale을 크게 키워서 "가까워진다"는 착시를 줌. 커지면서 흐려지다 사라짐. */
+@keyframes likeZoom{
+  0%{  transform:translate(-50%,0) scale(.3); opacity:0; }
+  10%{ opacity:1; }
+  55%{ opacity:1; }
+  100%{transform:translate(var(--dxZoom),var(--dyZoom)) scale(2.6); opacity:0; }
 }
 
 /* ── 뒤로가기 ── */
@@ -322,7 +335,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 .scroll-arrow.hidden{display:none} /* 스크롤 끝(또는 스크롤 필요 없음)에 도달하면 자동으로 숨김 */
 
 /* ── 인물 정보 ── */
-.person-info{flex:1;min-width:0}
+.person-info{flex:1;min-width:0;margin-top:10px}
 .person-name{font-size:34px;font-weight:900;line-height:1.1;letter-spacing:-.5px;margin-bottom:4px}
 .person-name-en{display:none} /* [2026-07-20 수정] 이름 옆 괄호 표기 방식으로 변경, 기존 별도줄은 숨김 */
 .person-name-en-inline{font-size:16px;color:var(--muted);font-weight:400;margin-left:6px} /* [2026-07-20 신규] */
@@ -960,7 +973,10 @@ function burstHearts(container){
   const n = 18; // [2026-07-22 수정] 6 → 18 (3배)
   for(let i=0; i<n; i++){
     const p = document.createElement('span');
-    p.className = 'like-burst-particle';
+    // [2026-07-22 추가] 하트마다 랜덤으로 "위로 두둥실" / "커지며 다가오기" 중 하나 선택
+    // — 비율 고정 안 하고 매번 다르게(50:50 랜덤) 섞여서 누를 때마다 느낌이 달라짐
+    const isZoom = Math.random() < 0.5;
+    p.className = 'like-burst-particle ' + (isZoom ? 'like-zoom' : 'like-float');
     p.textContent = LIKE_EMOJIS[Math.floor(Math.random()*LIKE_EMOJIS.length)];
     // 부채꼴로 퍼지면서 위로 — 각도를 좌우로 흩뿌리고, 거리도 조금씩 다르게 해서 자연스럽게
     // [2026-07-22 수정] 퍼지는 거리 5배 확대 (50~80px → 250~400px)
@@ -970,6 +986,11 @@ function burstHearts(container){
     const dy = -Math.cos(angle) * dist - 20;
     p.style.setProperty('--dx', `${dx}px`);
     p.style.setProperty('--dy', `${dy}px`);
+    // zoom 타입은 멀리 안 날아가고 그 자리에서 살짝만 흔들리듯 움직이며 커지는 게 자연스러움
+    const dxZoom = (Math.random()*60 - 30);
+    const dyZoom = (Math.random()*60 - 30);
+    p.style.setProperty('--dxZoom', `${dxZoom}px`);
+    p.style.setProperty('--dyZoom', `${dyZoom}px`);
     p.style.animationDelay = `${Math.random()*0.4}s`;
     burst.appendChild(p);
   }
