@@ -1,3 +1,4 @@
+// 2026-07-21 rev.1 — hot100.js (hero-tabs 응답에 work_ott 기반 ott_keys 전체 목록 추가)
 // ─────────────────────────────────────────────────────────
 // HOT100 랭킹 점수 계산 라우트
 // RankScore × PlatformWeight + AdminBoost 기반
@@ -911,6 +912,23 @@ export async function getHeroTabs(request, env, headers) {
         })),
       });
     }
+
+    // [2026-07-21 추가] 각 작품이 서비스중인 OTT 전체 목록(ott_keys) — 지금까지는 best_platform(1위
+    // 플랫폼) 하나만 내려줘서 메인페이지 카드에 텍스트 뱃지 1개만 표시됐는데, 검색결과 페이지처럼
+    // "서비스중인 OTT 전부"를 원형 로고로 보여주려면 work_ott 테이블 조회가 추가로 필요함.
+    // 탭 전체(최대 7개 × 최대 12개)의 tmdb_id를 한 번에 모아 조회 1번으로 처리 — 탭마다 따로 안 물어봄.
+    // D1 바인딩 변수 100개 제한 방어를 위해 100개씩 끊어서 조회(현재 규모론 사실상 1번이면 끝남).
+    const allTmdbIds = [...new Set(tabs.flatMap(t => t.items.map(it => it.tmdb_id)).filter(Boolean))];
+    const ottMap = {};
+    for (let i = 0; i < allTmdbIds.length; i += 100) {
+      const chunk = allTmdbIds.slice(i, i + 100);
+      const placeholders = chunk.map(() => "?").join(",");
+      const { results: ottRows } = await env.DB.prepare(
+        `SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${placeholders})`
+      ).bind(...chunk).all();
+      ottRows.forEach((r) => { (ottMap[r.tmdb_id] ||= []).push(r.ott_key); });
+    }
+    tabs.forEach((t) => t.items.forEach((it) => { it.ott_keys = ottMap[it.tmdb_id] || []; }));
 
     return new Response(JSON.stringify({ ok: true, active: true, tabs }), { status: 200, headers });
   } catch (err) {
