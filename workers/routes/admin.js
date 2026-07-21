@@ -1,4 +1,4 @@
-// 2026-07-22 rev.2 — admin.js (backfill-meta name_ko_checked_at 버그수정+1년주기, 인물 좋아요 기간별 순위 API 신규)
+// 2026-07-22 rev.3 — admin.js (인물 좋아요 순위에 "전체"(persons.like_count 직접정렬) 옵션 추가)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -3464,8 +3464,12 @@ export async function handleAdmin(path, request, env, url, headers) {
   }
 
   // ── GET /admin/persons/like-ranking ────────────────────────────
-  // [2026-07-22 신규] 인물 좋아요 순위 — 어드민 "인물 좋아요 순위" 탭용.
-  // person_like_daily(날짜별 집계)를 기간별로 합산해서 순위를 매김. 50개씩,
+  // [2026-07-22 신설, 2026-07-22 수정] 인물 좋아요 순위 — 어드민 "인물 좋아요 순위" 탭용.
+  // period="all"(전체)은 날짜별 집계(person_like_daily)가 아니라 persons.like_count를
+  // 바로 정렬해서 보여줌 — 날짜별 집계는 이 기능을 만든 시점부터만 쌓이기 시작해서,
+  // 그 전에 눌린 좋아요는 기간별(오늘/어제/1주일 등)엔 안 잡히지만 총합엔 이미 반영돼
+  // 있으므로, "전체"에서만큼은 총합을 그대로 보여줘야 누락 없이 다 나옴.
+  // 그 외 기간은 person_like_daily(날짜별 집계)를 기간별로 합산해서 순위를 매김. 50개씩,
   // "이전/다음"만 있는 단순 페이지네이션(전체 개수 세는 COUNT 쿼리 없음 —
   // limit+1개를 가져와서 남았으면 has_more=true로만 판단, 페이지 로그 탭과 동일 패턴).
   // 기간은 전부 "오늘 포함 최근 N일" 롤링 방식(달력상 이번달/올해가 아님) — 계산이 단순하고
@@ -3476,6 +3480,29 @@ export async function handleAdmin(path, request, env, url, headers) {
       const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
       const limit  = 50;
       const offset = (page - 1) * limit;
+
+      // [2026-07-22 추가] "전체"는 날짜별 집계를 아예 안 거치고 persons.like_count를 직접 정렬
+      if (period === "all") {
+        const { results } = await env.DB.prepare(`
+          SELECT tmdb_id, name, name_ko, profile_path, like_count as total
+          FROM persons
+          WHERE like_count > 0
+          ORDER BY like_count DESC
+          LIMIT ? OFFSET ?
+        `).bind(limit + 1, offset).all();
+
+        const hasMore = results.length > limit;
+        const items = results.slice(0, limit).map((r) => ({
+          tmdb_id: r.tmdb_id,
+          name: (r.name_ko && r.name_ko.trim()) ? r.name_ko : (r.name || `#${r.tmdb_id}`),
+          profile_path: r.profile_path,
+          like_count: r.total,
+        }));
+
+        return new Response(JSON.stringify({
+          ok: true, items, page, has_more: hasMore, period,
+        }), { headers });
+      }
 
       const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const daysAgo = (n) => new Date(Date.now() + 9 * 60 * 60 * 1000 - n * 86400000).toISOString().slice(0, 10);
