@@ -1,3 +1,4 @@
+// 2026-07-22 rev.1 — person-wiki.js (인물 좋아요 기능 신규: like_count 조회 응답에 포함 + POST 좋아요 엔드포인트 추가)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -27,6 +28,20 @@ export async function handlePersonWiki(path, request, env, url, headers) {
   try {
     // /person-wiki/122408 형태에서 마지막 세그먼트를 tmdb_person_id로 사용
     const segments = path.split("/").filter(Boolean);
+
+    // [2026-07-22 신규] POST /person-wiki/:id/like — 좋아요 전용 분기. 마지막 세그먼트가
+    // "like"면 그 앞 세그먼트가 tmdb_person_id. 기존 GET 상세조회 로직과 완전히 분리.
+    if (request.method === "POST" && segments[segments.length - 1] === "like") {
+      const likeId = parseInt(segments[segments.length - 2], 10);
+      if (!Number.isInteger(likeId) || likeId <= 0) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "invalid tmdb_person_id" }),
+          { status: 400, headers }
+        );
+      }
+      return await handlePersonLike(likeId, env, headers);
+    }
+
     const rawId = segments[segments.length - 1];
     const tmdbPersonId = parseInt(rawId, 10);
 
@@ -80,8 +95,9 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     // (예: 최정규 감독). [2026-07-20 재수정] 프론트에서 이 값을 "우선" 쓰고,
     // 없을 때만 TMDB 값을 쓰도록 처리함 (생년월일 등은 평생 안 바뀌는 정보라서).
     // 값이 하나도 없으면 그냥 manual:null로 내려서 프론트가 신경 안 써도 되게 함.
+    // [2026-07-22 추가] like_count도 같이 조회 — 인물 좋아요 숫자, 페이지 로드 시 바로 표시.
     const person = await env.DB.prepare(
-      `SELECT birthday, gender, place_of_birth FROM persons WHERE tmdb_id = ?`
+      `SELECT birthday, gender, place_of_birth, like_count FROM persons WHERE tmdb_id = ?`
     )
       .bind(tmdbPersonId)
       .first();
@@ -100,14 +116,52 @@ export async function handlePersonWiki(path, request, env, url, headers) {
       }
     }
 
+    // [2026-07-22 추가] like_count — persons에 행 자체가 없는 인물(예: TMDB에만 있고 우리
+    // DB엔 아직 등록 안 된 경우)은 0으로 내려서, 프론트가 항상 숫자 다루듯 처리할 수 있게 함.
+    const likeCount = person && person.like_count != null ? person.like_count : 0;
+
     // row/person이 둘 다 없어도(캐시·수동값 없음) 정상 응답 — ok:true, data:null, manual:null
-    return new Response(JSON.stringify({ ok: true, data, manual }), {
+    return new Response(JSON.stringify({ ok: true, data, manual, like_count: likeCount }), {
       status: 200,
       headers,
     });
   } catch (e) {
     // DB 오류 등 예외 상황 — 500이지만 프론트는 이 실패를 조용히 무시하도록 설계됨
     console.log("[person-wiki] error:", e.message);
+    return new Response(
+      JSON.stringify({ ok: false, error: "internal error" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * POST /person-wiki/:tmdb_person_id/like
+ * [2026-07-22 신규] 인물페이지 하트 좋아요 — 로그인/횟수 제한 없음(관리자님 결정,
+ * "많이 눌러도 좋다"). 버튼이 클릭당 2초간 비활성화되는 프론트 쪽 구조 덕분에
+ * 한 브라우저에서 초당 여러 번 요청이 쏟아지는 일은 자연스럽게 방지됨.
+ * persons에 아직 행이 없는 인물(TMDB에만 있고 우리 DB 미등록)이어도 좋아요를 누르면
+ * 그 순간 최소한의 행(tmdb_id + like_count)을 새로 만듦 — 다른 컬럼(name 등)은 건드리지
+ * 않고 그대로 NULL로 둠(나중에 인물수집/백필 배치가 채움).
+ * → { ok:true, like_count: N }
+ */
+async function handlePersonLike(tmdbPersonId, env, headers) {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO persons (tmdb_id, like_count) VALUES (?, 1)
+       ON CONFLICT(tmdb_id) DO UPDATE SET like_count = COALESCE(like_count, 0) + 1`
+    ).bind(tmdbPersonId).run();
+
+    const row = await env.DB.prepare(
+      `SELECT like_count FROM persons WHERE tmdb_id = ?`
+    ).bind(tmdbPersonId).first();
+
+    return new Response(
+      JSON.stringify({ ok: true, like_count: row?.like_count || 0 }),
+      { status: 200, headers }
+    );
+  } catch (e) {
+    console.log("[person-wiki] like error:", e.message);
     return new Response(
       JSON.stringify({ ok: false, error: "internal error" }),
       { status: 500, headers }
