@@ -2023,4 +2023,18 @@ window.addEventListener('pageshow', (e) => {
 <!-- 리뷰 카드 공통 컴포넌트 JS -->
 <script src="/components/review-card.js"></script>
 
+
+<!-- [2026-07-21 rev.1] 실시간 페이지 조회 로그 — 관리자 페이지 로그 목록용.
+     작품/인물 페이지와 동일한 방식(POST /track/view), 실패해도 화면엔 영향 없음. -->
+<script>
+(function(){
+  try{
+    fetch('https://ottrank-api.tdidream.workers.dev/track/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'main' }),
+    }).catch(function(){});
+  }catch(e){}
+})();
+</script>
 </body></html>
