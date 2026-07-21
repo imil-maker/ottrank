@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.8 — person.html (프로필 수정 제안 기능 신규: 더보기 옆 버튼, 로그인 필요, 관리자 승인 대기) -->
+<!-- 2026-07-22 rev.9 — person.html (프로필수정 로그인유도 방식 수정: 알림창 제거, redirect 파라미터로 로그인 후 원래페이지 복귀) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -973,8 +973,7 @@ function toggleBio(){
 function openProfileEditModal(){
   const sid = localStorage.getItem('ottrang_sid');
   if(!sid){
-    alert('로그인 후 이용할 수 있어요.');
-    location.href = '/login.html';
+    location.href = '/login.html?redirect=' + encodeURIComponent(location.pathname + location.search);
     return;
   }
 
