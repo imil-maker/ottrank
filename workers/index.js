@@ -7,7 +7,7 @@
    라우트 모듈 목록:
    rankings.js  : /rankings/*, /latest-date, /platforms, /sitemap.xml
    videos.js    : /videos/*, /imdb/*, /youtube/*, /works/*(search,exists 제외), /kmrb/*, /search/*
-   search.js    : /works/search, /works/exists, /works/ott-map, /works/details, /search-log  (2026-07-15 videos.js에서 분리, 2026-07-18 ott-map/details/search-log 추가)
+   search.js    : /works/search, /works/exists, /works/ott-map, /works/details, /search-log, /persons/search  (2026-07-15 videos.js에서 분리, 2026-07-18 ott-map/details/search-log 추가, 2026-07-21 persons/search 추가)
    reactions.js : /reactions/*, /admin/reactions*
    auth.js      : /auth/*
    user.js      : /wishlist/*, /reviews/*, /mypage/*, /user/*, /grade-settings, /life-works/*, /pick-lists/*
@@ -118,7 +118,8 @@ export default {
       path === "/works/exists" ||
       path === "/works/ott-map" ||
       path === "/works/details" ||
-      path === "/search-log"
+      path === "/search-log" ||
+      path === "/persons/search"
     )) {
       res = await handleSearch(path, request, env, url, headers);
     }
