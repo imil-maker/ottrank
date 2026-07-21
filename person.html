@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.9 — person.html (프로필수정 로그인유도 방식 수정: 알림창 제거, redirect 파라미터로 로그인 후 원래페이지 복귀) -->
+<!-- 2026-07-22 rev.10 — person.html (사망일자 인물 추모 국화 배지 신규: 사진 우측하단, deathday 날짜형식 엄격검증) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -219,12 +219,25 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
    모바일에서만 실제 flex row로 바뀜(아래 미디어쿼리). */
 .mobile-photo-row{display:contents}
 .person-photo-wrap{flex-shrink:0;width:200px}
+/* [2026-07-22 rev.10 신규] 프레임은 사진 크기에만 딱 맞는 래퍼 — 좋아요 버튼은 이
+   프레임 바깥(person-photo-wrap 안, 프레임 다음)에 있으므로 영향 없음. 국화 배지가
+   이 프레임 기준으로 절대위치 잡히므로 항상 "사진의" 우측하단에 고정됨. */
+.person-photo-frame{position:relative;width:100%}
 .person-photo{width:200px;aspect-ratio:2/3;border-radius:var(--r-lg);overflow:hidden;
   border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 64px rgba(0,0,0,.6);
   background:var(--bg3);position:relative}
 .person-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .person-photo-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   font-size:56px;font-weight:700;color:var(--info);font-family:var(--font-mono)}
+/* [2026-07-22 rev.10 신규] 추모 국화 배지 — 사진 우측하단에 여백 없이 겹쳐서 표시.
+   PC/모바일 동일하게 80px 폭으로 우선 확인 후 조정 예정(사용자 요청).
+   pointer-events:none — 사진 위 클릭/호버 동작을 막지 않기 위함. */
+.person-memorial-flower{
+  position:absolute; right:0; bottom:0;
+  width:80px; height:auto;
+  pointer-events:none;
+  z-index:2;
+}
 
 /* [2026-07-11 재수정] SNS 아이콘 — 박스/배경/패딩으로 만들었던 버전은 관리자님
    피드백으로 폐기. 원래 인스타 아이콘(.person-insta-icon)이 박스 없이 이미지
@@ -658,8 +671,17 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
       <div class="mobile-photo-row">
         <div class="hero-line-break"></div>
         <div class="person-photo-wrap">
-          <div class="person-photo" id="personPhoto">
-            <div class="person-photo-ph" id="personPhotoPh">?</div>
+          <!-- [2026-07-22 rev.10 신규] 추모 국화 — 사진 프레임(person-photo-frame)을 별도로 둬서
+               #personPhoto(innerHTML이 갤러리 클릭 시 통째로 교체되는 요소) 바깥에 배치.
+               사진 우측하단에 여백없이 겹쳐서 표시. 반드시 data.deathday(TMDB 사망일자)가
+               실제로 있을 때만 노출 — JS renderMemorialFlower()에서 엄격히 체크함. -->
+          <div class="person-photo-frame">
+            <div class="person-photo" id="personPhoto">
+              <div class="person-photo-ph" id="personPhotoPh">?</div>
+            </div>
+            <img class="person-memorial-flower" id="personMemorialFlower"
+                 src="/img/memorial-flower.png" alt="고인의 명복을 빕니다"
+                 style="display:none" onerror="this.style.display='none'">
           </div>
           <!-- [2026-07-22 신규] 인물 좋아요 — 로그인/횟수 제한 없음, 클릭마다 하트 파티클+사운드,
                2초간 비활성화 후 다시 누를 수 있음. 초기값은 loadWikiTest()가 like_count로 채움. -->
@@ -1489,6 +1511,19 @@ function calcAge(birthday, deathday){
    수동입력값(manual)으로 빈 항목만 보완하기 위해 필요 (아래 loadWikiTest 참고) */
 let tmdbMeta = { birthday: '', deathday: '', gender: null, place_of_birth: '' };
 
+/* [2026-07-22 rev.10 신규] 추모 국화 — data.deathday(TMDB 사망일자)가 실제로 있는
+   사람에게만 표시. 엉뚱한 인물에게 잘못 표시되면 안 되는 민감한 기능이라, "값이
+   있는 것처럼 보이는 모든 경우"를 배제하고 실제 날짜 형식 문자열일 때만 통과시킴.
+   그 외에는 무조건 숨김 처리(기본값도 숨김이라 이 함수를 안 불러도 안전). */
+function renderMemorialFlower(deathday){
+  const el = document.getElementById('personMemorialFlower');
+  if(!el) return;
+  const raw = (deathday == null) ? '' : String(deathday).trim();
+  // TMDB deathday는 'YYYY-MM-DD' 형식 — 이 패턴에 맞는 진짜 날짜값일 때만 인정
+  const hasDeathday = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  el.style.display = hasDeathday ? 'block' : 'none';
+}
+
 /* [2026-07-20 신규] 영어 약력이 먼저 번쩍이고 한글로 바뀌는 깜빡임 방지용 플래그.
    loadWikiTest가 bio_summary로 이미 화면을 채웠으면 true — 이후 TMDB 약력 폴백을
    또 덮어쓰지 않게 막는 용도 (아래 initPage 참고) */
@@ -1753,6 +1788,7 @@ async function initPage(){
       place_of_birth: data.place_of_birth || '',
     };
     renderMetaChips(tmdbMeta);
+    renderMemorialFlower(tmdbMeta.deathday); // [2026-07-22 rev.10 신규] 사망일자 있을 때만 국화 노출
 
     /* [2026-07-11 추가] 사진 갤러리 — 메인 흐름을 안 막게 await 없이 별도 호출 */
     loadPhotoGallery(personId, IMG_PROFILE);
