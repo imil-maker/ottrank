@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.1 — person.html (인물 좋아요 기능 신규: 사진 밑 박스, 하트 파티클+사운드, 2초 쿨다운) -->
+<!-- 2026-07-22 rev.2 — person.html (좋아요 텍스트 추가, 하트 개수 3배·퍼지는 거리 5배 확대) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -152,6 +152,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 .person-like-btn:disabled{cursor:default}
 .person-like-btn .like-heart{font-size:22px; line-height:1; transition:transform .15s}
 .person-like-btn.liked .like-heart{transform:scale(1.15)}
+.person-like-btn .like-label{font-size:14px; color:var(--muted2)}
 .person-like-btn .like-count{font-size:14px; color:var(--muted2)}
 
 /* 클릭 시 튀어 오르는 하트 파티클 — JS가 개수만큼 span을 만들어서 넣고,
@@ -621,6 +622,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
           <!-- [2026-07-22 신규] 인물 좋아요 — 로그인/횟수 제한 없음, 클릭마다 하트 파티클+사운드,
                2초간 비활성화 후 다시 누를 수 있음. 초기값은 loadWikiTest()가 like_count로 채움. -->
           <button class="person-like-btn" id="personLikeBtn" onclick="toggleLike(this)">
+            <span class="like-label">좋아요</span>
             <span class="like-heart" id="likeHeart">🤍</span>
             <span class="like-count" id="likeCount" style="display:none">0</span>
           </button>
@@ -954,14 +956,15 @@ function initLikeCount(count){
 function burstHearts(container){
   const burst = document.createElement('div');
   burst.className = 'like-burst';
-  const n = 6;
+  const n = 18; // [2026-07-22 수정] 6 → 18 (3배)
   for(let i=0; i<n; i++){
     const p = document.createElement('span');
     p.className = 'like-burst-particle';
     p.textContent = LIKE_EMOJIS[Math.floor(Math.random()*LIKE_EMOJIS.length)];
     // 부채꼴로 퍼지면서 위로 — 각도를 좌우로 흩뿌리고, 거리도 조금씩 다르게 해서 자연스럽게
+    // [2026-07-22 수정] 퍼지는 거리 5배 확대 (50~80px → 250~400px)
     const angle = (Math.random()*140 - 70) * (Math.PI/180); // -70~70도
-    const dist  = 50 + Math.random()*30; // px
+    const dist  = 250 + Math.random()*150; // px
     const dx = Math.sin(angle) * dist;
     const dy = -Math.cos(angle) * dist - 20;
     p.style.setProperty('--dx', `${dx}px`);
