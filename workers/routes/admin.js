@@ -1,3 +1,5 @@
+// 2026-07-22 rev.1 — admin.js (backfill-meta가 name_ko_checked_at을 안 남겨 refill-korean-name과
+// 대상이 즉시 겹치던 버그 수정 + 재확인 주기 1년 도입)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -62,8 +64,8 @@
    GET    /admin/works/pinned-similar/:tmdb_id
    DELETE /admin/works/pinned-similar
    POST   /admin/persons/collect
-   POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설)
-   POST   /admin/persons/refill-korean-name ← 한글이름만 재확인(격리, 2026-07-20 신설)
+   POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설, 2026-07-22 name_ko_checked_at 기록 추가)
+   POST   /admin/persons/refill-korean-name ← 한글이름만 재확인(격리, 2026-07-20 신설, 2026-07-22 1년 주기 재확인으로 변경)
    GET    /admin/persons/wiki-candidates ← 위키 매칭 후보 목록(2026-07-20 신설)
    POST   /admin/persons/wiki-match-attempt ← 실제 위키 검색+매칭 시도(2026-07-20 신설)
    POST   /admin/persons/wiki-approve   ← 매칭 확정 승인, person_wiki_cache 반영(2026-07-20 신설)
@@ -3310,8 +3312,10 @@ export async function handleAdmin(path, request, env, url, headers) {
           );
           if (!resp.ok) {
             // 인물 자체가 TMDB에서 삭제/비공개 등 — 마킹해 재시도 안 하게
+            // [2026-07-22 추가] name_ko_checked_at도 같이 남겨서, "한글이름 재채우기"
+            // 배치가 방금 처리한 이 사람을 곧바로 또 대상으로 잡는 걸 방지
             updates.push(
-              env.DB.prepare(`UPDATE persons SET birthday = '', has_korean_name = 0, name_ko = '' WHERE tmdb_id = ?`).bind(row.tmdb_id)
+              env.DB.prepare(`UPDATE persons SET birthday = '', has_korean_name = 0, name_ko = '', name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`).bind(row.tmdb_id)
             );
             continue;
           }
@@ -3334,9 +3338,12 @@ export async function handleAdmin(path, request, env, url, headers) {
           // 이름 자체는 있는 그대로 보여주는 게 맞음). 없으면 빈 문자열로 마킹.
           // [2026-07-20 재수정] name 필드가 번역된 경우 그 값을 우선 사용(person.html과 동일 우선순위).
           const koName = nameIsKorean ? data.name : (alsoKnown.find(n => /[가-힣]/.test(n)) || "");
+          // [2026-07-22 추가] name_ko_checked_at — 이 배치가 "언제 확인했는지" 남겨야
+          // "한글이름 재채우기"(refill-korean-name)가 방금 처리된 사람을 또 대상으로
+          // 잡는 중복 확인 버그가 안 생김(원인 발견 후 수정, 2026-07-22).
           updates.push(
             env.DB.prepare(
-              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ?, name_ko = ? WHERE tmdb_id = ?`
+              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ?, name_ko = ?, name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`
             ).bind(
               data.birthday || "", data.popularity || null, data.profile_path || null,
               hasKorean, data.gender || null, placeOfBirth || null, koName,
@@ -3366,11 +3373,16 @@ export async function handleAdmin(path, request, env, url, headers) {
   }
 
   // ── POST /admin/persons/refill-korean-name ────────────────────
-  // [2026-07-20 신규] "인물 상세정보 채우기"(backfill-meta)와 완전히 분리된 전용 배치.
-  // name_ko='' AND has_korean_name=0으로 확정 마킹됐던 사람들을 다시 TMDB로 재조회함.
+  // [2026-07-20 신설, 2026-07-22 수정] "인물 상세정보 채우기"(backfill-meta)와 완전히 분리된 전용 배치.
   // 예전엔 TMDB에 한글 이름이 없었지만(또는 그 당시 코드 버그로) '' 확정 마킹됐다가,
   // 나중에 TMDB에 한글 이름이 생긴 사람들을 복구하기 위한 목적 (예수정 케이스에서 발견).
   // birthday/popularity 등 다른 필드는 절대 안 건드림 — name_ko/has_korean_name만 격리해서 갱신.
+  // ⚠️ [2026-07-22 버그 수정] backfill-meta가 name_ko_checked_at을 안 남기고 있어서, 이 배치가
+  // backfill-meta 직후 실행되면 "방금 막 처리된 사람"을 곧바로 또 대상으로 잡아 똑같은 TMDB
+  // 재조회를 반복하던 버그가 있었음(1107명 재확인, 신규 0명 — 실사용 중 발견). backfill-meta에도
+  // name_ko_checked_at을 남기도록 고치고, 여기 조건도 "확인 이력 없음" 단독이 아니라
+  // "확인 이력 없음 OR 확인한 지 1년 넘음"으로 바꿔서, 진짜 오래돼서 재확인이 필요한
+  // 사람만 대상이 되도록 함(관리자님 결정 — 재확인 주기 1년).
   if (path === "/admin/persons/refill-korean-name" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -3381,7 +3393,8 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const { results: targets } = await env.DB.prepare(`
         SELECT tmdb_id FROM persons
-        WHERE name_ko = '' AND has_korean_name = 0 AND name_ko_checked_at IS NULL
+        WHERE name_ko = '' AND has_korean_name = 0
+          AND (name_ko_checked_at IS NULL OR name_ko_checked_at < datetime('now', '-365 days'))
         LIMIT ?
       `).bind(limit).all();
 
@@ -3434,7 +3447,9 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (updates.length) await env.DB.batch(updates);
 
       const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM persons WHERE name_ko = '' AND has_korean_name = 0 AND name_ko_checked_at IS NULL"
+        `SELECT COUNT(*) as cnt FROM persons
+         WHERE name_ko = '' AND has_korean_name = 0
+           AND (name_ko_checked_at IS NULL OR name_ko_checked_at < datetime('now', '-365 days'))`
       ).first();
 
       return new Response(JSON.stringify({
