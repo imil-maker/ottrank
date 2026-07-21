@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-21 rev.1 — boxoffice.html (메인/OTT 페이지 실시간 조회 로그 신호 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -653,6 +654,20 @@ function escHtml(str) {
 function escAttr(str) {
   return String(str || '').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
 }
+</script>
+
+<!-- [2026-07-21 rev.1] 실시간 페이지 조회 로그 — 관리자 페이지 로그 목록용.
+     작품/인물 페이지와 동일한 방식(POST /track/view), 실패해도 화면엔 영향 없음. -->
+<script>
+(function(){
+  try{
+    fetch('https://ottrank-api.tdidream.workers.dev/track/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'boxoffice' }),
+    }).catch(function(){});
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
