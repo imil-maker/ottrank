@@ -1886,7 +1886,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const CUTOFF_DAYS = 15;
 
       const { results: targets } = await env.DB.prepare(`
-        SELECT tmdb_id, media_type FROM works
+        SELECT tmdb_id, title_ko, media_type FROM works
         WHERE (ott_updated_at IS NULL OR ott_updated_at < datetime('now', '-${CUTOFF_DAYS} days'))
         LIMIT ?
       `).bind(limit).all();
@@ -1932,12 +1932,14 @@ export async function handleAdmin(path, request, env, url, headers) {
       let skippedRetry  = 0;
       const stmts       = [];
       const touchedIds  = [];
+      const failures     = []; // [2026-07-21 추가] 실패 사유를 실제로 기록 — 왜 계속 재시도 대상으로 남는지 눈으로 확인하기 위함
 
       for (const row of targets) {
         const tmdbId = row.tmdb_id;
         const mtype  = row.media_type === "movie" ? "movie" : "tv";
         const keys   = new Set(rankMap[tmdbId] || []); // Priority 1
         let anySuccess = false;
+        let lastReason  = null; // 이번 건에서 마지막으로 확인된 실패 사유(성공하면 null로 안 씀)
 
         try {
           // Priority 2 — 쿠팡플레이 Network 보완 (TV만 해당)
@@ -1947,6 +1949,8 @@ export async function handleAdmin(path, request, env, url, headers) {
               anySuccess = true;
               const det = await detResp.json();
               if ((det.networks || []).some(n => n.id === 5169)) keys.add("coupang");
+            } else {
+              lastReason = `tv detail ${detResp.status}`;
             }
           }
           // Priority 3 — TMDB Watch Providers
@@ -1964,12 +1968,15 @@ export async function handleAdmin(path, request, env, url, headers) {
               const match = OTT_NAME_MATCH.find(([re]) => re.test(p.provider_name || ""));
               if (match) keys.add(match[1]);
             });
+          } else {
+            lastReason = `watch/providers ${wpResp.status}`;
           }
-        } catch (e) { /* 네트워크 오류 — anySuccess로 아래에서 판단 */ }
+        } catch (e) { lastReason = `예외: ${e.message}`; }
 
         if (!anySuccess && keys.size === 0) {
           // TMDB 응답도 못 받았고 랭킹으로도 확인 안 됨 — 재시도 대상으로 남김 (ott_updated_at 안 건드림)
           skippedRetry++;
+          failures.push({ tmdb_id: tmdbId, title_ko: row.title_ko, reason: lastReason || "알 수 없음" });
           continue;
         }
 
@@ -2002,7 +2009,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       `).first();
 
       return new Response(JSON.stringify({
-        ok: true, processed, attempted: targets.length, skippedRetry, remaining: remainRow?.cnt || 0,
+        ok: true, processed, attempted: targets.length, skippedRetry, remaining: remainRow?.cnt || 0, failures,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
