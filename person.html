@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.2 — person.html (좋아요 텍스트 추가, 하트 개수 3배·퍼지는 거리 5배 확대) -->
+<!-- 2026-07-22 rev.3 — person.html (하트 애니메이션 속도 대폭 완화: 0.8s→3s, 천천히 떠올랐다 사라지게) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -160,12 +160,13 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 .like-burst{position:absolute; left:50%; top:0; width:0; height:0; pointer-events:none}
 .like-burst-particle{
   position:absolute; left:0; top:0; font-size:16px;
-  animation:likeFloat .8s ease-out forwards;
+  animation:likeFloat 3s ease-out forwards;
   will-change:transform, opacity;
 }
 @keyframes likeFloat{
   0%{  transform:translate(-50%,0) scale(.6); opacity:0; }
-  15%{ opacity:1; }
+  10%{ opacity:1; }
+  70%{ opacity:1; }
   100%{transform:translate(var(--dx),var(--dy)) scale(1); opacity:0; }
 }
 
@@ -969,11 +970,14 @@ function burstHearts(container){
     const dy = -Math.cos(angle) * dist - 20;
     p.style.setProperty('--dx', `${dx}px`);
     p.style.setProperty('--dy', `${dy}px`);
-    p.style.animationDelay = `${Math.random()*0.1}s`;
+    p.style.animationDelay = `${Math.random()*0.4}s`;
     burst.appendChild(p);
   }
   container.appendChild(burst);
-  setTimeout(()=>burst.remove(), 1000); // 애니메이션(0.8s)보다 살짝 여유 두고 제거
+  // [2026-07-22 수정] 애니메이션이 3초짜리로 느려졌으니 제거 타이밍도 그만큼 늦춤.
+  // 버튼 잠금(2초)과는 완전히 별개 타이머라, 다시 눌러도 이전 하트들이 화면에
+  // 남아서 같이 떠 있을 수 있음(의도된 동작 — "1~2개 남아서 둥둥 떠 있어도 됨").
+  setTimeout(()=>burst.remove(), 3300);
 }
 
 function playLikeSound(){
