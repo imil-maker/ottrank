@@ -1,4 +1,4 @@
-// 2026-07-22 rev.1 — person-wiki.js (인물 좋아요 기능 신규: like_count 조회 응답에 포함 + POST 좋아요 엔드포인트 추가)
+// 2026-07-22 rev.2 — person-wiki.js (좋아요 누를 때 person_like_daily에 날짜별 집계도 같이 기록 — 기간별 랭킹용)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -135,6 +135,16 @@ export async function handlePersonWiki(path, request, env, url, headers) {
   }
 }
 
+// [2026-07-22 rev.2 추가] 기간별 좋아요 랭킹(오늘/어제/1주일/1개월/1년)을 위한
+// 날짜별 집계 저장 — 클릭마다 로그를 한 줄씩 쌓지 않고, "인물+날짜" 조합으로
+// 하루치를 하나의 숫자에 뭉쳐서 저장(저장공간 절약, 조회도 가벼움).
+// KST(한국시간) 기준 날짜로 통일 — UTC 그대로 쓰면 자정 근처에 하루씩 밀리는
+//버그가 생기는 걸 이 프로젝트에서 이미 몇 번 겪었음(로그인 적립/마이페이지 날짜 등).
+function kstDateString(offsetDays = 0) {
+  const shifted = new Date(Date.now() + 9 * 60 * 60 * 1000 + offsetDays * 86400000);
+  return shifted.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
 /**
  * POST /person-wiki/:tmdb_person_id/like
  * [2026-07-22 신규] 인물페이지 하트 좋아요 — 로그인/횟수 제한 없음(관리자님 결정,
@@ -151,6 +161,13 @@ async function handlePersonLike(tmdbPersonId, env, headers) {
       `INSERT INTO persons (tmdb_id, like_count) VALUES (?, 1)
        ON CONFLICT(tmdb_id) DO UPDATE SET like_count = COALESCE(like_count, 0) + 1`
     ).bind(tmdbPersonId).run();
+
+    // [2026-07-22 rev.2 추가] 기간별 랭킹용 날짜별 집계도 같이 기록
+    const today = kstDateString();
+    await env.DB.prepare(
+      `INSERT INTO person_like_daily (tmdb_id, like_date, count) VALUES (?, ?, 1)
+       ON CONFLICT(tmdb_id, like_date) DO UPDATE SET count = count + 1`
+    ).bind(tmdbPersonId, today).run();
 
     const row = await env.DB.prepare(
       `SELECT like_count FROM persons WHERE tmdb_id = ?`
