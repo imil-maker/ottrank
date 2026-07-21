@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.3 — admin_keywords.html (프로필 수정요청 탭 신규: 기존/신규 약력 나란히 비교, 승인시 수정가능, 거절 가능) -->
+<!-- 2026-07-22 rev.4 — admin_keywords.html (인물매칭 탭 기본 서브탭을 '인물 개별 검색'으로 변경) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -533,17 +533,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <!-- 서브탭 -->
     <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:20px;width:fit-content">
       <button id="subTabPmList" onclick="switchPersonMatchSubTab('list')"
-        style="padding:6px 18px;border-radius:6px;border:none;background:rgba(55,138,221,.2);color:#7ec8e3;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
         인물매칭
       </button>
       <button id="subTabPmSearch" onclick="switchPersonMatchSubTab('search')"
-        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+        style="padding:6px 18px;border-radius:6px;border:none;background:rgba(55,138,221,.2);color:#7ec8e3;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
         인물 개별 검색
       </button>
     </div>
 
     <!-- 서브탭: 인물매칭 (대량 처리) -->
-    <div id="pmListWrap">
+    <div id="pmListWrap" style="display:none">
       <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
         💡 아직 위키백과 매칭이 안 된 인물 목록입니다. 여기선 <span style="color:var(--gold)">목록 조회만</span> 하고
         위키백과 검색은 하지 않아요 — 원하는 인물만 체크한 뒤 "선택 매칭 시도"를 눌러야 그때 검색이 시작됩니다.
@@ -618,7 +618,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     </div>
 
     <!-- 서브탭: 인물 개별 검색 (2026-07-20 신규) -->
-    <div id="pmSearchWrap" style="display:none">
+    <div id="pmSearchWrap">
       <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
         💡 이름으로 인물 1명을 찾아서, 아직 안 이어졌으면 매칭하고 · 이미 이어졌으면
         위키 데이터 중 <span style="color:var(--gold)">특정 항목만 인물페이지에서 숨길 수 있어요</span>
@@ -1050,7 +1050,7 @@ function switchPageTab(tab) {
   if (tab === 'keywordTranslate') loadKeywordReview();
   if (tab === 'searchLog') loadSearchLogs(1);
   if (tab === 'pageLog') loadPageLogs(1);
-  if (tab === 'personMatch') loadPersonMatchCandidates();
+  if (tab === 'personMatch') switchPersonMatchSubTab('search');
   if (tab === 'likeRanking') switchLikeRankingPeriod('all');
   if (tab === 'profileEdits') loadProfileEdits(1);
 }
@@ -1081,6 +1081,9 @@ function switchPersonMatchSubTab(sub){
   document.getElementById('subTabPmList').style.color        = isList ? '#7ec8e3' : 'var(--muted2)';
   document.getElementById('subTabPmSearch').style.background = isList ? 'transparent' : 'rgba(55,138,221,.2)';
   document.getElementById('subTabPmSearch').style.color      = isList ? 'var(--muted2)' : '#7ec8e3';
+  // [2026-07-22 수정] 기본 서브탭이 '인물 개별 검색'으로 바뀌면서, '인물매칭'(목록)은
+  // 이제 자동으로 안 열리므로 사용자가 직접 이 서브탭을 클릭했을 때 로드함
+  if (isList) loadPersonMatchCandidates();
 }
 
 function setPmNationality(nat){
