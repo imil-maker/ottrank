@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-21 rev.1 — admin_keywords.html (조회 로그 목록에 메인/OTT/커뮤니티 종류 라벨 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -644,6 +645,29 @@ function renderSlPagination(current, total){
   el.innerHTML = parts.join('');
 }
 
+/* [2026-07-21 추가] 조회 로그 "종류" 라벨/색상 맵 — 작품/인물 2종에서 메인/OTT 6종/커뮤니티까지 8종으로 확장.
+   맵에 없는 값(예상 못한 새 타입)이 와도 에러 없이 타입명 그대로 표시되도록 폴백 처리. */
+const PL_TYPE_META = {
+  work:      { label: '🎬 작품',       color: 'var(--gold)' },
+  person:    { label: '🎭 인물',       color: '#7ec8e3' },
+  main:      { label: '🏠 메인',       color: '#a78bfa' },
+  netflix:   { label: '🎥 넷플릭스',   color: '#e50914' },
+  tving:     { label: '🎥 티빙',       color: '#ff153c' },
+  disney:    { label: '🎥 디즈니+',   color: '#06b6d4' },
+  wavve:     { label: '🎥 웨이브',     color: '#0070f3' },
+  coupang:   { label: '🎥 쿠팡플레이', color: '#1ac44d' },
+  boxoffice: { label: '🍿 박스오피스', color: '#f0b429' },
+  community: { label: '💬 커뮤니티',   color: '#34d399' },
+};
+function plTypeLabel(type){
+  const meta = PL_TYPE_META[type];
+  return meta ? meta.label : type;
+}
+function plTypeColor(type){
+  const meta = PL_TYPE_META[type];
+  return meta ? meta.color : 'var(--muted)';
+}
+
 /* [2026-07-21 신규] 페이지 로그(실시간 작품/인물 조회) 목록 로드 */
 const PL_PAGE_SIZE = 50;
 function fmtAeTime(iso){ return fmtKst(iso, true); }
@@ -665,8 +689,8 @@ async function loadPageLogs(page){
 
     const rows = (json.items || []).map(item => `
       <tr>
-        <td style="padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);color:${item.type === 'work' ? 'var(--gold)' : '#7ec8e3'};font-family:var(--mono)">
-          ${item.type === 'work' ? '🎬 작품' : '🎭 인물'}
+        <td style="padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);color:${plTypeColor(item.type)};font-family:var(--mono)">
+          ${plTypeLabel(item.type)}
         </td>
         <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border)">
           <a href="${item.url}" target="_blank" rel="noopener"
