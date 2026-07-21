@@ -5,6 +5,8 @@
    별도 파일로 관리.
 
    GET    /works/search             작품 검색 (공개) — 제목+키워드(한글)+장르 통합검색, 15개 페이징(offset), 년도/평점/OTT순위 포함
+   GET    /persons/search           [2026-07-21 신설] 인물 이름 검색 (공개) — name_ko(한글)+name(TMDB 원본,주로 영어)
+                                     앞부분 일치, 인기도순, 10개 페이징(offset). TMDB 실시간 조회 없이 persons 테이블만 조회(가벼움).
    GET    /works/exists             tmdb_id 목록 중 DB 등록 여부 확인 (공개) — 검색결과 TMDB 보충결과 중복필터용
    GET    /works/ott-map            [2026-07-18 신설] tmdb_id 목록 → 각각의 OTT 소속 매핑만 가볍게 반환 (OTT 필터 즉시반응용 사전조회)
    GET    /works/details            [2026-07-18 신설] tmdb_id 목록의 카드 상세정보 반환 (매칭 재실행 없이, 이미 확정된 id들만 조회)
@@ -19,6 +21,13 @@ function _buildFtsQuery(term) {
   const words = term.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
   return words.map(w => `"${w.replace(/"/g, '""')}"*`).join(" ");
+}
+
+// [2026-07-21 추가] 사용자 입력을 LIKE 문법에 안전하게 쓸 수 있도록 와일드카드 문자(%, _)와
+// 이스케이프 문자(\) 자체를 이스케이프. 인물 이름 검색(name_ko/name 앞부분 일치)에서 사용 —
+// 이걸 안 하면 사용자가 "%"나 "_"를 입력했을 때 의도치 않게 전체/한글자 매칭으로 새는 문제가 생김.
+function _escapeLikeTerm(term) {
+  return term.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
 // 제목/키워드/장르 매칭 3종 쿼리를 하나의 배열로 묶어서 반환 — env.DB.batch()로 한 번에 실행하기 위함
@@ -306,6 +315,48 @@ export async function handleSearch(path, request, env, url, headers) {
         all_ids: workRows.map(w => w.tmdb_id),
         match_types: Object.fromEntries(matchType),
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /persons/search ──────────────────────────────────────
+  // [2026-07-21 신설] 공개 API — 검색결과 페이지 하단 "인물" 섹션용.
+  //   ① name_ko(한글 대표이름) + name(TMDB 원본, 배우에 따라 영어인 경우 많음) 둘 다 대상으로
+  //      "앞부분 일치" 검색 (예: "김정" → "김정○"만 걸리고 "이김정수"처럼 중간에 있는 건 제외)
+  //   ② TMDB 실시간 조회 없이 persons 테이블만 조회 — 매 검색마다 호출돼도 가볍도록 설계
+  //   ③ 인기도(popularity) 내림차순 정렬, 10개씩 페이징(offset), 더보기 지원
+  //   ④ total(전체 개수)은 따로 세지 않음 — limit보다 1개 더 가져와서 있으면 has_more=true로만 판단
+  //      (COUNT 쿼리 한 번 더 안 도는 만큼 가벼움. 화면엔 "총 N명"을 안 보여주므로 필요도 없음)
+  //   ⑤ 화면에 보여줄 이름은 name_ko가 있으면 그걸, 없으면(아직 미채움) name(영어 등)을 그대로 사용
+  if (path === "/persons/search" && request.method === "GET") {
+    const q      = (url.searchParams.get("q") || "").trim();
+    const limit  = Math.min(parseInt(url.searchParams.get("limit") || "10"), 30);
+    const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
+
+    if (!q) {
+      return new Response(JSON.stringify({ ok: true, data: [], has_more: false }), { headers });
+    }
+
+    try {
+      const likeTerm = _escapeLikeTerm(q) + "%";
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, name, name_ko, profile_path, job, popularity
+        FROM persons
+        WHERE (name_ko LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\')
+        ORDER BY popularity DESC
+        LIMIT ? OFFSET ?
+      `).bind(likeTerm, likeTerm, limit + 1, offset).all();
+
+      const hasMore = results.length > limit;
+      const data = results.slice(0, limit).map(p => ({
+        tmdb_id: p.tmdb_id,
+        name: (p.name_ko && p.name_ko.trim()) ? p.name_ko : p.name,
+        profile_path: p.profile_path,
+        job: p.job,
+      }));
+
+      return new Response(JSON.stringify({ ok: true, data, has_more: hasMore }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
