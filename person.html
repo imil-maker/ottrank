@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.6 — person.html (다가오는 하트 뭉침 버그 수정: 360도 각도분산 적용, 좋아요 박스 더 밝은 골드톤으로 변경) -->
+<!-- 2026-07-22 rev.7 — person.html (좋아요 박스 꽉찬 그린#15803d+흰글씨로 확정, 이름 위 여백 10→20px, 모바일 메타정보줄 가운데정렬 특정도 버그 수정) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -131,9 +131,14 @@ body.layout-test .person-info{
   padding-bottom:24px; border-bottom:.5px solid var(--border);
 }
 body.layout-test .person-meta-row{ justify-content:flex-start }
-/* [2026-07-20 신규] 모바일에서는 이름+인스타+공유 줄을 가운데 정렬 */
+/* [2026-07-22 수정] 모바일에서는 이름+인스타+공유 줄을 가운데 정렬 —
+   메타 정보 줄(생년월일/나이/성별/출생지)도 같이 가운데 정렬되어야 하는데,
+   위 133번 줄의 flex-start 규칙이 특정도가 더 높아서(body.layout-test 포함)
+   기존 모바일 center 규칙(548번 줄)을 항상 이기고 있었음 — 여기서 같은
+   특정도로 다시 덮어써서 실제로 모바일에서 가운데 정렬되게 함. */
 @media(max-width:640px){
   body.layout-test .person-info{ text-align:center }
+  body.layout-test .person-meta-row{ justify-content:center }
 }
 
 /* [2026-07-22 신규] 인물 좋아요 — 사진 바로 밑, 박스 형태로 복원(포스터 위 오버레이는
@@ -144,17 +149,17 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   display:flex; align-items:center; justify-content:center; gap:6px;
   width:100%; margin-top:10px; padding:10px 0;
   border:none; border-radius:var(--r-lg);
-  background:rgba(255,214,92,.22); cursor:pointer; position:relative; overflow:visible;
-  font-family:var(--font-mono); font-size:15px; font-weight:700; color:var(--text);
+  background:#15803d; cursor:pointer; position:relative; overflow:visible;
+  font-family:var(--font-mono); font-size:15px; font-weight:700; color:#fff;
   transition:background .15s;
 }
-.person-like-btn:hover{background:rgba(255,214,92,.32)}
-.person-like-btn.liked{background:rgba(255,214,92,.42)}
+.person-like-btn:hover{background:#178f45}
+.person-like-btn.liked{background:#136b34}
 .person-like-btn:disabled{cursor:default}
 .person-like-btn .like-heart{font-size:22px; line-height:1; transition:transform .15s}
 .person-like-btn.liked .like-heart{transform:scale(1.15)}
-.person-like-btn .like-label{font-size:14px; color:var(--muted2); font-family:var(--font-sans)}
-.person-like-btn .like-count{font-size:14px; color:var(--muted2)}
+.person-like-btn .like-label{font-size:14px; color:#fff; font-family:var(--font-sans)}
+.person-like-btn .like-count{font-size:14px; color:#fff}
 
 /* 클릭 시 튀어 오르는 하트 파티클 — JS가 개수만큼 span을 만들어서 넣고,
    애니메이션 끝나면 그 span들만 지움(버튼 자체 DOM은 안 건드림).
@@ -335,7 +340,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 .scroll-arrow.hidden{display:none} /* 스크롤 끝(또는 스크롤 필요 없음)에 도달하면 자동으로 숨김 */
 
 /* ── 인물 정보 ── */
-.person-info{flex:1;min-width:0;margin-top:10px}
+.person-info{flex:1;min-width:0;margin-top:20px}
 .person-name{font-size:34px;font-weight:900;line-height:1.1;letter-spacing:-.5px;margin-bottom:4px}
 .person-name-en{display:none} /* [2026-07-20 수정] 이름 옆 괄호 표기 방식으로 변경, 기존 별도줄은 숨김 */
 .person-name-en-inline{font-size:16px;color:var(--muted);font-weight:400;margin-left:6px} /* [2026-07-20 신규] */
