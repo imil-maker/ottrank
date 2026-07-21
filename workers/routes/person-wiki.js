@@ -1,4 +1,4 @@
-// 2026-07-22 rev.2 — person-wiki.js (좋아요 누를 때 person_like_daily에 날짜별 집계도 같이 기록 — 기간별 랭킹용)
+// 2026-07-22 rev.3 — person-wiki.js (사용자 프로필(약력) 수정 제출 기능 신규: 로그인 필요, 관리자 승인 대기)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -14,6 +14,8 @@
 // (path, request, env, url, headers) → Response 반환
 // CORS/Content-Type 헤더는 index.js가 이미 만들어서 넘겨줌 (여기서 새로 안 만듦)
 // ============================================================
+
+import { _getSessionCookie } from "../utils/authUtils.js";
 
 /**
  * GET /person-wiki/:tmdb_person_id
@@ -40,6 +42,20 @@ export async function handlePersonWiki(path, request, env, url, headers) {
         );
       }
       return await handlePersonLike(likeId, env, headers);
+    }
+
+    // [2026-07-22 신규] POST /person-wiki/:id/profile-edit — 사용자 프로필(약력) 수정 제출.
+    // 로그인 필요, 제출 즉시 반영 안 됨 — person_profile_edits에 대기(pending) 상태로 쌓이고
+    // 관리자가 어드민 "프로필 수정요청" 탭에서 승인해야만 실제 person_wiki_cache.bio_summary에 반영됨.
+    if (request.method === "POST" && segments[segments.length - 1] === "profile-edit") {
+      const editId = parseInt(segments[segments.length - 2], 10);
+      if (!Number.isInteger(editId) || editId <= 0) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "invalid tmdb_person_id" }),
+          { status: 400, headers }
+        );
+      }
+      return await handleProfileEditSubmit(editId, request, env, headers);
     }
 
     const rawId = segments[segments.length - 1];
@@ -179,6 +195,61 @@ async function handlePersonLike(tmdbPersonId, env, headers) {
     );
   } catch (e) {
     console.log("[person-wiki] like error:", e.message);
+    return new Response(
+      JSON.stringify({ ok: false, error: "internal error" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+/**
+ * POST /person-wiki/:tmdb_person_id/profile-edit
+ * [2026-07-22 신규] 사용자 프로필(약력) 수정 제출 — 로그인 필요.
+ * body: { bio: "새로 쓸 약력 내용" }
+ * 제출 즉시 반영되지 않음 — person_profile_edits에 대기(pending)로 쌓이고,
+ * 어드민 "프로필 수정요청" 탭에서 관리자가 승인해야만 실제 반영됨.
+ * 로그인 확인은 user.js의 다른 로그인 필요 엔드포인트들과 동일한 방식
+ * (Authorization 헤더의 Bearer 세션ID 또는 쿠키 → sessions 테이블 조회).
+ * → { ok:true } | { ok:false, message:"로그인 필요" | "세션 만료" | ... }
+ */
+async function handleProfileEditSubmit(tmdbPersonId, request, env, headers) {
+  try {
+    const auth      = request.headers.get("Authorization") || "";
+    const sessionId = auth.replace("Bearer ", "").trim() || _getSessionCookie(request);
+    if (!sessionId) {
+      return new Response(JSON.stringify({ ok: false, message: "로그인 필요" }), { status: 401, headers });
+    }
+    const session = await env.DB.prepare(
+      "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+    ).bind(sessionId).first();
+    if (!session) {
+      return new Response(JSON.stringify({ ok: false, message: "세션 만료" }), { status: 401, headers });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const newBio = (body.bio || "").trim();
+    if (!newBio) {
+      return new Response(JSON.stringify({ ok: false, message: "내용을 입력해주세요" }), { status: 400, headers });
+    }
+    // 너무 긴 제출 방지(악의적 대용량 텍스트 등) — 약력 성격상 이 정도면 충분히 넉넉함
+    if (newBio.length > 2000) {
+      return new Response(JSON.stringify({ ok: false, message: "2000자 이내로 작성해주세요" }), { status: 400, headers });
+    }
+
+    // 비교용으로 지금 저장돼 있는 약력을 같이 남겨둠(관리자 승인화면에서 기존/신규 나란히 비교)
+    const cache = await env.DB.prepare(
+      `SELECT bio_summary FROM person_wiki_cache WHERE tmdb_person_id = ?`
+    ).bind(tmdbPersonId).first();
+    const oldBio = cache?.bio_summary || "";
+
+    await env.DB.prepare(
+      `INSERT INTO person_profile_edits (tmdb_id, user_id, old_bio, new_bio, status)
+       VALUES (?, ?, ?, ?, 'pending')`
+    ).bind(tmdbPersonId, session.user_id, oldBio, newBio).run();
+
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+  } catch (e) {
+    console.log("[person-wiki] profile-edit error:", e.message);
     return new Response(
       JSON.stringify({ ok: false, error: "internal error" }),
       { status: 500, headers }
