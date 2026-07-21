@@ -339,6 +339,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div id="ocLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
     </div>
 
+    <!-- [2026-07-21 신규] 실패 사유 목록 — TMDB 요청 자체가 왜 실패하는지 눈으로 확인하는 용도 -->
+    <div id="ocFailWrap" style="display:none;margin-top:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--red)">⚠️ 이번 세션 실패 사유 (<span id="ocFailCount">0</span>건, tmdb_id 기준 최신 사유만 표시)</div>
+      <div id="ocFailList" style="font-size:12px;font-family:var(--mono);color:var(--muted2);line-height:1.8;max-height:280px;overflow-y:auto;background:var(--bg2);border:1px solid rgba(248,113,113,.3);border-radius:10px;padding:14px"></div>
+    </div>
+
     <!-- 구분선 -->
     <div style="border-top:1px solid var(--border);margin:28px 0"></div>
 
@@ -1955,12 +1961,28 @@ function ocUpdateCounters(remaining) {
   document.getElementById('ocRemaining').textContent = remaining === null ? '-' : remaining;
 }
 
+let ocFailMap = new Map(); // tmdb_id -> {title_ko, reason} — 최신 사유로 계속 덮어씀
+
+function ocRenderFailures() {
+  const wrap = document.getElementById('ocFailWrap');
+  const list = document.getElementById('ocFailList');
+  document.getElementById('ocFailCount').textContent = ocFailMap.size;
+  if (!ocFailMap.size) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = [...ocFailMap.entries()].map(([tmdbId, f]) => `
+    <div style="padding:5px 0;border-bottom:1px solid var(--border)">
+      tmdb:${tmdbId} (${(f.title_ko||'').replace(/</g,'&lt;')}) — <span style="color:var(--red)">${(f.reason||'').replace(/</g,'&lt;')}</span>
+    </div>`).join('');
+}
+
 async function startOttCollect() {
   if (ocRunning) return;
   ocRunning        = true;
   ocStopRequested  = false;
   ocTotalAttempted = 0;
   ocTotalProcessed = 0;
+  ocFailMap        = new Map();
+  ocRenderFailures();
 
   const startBtn   = document.getElementById('ocStartBtn');
   const stopBtn    = document.getElementById('ocStopBtn');
@@ -2009,6 +2031,11 @@ async function startOttCollect() {
       ocTotalProcessed += data.processed || 0;
       ocUpdateCounters(data.remaining);
       ocLog(`배치 ${batchNum}: 시도 ${data.attempted}개 · 수집완료 ${data.processed}개 · 남음 ${data.remaining}개`);
+
+      (data.failures || []).forEach(f => {
+        ocFailMap.set(f.tmdb_id, { title_ko: f.title_ko, reason: f.reason });
+      });
+      if ((data.failures || []).length) ocRenderFailures();
 
       if (!data.attempted || data.remaining === 0) {
         statusLine.textContent = `✅ 완료! 총 ${ocTotalAttempted}개 시도, ${ocTotalProcessed}개 수집완료`;
