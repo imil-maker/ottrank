@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.4 — admin_keywords.html (인물매칭 탭 기본 서브탭을 '인물 개별 검색'으로 변경) -->
+<!-- 2026-07-22 rev.5 — admin_keywords.html (프로필 수정요청 탭에 NEW 뱃지 추가 — 대기중 요청 있으면 표시, 없으면 숨김) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -88,6 +88,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   .pea-cols{grid-template-columns:1fr}
 }
 
+/* [2026-07-22 신규] 프로필 수정요청 탭의 NEW 뱃지 — 대기중 요청이 있을 때만 보임 */
+.pea-badge{
+  position:absolute; top:-6px; right:-6px;
+  background:var(--accent); color:#fff; font-size:9px; font-weight:800;
+  padding:2px 5px; border-radius:8px; line-height:1; letter-spacing:.3px;
+  font-family:var(--sans); box-shadow:0 0 0 2px var(--bg2);
+}
+
 </style>
 </head>
 <body>
@@ -140,8 +148,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           👍 인물 좋아요 순위
         </button>
         <button id="tabProfileEdits" onclick="switchPageTab('profileEdits')"
-          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans);position:relative">
           ✏️ 프로필 수정요청
+          <span id="peaBadge" class="pea-badge" style="display:none">NEW</span>
         </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
@@ -875,6 +884,20 @@ function renderLrPagination(current, hasMore){
 /* [2026-07-22 신규] 프로필(약력) 수정요청 — 대기중인 것만 50개씩, 카드로 표시.
    각 카드는 "기존 내용"(읽기전용)과 "수정 요청 내용"(관리자가 고쳐서 승인 가능한 입력창)을
    나란히 보여줌. 승인/거절 누르면 그 카드만 목록에서 바로 제거(전체 새로고침 안 함). */
+/* [2026-07-22 신규] 프로필 수정요청 NEW 뱃지 — 대기중인 게 1개라도 있으면 표시,
+   없으면(다 처리됐으면) 숨김. 굳이 전체 개수를 세지 않고 1페이지만 확인해서 가볍게 처리. */
+async function checkProfileEditsBadge(){
+  try{
+    const res = await fetch(`${API}/admin/persons/profile-edits?page=1`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const json = await res.json();
+    const badge = document.getElementById('peaBadge');
+    if(!badge) return;
+    badge.style.display = (json.ok && (json.items || []).length > 0) ? 'inline-block' : 'none';
+  }catch(e){ /* 뱃지 체크 실패는 조용히 무시 — 관리 기능엔 영향 없음 */ }
+}
+
 let peaCurrentPage = 1;
 
 async function loadProfileEdits(page){
@@ -898,11 +921,13 @@ async function loadProfileEdits(page){
     if(!items.length){
       list.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">대기중인 수정요청이 없습니다</div>`;
       document.getElementById('peaPagination').innerHTML = '';
+      if(page === 1) checkProfileEditsBadge();
       return;
     }
 
     list.innerHTML = items.map(peaCardHtml).join('');
     renderPeaPagination(page, !!json.has_more);
+    checkProfileEditsBadge();
   }catch(e){
     list.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</div>`;
     document.getElementById('peaPagination').innerHTML = '';
@@ -947,6 +972,7 @@ async function approveProfileEdit(id){
     if(json.ok){
       showToast('✅ 승인 완료 — 인물페이지에 반영됐어요');
       document.getElementById(`peaCard_${id}`)?.remove();
+      checkProfileEditsBadge();
     } else {
       showToast('실패: ' + (json.message || ''));
     }
@@ -966,6 +992,7 @@ async function rejectProfileEdit(id){
     if(json.ok){
       showToast('거절 처리했어요');
       document.getElementById(`peaCard_${id}`)?.remove();
+      checkProfileEditsBadge();
     } else {
       showToast('실패: ' + (json.message || ''));
     }
@@ -1006,6 +1033,7 @@ async function verifySecret(){
       localStorage.setItem('admin_token', ADMIN_SECRET);
       document.getElementById('loginWrap').style.display = 'none';
       document.getElementById('mainWrap').style.display = 'block';
+      checkProfileEditsBadge();
     } else {
       document.getElementById('loginErr').style.display = 'block';
       ADMIN_SECRET = '';
@@ -1022,6 +1050,7 @@ async function verifySecret(){
     ADMIN_SECRET = stored;
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('mainWrap').style.display = 'block';
+    checkProfileEditsBadge();
   }
 })();
 
