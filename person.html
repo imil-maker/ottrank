@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.7 — person.html (좋아요 박스 꽉찬 그린#15803d+흰글씨로 확정, 이름 위 여백 10→20px, 모바일 메타정보줄 가운데정렬 특정도 버그 수정) -->
+<!-- 2026-07-22 rev.8 — person.html (프로필 수정 제안 기능 신규: 더보기 옆 버튼, 로그인 필요, 관리자 승인 대기) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -470,6 +470,29 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   display:none} /* JS로 필요시 표시 */
 .bio-toggle:hover{text-decoration:underline}
 
+/* [2026-07-22 신규] 프로필(약력) 수정하기 버튼 — 더보기 옆에 나란히, 더보기와 달리
+   항상 보임(더보기가 없으면 이 버튼만 그 자리에 남음). 더보기 버튼과 같은 링크 스타일. */
+.profile-edit-btn{margin-top:8px;margin-left:10px;background:none;border:none;color:var(--info);
+  font-size:13px;cursor:pointer;font-family:var(--font-mono);padding:0}
+.profile-edit-btn:hover{text-decoration:underline}
+
+/* [2026-07-22 신규] 프로필 수정 모달 — 화면 전체를 덮는 오버레이 + 가운데 작은 박스 */
+.pe-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.pe-modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:24px;width:100%;max-width:480px}
+.pe-modal h3{font-size:16px;margin-bottom:6px}
+.pe-modal .pe-sub{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+.pe-modal textarea{width:100%;min-height:160px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;padding:12px;color:var(--text);font-size:14px;line-height:1.6;
+  font-family:var(--font-sans);resize:vertical}
+.pe-modal .pe-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.pe-modal button{padding:9px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;
+  cursor:pointer;font-family:var(--font-sans)}
+.pe-cancel-btn{background:var(--bg3);color:var(--muted2)}
+.pe-submit-btn{background:var(--info);color:#fff}
+.pe-submit-btn:disabled{opacity:.5;cursor:default}
+
 /* ── 필모그래피 ── */
 .filmography-section{margin-top:32px}
 .section-title{font-size:17px;font-weight:700;margin-bottom:16px;
@@ -658,6 +681,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
         <div class="bio-section">
           <div class="bio-text" id="bioText"></div>
           <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
+          <button class="profile-edit-btn" id="profileEditBtn" onclick="openProfileEditModal()">✏️ 프로필 수정하기</button>
         </div>
         <!-- [2026-07-19 신규] 수상내역 — 약력 바로 아래, 대표작(TMDB)보다 먼저 보이는 위치
              [2026-07-20 신규] 모바일 2줄 초과 시 더보기 버튼용으로 텍스트/버튼 분리 -->
@@ -942,6 +966,67 @@ function toggleBio(){
   const btn= document.getElementById('bioToggle');
   el.classList.toggle('expanded', bioExpanded);
   btn.textContent = bioExpanded ? '접기 ▴' : '더보기 ▾';
+}
+
+/* [2026-07-22 신규] 프로필(약력) 수정 제출 — 로그인 필요. 제출해도 화면엔 바로 안 바뀌고
+   관리자 승인 후에만 실제 반영됨(대기 상태로 저장). */
+function openProfileEditModal(){
+  const sid = localStorage.getItem('ottrang_sid');
+  if(!sid){
+    alert('로그인 후 이용할 수 있어요.');
+    location.href = '/login.html';
+    return;
+  }
+
+  const currentBio = document.getElementById('bioText')?.textContent || '';
+  const overlay = document.createElement('div');
+  overlay.className = 'pe-overlay';
+  overlay.id = 'peOverlay';
+  overlay.innerHTML = `
+    <div class="pe-modal">
+      <h3>✏️ 프로필 수정 제안</h3>
+      <div class="pe-sub">${escHtml(personDisplayName || '이 인물')}님의 약력을 고쳐서 보내주세요. 검토 후 반영돼요.</div>
+      <textarea id="peTextarea">${escHtml(currentBio)}</textarea>
+      <div class="pe-btns">
+        <button class="pe-cancel-btn" onclick="closeProfileEditModal()">취소</button>
+        <button class="pe-submit-btn" id="peSubmitBtn" onclick="submitProfileEdit()">제출하기</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeProfileEditModal(); });
+  document.body.appendChild(overlay);
+}
+
+function closeProfileEditModal(){
+  document.getElementById('peOverlay')?.remove();
+}
+
+async function submitProfileEdit(){
+  const sid = localStorage.getItem('ottrang_sid');
+  const bio = (document.getElementById('peTextarea')?.value || '').trim();
+  if(!bio){ alert('내용을 입력해주세요.'); return; }
+
+  const btn = document.getElementById('peSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '제출 중...';
+
+  try{
+    const res = await fetch(`${OTTRANK_API}/person-wiki/${personId}/profile-edit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ bio }),
+    });
+    const json = await res.json();
+    closeProfileEditModal();
+    if(json && json.ok){
+      alert(`보내주신 ${personDisplayName || '이 인물'}님의 프로필이 수정되었습니다. 검토 후 적극 반영됩니다.`);
+    } else {
+      alert(json?.message || '제출에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+  }catch(e){
+    closeProfileEditModal();
+    alert('제출 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
+  }
 }
 
 /* [2026-07-22 신규] 인물 좋아요 — 로그인/횟수 제한 없음. 클릭할 때마다 서버에 +1 요청을
