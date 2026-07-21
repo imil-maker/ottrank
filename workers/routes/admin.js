@@ -1,4 +1,4 @@
-// 2026-07-22 rev.3 — admin.js (인물 좋아요 순위에 "전체"(persons.like_count 직접정렬) 옵션 추가)
+// 2026-07-22 rev.4 — admin.js (사용자 프로필 수정요청 목록조회+승인/거절 API 신규)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -66,6 +66,8 @@
    POST   /admin/persons/backfill-meta  ← 생년월일/인기도/사진 백필(2026-07-20 신설, 2026-07-22 name_ko_checked_at 기록 추가)
    POST   /admin/persons/refill-korean-name ← 한글이름만 재확인(격리, 2026-07-20 신설, 2026-07-22 1년 주기 재확인으로 변경)
    GET    /admin/persons/like-ranking ← 인물 좋아요 기간별 순위(오늘/어제/1주일/1개월/1년, 2026-07-22 신설)
+   GET    /admin/persons/profile-edits ← 사용자 제출 프로필(약력) 수정요청 대기목록(2026-07-22 신설)
+   POST   /admin/persons/profile-edits/:id ← 수정요청 승인/거절(2026-07-22 신설)
    GET    /admin/persons/wiki-candidates ← 위키 매칭 후보 목록(2026-07-20 신설)
    POST   /admin/persons/wiki-match-attempt ← 실제 위키 검색+매칭 시도(2026-07-20 신설)
    POST   /admin/persons/wiki-approve   ← 매칭 확정 승인, person_wiki_cache 반영(2026-07-20 신설)
@@ -3538,6 +3540,97 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, items, page, has_more: hasMore, period,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+
+  // ── GET /admin/persons/profile-edits ────────────────────────────
+  // [2026-07-22 신규] 사용자가 제출한 프로필(약력) 수정요청 대기 목록 — 어드민
+  // "프로필 수정요청" 탭용. 대기중(pending)인 것만 보여줌(승인/거절 끝난 건 제외).
+  // 50개씩, "이전/다음"만 있는 단순 페이지네이션(다른 탭들과 동일 패턴).
+  if (path === "/admin/persons/profile-edits" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
+      const limit  = 50;
+      const offset = (page - 1) * limit;
+
+      const { results } = await env.DB.prepare(`
+        SELECT e.id, e.tmdb_id, e.old_bio, e.new_bio, e.created_at,
+               p.name, p.name_ko, u.nickname
+        FROM person_profile_edits e
+        LEFT JOIN persons p ON p.tmdb_id = e.tmdb_id
+        LEFT JOIN users u ON u.id = e.user_id
+        WHERE e.status = 'pending'
+        ORDER BY e.created_at ASC
+        LIMIT ? OFFSET ?
+      `).bind(limit + 1, offset).all();
+
+      const hasMore = results.length > limit;
+      const items = results.slice(0, limit).map((r) => ({
+        id: r.id,
+        tmdb_id: r.tmdb_id,
+        person_name: (r.name_ko && r.name_ko.trim()) ? r.name_ko : (r.name || `#${r.tmdb_id}`),
+        submitter: r.nickname || "(닉네임 없음)",
+        old_bio: r.old_bio || "",
+        new_bio: r.new_bio,
+        created_at: r.created_at,
+      }));
+
+      return new Response(JSON.stringify({ ok: true, items, page, has_more: hasMore }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/profile-edits/:id ───────────────────────
+  // [2026-07-22 신규] 프로필 수정요청 승인/거절 처리.
+  // body: { action: "approve" | "reject", bio: "..." (approve일 때만 사용 — 관리자가
+  //        최종 다듬은 내용을 그대로 저장. 요청 원문을 그대로 승인해도, 고쳐서 승인해도 됨) }
+  // 승인 시 person_wiki_cache.bio_summary만 딱 갱신 — career_history/awards_text 등
+  // 다른 위키 필드는 절대 안 건드림(필드별 독립 저장 원칙, wiki-manual-save와는 별개 쿼리).
+  const profileEditActionMatch = path.match(/^\/admin\/persons\/profile-edits\/(\d+)$/);
+  if (profileEditActionMatch && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const editId = parseInt(profileEditActionMatch[1], 10);
+      const body   = await request.json().catch(() => ({}));
+      const action = body.action;
+
+      if (!["approve", "reject"].includes(action)) {
+        return new Response(JSON.stringify({ ok: false, message: "action이 올바르지 않아요" }), { status: 400, headers });
+      }
+
+      const editRow = await env.DB.prepare(
+        `SELECT tmdb_id FROM person_profile_edits WHERE id = ? AND status = 'pending'`
+      ).bind(editId).first();
+      if (!editRow) {
+        return new Response(JSON.stringify({ ok: false, message: "대기중인 요청을 찾을 수 없어요(이미 처리됐을 수 있어요)" }), { status: 404, headers });
+      }
+
+      if (action === "approve") {
+        const finalBio = (body.bio || "").trim();
+        if (!finalBio) {
+          return new Response(JSON.stringify({ ok: false, message: "승인할 내용이 비어있어요" }), { status: 400, headers });
+        }
+        // bio_summary 한 필드만 독립적으로 갱신 — 다른 위키 필드는 그대로 유지됨
+        await env.DB.prepare(`
+          INSERT INTO person_wiki_cache (tmdb_person_id, bio_summary) VALUES (?, ?)
+          ON CONFLICT(tmdb_person_id) DO UPDATE SET bio_summary = excluded.bio_summary
+        `).bind(editRow.tmdb_id, finalBio).run();
+      }
+
+      await env.DB.prepare(
+        `UPDATE person_profile_edits SET status = ?, reviewed_at = datetime('now') WHERE id = ?`
+      ).bind(action === "approve" ? "approved" : "rejected", editId).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
