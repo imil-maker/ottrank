@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.5 — admin_keywords.html (프로필 수정요청 탭에 NEW 뱃지 추가 — 대기중 요청 있으면 표시, 없으면 숨김) -->
+<!-- 2026-07-22 rev.6 — admin_keywords.html (인물 개별 검색에 포스터 배지(추모 국화) 선택+저장 UI 신규) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -52,6 +52,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .btn-primary:hover{background:#ff4d58}
 .btn-secondary{padding:10px 16px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:14px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
 .btn-secondary:hover{background:var(--bg3);color:var(--text)}
+/* [2026-07-22 rev.6 신규] 포스터 배지 선택 버튼 — "인물 개별 검색" */
+.pm-badge-opt{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;
+  border:1px solid var(--border);background:var(--bg3);color:var(--muted2);font-size:13px;
+  cursor:pointer;font-family:var(--sans);transition:border-color .15s,background .15s}
+.pm-badge-opt:hover{border-color:var(--accent)}
+.pm-badge-opt.pm-badge-selected{border-color:var(--accent);background:rgba(230,57,70,.12);color:var(--text)}
+.pm-badge-opt img{width:28px;height:28px;object-fit:contain}
 .form-input{padding:10px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:var(--sans);outline:none}
 .form-input:focus{border-color:var(--border2)}
 
@@ -1495,6 +1502,18 @@ function renderPmSearchForm(data){
       ${data.matched ? '은(는) 위키백과와 이미 연결돼 있어요.' : '은(는) 아직 위키백과와 연결 안 됐어요 — 아래에서 바로 직접 입력하거나, 매칭을 먼저 시도해서 자동으로 채울 수 있어요.'}
       체크 해제하면 그 항목만 인물페이지에서 사라져요 (데이터는 안 지워지고 다시 체크하면 복구돼요).
     </div>
+    <!-- [2026-07-22 rev.6 신규] 포스터 배지 — person_wiki_cache가 아니라 persons.poster_badge에
+         저장되는 완전히 별개 기능. 위키 항목 저장(pmSaveManual)과 섞이지 않도록 버튼도 분리. -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">🖼️ 포스터 배지</div>
+      <div id="pmBadgeOptions" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <button type="button" class="pm-badge-opt${!person.poster_badge ? ' pm-badge-selected' : ''}" data-badge="" onclick="pmSelectBadge(this)">없음</button>
+        <button type="button" class="pm-badge-opt${person.poster_badge === 'flower' ? ' pm-badge-selected' : ''}" data-badge="flower" onclick="pmSelectBadge(this)">
+          <img src="/img/memorial-flower.png" alt="" onerror="this.style.display='none'">🌼 국화(추모)
+        </button>
+      </div>
+      <button class="btn-secondary" onclick="pmSaveBadge(${person.tmdb_id})" style="padding:8px 16px;font-size:13px">💾 배지 저장</button>
+    </div>
     ${!data.matched ? `
       <button class="btn-secondary" id="pmSearchMatchBtn" onclick="pmSearchAttemptMatch(${person.tmdb_id})" style="padding:8px 16px;font-size:13px;margin-bottom:16px">🔍 위키백과 매칭 시도 (자동 채우기)</button>
       <div id="pmSearchMatchResultWrap" style="margin-bottom:16px"></div>
@@ -1582,6 +1601,34 @@ async function pmSearchApprove(tmdbId){
 
 /* [2026-07-20 신규] 입력폼의 10개 항목 값 + 체크박스 상태를 한 번에 모아서 저장.
    매칭 여부와 무관하게 항상 이 함수 하나로 저장됨 — 직접 입력만 해도 위키에서 온 것처럼 반영됨. */
+/* [2026-07-22 rev.6 신규] 포스터 배지 선택 — 버튼 클릭 시 시각적 선택 상태만 바꾸고,
+   실제 저장은 별도 "💾 배지 저장" 버튼을 눌러야 반영됨(위키 저장과 완전히 분리). */
+function pmSelectBadge(btn){
+  const wrap = document.getElementById('pmBadgeOptions');
+  wrap.querySelectorAll('.pm-badge-opt').forEach(b => b.classList.remove('pm-badge-selected'));
+  btn.classList.add('pm-badge-selected');
+}
+
+async function pmSaveBadge(tmdbId){
+  const wrap = document.getElementById('pmBadgeOptions');
+  const selected = wrap.querySelector('.pm-badge-selected');
+  const badge = selected ? selected.dataset.badge : '';
+
+  showToast('배지 저장 중...');
+  try{
+    const res  = await fetch(`${API}/admin/persons/badge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, badge }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){ showToast(`❌ 저장 실패: ${data.message || res.status}`); return; }
+    showToast('✅ 배지가 저장됐어요! 인물페이지에 반영돼요');
+  }catch(e){
+    showToast(`❌ 네트워크 오류: ${e.message}`);
+  }
+}
+
 async function pmSaveManual(tmdbId){
   const detailWrap = document.getElementById('pmSearchDetailWrap');
   const getVal = (key) => {
