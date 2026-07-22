@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.4 — admin_keywords.html (봇 표시 위치를 구분 칸→방문자 칸으로 이동) -->
+<!-- 2026-07-23 rev.5 — admin_keywords.html (최근 조회에 "🤖 봇 제외" 토글 버튼 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -486,6 +486,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
       <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:20px">
         <button class="btn-secondary" onclick="loadPageLogs(1)" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
+        <button id="plExcludeBotBtn" class="btn-secondary" onclick="togglePlExcludeBot()" style="padding:0 20px;white-space:nowrap">🤖 봇 제외</button>
       </div>
 
       <!-- [2026-07-23 신규] vid 필터 상태 배너 — 특정 방문자만 보고 있을 때만 표시 -->
@@ -839,6 +840,17 @@ function clearPlVidFilter(){
   loadPageLogs(1);
 }
 
+/* [2026-07-23 신규] 봇 제외 토글 — "실제 사용자만" 보고 싶을 때. vid 필터와 동시에 켤 수 있음 */
+let plExcludeBot = false;
+function togglePlExcludeBot(){
+  plExcludeBot = !plExcludeBot;
+  const btn = document.getElementById('plExcludeBotBtn');
+  btn.style.background = plExcludeBot ? 'rgba(240,180,41,.2)' : 'transparent';
+  btn.style.color      = plExcludeBot ? 'var(--gold)' : 'var(--muted2)';
+  btn.style.borderColor= plExcludeBot ? 'rgba(240,180,41,.4)' : 'var(--border)';
+  loadPageLogs(1);
+}
+
 async function loadPageLogs(page){
   page = page || 1;
   const tbody = document.getElementById('plTbody');
@@ -846,7 +858,8 @@ async function loadPageLogs(page){
 
   try{
     const vidQs = plVidFilter ? `&vid=${encodeURIComponent(plVidFilter)}` : '';
-    const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}${vidQs}`, {
+    const botQs = plExcludeBot ? `&excludeBot=1` : '';
+    const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}${vidQs}${botQs}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const json = await res.json();
