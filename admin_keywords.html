@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.3 — admin_keywords.html (최근 조회 목록에 봇(🤖) 판별 표시 추가, 목록에서 제외는 안 함) -->
+<!-- 2026-07-23 rev.4 — admin_keywords.html (봇 표시 위치를 구분 칸→방문자 칸으로 이동) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -872,7 +872,7 @@ async function loadPageLogs(page){
     const rows = (json.items || []).map(item => `
       <tr>
         <td style="padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);color:${plTypeColor(item.type)};font-family:var(--mono)">
-          ${plTypeLabel(item.type)}${item.is_bot ? ' <span style="color:var(--muted);font-size:11px" title="검색엔진 크롤러로 추정">🤖봇</span>' : ''}
+          ${plTypeLabel(item.type)}
         </td>
         <td style="padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border)">
           <a href="${item.url}" target="_blank" rel="noopener"
@@ -883,7 +883,7 @@ async function loadPageLogs(page){
           item.vid
             ? `<span onclick="filterByVid('${item.vid}')" style="cursor:pointer;color:var(--muted2);text-decoration:underline dotted;text-underline-offset:3px" title="이 방문자만 보기">${hescSl(item.vid)}</span>`
             : `<span style="color:var(--muted)">-</span>`
-        }</td>
+        }${item.is_bot ? ' <span style="color:var(--muted);font-size:11px" title="검색엔진 크롤러로 추정">🤖봇</span>' : ''}</td>
       </tr>
     `).join('');
 
