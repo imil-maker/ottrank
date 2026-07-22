@@ -1,4 +1,4 @@
-// 2026-07-22 rev.4 — admin.js (사용자 프로필 수정요청 목록조회+승인/거절 API 신규)
+// 2026-07-22 rev.5 — admin.js (인물 포스터 배지(추모 국화) 수동 지정 API 신규: GET wiki-detail에 poster_badge 포함 + POST /admin/persons/badge)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -74,6 +74,7 @@
    GET    /admin/persons/wiki-detail/:tmdb_id ← 인물 1명 위키 상세(매칭여부+항목별 숨김여부)(2026-07-20 신설)
    POST   /admin/persons/wiki-hidden-fields   ← 항목별 숨김/복구 저장(2026-07-20 신설)
    POST   /admin/persons/wiki-manual-save     ← 10개 항목 직접 입력/수정 저장(2026-07-20 신설)
+   POST   /admin/persons/badge                ← 포스터 배지(추모 국화 등) 수동 지정(2026-07-22 신설)
    POST   /admin/persons/ai-draft             ← AI(웹서치) 프로필 초안 생성, 저장 안 함(2026-07-20 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
@@ -4131,8 +4132,10 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
     try {
       const tmdbId = parseInt(path.split("/")[4]);
+      // [2026-07-22 rev.5 수정] poster_badge 추가 — 관리자가 수동으로 선택한 포스터 배지
+      // (현재는 'flower' 하나뿐, 나중에 다른 이미지 추가되면 값만 늘어남)
       const person = await env.DB.prepare(
-        `SELECT tmdb_id, name, name_ko, birthday, popularity, profile_path FROM persons WHERE tmdb_id = ?`
+        `SELECT tmdb_id, name, name_ko, birthday, popularity, profile_path, poster_badge FROM persons WHERE tmdb_id = ?`
       ).bind(tmdbId).first();
       if (!person) {
         return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
@@ -4233,6 +4236,46 @@ export async function handleAdmin(path, request, env, url, headers) {
       ).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/badge ──────────────────────────────────
+  // [2026-07-22 rev.5 신규] "인물 개별 검색" — 포스터 배지(추모 국화 등) 수동 지정.
+  // person_wiki_cache가 아니라 persons.poster_badge 컬럼에 저장 — wiki-manual-save와
+  // 완전히 별개 테이블/별개 저장 버튼(안전을 위해 의도적으로 분리, 서로 영향 없음).
+  // 지금은 'flower' 하나뿐이지만, 나중에 다른 이미지가 추가되면 이 화이트리스트에만
+  // 값을 추가하면 됨(프론트/DB 구조 변경 불필요).
+  const ALLOWED_POSTER_BADGES = ["flower"];
+  if (path === "/admin/persons/badge" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      if (!Number.isInteger(tmdbId)) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+
+      // badge가 null/빈문자열이면 "배지 없음"으로 저장. 화이트리스트에 없는 값은
+      // 거부 — 오타나 임의 문자열이 그대로 persons 테이블에 들어가는 걸 방지.
+      const rawBadge = body.badge;
+      let badge = null;
+      if (rawBadge != null && String(rawBadge).trim() !== "") {
+        const trimmed = String(rawBadge).trim();
+        if (!ALLOWED_POSTER_BADGES.includes(trimmed)) {
+          return new Response(JSON.stringify({ ok: false, message: "허용되지 않은 배지 값이에요" }), { status: 400, headers });
+        }
+        badge = trimmed;
+      }
+
+      await env.DB.prepare(
+        `UPDATE persons SET poster_badge = ? WHERE tmdb_id = ?`
+      ).bind(badge, tmdbId).run();
+
+      return new Response(JSON.stringify({ ok: true, poster_badge: badge }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
