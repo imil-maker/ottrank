@@ -1,9 +1,9 @@
-// 2026-07-23 rev.1 — track.js (실시간 순위 GET /admin/track/rank 신규 추가)
+// 2026-07-23 rev.1 — track.js (익명 방문자 ID(vid) 기록/조회 지원 추가)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
-       body: { type: "work" | "person" | "main" | "netflix" | "tving" | "disney" | "wavve" | "coupang" | "boxoffice" | "community", id?: <tmdb_id 숫자, work/person만 필요> }
-   - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회)
+       body: { type: "work" | "person" | "main" | "netflix" | "tving" | "disney" | "wavve" | "coupang" | "boxoffice" | "community", id?: <tmdb_id 숫자, work/person만 필요>, vid?: <익명 방문자 ID 문자열, 2026-07-23 추가> }
+   - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회, vid 포함)
    - GET  /admin/track/rank : [2026-07-22 신규] 관리자 전용 — 기간별(어제/오늘/24시간) 조회수 순위.
        작품/인물뿐 아니라 메인/OTT별/커뮤니티 페이지까지 전부 포함해서 종류+ID별로 집계 후 내림차순 정렬.
    - D1은 기록(쓰기) 시점엔 전혀 안 건드리고 Cloudflare Analytics Engine(PAGE_VIEWS 바인딩)에만
@@ -68,6 +68,10 @@ export async function handleTrack(path, request, env, url, headers) {
       const type = body.type;
       const idRequired = ID_REQUIRED_TYPES.includes(type);
       const id = idRequired ? parseInt(body.id, 10) : null;
+      // [2026-07-23 추가] 익명 방문자 ID(vid) — 로그인과 무관, 같은 브라우저를 구분하기 위한 값.
+      // 프론트가 안 보내는 구버전 호출(vid 기능 배포 전 페이지)과의 호환을 위해 없으면 빈 문자열.
+      // 혹시 모를 비정상 값 대비 길이만 방어적으로 제한(64자).
+      const vid = typeof body.vid === "string" ? body.vid.slice(0, 64) : "";
 
       // 화이트리스트 검증 — 정해진 종류만 허용. work/person은 숫자 id까지 있어야 하고,
       // 그 외(메인/OTT/커뮤니티)는 type만 맞으면 id 없이도 통과.
@@ -81,8 +85,9 @@ export async function handleTrack(path, request, env, url, headers) {
       // Analytics Engine 바인딩(PAGE_VIEWS)이 아직 없거나 오타났을 때를 대비한 안전장치
       if (env.PAGE_VIEWS && typeof env.PAGE_VIEWS.writeDataPoint === "function") {
         env.PAGE_VIEWS.writeDataPoint({
-          // blobs: 문자열 필드 — blob1=종류, blob2=작품/인물 ID(문자열, 페이지 종류는 빈 문자열)
-          blobs: [type, id != null ? String(id) : ""],
+          // blobs: 문자열 필드 — blob1=종류, blob2=작품/인물 ID(문자열, 페이지 종류는 빈 문자열),
+          // blob3=익명 방문자 ID(vid, 2026-07-23 추가, 없으면 빈 문자열)
+          blobs: [type, id != null ? String(id) : "", vid],
           // doubles: 숫자 필드 — 조회 1회당 1로 고정(나중에 count/sum 집계용)
           doubles: [1],
           // indexes: 빠른 필터링용 — 타입별로 묶어서 조회할 때 씀(최대 1개)
@@ -121,7 +126,7 @@ export async function handleTrack(path, request, env, url, headers) {
       // [2026-07-21 수정] 전체 개수(COUNT) 조회는 실패 가능성이 있고 API 호출도 1번 더 필요해서
       // 아예 제거 — 대신 "이번 페이지가 꽉 찼으면 다음 페이지도 있다"는 has_more만 판단.
       // 숫자 페이지 버튼(1,2,3...) 대신 이전/다음 버튼만 쓰는 방식으로 화면도 맞춰 변경함.
-      const sql = `SELECT blob1 AS type, blob2 AS ref_id, timestamp FROM ottrank_page_views ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+      const sql = `SELECT blob1 AS type, blob2 AS ref_id, blob3 AS vid, timestamp FROM ottrank_page_views ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
       const aeRes = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
         {
@@ -168,6 +173,7 @@ export async function handleTrack(path, request, env, url, headers) {
       const currentYear = new Date().getFullYear();
       const items = rows.map(r => {
         const id = parseInt(r.ref_id, 10);
+        const vid = r.vid || ""; // [2026-07-23 추가] vid 기능 배포 전 기록은 빈 값 — 정상
         if (r.type === "work") {
           const w = workMap[id];
           const year = (w && w.release_year) || currentYear;
@@ -177,6 +183,7 @@ export async function handleTrack(path, request, env, url, headers) {
             title: w ? w.title_ko : `(D1에 없는 작품 #${id})`,
             url: `/title/1-${year}${id}`,
             viewed_at: r.timestamp,
+            vid,
           };
         }
         if (r.type === "person") {
@@ -187,6 +194,7 @@ export async function handleTrack(path, request, env, url, headers) {
             title: p ? (p.name_ko || p.name) : `(D1에 없는 인물 #${id})`,
             url: `/person/${id}`,
             viewed_at: r.timestamp,
+            vid,
           };
         }
         // [2026-07-21 추가] 메인/OTT별/커뮤니티 페이지 — 고정된 이름/링크라 D1 조회 없이 바로 반환.
@@ -198,6 +206,7 @@ export async function handleTrack(path, request, env, url, headers) {
           title: meta ? meta.title : r.type,
           url: meta ? meta.url : "#",
           viewed_at: r.timestamp,
+          vid,
         };
       });
 
