@@ -1,4 +1,4 @@
-// 2026-07-22 rev.3 — person-wiki.js (사용자 프로필(약력) 수정 제출 기능 신규: 로그인 필요, 관리자 승인 대기)
+// 2026-07-22 rev.4 — person-wiki.js (manual 응답에 poster_badge 추가: 관리자 수동 지정 포스터 배지)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -112,8 +112,10 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     // 없을 때만 TMDB 값을 쓰도록 처리함 (생년월일 등은 평생 안 바뀌는 정보라서).
     // 값이 하나도 없으면 그냥 manual:null로 내려서 프론트가 신경 안 써도 되게 함.
     // [2026-07-22 추가] like_count도 같이 조회 — 인물 좋아요 숫자, 페이지 로드 시 바로 표시.
+    // [2026-07-22 rev.4 추가] poster_badge — 관리자가 수동 지정한 포스터 배지(추모 국화 등).
+    // TMDB에 사망일자가 없어도 관리자가 판단해서 배지를 붙일 수 있게 하는 용도.
     const person = await env.DB.prepare(
-      `SELECT birthday, gender, place_of_birth, like_count FROM persons WHERE tmdb_id = ?`
+      `SELECT birthday, gender, place_of_birth, like_count, poster_badge FROM persons WHERE tmdb_id = ?`
     )
       .bind(tmdbPersonId)
       .first();
@@ -123,11 +125,13 @@ export async function handlePersonWiki(path, request, env, url, headers) {
       const hasBirthday = person.birthday && person.birthday !== "";
       const hasGender = !!person.gender;
       const hasPlace = person.place_of_birth && person.place_of_birth !== "";
-      if (hasBirthday || hasGender || hasPlace) {
+      const hasBadge = person.poster_badge && person.poster_badge !== "";
+      if (hasBirthday || hasGender || hasPlace || hasBadge) {
         manual = {
           birthday: hasBirthday ? person.birthday : null,
           gender: hasGender ? person.gender : null,
           place_of_birth: hasPlace ? person.place_of_birth : null,
+          poster_badge: hasBadge ? person.poster_badge : null,
         };
       }
     }
