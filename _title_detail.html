@@ -1,3 +1,4 @@
+<!-- 2026-07-23 rev.1 — _title_detail.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -1760,6 +1761,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 const TMDB_PROXY='https://tmdb-proxy.tdidream.workers.dev/tmdb';
 const OTTRANK_API='https://ottrank-api.tdidream.workers.dev';
 
+/* [2026-07-23 신규] 익명 방문자 ID(vid) — 로그인 여부와 무관하게 "같은 브라우저"를 구분하기 위한
+   랜덤값. localStorage에 한 번 만들어두고 계속 재사용. 관리자 페이지 로그에서 "이 사람이 어떤
+   흐름으로 돌아다녔는지" 눈으로 구분하는 용도일 뿐이라, 짧은 랜덤 문자열로도 충분함(UUID처럼
+   길게 안 만듦 — 짧아도 구분만 되면 된다는 방침). */
+function getOttrangVid(){
+  try{
+    let vid = localStorage.getItem('ottrang_vid');
+    if(!vid){
+      vid = Math.random().toString(36).slice(2, 10); // 8자리 랜덤 문자열
+      localStorage.setItem('ottrang_vid', vid);
+    }
+    return vid;
+  }catch(e){ return ''; } // localStorage 접근 불가(시크릿모드 등) 시 빈 값 — 트래킹만 못 할 뿐 화면엔 영향 없음
+}
+
 /* [2026-07-21 신규] 실시간 조회 이벤트 전송 — 관리자 화면에서 "지금 인기 작품/인물"을
    보여주기 위한 신호. 응답을 기다리지 않는 fire-and-forget 방식이라 페이지 로딩 속도에
    영향 없음. 실패해도 화면엔 영향 없게 조용히 무시. */
@@ -1768,7 +1784,7 @@ function trackPageView(type, id){
     fetch(`${OTTRANK_API}/track/view`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type, id}),
+      body:JSON.stringify({type, id, vid:getOttrangVid()}),
     }).catch(()=>{});
   }catch(e){ /* 조용히 무시 */ }
 }
