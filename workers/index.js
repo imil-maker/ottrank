@@ -1,3 +1,4 @@
+/* 2026-07-23 rev.1 — index.js (/admin/track/rank 라우팅 추가) */
 /* ══════════════════════════════════════════════════════════════
    오뜨랑 Worker 진입점
    - CORS 처리
@@ -20,7 +21,8 @@
                   /admin/hot100/backfill-logos*  (HOT100 통합 랭킹 + 히어로 로고 백필)
    image-proxy.js : /tmdb-img/*  (TMDB 포스터 캐싱 프록시, poster.ottrank.kr, 2026-07-17 신설)
    person-wiki.js : /person-wiki/*  (인물 위키백과 보강 데이터, 테스트용, 2026-07-19 신설)
-   track.js     : /track/view, /admin/track/logs  (작품/인물 페이지 실시간 조회 이벤트 기록·조회, 2026-07-21 신설)
+   track.js     : /track/view, /admin/track/logs, /admin/track/rank  (작품/인물 페이지 실시간 조회 이벤트 기록·조회 +
+                  기간별 실시간 순위, 2026-07-21 신설, 2026-07-23 순위 라우트 추가)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -129,10 +131,11 @@ export default {
       res = await handlePersonWiki(path, request, env, url, headers);
     }
 
-    // 3-3. 실시간 조회 이벤트 기록·조회 (작품/인물 페이지 조회 — 2026-07-21 신규)
-    //      /admin/track/logs는 12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함
-    //      (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — 다른 /admin/* 예외 라우트들과 동일 패턴)
-    if (!res && (path === "/track/view" || path === "/admin/track/logs")) {
+    // 3-3. 실시간 조회 이벤트 기록·조회 (작품/인물 페이지 조회 — 2026-07-21 신규,
+    //      2026-07-23 실시간 순위 /admin/track/rank 추가)
+    //      /admin/track/logs, /admin/track/rank는 12번 관리자 캐치올(handleAdmin)보다 반드시
+    //      앞에 있어야 함 (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — 다른 /admin/* 예외 라우트들과 동일 패턴)
+    if (!res && (path === "/track/view" || path === "/admin/track/logs" || path === "/admin/track/rank")) {
       res = await handleTrack(path, request, env, url, headers);
     }
 
