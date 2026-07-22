@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.1 — admin_keywords.html (인물 개별 검색에 포스터 배지(추모 국화) 선택+저장 UI 신규) -->
+<!-- 2026-07-23 rev.1 — admin_keywords.html (페이지 로그 "최근 조회" 목록에 방문자(vid) 컬럼 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -491,13 +491,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <thead>
           <tr>
-            <th style="width:15%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">구분</th>
-            <th style="width:55%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">제목</th>
-            <th style="width:30%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">조회 시각</th>
+            <th style="width:13%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">구분</th>
+            <th style="width:42%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">제목</th>
+            <th style="width:25%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">조회 시각</th>
+            <th style="width:20%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">방문자</th>
           </tr>
         </thead>
         <tbody id="plTbody">
-          <tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
+          <tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
         </tbody>
       </table>
 
@@ -820,7 +821,7 @@ function fmtAeTime(iso){ return fmtKst(iso, true); }
 async function loadPageLogs(page){
   page = page || 1;
   const tbody = document.getElementById('plTbody');
-  tbody.innerHTML = `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
 
   try{
     const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}`, {
@@ -828,7 +829,7 @@ async function loadPageLogs(page){
     });
     const json = await res.json();
     if(!json.ok){
-      tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
       document.getElementById('plPagination').innerHTML = '';
       return;
     }
@@ -843,14 +844,15 @@ async function loadPageLogs(page){
             style="font-weight:600;color:var(--text);text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${hescSl(item.title)}</a>
         </td>
         <td style="padding:12px 16px;font-size:12.5px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--muted)">${fmtAeTime(item.viewed_at)}</td>
+        <td style="padding:12px 16px;font-size:12.5px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--muted2)">${hescSl(item.vid || '-')}</td>
       </tr>
     `).join('');
 
-    tbody.innerHTML = rows || `<tr><td colspan="3" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 조회 로그가 없습니다</td></tr>`;
+    tbody.innerHTML = rows || `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 조회 로그가 없습니다</td></tr>`;
 
     renderPlPagination(page, !!json.has_more);
   }catch(e){
-    tbody.innerHTML = `<tr><td colspan="3" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</td></tr>`;
     document.getElementById('plPagination').innerHTML = '';
   }
 }
