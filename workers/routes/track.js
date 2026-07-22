@@ -1,4 +1,4 @@
-// 2026-07-23 rev.4 — track.js (실시간 순위 집계에서도 봇 트래픽 제외)
+// 2026-07-23 rev.5 — track.js (최근 조회 목록에 봇 제외(excludeBot) 파라미터 추가)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
@@ -6,6 +6,7 @@
        요청 헤더의 User-Agent로 검색엔진 크롤러(봇) 여부도 같이 판별해서 기록 (2026-07-23 추가, BOT_UA_PATTERN 참고)
    - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회, vid·is_bot 포함, 봇도 목록엔 그대로 나옴 — 표시만 해두고 지우진 않음).
        ?vid=<값>을 주면 그 방문자 것만 필터링 + 1페이지 응답에 재방문 여부(visit_info) 같이 내려줌 (2026-07-23 추가)
+       ?excludeBot=1을 주면 봇으로 판별된 기록을 아예 빼고 조회(2026-07-23 추가) — vid 필터와 동시 사용 가능
    - GET  /admin/track/rank : [2026-07-22 신규] 관리자 전용 — 기간별(어제/오늘/24시간) 조회수 순위.
        작품/인물뿐 아니라 메인/OTT별/커뮤니티 페이지까지 전부 포함해서 종류+ID별로 집계 후 내림차순 정렬.
        봇 트래픽은 여기선 제외하고 집계함(2026-07-23 추가) — "실제로 사람들이 많이 보는 것"을 보려는
@@ -142,7 +143,14 @@ export async function handleTrack(path, request, env, url, headers) {
       // 이 형식과 안 맞으면 애초에 우리가 발급한 값이 아니라는 뜻 — 조용히 필터 없이 처리).
       const vidParam = url.searchParams.get("vid") || "";
       const vidFilter = /^[a-z0-9]{1,64}$/.test(vidParam) ? vidParam : "";
-      const whereSql = vidFilter ? `WHERE blob3 = '${vidFilter}'` : "";
+
+      // [2026-07-23 추가] 봇 제외 토글 — "실제 사용자만" 보고 싶을 때. vid 필터와 동시에 걸 수 있음.
+      const excludeBot = url.searchParams.get("excludeBot") === "1";
+
+      const whereClauses = [];
+      if (vidFilter) whereClauses.push(`blob3 = '${vidFilter}'`);
+      if (excludeBot) whereClauses.push(`blob4 != '1'`);
+      const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
       // Analytics Engine SQL API — writeDataPoint(blobs:[type, id]) 그대로 조회.
       // 데이터셋 이름은 바인딩 만들 때 정한 "ottrank_page_views" (바인딩 변수명 PAGE_VIEWS와는 별개).
@@ -268,7 +276,7 @@ export async function handleTrack(path, request, env, url, headers) {
       }
 
       return new Response(JSON.stringify({
-        ok: true, items, page, limit, has_more: hasMore, vid_filter: vidFilter || null, visit_info: visitInfo,
+        ok: true, items, page, limit, has_more: hasMore, vid_filter: vidFilter || null, visit_info: visitInfo, exclude_bot: excludeBot,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
