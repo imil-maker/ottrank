@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.1 — admin_keywords.html (페이지 로그 "최근 조회" 목록에 방문자(vid) 컬럼 추가) -->
+<!-- 2026-07-23 rev.2 — admin_keywords.html (방문자(vid) 클릭 시 필터링 + 재방문 여부 표시 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -488,6 +488,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button class="btn-secondary" onclick="loadPageLogs(1)" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
       </div>
 
+      <!-- [2026-07-23 신규] vid 필터 상태 배너 — 특정 방문자만 보고 있을 때만 표시 -->
+      <div id="plVidFilterBanner" style="display:none;background:rgba(240,180,41,.1);border:1px solid rgba(240,180,41,.3);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:var(--gold);font-family:var(--mono);align-items:center;justify-content:space-between;gap:12px">
+        <span id="plVidFilterText"></span>
+        <button class="btn-secondary" onclick="clearPlVidFilter()" style="padding:4px 14px;white-space:nowrap;font-size:12px">전체보기</button>
+      </div>
+
       <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <thead>
           <tr>
@@ -818,13 +824,29 @@ function plTypeColor(type){
 /* [2026-07-21 신규] 페이지 로그(실시간 작품/인물 조회) 목록 로드 */
 const PL_PAGE_SIZE = 50;
 function fmtAeTime(iso){ return fmtKst(iso, true); }
+
+/* [2026-07-23 신규] vid(방문자) 필터 상태 — "방문자" 칸을 클릭하면 그 사람 것만 걸러서 봄 */
+let plVidFilter = '';
+
+function filterByVid(vid){
+  if(!vid) return;
+  plVidFilter = vid;
+  loadPageLogs(1);
+}
+function clearPlVidFilter(){
+  plVidFilter = '';
+  document.getElementById('plVidFilterBanner').style.display = 'none';
+  loadPageLogs(1);
+}
+
 async function loadPageLogs(page){
   page = page || 1;
   const tbody = document.getElementById('plTbody');
   tbody.innerHTML = `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
 
   try{
-    const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}`, {
+    const vidQs = plVidFilter ? `&vid=${encodeURIComponent(plVidFilter)}` : '';
+    const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}${vidQs}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const json = await res.json();
@@ -832,6 +854,19 @@ async function loadPageLogs(page){
       tbody.innerHTML = `<tr><td colspan="4" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
       document.getElementById('plPagination').innerHTML = '';
       return;
+    }
+
+    // [2026-07-23 추가] vid 필터 배너 — 1페이지 응답에만 visit_info(재방문 여부)가 담겨 옴
+    const banner = document.getElementById('plVidFilterBanner');
+    if(json.vid_filter){
+      let visitText = '';
+      if(json.visit_info){
+        visitText = json.visit_info.is_first_time_today ? ' · 🆕 오늘 처음' : ' · 🔁 재방문';
+      }
+      document.getElementById('plVidFilterText').textContent = `👤 방문자 "${json.vid_filter}"만 보는 중${visitText}`;
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
     }
 
     const rows = (json.items || []).map(item => `
@@ -844,7 +879,11 @@ async function loadPageLogs(page){
             style="font-weight:600;color:var(--text);text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${hescSl(item.title)}</a>
         </td>
         <td style="padding:12px 16px;font-size:12.5px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--muted)">${fmtAeTime(item.viewed_at)}</td>
-        <td style="padding:12px 16px;font-size:12.5px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--muted2)">${hescSl(item.vid || '-')}</td>
+        <td style="padding:12px 16px;font-size:12.5px;border-bottom:1px solid var(--border);font-family:var(--mono)">${
+          item.vid
+            ? `<span onclick="filterByVid('${item.vid}')" style="cursor:pointer;color:var(--muted2);text-decoration:underline dotted;text-underline-offset:3px" title="이 방문자만 보기">${hescSl(item.vid)}</span>`
+            : `<span style="color:var(--muted)">-</span>`
+        }</td>
       </tr>
     `).join('');
 
