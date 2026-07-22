@@ -1,3 +1,4 @@
+/* 2026-07-23 rev.1 — rankings.js (사이트맵: 한국 작품/인물 우선 정렬 + priority 차등) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -857,20 +858,26 @@ export async function handleRankings(path, request, env, url, headers) {
       ];
 
       // works 전체 작품 목록 (tmdb_id 기준)
+      // [2026-07-23 수정] 봇(검색엔진 크롤러)이 한국 작품/인물을 먼저 크롤링하도록 유도하기 위해
+      // 한국작품(original_language='ko')을 먼저 나열 + priority도 더 높게 줌(아래 URL 생성부 참고).
+      // "강제"는 아니고 "유도" 신호 — 사이트맵 순서/priority를 크롤러가 얼마나 따르는지는
+      // 검색엔진마다 다름(구글은 참고만, 네이버는 비교적 잘 따르는 편으로 알려져 있음).
       const { results: works } = await env.DB.prepare(
-        "SELECT tmdb_id FROM works WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id"
+        "SELECT tmdb_id, original_language FROM works WHERE tmdb_id IS NOT NULL ORDER BY (original_language = 'ko') DESC, tmdb_id"
       ).all();
 
       // persons 전체 인물 목록 (배우/감독 검색 SEO 유입용 — /person/{tmdb_id})
       // [2026-07-20 수정] 2단 레이아웃 배포 + 위키 데이터 매칭이 배우별로 매일 조금씩
       // 반영되므로, sitemap의 lastmod에 실제 갱신 시점을 반영하기 위해
       // person_wiki_cache(위키 매칭 승인 시점=created_at)를 LEFT JOIN
+      // [2026-07-23 수정] has_korean_name(국적 판정 컬럼, 어드민 인물매칭 국적 필터와 동일 기준)으로
+      // 한국인을 먼저 나열 — works와 동일한 목적(봇이 한국 콘텐츠 먼저 보게 유도)
       const { results: persons } = await env.DB.prepare(`
-        SELECT p.tmdb_id, w.created_at AS wiki_matched_at
+        SELECT p.tmdb_id, p.has_korean_name, w.created_at AS wiki_matched_at
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
         WHERE p.tmdb_id IS NOT NULL
-        ORDER BY p.tmdb_id
+        ORDER BY (p.has_korean_name = 1) DESC, p.tmdb_id
       `).all();
 
       const urls = [];
@@ -887,13 +894,15 @@ export async function handleRankings(path, request, env, url, headers) {
       }
 
       // 작품 상세 페이지 URL 생성
+      // [2026-07-23 수정] 한국작품 priority 0.8 / 외국작품 0.6 (기존엔 전부 0.7로 동일했음)
       for (const w of works) {
         const loc = `${baseUrl}/title/1-${year}${w.tmdb_id}`;
+        const priority = w.original_language === "ko" ? "0.8" : "0.6";
         urls.push(
           `  <url>\n` +
           `    <loc>${loc}</loc>\n` +
           `    <changefreq>weekly</changefreq>\n` +
-          `    <priority>0.7</priority>\n` +
+          `    <priority>${priority}</priority>\n` +
           `  </url>`
         );
       }
@@ -903,18 +912,21 @@ export async function handleRankings(path, request, env, url, headers) {
       // 아직 매칭 안 된 사람은 2단 레이아웃 배포일(고정)을 사용.
       // ⚠️ 사이트맵 생성 시점의 "오늘" 날짜를 넣으면 안 됨 — 이 사이트맵은 1시간마다
       // 재생성되는데, 그때마다 오늘 날짜가 찍히면 매일 "방금 바뀜"이라는 거짓 신호가 됨
+      // [2026-07-23 수정] 한국인 priority 0.6 / 외국인(또는 아직 국적 미판정) 0.4
+      // (기존엔 전부 0.5로 동일했음)
       const PERSON_TEMPLATE_DEPLOYED = "2026-07-20"; // 2단 레이아웃 전체 배포일
       for (const p of persons) {
         const loc = `${baseUrl}/person/${p.tmdb_id}`;
         const lastmod = p.wiki_matched_at
           ? p.wiki_matched_at.slice(0, 10)
           : PERSON_TEMPLATE_DEPLOYED;
+        const priority = p.has_korean_name === 1 ? "0.6" : "0.4";
         urls.push(
           `  <url>\n` +
           `    <loc>${loc}</loc>\n` +
           `    <lastmod>${lastmod}</lastmod>\n` +
           `    <changefreq>monthly</changefreq>\n` +
-          `    <priority>0.5</priority>\n` +
+          `    <priority>${priority}</priority>\n` +
           `  </url>`
         );
       }
