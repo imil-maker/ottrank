@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-21 rev.1 — community.html (메인/OTT 페이지 실시간 조회 로그 신호 추가) -->
+<!-- 2026-07-23 rev.1 — community.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -409,11 +409,21 @@ window.addEventListener('pageshow', (e) => {
      작품/인물 페이지와 동일한 방식(POST /track/view), 실패해도 화면엔 영향 없음. -->
 <script>
 (function(){
+  function getOttrangVid(){
+    try{
+      var vid = localStorage.getItem('ottrang_vid');
+      if(!vid){
+        vid = Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('ottrang_vid', vid);
+      }
+      return vid;
+    }catch(e){ return ''; }
+  }
   try{
     fetch('https://ottrank-api.tdidream.workers.dev/track/view', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'community' }),
+      body: JSON.stringify({ type: 'community', vid: getOttrangVid() }),
     }).catch(function(){});
   }catch(e){}
 })();
