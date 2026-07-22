@@ -1,12 +1,15 @@
-// 2026-07-23 rev.2 — track.js (vid 필터+재방문 여부 조회 GET /admin/track/logs?vid= 추가)
+// 2026-07-23 rev.4 — track.js (실시간 순위 집계에서도 봇 트래픽 제외)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
        body: { type: "work" | "person" | "main" | "netflix" | "tving" | "disney" | "wavve" | "coupang" | "boxoffice" | "community", id?: <tmdb_id 숫자, work/person만 필요>, vid?: <익명 방문자 ID 문자열, 2026-07-23 추가> }
-   - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회, vid 포함).
+       요청 헤더의 User-Agent로 검색엔진 크롤러(봇) 여부도 같이 판별해서 기록 (2026-07-23 추가, BOT_UA_PATTERN 참고)
+   - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회, vid·is_bot 포함, 봇도 목록엔 그대로 나옴 — 표시만 해두고 지우진 않음).
        ?vid=<값>을 주면 그 방문자 것만 필터링 + 1페이지 응답에 재방문 여부(visit_info) 같이 내려줌 (2026-07-23 추가)
    - GET  /admin/track/rank : [2026-07-22 신규] 관리자 전용 — 기간별(어제/오늘/24시간) 조회수 순위.
        작품/인물뿐 아니라 메인/OTT별/커뮤니티 페이지까지 전부 포함해서 종류+ID별로 집계 후 내림차순 정렬.
+       봇 트래픽은 여기선 제외하고 집계함(2026-07-23 추가) — "실제로 사람들이 많이 보는 것"을 보려는
+       목적이라, 로그 목록(위)과 달리 순위는 봇을 아예 빼고 계산.
    - D1은 기록(쓰기) 시점엔 전혀 안 건드리고 Cloudflare Analytics Engine(PAGE_VIEWS 바인딩)에만
      기록. 조회(읽기) 시점에만 D1에서 제목/이름을 붙이기 위해 잠깐 조회함(work/person만 — 나머지
      페이지 종류는 고정된 이름이라 D1 조회 자체가 필요 없음, 아래 PAGE_META 참고).
@@ -31,6 +34,14 @@ const PAGE_META = {
   community: { title: "커뮤니티",     url: "/community" },
 };
 const ALLOWED_TYPES = [...ID_REQUIRED_TYPES, ...Object.keys(PAGE_META)];
+
+// [2026-07-23 추가] 검색엔진 크롤러(봇) 판별 — User-Agent에 알려진 봇 이름이 들어있는지만 확인.
+// 완벽하게 모든 봇을 잡아내진 못하지만(신원을 숨기는 악성 봇 등), 사이트맵을 순회하는
+// 구글/네이버/빙 등 "정상적으로 신원을 밝히는" 크롤러는 대부분 여기 걸림.
+const BOT_UA_PATTERN = /bot|crawl|spider|slurp|yeti|daumoa|naver|yandex|baidu|duckduckbot|ahrefsbot|semrushbot|mj12bot|petalbot|bytespider|facebookexternalhit|preview/i;
+function _isBotUserAgent(ua) {
+  return BOT_UA_PATTERN.test(ua || "");
+}
 
 // [2026-07-22 추가] "실시간 순위"용 기간 계산. Analytics Engine의 timestamp는 UTC로 저장돼 있음.
 // - 24h: 지금 시각 기준 -24시간(롤링) — 시간대 계산이 필요 없어 제일 간단.
@@ -73,6 +84,9 @@ export async function handleTrack(path, request, env, url, headers) {
       // 프론트가 안 보내는 구버전 호출(vid 기능 배포 전 페이지)과의 호환을 위해 없으면 빈 문자열.
       // 혹시 모를 비정상 값 대비 길이만 방어적으로 제한(64자).
       const vid = typeof body.vid === "string" ? body.vid.slice(0, 64) : "";
+      // [2026-07-23 추가] 봇 여부 — 요청 헤더의 User-Agent로 판별. 목록에서 지우지 않고
+      // "봇이었다"는 표시만 남기기 위한 용도(관리자 요청사항).
+      const isBot = _isBotUserAgent(request.headers.get("User-Agent"));
 
       // 화이트리스트 검증 — 정해진 종류만 허용. work/person은 숫자 id까지 있어야 하고,
       // 그 외(메인/OTT/커뮤니티)는 type만 맞으면 id 없이도 통과.
@@ -87,8 +101,9 @@ export async function handleTrack(path, request, env, url, headers) {
       if (env.PAGE_VIEWS && typeof env.PAGE_VIEWS.writeDataPoint === "function") {
         env.PAGE_VIEWS.writeDataPoint({
           // blobs: 문자열 필드 — blob1=종류, blob2=작품/인물 ID(문자열, 페이지 종류는 빈 문자열),
-          // blob3=익명 방문자 ID(vid, 2026-07-23 추가, 없으면 빈 문자열)
-          blobs: [type, id != null ? String(id) : "", vid],
+          // blob3=익명 방문자 ID(vid, 2026-07-23 추가, 없으면 빈 문자열),
+          // blob4=봇 여부('1'=봇, ''=일반, 2026-07-23 추가)
+          blobs: [type, id != null ? String(id) : "", vid, isBot ? "1" : ""],
           // doubles: 숫자 필드 — 조회 1회당 1로 고정(나중에 count/sum 집계용)
           doubles: [1],
           // indexes: 빠른 필터링용 — 타입별로 묶어서 조회할 때 씀(최대 1개)
@@ -134,7 +149,7 @@ export async function handleTrack(path, request, env, url, headers) {
       // [2026-07-21 수정] 전체 개수(COUNT) 조회는 실패 가능성이 있고 API 호출도 1번 더 필요해서
       // 아예 제거 — 대신 "이번 페이지가 꽉 찼으면 다음 페이지도 있다"는 has_more만 판단.
       // 숫자 페이지 버튼(1,2,3...) 대신 이전/다음 버튼만 쓰는 방식으로 화면도 맞춰 변경함.
-      const sql = `SELECT blob1 AS type, blob2 AS ref_id, blob3 AS vid, timestamp FROM ottrank_page_views ${whereSql} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+      const sql = `SELECT blob1 AS type, blob2 AS ref_id, blob3 AS vid, blob4 AS is_bot, timestamp FROM ottrank_page_views ${whereSql} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
       const aeRes = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
         {
@@ -182,6 +197,7 @@ export async function handleTrack(path, request, env, url, headers) {
       const items = rows.map(r => {
         const id = parseInt(r.ref_id, 10);
         const vid = r.vid || ""; // [2026-07-23 추가] vid 기능 배포 전 기록은 빈 값 — 정상
+        const isBot = r.is_bot === "1"; // [2026-07-23 추가] 봇 여부 배포 전 기록은 빈 값 → false로 처리됨(정상)
         if (r.type === "work") {
           const w = workMap[id];
           const year = (w && w.release_year) || currentYear;
@@ -192,6 +208,7 @@ export async function handleTrack(path, request, env, url, headers) {
             url: `/title/1-${year}${id}`,
             viewed_at: r.timestamp,
             vid,
+            is_bot: isBot,
           };
         }
         if (r.type === "person") {
@@ -203,6 +220,7 @@ export async function handleTrack(path, request, env, url, headers) {
             url: `/person/${id}`,
             viewed_at: r.timestamp,
             vid,
+            is_bot: isBot,
           };
         }
         // [2026-07-21 추가] 메인/OTT별/커뮤니티 페이지 — 고정된 이름/링크라 D1 조회 없이 바로 반환.
@@ -215,6 +233,7 @@ export async function handleTrack(path, request, env, url, headers) {
           url: meta ? meta.url : "#",
           viewed_at: r.timestamp,
           vid,
+          is_bot: isBot,
         };
       });
 
@@ -280,6 +299,9 @@ export async function handleTrack(path, request, env, url, headers) {
       const { sinceMs, untilMs } = _periodBounds(period);
       let whereSql = `timestamp >= toDateTime('${_toSqlDatetime(sinceMs)}')`;
       if (untilMs != null) whereSql += ` AND timestamp < toDateTime('${_toSqlDatetime(untilMs)}')`;
+      // [2026-07-23 추가] 봇(검색엔진 크롤러) 제외 — blob4='1'이면 봇으로 기록된 것.
+      // 봇 판별 기능 배포 전 기록은 blob4가 빈 문자열이라 정상적으로 포함됨(오탐 없음).
+      whereSql += ` AND blob4 != '1'`;
 
       // 종류(blob1)+ID(blob2)별로 묶어서 조회수(SUM) 집계 후 내림차순. has_more 판단을 위해
       // limit보다 1개 더(limit+1) 가져와서, 실제로 그만큼 있으면 다음 페이지도 있다고 판단.
