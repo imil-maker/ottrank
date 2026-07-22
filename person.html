@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-22 rev.10 — person.html (사망일자 인물 추모 국화 배지 신규: 사진 우측하단, deathday 날짜형식 엄격검증) -->
+<!-- 2026-07-22 rev.11 — person.html (추모 국화 표시조건에 관리자 수동 배지(persons.poster_badge) 추가: TMDB 사망일 OR 수동지정) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1217,6 +1217,11 @@ async function loadWikiTest(personId){
                        merged.place_of_birth !== tmdbMeta.place_of_birth;
       if(changed) renderMetaChips(merged);
     }
+    // [2026-07-22 rev.11 신규] 포스터 배지(추모 국화 등) — TMDB 사망일과는 별개로
+    // 관리자가 수동 지정한 값도 같이 확인. manual이 없어도(위 if(manual) 밖에서)
+    // 항상 재호출해야, "manual 자체가 없는 사람"도 TMDB 사망일 기준 상태가 유지됨.
+    renderMemorialFlower(tmdbMeta.deathday, manual ? manual.poster_badge : null);
+
 
     const d = json.data;
     if(!d) return; // 캐시에 데이터 없음 — 조용히 종료
@@ -1511,17 +1516,21 @@ function calcAge(birthday, deathday){
    수동입력값(manual)으로 빈 항목만 보완하기 위해 필요 (아래 loadWikiTest 참고) */
 let tmdbMeta = { birthday: '', deathday: '', gender: null, place_of_birth: '' };
 
-/* [2026-07-22 rev.10 신규] 추모 국화 — data.deathday(TMDB 사망일자)가 실제로 있는
-   사람에게만 표시. 엉뚱한 인물에게 잘못 표시되면 안 되는 민감한 기능이라, "값이
-   있는 것처럼 보이는 모든 경우"를 배제하고 실제 날짜 형식 문자열일 때만 통과시킴.
-   그 외에는 무조건 숨김 처리(기본값도 숨김이라 이 함수를 안 불러도 안전). */
-function renderMemorialFlower(deathday){
+/* [2026-07-22 rev.11 수정] 추모 국화 — 아래 둘 중 하나라도 참이면 노출:
+   ① data.deathday(TMDB 사망일자)가 실제 날짜 형식으로 존재
+   ② 관리자가 어드민 "인물 개별 검색"에서 수동으로 'flower' 배지를 지정(persons.poster_badge)
+      — TMDB에 사망일 정보가 아직 없는 경우를 관리자가 직접 보완하기 위한 용도.
+   두 조건 다 "값이 있는 것처럼 보이는 모든 경우"를 배제하고 정확한 값일 때만 통과시킴.
+   엉뚱한 인물에게 잘못 표시되면 안 되는 민감한 기능이라 이중 체크는 계속 엄격하게 유지. */
+function renderMemorialFlower(deathday, manualBadge){
   const el = document.getElementById('personMemorialFlower');
   if(!el) return;
   const raw = (deathday == null) ? '' : String(deathday).trim();
   // TMDB deathday는 'YYYY-MM-DD' 형식 — 이 패턴에 맞는 진짜 날짜값일 때만 인정
   const hasDeathday = /^\d{4}-\d{2}-\d{2}$/.test(raw);
-  el.style.display = hasDeathday ? 'block' : 'none';
+  // 화이트리스트 방식 — 백엔드 ALLOWED_POSTER_BADGES와 동일하게 'flower'만 인정
+  const hasManualFlower = manualBadge === 'flower';
+  el.style.display = (hasDeathday || hasManualFlower) ? 'block' : 'none';
 }
 
 /* [2026-07-20 신규] 영어 약력이 먼저 번쩍이고 한글로 바뀌는 깜빡임 방지용 플래그.
@@ -1788,7 +1797,7 @@ async function initPage(){
       place_of_birth: data.place_of_birth || '',
     };
     renderMetaChips(tmdbMeta);
-    renderMemorialFlower(tmdbMeta.deathday); // [2026-07-22 rev.10 신규] 사망일자 있을 때만 국화 노출
+    renderMemorialFlower(tmdbMeta.deathday, null); // [2026-07-22 rev.11] 최초엔 TMDB 사망일만 확인, manual 배지는 loadWikiTest에서 도착 시 재평가
 
     /* [2026-07-11 추가] 사진 갤러리 — 메인 흐름을 안 막게 await 없이 별도 호출 */
     loadPhotoGallery(personId, IMG_PROFILE);
