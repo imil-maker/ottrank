@@ -185,25 +185,25 @@ function et(r,s,t){if(!s.length)return r.slice(0,t).map((l,m)=>({...l,rank:m+1})
           ON r.platform = oc.platform AND r.category_slot = oc.category_slot
         WHERE r.tmdb_id = ? AND r.date = 'manual'
         ORDER BY r.rank ASC
-      `).bind(o).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:e})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:e})}}if(r==="/latest-date"){let{results:o}=await t.DB.prepare("SELECT value as date FROM app_settings WHERE key = 'latest_ranking_date'").all();return new Response(JSON.stringify({ok:!0,data:o[0]}),{headers:e})}if(r==="/platforms"){let{results:o}=await t.DB.prepare("SELECT DISTINCT platform FROM rankings ORDER BY platform").all();return new Response(JSON.stringify({ok:!0,data:o}),{headers:e})}if(r==="/sitemap.xml"){try{if(t.SITEMAP_CACHE){let o=await t.SITEMAP_CACHE.get("sitemap_xml");if(o)return new Response(o,{headers:{...e,"Content-Type":"application/xml; charset=utf-8","X-Sitemap-Cache":"HIT"}})}}catch(o){console.log("sitemap cache read failed, falling back to D1:",o.message)}try{let o="https://ottrank.kr",n=new Date().getFullYear(),p=[{path:"/",changefreq:"daily",priority:"1.0"},{path:"/netflix",changefreq:"daily",priority:"0.9"},{path:"/tving",changefreq:"daily",priority:"0.9"},{path:"/disneyplus",changefreq:"daily",priority:"0.9"},{path:"/wavve",changefreq:"daily",priority:"0.9"},{path:"/coupangplay",changefreq:"daily",priority:"0.9"},{path:"/boxoffice",changefreq:"daily",priority:"0.9"},{path:"/community",changefreq:"daily",priority:"0.8"},{path:"/review",changefreq:"daily",priority:"0.8"},{path:"/reactions",changefreq:"daily",priority:"0.8"},{path:"/contents",changefreq:"daily",priority:"0.8"},{path:"/mypage",changefreq:"weekly",priority:"0.6"},{path:"/my_review",changefreq:"weekly",priority:"0.6"},{path:"/ott_intro.html",changefreq:"monthly",priority:"0.6"},{path:"/privacy",changefreq:"monthly",priority:"0.4"},{path:"/terms",changefreq:"monthly",priority:"0.4"}],{results:_}=await t.DB.prepare("SELECT tmdb_id FROM works WHERE tmdb_id IS NOT NULL ORDER BY tmdb_id").all(),{results:l}=await t.DB.prepare(`
-        SELECT p.tmdb_id, w.created_at AS wiki_matched_at
+      `).bind(o).all();return new Response(JSON.stringify({ok:!0,data:n}),{headers:e})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:e})}}if(r==="/latest-date"){let{results:o}=await t.DB.prepare("SELECT value as date FROM app_settings WHERE key = 'latest_ranking_date'").all();return new Response(JSON.stringify({ok:!0,data:o[0]}),{headers:e})}if(r==="/platforms"){let{results:o}=await t.DB.prepare("SELECT DISTINCT platform FROM rankings ORDER BY platform").all();return new Response(JSON.stringify({ok:!0,data:o}),{headers:e})}if(r==="/sitemap.xml"){try{if(t.SITEMAP_CACHE){let o=await t.SITEMAP_CACHE.get("sitemap_xml");if(o)return new Response(o,{headers:{...e,"Content-Type":"application/xml; charset=utf-8","X-Sitemap-Cache":"HIT"}})}}catch(o){console.log("sitemap cache read failed, falling back to D1:",o.message)}try{let o="https://ottrank.kr",n=new Date().getFullYear(),p=[{path:"/",changefreq:"daily",priority:"1.0"},{path:"/netflix",changefreq:"daily",priority:"0.9"},{path:"/tving",changefreq:"daily",priority:"0.9"},{path:"/disneyplus",changefreq:"daily",priority:"0.9"},{path:"/wavve",changefreq:"daily",priority:"0.9"},{path:"/coupangplay",changefreq:"daily",priority:"0.9"},{path:"/boxoffice",changefreq:"daily",priority:"0.9"},{path:"/community",changefreq:"daily",priority:"0.8"},{path:"/review",changefreq:"daily",priority:"0.8"},{path:"/reactions",changefreq:"daily",priority:"0.8"},{path:"/contents",changefreq:"daily",priority:"0.8"},{path:"/mypage",changefreq:"weekly",priority:"0.6"},{path:"/my_review",changefreq:"weekly",priority:"0.6"},{path:"/ott_intro.html",changefreq:"monthly",priority:"0.6"},{path:"/privacy",changefreq:"monthly",priority:"0.4"},{path:"/terms",changefreq:"monthly",priority:"0.4"}],{results:_}=await t.DB.prepare("SELECT tmdb_id, original_language FROM works WHERE tmdb_id IS NOT NULL ORDER BY (original_language = 'ko') DESC, tmdb_id").all(),{results:l}=await t.DB.prepare(`
+        SELECT p.tmdb_id, p.has_korean_name, w.created_at AS wiki_matched_at
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
         WHERE p.tmdb_id IS NOT NULL
-        ORDER BY p.tmdb_id
+        ORDER BY (p.has_korean_name = 1) DESC, p.tmdb_id
       `).all(),m=[];for(let a of p)m.push(`  <url>
     <loc>${o}${a.path}</loc>
     <changefreq>${a.changefreq}</changefreq>
     <priority>${a.priority}</priority>
-  </url>`);for(let a of _){let d=`${o}/title/1-${n}${a.tmdb_id}`;m.push(`  <url>
+  </url>`);for(let a of _){let d=`${o}/title/1-${n}${a.tmdb_id}`,c=a.original_language==="ko"?"0.8":"0.6";m.push(`  <url>
     <loc>${d}</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>`)}let w="2026-07-20";for(let a of l){let d=`${o}/person/${a.tmdb_id}`,c=a.wiki_matched_at?a.wiki_matched_at.slice(0,10):w;m.push(`  <url>
+    <priority>${c}</priority>
+  </url>`)}let w="2026-07-20";for(let a of l){let d=`${o}/person/${a.tmdb_id}`,c=a.wiki_matched_at?a.wiki_matched_at.slice(0,10):w,u=a.has_korean_name===1?"0.6":"0.4";m.push(`  <url>
     <loc>${d}</loc>
     <lastmod>${c}</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <priority>${u}</priority>
   </url>`)}let i=`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 `+m.join(`
