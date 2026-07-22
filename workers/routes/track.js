@@ -1,9 +1,10 @@
-// 2026-07-23 rev.1 — track.js (익명 방문자 ID(vid) 기록/조회 지원 추가)
+// 2026-07-23 rev.2 — track.js (vid 필터+재방문 여부 조회 GET /admin/track/logs?vid= 추가)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
        body: { type: "work" | "person" | "main" | "netflix" | "tving" | "disney" | "wavve" | "coupang" | "boxoffice" | "community", id?: <tmdb_id 숫자, work/person만 필요>, vid?: <익명 방문자 ID 문자열, 2026-07-23 추가> }
-   - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회, vid 포함)
+   - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회, vid 포함).
+       ?vid=<값>을 주면 그 방문자 것만 필터링 + 1페이지 응답에 재방문 여부(visit_info) 같이 내려줌 (2026-07-23 추가)
    - GET  /admin/track/rank : [2026-07-22 신규] 관리자 전용 — 기간별(어제/오늘/24시간) 조회수 순위.
        작품/인물뿐 아니라 메인/OTT별/커뮤니티 페이지까지 전부 포함해서 종류+ID별로 집계 후 내림차순 정렬.
    - D1은 기록(쓰기) 시점엔 전혀 안 건드리고 Cloudflare Analytics Engine(PAGE_VIEWS 바인딩)에만
@@ -121,12 +122,19 @@ export async function handleTrack(path, request, env, url, headers) {
       const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
       const offset = (page - 1) * limit;
 
+      // [2026-07-23 추가] vid 필터 — 특정 방문자만 모아서 보기. SQL 문자열에 직접 끼워 넣으므로
+      // 영숫자만 통과시키는 화이트리스트로 방어(우리가 만드는 vid는 base36 소문자+숫자뿐이라
+      // 이 형식과 안 맞으면 애초에 우리가 발급한 값이 아니라는 뜻 — 조용히 필터 없이 처리).
+      const vidParam = url.searchParams.get("vid") || "";
+      const vidFilter = /^[a-z0-9]{1,64}$/.test(vidParam) ? vidParam : "";
+      const whereSql = vidFilter ? `WHERE blob3 = '${vidFilter}'` : "";
+
       // Analytics Engine SQL API — writeDataPoint(blobs:[type, id]) 그대로 조회.
       // 데이터셋 이름은 바인딩 만들 때 정한 "ottrank_page_views" (바인딩 변수명 PAGE_VIEWS와는 별개).
       // [2026-07-21 수정] 전체 개수(COUNT) 조회는 실패 가능성이 있고 API 호출도 1번 더 필요해서
       // 아예 제거 — 대신 "이번 페이지가 꽉 찼으면 다음 페이지도 있다"는 has_more만 판단.
       // 숫자 페이지 버튼(1,2,3...) 대신 이전/다음 버튼만 쓰는 방식으로 화면도 맞춰 변경함.
-      const sql = `SELECT blob1 AS type, blob2 AS ref_id, blob3 AS vid, timestamp FROM ottrank_page_views ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+      const sql = `SELECT blob1 AS type, blob2 AS ref_id, blob3 AS vid, timestamp FROM ottrank_page_views ${whereSql} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
       const aeRes = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
         {
@@ -210,8 +218,38 @@ export async function handleTrack(path, request, env, url, headers) {
         };
       });
 
+      // [2026-07-23 추가] vid 필터 중일 때만, 그 방문자의 "첫 조회 시각"을 한 번 더 조회해서
+      // 오늘 처음 온 건지(is_first_time_today) 재방문인지 판단. 페이지 넘길 때마다 다시 물어볼
+      // 필요 없어서 1페이지에서만 조회 — 프론트가 그 값을 기억해뒀다가 계속 씀.
+      let visitInfo = null;
+      if (vidFilter && page === 1) {
+        try {
+          const firstSeenSql = `SELECT MIN(timestamp) AS first_seen FROM ottrank_page_views WHERE blob3 = '${vidFilter}'`;
+          const fsRes = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
+            {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${env.CF_AE_API_TOKEN}`,
+                "Content-Type": "text/plain",
+              },
+              body: firstSeenSql,
+            }
+          );
+          if (fsRes.ok) {
+            const fsJson = await fsRes.json();
+            const firstSeen = fsJson.data?.[0]?.first_seen || null;
+            if (firstSeen) {
+              const { sinceMs: todayStartMs } = _periodBounds("today");
+              const isFirstTimeToday = new Date(firstSeen).getTime() >= todayStartMs;
+              visitInfo = { first_seen: firstSeen, is_first_time_today: isFirstTimeToday };
+            }
+          }
+        } catch (e) { /* 재방문 정보는 부가 정보라, 실패해도 목록 자체는 정상 반환 */ }
+      }
+
       return new Response(JSON.stringify({
-        ok: true, items, page, limit, has_more: hasMore,
+        ok: true, items, page, limit, has_more: hasMore, vid_filter: vidFilter || null, visit_info: visitInfo,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
