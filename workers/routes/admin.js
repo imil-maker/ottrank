@@ -1,4 +1,4 @@
-// 2026-07-24 rev.6 — admin.js (AI 프로필 생성 프롬프트 재조정: 분량 기준을 "데뷔 연차"에서 "실제 검증된 정보량" 우선으로 전환 — 경력 길지만 필모 적은 무명배우에게 지어내기 압박 방지)
+// 2026-07-24 rev.7 — admin.js ("프로필 자동 생성" 기능 신규: ai-auto-step/ai-confirmed-list/ai-pending-list 라우트 + _generatePersonProfileDraft 공용 헬퍼로 리팩터링 + 프롬프트 캐싱(cache_control)/max_uses 비용 절감 + 필모그래피 3개 이하 사전 필터링, wiki-manual-save에 source 필드+미확정 자동정리 추가)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -76,6 +76,9 @@
    POST   /admin/persons/wiki-manual-save     ← 10개 항목 직접 입력/수정 저장(2026-07-20 신설)
    POST   /admin/persons/badge                ← 포스터 배지(추모 국화 등) 수동 지정(2026-07-22 신설)
    POST   /admin/persons/ai-draft             ← AI(웹서치) 프로필 초안 생성, 저장 안 함(2026-07-20 신설)
+   POST   /admin/persons/ai-auto-step         ← "프로필 자동 생성" 1명 처리(선정→필모확인→AI조사→확정저장/미확정대기)(2026-07-24 신설)
+   GET    /admin/persons/ai-confirmed-list    ← AI 파이프라인으로 저장된 인물 목록, 20명씩(2026-07-24 신설)
+   GET    /admin/persons/ai-pending-list      ← 미확정(uncertain/필모부족) 인물 목록, 20명씩(2026-07-24 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -4208,6 +4211,9 @@ export async function handleAdmin(path, request, env, url, headers) {
       const kmdbId       = norm(body.kmdb_id);
       const imdbId       = norm(body.imdb_id);
       const sourceUrl    = norm(body.source_url);
+      // [2026-07-24 신규] "프로필 생성" 탭이 AI 초안을 검토해서 저장할 때 'ai'로 표시.
+      // "인물 개별 검색"은 이 필드를 안 보내므로 항상 null(=순수 수동/위키) 유지됨.
+      const source       = norm(body.source);
 
       const hiddenFields = Array.isArray(body.hidden_fields)
         ? body.hidden_fields.filter((f) => ALLOWED_HIDDEN_FIELDS.includes(f))
@@ -4216,8 +4222,8 @@ export async function handleAdmin(path, request, env, url, headers) {
       await env.DB.prepare(`
         INSERT INTO person_wiki_cache
           (tmdb_person_id, wiki_title, bio_summary, career_history, awards_text,
-           debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_person_id) DO UPDATE SET
           wiki_title = excluded.wiki_title,
           bio_summary = excluded.bio_summary,
@@ -4229,11 +4235,16 @@ export async function handleAdmin(path, request, env, url, headers) {
           kmdb_id = excluded.kmdb_id,
           imdb_id = excluded.imdb_id,
           source_url = excluded.source_url,
-          hidden_fields = excluded.hidden_fields
+          hidden_fields = excluded.hidden_fields,
+          source = excluded.source
       `).bind(
         tmdbId, wikiTitle, bioSummary, careerHistory, awardsText,
-        debutWork, debutYear, education, kmdbId, imdbId, sourceUrl, hiddenFields.join(",")
+        debutWork, debutYear, education, kmdbId, imdbId, sourceUrl, hiddenFields.join(","), source
       ).run();
+
+      // [2026-07-24 신규] "미확정" 목록에 있던 사람이 "프로필 생성" 탭에서 검토·저장되면
+      // 대기 목록에서 자동으로 빠지게 정리. 애초에 없던 사람이면 그냥 0행 삭제라 안전함.
+      await env.DB.prepare(`DELETE FROM person_ai_pending WHERE tmdb_person_id = ?`).bind(tmdbId).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
@@ -4282,20 +4293,15 @@ export async function handleAdmin(path, request, env, url, headers) {
   }
 
   // ── POST /admin/persons/ai-draft ───────────────────────────────
-  // [2026-07-20 신규] "인물 개별 검색"에서 AI(Claude + 웹서치)로 프로필 초안을 생성.
-  // ⚠️ DB에 절대 저장하지 않음 — 입력폼에 초안 텍스트만 채워주고, 관리자가 눈으로
-  // 검증한 뒤 직접 "저장" 버튼을 눌러야 실제 반영됨(wiki-manual-save 재사용).
-  // 전체이력(career_history)은 대상에서 제외 — 분량이 많아 오류 가능성이 커서
-  // 관리자 판단으로 뺌. KMDb/IMDb ID도 대상 아님 — AI가 지어낼 위험이 있는 식별자라
-  // AI 추측이 아니라 검증 가능한 조회(위키 매칭 등)로만 채워야 함.
+  // [2026-07-20 신규] "인물 개별 검색"/"프로필 생성"에서 AI(Claude + 웹서치)로 프로필
+  // 초안을 생성. ⚠️ DB에 절대 저장하지 않음 — 입력폼에 초안 텍스트만 채워주고, 관리자가
+  // 눈으로 검증한 뒤 직접 "저장" 버튼을 눌러야 실제 반영됨(wiki-manual-save 재사용).
+  // [2026-07-24 리팩터링] 실제 조사 로직은 _generatePersonProfileDraft() 공용 함수로 분리
+  // — "프로필 자동 생성"(ai-auto-step)에서도 같은 로직을 재사용하기 위함(프롬프트 이중
+  // 관리 방지).
   if (path === "/admin/persons/ai-draft" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    if (!env.ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({
-        ok: false, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다"
-      }), { status: 500, headers });
     }
     try {
       const body = await request.json().catch(() => ({}));
@@ -4311,170 +4317,9 @@ export async function handleAdmin(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
       }
 
-      const displayName = person.name_ko || person.name;
-      const jobLabel = person.job === "direct" ? "감독" : "배우";
-
-      // [2026-07-24 수정] 동명이인 검증을 "생년" 하나로 단순화 — 생년월일 전체(월/일)나
-      // 출생지는 자료마다 표기가 달라 정확히 대조하기 어렵고 오히려 오탐을 늘릴 수 있다는
-      // 관리자 판단. 이름+태어난 연도만으로도 동명이인 구분엔 대체로 충분함.
-      let birthYear = "";
-      if (person.birthday && /^\d{4}/.test(person.birthday)) {
-        birthYear = person.birthday.slice(0, 4);
-      }
-      const identifierText = birthYear ? ` (${birthYear}년생)` : "";
-
-      const systemPrompt =
-        "너는 한국 OTT 서비스에 등록할 배우/감독 인물 정보를 조사하는 리서처다. " +
-        "web_search로 이 인물에 대한 신뢰할 수 있는 정보(위키백과, 뉴스, 공식 프로필 등)를 찾아서 정리해라. " +
-        "⚠️ 동명이인 주의: 같은 이름을 가진 사람이 여러 명일 수 있다. " +
-        (birthYear
-          ? `함께 제공되는 태어난 연도(${birthYear}년)와 일치하는 사람인지 반드시 확인해라. `
-          : "태어난 연도 정보가 없으므로 이름과 직업만으로 판단해야 한다. 검색 결과에 동명이인이 " +
-            "여럿 보이면 절대 확신하지 마라. ") +
-        // [2026-07-24 신규] 자동저장(confirmed) vs 관리자 검토 대기(uncertain) 분기를 위한 판정.
-        // uncertain이어도 필드를 비우지 않고 찾은 내용을 최대한 채워서, 관리자가 화면에서 눈으로
-        // 보고 바로 판단/수정할 수 있게 함(위키 매칭 완화 때와 같은 "일단 보여주고 사람이 거른다" 원칙).
-        "결과 최상단에 이 사람이 맞다고 확신하는지를 \"match\" 필드로 답해라: 정확히 일치하는 " +
-        "사람을 찾았으면 \"confirmed\", 조금이라도 애매하면(동명이인 가능성, 생년 불일치, 정보 " +
-        "부족 등) \"uncertain\"으로 답해라. uncertain이어도 검색으로 찾은 정보가 있으면 아래 " +
-        "항목에 최대한 채워서 제공해라(빈 문자열로 비우지 말고) — 관리자가 눈으로 보고 직접 " +
-        "판단할 것이다. " +
-        "가장 중요한 원칙: 검색으로 확인 안 된 내용은 절대 추측하거나 지어내지 마라. " +
-        "특히 수상 이름·연도, 학교 이름, 데뷔작 제목·연도처럼 사실관계가 명확해야 하는 항목은 " +
-        "검색 결과로 명확히 확인된 것만 적고, 확실하지 않으면 그 필드는 빈 문자열로 남겨라. " +
-        // [2026-07-24 수정] 분량 고정(500~700자) → 자료량에 따라 200~1000자로 유동화.
-        // 생년월일/나이는 화면에 이미 별도로 표시되므로 프로필 문장에는 넣지 않도록 명시.
-        // 구체적 수상명·연도는 별도 항목(awards)에 들어가므로 프로필 문장에는 뭉뚱그려서만 언급.
-        // 마무리 문장은 상투어 반복 대신 그 사람 실제 이력에 근거해 다양하게 쓰도록 지시.
-        // [2026-07-24 재수정] 검색 노출을 위해 첫 문장을 반드시 인물 이름으로 시작하도록 지시.
-        // 또한 "급하게 끝난다/마무리 문장이 계속 빠진다"는 관리자 피드백에 따라, 분량 자체를
-        // 조금 더 여유 있게 쓰도록 유도하고 마무리 문장을 절대 생략 불가한 필수 요소로 재강조.
-        "요약(profile)의 첫 문장은 반드시 이 인물의 이름으로 시작해라(예: '최민식은', '라미란은' — " +
-        "조사(은/는)는 이름 받침에 맞게 자연스럽게 골라라). 이렇게 이름으로 시작해야 검색 노출에 " +
-        "유리하다. 그 다음 이 배우/감독이 어떤 스타일과 강점을 가졌는지, 대중에게 어떤 이미지로 " +
-        "비춰지는지, 어떤 매력으로 알려져 있는지를 중심으로 한국어 문장으로 서술해라(예: '섬세한 " +
-        "감정 표현으로 신뢰받는다', '명품 조연으로 꼽힌다'). " +
-        // [2026-07-24 4차 수정] 지금까지 "평단·업계 평가" 위주였는데, 관리자 피드백에 따라
-        // 대중이 실제로 느끼는 이미지·별명·입소문 쪽으로 톤을 바꿈. 평론가의 공식적인 평가가
-        // 아니라 "사람들이 이 배우를 뭐라고 부르는지, 어떻게 기억하는지"를 검색해서 반영.
-        "여기서 말하는 평가는 평론가나 영화제 같은 공적인 평가가 아니라, 대중이 실제로 이 " +
-        "인물에 대해 갖는 이미지·별명·입소문에 가까워야 한다. 이 인물이 대중에게 어떤 별명으로 " +
-        "불리는지(예: '국민 엄마', '충무로의 신뢰도'), 관객 후기나 여론에서 어떻게 언급되는지를 " +
-        "검색해서 찾아봐라. 찾았다면 '한국의 대표적인 국민 엄마로 불릴 만큼 따뜻한 이미지를 " +
-        "가지고 있다'처럼 그 표현을 자연스럽게 녹여라. 확인 안 되면 지어내지 말고, 스타일· " +
-        "출연작 경향에서 자연스럽게 드러나는 이미지로 대신 서술해라. " +
-        "커리어에 중요한 전환점이 된 작품이 " +
-        "있다면 자연스럽게 언급해도 되지만, 출연작을 단순히 줄줄이 나열하는 것은 피해라. " +
-        // [2026-07-24 6차 수정] "데뷔 연차 기준 구간"만으로는, 경력은 길지만 필모그래피나
-        // 활동 이력이 적은 무명 배우에게 분량을 억지로 채우라고 압박하는 부작용이 생길 수 있다는
-        // 관리자 지적 반영. 분량을 정하는 진짜 기준은 항상 "실제 검증되는 정보량"이고, 데뷔
-        // 연차는 그 정보량을 가늠하는 참고용 힌트일 뿐이라는 우선순위를 명확히 함.
-        "분량을 정하는 가장 중요한 기준은 항상 검색으로 실제 확인되는 정보량이다. 데뷔 연차는 " +
-        "참고용 힌트일 뿐이다 — 데뷔 5년 이내처럼 경력이 짧으면 보통 자료도 적어서 200~400자, " +
-        "데뷔 5~15년으로 자료가 어느 정도 쌓였으면 400~700자, 데뷔 15년이 넘고 대표작·수상 " +
-        "이력이 실제로 여러 개 확인되면 700~1000자 정도가 자연스러운 경우가 많다는 뜻이다. " +
-        "하지만 데뷔한 지 오래됐어도 검색으로 확인되는 필모그래피나 활동 이력이 적은 " +
-        "무명·단역 배우라면, 경력 연차와 무관하게 신인처럼 짧게(200~400자) 써도 된다 — " +
-        "절대로 분량 구간을 맞추려고 확인 안 된 활동이나 평가를 지어내거나 부풀리지 마라. " +
-        "반대로 데뷔한 지 오래되고 실제로 확인되는 정보(대표작들, 활동 이력, 이미지 변화 등)가 " +
-        "충분한데도 300자 미만으로 급하게 끝내는 것도 잘못이다 — 그럴 땐 찾은 정보를 더 풀어서 " +
-        "충분히 서술해라. 핵심은 항상 '경력 연차'가 아니라 '실제로 검증된 정보가 얼마나 " +
-        "있는가'다. " +
-        "억지로 글자 수만 채우려고 의미 없는 말을 반복하지는 마라. " +
-        "생년월일이나 나이는 화면에 이미 따로 표시되므로 프로필 문장 안에서는 언급하지 마라. " +
-        "구체적인 수상 이름·연도는 별도 항목에 따로 들어가니 프로필 문장에서는 '호평받았다', " +
-        "'인정받았다' 정도로만 짧게 언급하고 상 이름을 나열하지 마라. " +
-        // [2026-07-24 재수정] "국내 시상식 세부 나열 금지"가 칸/베를린/베니스 수상, 역대급 흥행
-        // 기록처럼 이 배우를 대표하는 상징적 사건까지 걸러버리는 부작용이 확인됨(최민식 배우
-        // 테스트에서 칸영화제 심사위원대상·역대 최다관객 영화 출연 이력이 누락됨). 이런 급의
-        // 사건은 예외로 두고 구체적으로 언급하도록 명시.
-        "단, 칸·베를린·베니스영화제 등 세계 3대 영화제 수상이나 아카데미상 수상, 역대 흥행 " +
-        "기록(예: '역대 최다 관객 영화에 출연'), '국내 최초'류의 상징적인 업적처럼 이 인물의 " +
-        "커리어를 대표하는 굵직한 사건이 있다면, 그건 예외로 작품명·기록을 구체적으로 언급해라 " +
-        "— 이런 사건까지 뭉뚱그리면 오히려 이 인물을 제대로 소개하지 못하는 것이다. " +
-        // [2026-07-24 재수정] "상투어 반복 금지"만 지시하니 AI가 마무리 문장 자체를 통째로
-        // 생략하는 부작용이 확인됨(관리자 테스트에서 발견). "쓰지 마라"가 아니라 "반드시 쓰되
-        // 이렇게 다양하게 써라"로 바꿔서, 대안 패턴을 구체적으로 제시.
-        "프로필은 반드시 이 인물에 대한 대중적 평가나 기대감을 담은 문장으로 마무리해라 — " +
-        "마무리 문장을 생략하지 마라. 여기도 평론가의 평이 아니라 대중이 이 사람을 바라보는 " +
-        "시선(별명, 이미지, 입소문)을 우선해라. 다만 매번 똑같은 문구('꾸준한 사랑을 받고 있다' " +
-        "등)를 기계적으로 " +
-        "반복하지 말고, 아래처럼 이 사람의 실제 이력에 맞는 표현을 골라 다양하게 써라(예시일 " +
-        "뿐이니 그대로 베끼지 말고 이 사람 상황에 맞게 변형해라): " +
-        "① 대중적 이미지·별명이 뚜렷하면 — \"한국의 대표적인 국민 엄마로 불릴 만큼 따뜻한 " +
-        "이미지를 가지고 있으며, 폭넓은 세대에게 꾸준히 사랑받는 배우로 자리매김했다\"처럼 " +
-        "대중이 실제로 부르는 이미지·평판을 근거로 한 문장. " +
-        "② 연기 스타일로 화제가 된 베테랑이면 — \"폭발적인 감정 연기와 뛰어난 캐릭터 " +
-        "몰입도, 장르를 가리지 않는 연기 스펙트럼으로 관객들에게 최고의 배우로 꼽히며, 한국 " +
-        "영화계를 대표하는 살아있는 전설로 회자된다\"처럼 대중적 반응과 기대감을 엮은 문장. " +
-        "③ 신인·떠오르는 배우면 — 최근 눈에 띈 작품이나 화제성을 근거로 앞으로가 기대된다는 " +
-        "취지의 문장. " +
-        "④ 활동이 뜸하거나 원로에 가까우면 — 그 사람만의 궤적(다작인지, 특정 장르 위주인지, " +
-        "최근 변신을 시도했는지 등)을 근거로 한 문장. " +
-        "어느 경우든 그 사람 실제 이력에 근거해야 하며, 확인 안 된 평가를 지어내진 마라. " +
-        // [2026-07-24 3차 수정] 위 지시로도 마무리 문장이 계속 빠지는 사례가 재확인되어,
-        // "없으면 안 된다"는 강한 표현 + 자체 점검 절차를 추가로 못박음(체크리스트 방식이
-        // 지시 이행률을 높이는 데 효과적).
-        "이 마무리 문장은 선택이 아니라 필수다 — 정보가 부족해서 앞부분이 짧게 끝났더라도 " +
-        "마무리 평가 문장만큼은 반드시 넣어라. profile을 다 쓴 뒤 스스로 점검해라: (1) 첫 문장이 " +
-        "인물 이름으로 시작하는가, (2) 마지막 문장에 평가 또는 기대감이 담겨 있는가, (3) 실제로 " +
-        "확인된 정보량에 비해 분량이 너무 짧지는 않은가(반대로 확인 안 된 내용을 지어내서 " +
-        "억지로 늘리지는 않았는가). 셋 중 하나라도 아니면 그 부분을 고쳐서 다시 써라. " +
-        // [2026-07-24 수정] 수상내역 형식 강제("연도 시상식명 부문(작품명)") 제거 → 찾은 그대로 자유형식.
-        // 국내 시상식 위주로만 찾고 국제 영화제를 놓치는 사례가 확인되어 명시적으로 강조.
-        "수상내역(awards)은 검색으로 확인되는 것을 최대한 빠짐없이 모아라. 한두 개만 찾고 멈추지 " +
-        "말고 여러 차례 검색해서 이 인물이 받은 상을 가능한 한 많이 찾아라. **국내 시상식뿐 " +
-        "아니라 칸·베를린·베니스영화제, 아카데미상 같은 국제 영화제 수상 여부도 반드시 별도로 " +
-        "검색해서 확인해라** — 국내 시상식만 찾고 끝내지 마라. 형식을 억지로 통일하지 " +
-        "말고 검색으로 확인된 그대로 적어라(작품명이 확인 안 되면 작품명 없이 적어도 된다). 각 " +
-        "수상 내역은 한 줄에 하나씩 줄바꿈(\\n)으로 구분해라. 확인 안 된 항목은 절대 지어내지 " +
-        "말고 실제 검색으로 찾은 것만 적어라. " +
-        "검색과 조사 과정은 네 안에서만 하고, 최종 답변 메시지에는 다른 설명·인사말·검색 과정 서술을 " +
-        "일절 남기지 말고 아래 JSON 객체 하나만 정확히 출력해라(코드블록 금지). " +
-        '출력 형식: {"match":"confirmed 또는 uncertain","profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
-
-      const userPrompt = `인물: ${displayName}${identifierText} — 직업: ${jobLabel}\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
-
-      const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 4000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-        }),
-      });
-
-      if (!claudeResp.ok) {
-        const errText = await claudeResp.text().catch(() => "");
-        return new Response(JSON.stringify({
-          ok: false, message: `Claude API 오류 (status ${claudeResp.status})`, detail: errText.slice(0, 300),
-        }), { status: 502, headers });
-      }
-
-      const claudeData = await claudeResp.json();
-      // [2026-07-20 수정] web_search 사용 시 중간에 "~를 검색해볼게요" 같은 서술이 섞인
-      // 텍스트 블록이 여러 개 나올 수 있어서, 전부 이어붙이면 JSON.parse가 깨짐.
-      // ① 텍스트 블록 중 마지막 것(최종 답변)만 사용 ② 그 안에서도 첫 '{'부터 마지막
-      // '}'까지만 정규식으로 잘라내서, 앞뒤에 설명이 섞여 있어도 JSON만 뽑아냄.
-      const textBlocks = (claudeData.content || []).filter((b) => b.type === "text");
-      const rawText = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
-
-      let parsed;
-      try {
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("JSON 형식을 찾을 수 없음");
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch (e) {
-        return new Response(JSON.stringify({
-          ok: false, message: "AI 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300),
-        }), { status: 502, headers });
+      const result = await _generatePersonProfileDraft(person, env);
+      if (!result.ok) {
+        return new Response(JSON.stringify(result), { status: result.status || 500, headers });
       }
 
       return new Response(JSON.stringify({
@@ -4482,18 +4327,196 @@ export async function handleAdmin(path, request, env, url, headers) {
         draft: {
           // [2026-07-24 신규] "프로필 생성" 탭에서 확신/애매 뱃지 표시용.
           // 기존 "인물 개별 검색" 화면은 이 필드를 그냥 무시하므로 영향 없음.
-          match: parsed.match === "confirmed" ? "confirmed" : "uncertain",
-          bio_summary: parsed.profile || "",
-          education: parsed.education || "",
-          awards_text: parsed.awards || "",
-          debut_work: parsed.debut_work || "",
-          debut_year: parsed.debut_year || "",
+          match: result.match,
+          bio_summary: result.bio_summary,
+          education: result.education,
+          awards_text: result.awards_text,
+          debut_work: result.debut_work,
+          debut_year: result.debut_year,
         },
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
   }
+
+  // ── POST /admin/persons/ai-auto-step ───────────────────────────
+  // [2026-07-24 신규] "프로필 자동 생성" 탭 — 버튼 한 번에 1명만 처리하는 API.
+  // 프론트가 이 엔드포인트를 정지 버튼 누를 때까지(또는 done:true 받을 때까지) 계속
+  // 반복 호출하는 방식 — Workers 요청 시간 제한을 넘기지 않도록 항상 1명씩만 처리.
+  //
+  // 처리 흐름:
+  //  1. 대상자 1명 선정(has_korean_name=1 + 생년 있음 + 프로필 비어있음 + 아직 미시도)
+  //  2. 대상이 없으면 done:true 반환 → 프론트가 루프 정지
+  //  3. TMDB 필모그래피 개수부터 확인(무료 호출) — 3개 이하면 AI 호출 없이 바로
+  //     "미확정"(사유: 필모 부족)으로 분류해서 검색 비용 절약
+  //  4. 4개 이상이면 _generatePersonProfileDraft() 호출 →
+  //     confirmed면 person_wiki_cache에 자동 저장(source='ai'),
+  //     uncertain이면 person_ai_pending에 대기(사유: AI 판단 애매)
+  //  5. 어느 경우든 persons.ai_profile_checked_at을 남겨서 같은 사람이 다시 안 뽑히게 함
+  //     (단, AI 호출 자체가 네트워크/API 오류로 실패한 경우는 checked 처리 안 하고 그대로
+  //     에러 반환 — 프론트가 루프를 멈추고 관리자가 재시도할 수 있게)
+  if (path === "/admin/persons/ai-auto-step" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const candidate = await env.DB.prepare(`
+        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday
+        FROM persons p
+        LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        WHERE p.has_korean_name = 1
+          AND p.birthday IS NOT NULL AND p.birthday NOT LIKE '0000%'
+          AND p.ai_profile_checked_at IS NULL
+          AND (w.bio_summary IS NULL OR w.bio_summary = '')
+        ORDER BY p.popularity DESC
+        LIMIT 1
+      `).first();
+
+      if (!candidate) {
+        return new Response(JSON.stringify({ ok: true, done: true }), { headers });
+      }
+
+      const displayName = candidate.name_ko || candidate.name;
+
+      // [2026-07-24 신규] 필모그래피 개수 사전 확인(무료 TMDB 호출) — 3개 이하면
+      // AI가 조사해도 결과가 없을 확률이 높아, 검색 비용을 쓰지 않고 바로 미확정으로 분류.
+      const mediaType = candidate.job === "direct" ? "crew" : "cast";
+      let creditCount = null;
+      try {
+        const creditsResp = await fetch(
+          `https://api.themoviedb.org/3/person/${candidate.tmdb_id}/combined_credits?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+        );
+        if (creditsResp.ok) {
+          const creditsData = await creditsResp.json();
+          creditCount = ((creditsData.cast || []).length) + ((creditsData.crew || []).length);
+        }
+      } catch (e) {
+        creditCount = null; // 조회 실패 시 필터링 없이 그냥 진행(안전하게 fail-open)
+      }
+
+      if (creditCount !== null && creditCount <= 3) {
+        await env.DB.prepare(`
+          INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason)
+          VALUES (?, '', '', '', '', '', 'filmography_thin')
+          ON CONFLICT(tmdb_person_id) DO UPDATE SET reason = excluded.reason, created_at = datetime('now')
+        `).bind(candidate.tmdb_id).run();
+        await env.DB.prepare(
+          `UPDATE persons SET ai_profile_checked_at = datetime('now') WHERE tmdb_id = ?`
+        ).bind(candidate.tmdb_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: candidate.tmdb_id, name: displayName },
+          result: "skipped", reason: "filmography_thin",
+        }), { headers });
+      }
+
+      const draft = await _generatePersonProfileDraft(candidate, env);
+      if (!draft.ok) {
+        // AI 호출 자체가 실패한 경우 — checked 마킹 안 하고 에러 그대로 반환(재시도 가능하게)
+        return new Response(JSON.stringify({ ok: false, message: draft.message }), { status: draft.status || 500, headers });
+      }
+
+      if (draft.match === "confirmed") {
+        await env.DB.prepare(`
+          INSERT INTO person_wiki_cache (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, source)
+          VALUES (?, ?, ?, ?, ?, ?, 'ai')
+          ON CONFLICT(tmdb_person_id) DO UPDATE SET
+            bio_summary = excluded.bio_summary, education = excluded.education,
+            awards_text = excluded.awards_text, debut_work = excluded.debut_work,
+            debut_year = excluded.debut_year, source = excluded.source
+        `).bind(candidate.tmdb_id, draft.bio_summary, draft.education, draft.awards_text, draft.debut_work, draft.debut_year).run();
+        await env.DB.prepare(`DELETE FROM person_ai_pending WHERE tmdb_person_id = ?`).bind(candidate.tmdb_id).run();
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason)
+          VALUES (?, ?, ?, ?, ?, ?, 'ai_uncertain')
+          ON CONFLICT(tmdb_person_id) DO UPDATE SET
+            bio_summary = excluded.bio_summary, education = excluded.education,
+            awards_text = excluded.awards_text, debut_work = excluded.debut_work,
+            debut_year = excluded.debut_year, reason = excluded.reason, created_at = datetime('now')
+        `).bind(candidate.tmdb_id, draft.bio_summary, draft.education, draft.awards_text, draft.debut_work, draft.debut_year).run();
+      }
+
+      await env.DB.prepare(
+        `UPDATE persons SET ai_profile_checked_at = datetime('now') WHERE tmdb_id = ?`
+      ).bind(candidate.tmdb_id).run();
+
+      return new Response(JSON.stringify({
+        ok: true, done: false,
+        person: { tmdb_id: candidate.tmdb_id, name: displayName },
+        result: draft.match, // 'confirmed' | 'uncertain'
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/ai-confirmed-list ────────────────────────
+  // [2026-07-24 신규] "프로필 자동 생성" 탭 하단 — AI 파이프라인(자동저장 또는 "프로필
+  // 생성" 탭에서 검토 후 저장)을 거쳐 실제로 저장된 사람 목록. 20명씩 페이지네이션.
+  if (path === "/admin/persons/ai-confirmed-list" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
+      const limit = 20;
+      const offset = (page - 1) * limit;
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT p.tmdb_id, COALESCE(p.name_ko, p.name) AS display_name
+        FROM person_wiki_cache w
+        JOIN persons p ON p.tmdb_id = w.tmdb_person_id
+        WHERE w.source = 'ai'
+        ORDER BY w.tmdb_person_id DESC
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      const totalRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS cnt FROM person_wiki_cache WHERE source = 'ai'`
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/ai-pending-list ──────────────────────────
+  // [2026-07-24 신규] "미확정" 탭 — person_ai_pending 목록. 20명씩 페이지네이션.
+  // reason: 'ai_uncertain'(AI가 애매하다고 판단) | 'filmography_thin'(필모 3개 이하라 건너뜀)
+  if (path === "/admin/persons/ai-pending-list" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
+      const limit = 20;
+      const offset = (page - 1) * limit;
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT p.tmdb_id, COALESCE(p.name_ko, p.name) AS display_name, q.reason, q.created_at
+        FROM person_ai_pending q
+        JOIN persons p ON p.tmdb_id = q.tmdb_person_id
+        ORDER BY q.created_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      const totalRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS cnt FROM person_ai_pending`
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // [2026-07-20 신규] "인물 개별 검색"에서 체크 해제한 항목 저장.
   // 데이터는 절대 지우지 않고 hidden_fields 컬럼에 콤마로 목록만 남김 —
   // person-wiki.js(공개 API)가 응답 시점에 해당 항목만 걸러서 안 보여줌.
@@ -5194,6 +5217,208 @@ export async function handleAdmin(path, request, env, url, headers) {
   }
 
   return null;
+}
+
+// ════════════════════════════════════════════════════
+// AI(Claude+웹서치) 인물 프로필 초안 생성 — 공용 헬퍼
+// [2026-07-24 신규] "인물 개별 검색"/"프로필 생성"의 POST /admin/persons/ai-draft 와
+// "프로필 자동 생성"의 POST /admin/persons/ai-auto-step 양쪽에서 재사용. 프롬프트를
+// 두 곳에 중복 유지하면 한쪽만 고치는 실수가 생기기 쉬워 하나로 합침.
+// person: persons 테이블 행 { tmdb_id, name, name_ko, job, birthday }
+// 반환: { ok:true, match, bio_summary, education, awards_text, debut_work, debut_year }
+//       또는 { ok:false, status, message }
+async function _generatePersonProfileDraft(person, env) {
+  if (!env.ANTHROPIC_API_KEY) {
+    return { ok: false, status: 500, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다" };
+  }
+  try {
+    const displayName = person.name_ko || person.name;
+    const jobLabel = person.job === "direct" ? "감독" : "배우";
+
+    // [2026-07-24 수정] 동명이인 검증을 "생년" 하나로 단순화 — 생년월일 전체(월/일)나
+    // 출생지는 자료마다 표기가 달라 정확히 대조하기 어렵고 오히려 오탐을 늘릴 수 있다는
+    // 관리자 판단. 이름+태어난 연도만으로도 동명이인 구분엔 대체로 충분함.
+    let birthYear = "";
+    if (person.birthday && /^\d{4}/.test(person.birthday)) {
+      birthYear = person.birthday.slice(0, 4);
+    }
+    const identifierText = birthYear ? ` (${birthYear}년생)` : "";
+
+      const systemPrompt =
+        "너는 한국 OTT 서비스에 등록할 배우/감독 인물 정보를 조사하는 리서처다. " +
+        "web_search로 이 인물에 대한 신뢰할 수 있는 정보(위키백과, 뉴스, 공식 프로필 등)를 찾아서 정리해라. " +
+        "⚠️ 동명이인 주의: 같은 이름을 가진 사람이 여러 명일 수 있다. " +
+        // [2026-07-24 리팩터링] 프롬프트 캐싱을 위해 조건 분기를 제거하고 완전히 고정된
+        // 문장으로 통일 — 동적 분기가 있으면 사람마다 systemPrompt가 미세하게 달라져서
+        // 캐시가 매번 새로 쌓이는 문제가 있었음. 실제 생년 정보는 userPrompt 쪽에서 전달.
+        "사용자 메시지에 태어난 연도가 함께 제공되면 그 연도와 일치하는 사람인지 반드시 확인해라. " +
+        "태어난 연도 정보가 제공되지 않았다면 이름과 직업만으로 판단해야 하니, 검색 결과에 " +
+        "동명이인이 여럿 보이면 절대 확신하지 마라. " +
+        // [2026-07-24 신규] 자동저장(confirmed) vs 관리자 검토 대기(uncertain) 분기를 위한 판정.
+        // uncertain이어도 필드를 비우지 않고 찾은 내용을 최대한 채워서, 관리자가 화면에서 눈으로
+        // 보고 바로 판단/수정할 수 있게 함(위키 매칭 완화 때와 같은 "일단 보여주고 사람이 거른다" 원칙).
+        "결과 최상단에 이 사람이 맞다고 확신하는지를 \"match\" 필드로 답해라: 정확히 일치하는 " +
+        "사람을 찾았으면 \"confirmed\", 조금이라도 애매하면(동명이인 가능성, 생년 불일치, 정보 " +
+        "부족 등) \"uncertain\"으로 답해라. uncertain이어도 검색으로 찾은 정보가 있으면 아래 " +
+        "항목에 최대한 채워서 제공해라(빈 문자열로 비우지 말고) — 관리자가 눈으로 보고 직접 " +
+        "판단할 것이다. " +
+        "가장 중요한 원칙: 검색으로 확인 안 된 내용은 절대 추측하거나 지어내지 마라. " +
+        "특히 수상 이름·연도, 학교 이름, 데뷔작 제목·연도처럼 사실관계가 명확해야 하는 항목은 " +
+        "검색 결과로 명확히 확인된 것만 적고, 확실하지 않으면 그 필드는 빈 문자열로 남겨라. " +
+        // [2026-07-24 수정] 분량 고정(500~700자) → 자료량에 따라 200~1000자로 유동화.
+        // 생년월일/나이는 화면에 이미 별도로 표시되므로 프로필 문장에는 넣지 않도록 명시.
+        // 구체적 수상명·연도는 별도 항목(awards)에 들어가므로 프로필 문장에는 뭉뚱그려서만 언급.
+        // 마무리 문장은 상투어 반복 대신 그 사람 실제 이력에 근거해 다양하게 쓰도록 지시.
+        // [2026-07-24 재수정] 검색 노출을 위해 첫 문장을 반드시 인물 이름으로 시작하도록 지시.
+        // 또한 "급하게 끝난다/마무리 문장이 계속 빠진다"는 관리자 피드백에 따라, 분량 자체를
+        // 조금 더 여유 있게 쓰도록 유도하고 마무리 문장을 절대 생략 불가한 필수 요소로 재강조.
+        "요약(profile)의 첫 문장은 반드시 이 인물의 이름으로 시작해라(예: '최민식은', '라미란은' — " +
+        "조사(은/는)는 이름 받침에 맞게 자연스럽게 골라라). 이렇게 이름으로 시작해야 검색 노출에 " +
+        "유리하다. 그 다음 이 배우/감독이 어떤 스타일과 강점을 가졌는지, 대중에게 어떤 이미지로 " +
+        "비춰지는지, 어떤 매력으로 알려져 있는지를 중심으로 한국어 문장으로 서술해라(예: '섬세한 " +
+        "감정 표현으로 신뢰받는다', '명품 조연으로 꼽힌다'). " +
+        // [2026-07-24 4차 수정] 지금까지 "평단·업계 평가" 위주였는데, 관리자 피드백에 따라
+        // 대중이 실제로 느끼는 이미지·별명·입소문 쪽으로 톤을 바꿈. 평론가의 공식적인 평가가
+        // 아니라 "사람들이 이 배우를 뭐라고 부르는지, 어떻게 기억하는지"를 검색해서 반영.
+        "여기서 말하는 평가는 평론가나 영화제 같은 공적인 평가가 아니라, 대중이 실제로 이 " +
+        "인물에 대해 갖는 이미지·별명·입소문에 가까워야 한다. 이 인물이 대중에게 어떤 별명으로 " +
+        "불리는지(예: '국민 엄마', '충무로의 신뢰도'), 관객 후기나 여론에서 어떻게 언급되는지를 " +
+        "검색해서 찾아봐라. 찾았다면 '한국의 대표적인 국민 엄마로 불릴 만큼 따뜻한 이미지를 " +
+        "가지고 있다'처럼 그 표현을 자연스럽게 녹여라. 확인 안 되면 지어내지 말고, 스타일· " +
+        "출연작 경향에서 자연스럽게 드러나는 이미지로 대신 서술해라. " +
+        "커리어에 중요한 전환점이 된 작품이 " +
+        "있다면 자연스럽게 언급해도 되지만, 출연작을 단순히 줄줄이 나열하는 것은 피해라. " +
+        // [2026-07-24 6차 수정] "데뷔 연차 기준 구간"만으로는, 경력은 길지만 필모그래피나
+        // 활동 이력이 적은 무명 배우에게 분량을 억지로 채우라고 압박하는 부작용이 생길 수 있다는
+        // 관리자 지적 반영. 분량을 정하는 진짜 기준은 항상 "실제 검증되는 정보량"이고, 데뷔
+        // 연차는 그 정보량을 가늠하는 참고용 힌트일 뿐이라는 우선순위를 명확히 함.
+        "분량을 정하는 가장 중요한 기준은 항상 검색으로 실제 확인되는 정보량이다. 데뷔 연차는 " +
+        "참고용 힌트일 뿐이다 — 데뷔 5년 이내처럼 경력이 짧으면 보통 자료도 적어서 200~400자, " +
+        "데뷔 5~15년으로 자료가 어느 정도 쌓였으면 400~700자, 데뷔 15년이 넘고 대표작·수상 " +
+        "이력이 실제로 여러 개 확인되면 700~1000자 정도가 자연스러운 경우가 많다는 뜻이다. " +
+        "하지만 데뷔한 지 오래됐어도 검색으로 확인되는 필모그래피나 활동 이력이 적은 " +
+        "무명·단역 배우라면, 경력 연차와 무관하게 신인처럼 짧게(200~400자) 써도 된다 — " +
+        "절대로 분량 구간을 맞추려고 확인 안 된 활동이나 평가를 지어내거나 부풀리지 마라. " +
+        "반대로 데뷔한 지 오래되고 실제로 확인되는 정보(대표작들, 활동 이력, 이미지 변화 등)가 " +
+        "충분한데도 300자 미만으로 급하게 끝내는 것도 잘못이다 — 그럴 땐 찾은 정보를 더 풀어서 " +
+        "충분히 서술해라. 핵심은 항상 '경력 연차'가 아니라 '실제로 검증된 정보가 얼마나 " +
+        "있는가'다. " +
+        "억지로 글자 수만 채우려고 의미 없는 말을 반복하지는 마라. " +
+        "생년월일이나 나이는 화면에 이미 따로 표시되므로 프로필 문장 안에서는 언급하지 마라. " +
+        "구체적인 수상 이름·연도는 별도 항목에 따로 들어가니 프로필 문장에서는 '호평받았다', " +
+        "'인정받았다' 정도로만 짧게 언급하고 상 이름을 나열하지 마라. " +
+        // [2026-07-24 재수정] "국내 시상식 세부 나열 금지"가 칸/베를린/베니스 수상, 역대급 흥행
+        // 기록처럼 이 배우를 대표하는 상징적 사건까지 걸러버리는 부작용이 확인됨(최민식 배우
+        // 테스트에서 칸영화제 심사위원대상·역대 최다관객 영화 출연 이력이 누락됨). 이런 급의
+        // 사건은 예외로 두고 구체적으로 언급하도록 명시.
+        "단, 칸·베를린·베니스영화제 등 세계 3대 영화제 수상이나 아카데미상 수상, 역대 흥행 " +
+        "기록(예: '역대 최다 관객 영화에 출연'), '국내 최초'류의 상징적인 업적처럼 이 인물의 " +
+        "커리어를 대표하는 굵직한 사건이 있다면, 그건 예외로 작품명·기록을 구체적으로 언급해라 " +
+        "— 이런 사건까지 뭉뚱그리면 오히려 이 인물을 제대로 소개하지 못하는 것이다. " +
+        // [2026-07-24 재수정] "상투어 반복 금지"만 지시하니 AI가 마무리 문장 자체를 통째로
+        // 생략하는 부작용이 확인됨(관리자 테스트에서 발견). "쓰지 마라"가 아니라 "반드시 쓰되
+        // 이렇게 다양하게 써라"로 바꿔서, 대안 패턴을 구체적으로 제시.
+        "프로필은 반드시 이 인물에 대한 대중적 평가나 기대감을 담은 문장으로 마무리해라 — " +
+        "마무리 문장을 생략하지 마라. 여기도 평론가의 평이 아니라 대중이 이 사람을 바라보는 " +
+        "시선(별명, 이미지, 입소문)을 우선해라. 다만 매번 똑같은 문구('꾸준한 사랑을 받고 있다' " +
+        "등)를 기계적으로 " +
+        "반복하지 말고, 아래처럼 이 사람의 실제 이력에 맞는 표현을 골라 다양하게 써라(예시일 " +
+        "뿐이니 그대로 베끼지 말고 이 사람 상황에 맞게 변형해라): " +
+        "① 대중적 이미지·별명이 뚜렷하면 — \"한국의 대표적인 국민 엄마로 불릴 만큼 따뜻한 " +
+        "이미지를 가지고 있으며, 폭넓은 세대에게 꾸준히 사랑받는 배우로 자리매김했다\"처럼 " +
+        "대중이 실제로 부르는 이미지·평판을 근거로 한 문장. " +
+        "② 연기 스타일로 화제가 된 베테랑이면 — \"폭발적인 감정 연기와 뛰어난 캐릭터 " +
+        "몰입도, 장르를 가리지 않는 연기 스펙트럼으로 관객들에게 최고의 배우로 꼽히며, 한국 " +
+        "영화계를 대표하는 살아있는 전설로 회자된다\"처럼 대중적 반응과 기대감을 엮은 문장. " +
+        "③ 신인·떠오르는 배우면 — 최근 눈에 띈 작품이나 화제성을 근거로 앞으로가 기대된다는 " +
+        "취지의 문장. " +
+        "④ 활동이 뜸하거나 원로에 가까우면 — 그 사람만의 궤적(다작인지, 특정 장르 위주인지, " +
+        "최근 변신을 시도했는지 등)을 근거로 한 문장. " +
+        "어느 경우든 그 사람 실제 이력에 근거해야 하며, 확인 안 된 평가를 지어내진 마라. " +
+        // [2026-07-24 3차 수정] 위 지시로도 마무리 문장이 계속 빠지는 사례가 재확인되어,
+        // "없으면 안 된다"는 강한 표현 + 자체 점검 절차를 추가로 못박음(체크리스트 방식이
+        // 지시 이행률을 높이는 데 효과적).
+        "이 마무리 문장은 선택이 아니라 필수다 — 정보가 부족해서 앞부분이 짧게 끝났더라도 " +
+        "마무리 평가 문장만큼은 반드시 넣어라. profile을 다 쓴 뒤 스스로 점검해라: (1) 첫 문장이 " +
+        "인물 이름으로 시작하는가, (2) 마지막 문장에 평가 또는 기대감이 담겨 있는가, (3) 실제로 " +
+        "확인된 정보량에 비해 분량이 너무 짧지는 않은가(반대로 확인 안 된 내용을 지어내서 " +
+        "억지로 늘리지는 않았는가). 셋 중 하나라도 아니면 그 부분을 고쳐서 다시 써라. " +
+        // [2026-07-24 수정] 수상내역 형식 강제("연도 시상식명 부문(작품명)") 제거 → 찾은 그대로 자유형식.
+        // 국내 시상식 위주로만 찾고 국제 영화제를 놓치는 사례가 확인되어 명시적으로 강조.
+        "수상내역(awards)은 검색으로 확인되는 것을 최대한 빠짐없이 모아라. 한두 개만 찾고 멈추지 " +
+        "말고 여러 차례 검색해서 이 인물이 받은 상을 가능한 한 많이 찾아라. **국내 시상식뿐 " +
+        "아니라 칸·베를린·베니스영화제, 아카데미상 같은 국제 영화제 수상 여부도 반드시 별도로 " +
+        "검색해서 확인해라** — 국내 시상식만 찾고 끝내지 마라. 형식을 억지로 통일하지 " +
+        "말고 검색으로 확인된 그대로 적어라(작품명이 확인 안 되면 작품명 없이 적어도 된다). 각 " +
+        "수상 내역은 한 줄에 하나씩 줄바꿈(\\n)으로 구분해라. 확인 안 된 항목은 절대 지어내지 " +
+        "말고 실제 검색으로 찾은 것만 적어라. " +
+        "검색과 조사 과정은 네 안에서만 하고, 최종 답변 메시지에는 다른 설명·인사말·검색 과정 서술을 " +
+        "일절 남기지 말고 아래 JSON 객체 하나만 정확히 출력해라(코드블록 금지). " +
+        '출력 형식: {"match":"confirmed 또는 uncertain","profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
+
+      const userPrompt = `인물: ${displayName}${identifierText} — 직업: ${jobLabel}\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
+
+      const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 4000,
+          // [2026-07-24 신규] 프롬프트 캐싱 — systemPrompt에서 동적 분기를 제거해 매번
+          // 완전히 동일한 문장이 되게 했으므로, 5분 내 재호출 시 이 부분 입력 토큰 비용이
+          // 최대 90% 절감됨. "프로필 자동 생성"의 1명씩 연속 호출 루프와 궁합이 좋음.
+          system: [
+            { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+          ],
+          messages: [{ role: "user", content: userPrompt }],
+          // [2026-07-24 신규] max_uses로 검색 횟수 상한 — 정보가 많은 유명인일수록 검색을
+          // 과도하게 반복해서 비용이 튀는 것을 방지(관리자 요청으로 비용 절감 조치 추가).
+          tools: [{
+            type: "web_search_20250305", name: "web_search",
+            max_uses: 6, cache_control: { type: "ephemeral" },
+          }],
+        }),
+      });
+
+      if (!claudeResp.ok) {
+        const errText = await claudeResp.text().catch(() => "");
+        return { ok: false, status: 502, message: `Claude API 오류 (status ${claudeResp.status})`, detail: errText.slice(0, 300) };
+      }
+
+      const claudeData = await claudeResp.json();
+      // [2026-07-20 수정] web_search 사용 시 중간에 "~를 검색해볼게요" 같은 서술이 섞인
+      // 텍스트 블록이 여러 개 나올 수 있어서, 전부 이어붙이면 JSON.parse가 깨짐.
+      // ① 텍스트 블록 중 마지막 것(최종 답변)만 사용 ② 그 안에서도 첫 '{'부터 마지막
+      // '}'까지만 정규식으로 잘라내서, 앞뒤에 설명이 섞여 있어도 JSON만 뽑아냄.
+      const textBlocks = (claudeData.content || []).filter((b) => b.type === "text");
+      const rawText = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
+
+      let parsed;
+      try {
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("JSON 형식을 찾을 수 없음");
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        return { ok: false, status: 502, message: "AI 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300) };
+      }
+
+      return {
+        ok: true,
+        // [2026-07-24 신규] "프로필 생성"/"프로필 자동 생성" 양쪽에서 확신/애매 판정에 사용.
+        match: parsed.match === "confirmed" ? "confirmed" : "uncertain",
+        bio_summary: parsed.profile || "",
+        education: parsed.education || "",
+        awards_text: parsed.awards || "",
+        debut_work: parsed.debut_work || "",
+        debut_year: parsed.debut_year || "",
+      };
+    } catch (e) {
+      return { ok: false, status: 500, message: e.message };
+    }
 }
 
 // ════════════════════════════════════════════════════
