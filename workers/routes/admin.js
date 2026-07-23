@@ -1,4 +1,4 @@
-// 2026-07-24 rev.8 — admin.js (JSON 파싱 실패 방지: 문자열 내 줄바꿈 이스케이프 처리 / 성인물 인물 자동생성 대상 제외: persons.adult 컬럼+backfill-meta 캡처+ai-auto-step 필터링)
+// 2026-07-24 rev.9 — admin.js ("프로필 자동 생성" 개선: 확정/미확정 리스트 최신순 정렬(person_wiki_cache.updated_at, person_ai_pending.created_at) + 미확정 사유(uncertain_reason) AI 응답에 추가 및 저장)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -4228,8 +4228,8 @@ export async function handleAdmin(path, request, env, url, headers) {
       await env.DB.prepare(`
         INSERT INTO person_wiki_cache
           (tmdb_person_id, wiki_title, bio_summary, career_history, awards_text,
-           debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields, source, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(tmdb_person_id) DO UPDATE SET
           wiki_title = excluded.wiki_title,
           bio_summary = excluded.bio_summary,
@@ -4242,7 +4242,8 @@ export async function handleAdmin(path, request, env, url, headers) {
           imdb_id = excluded.imdb_id,
           source_url = excluded.source_url,
           hidden_fields = excluded.hidden_fields,
-          source = excluded.source
+          source = excluded.source,
+          updated_at = excluded.updated_at
       `).bind(
         tmdbId, wikiTitle, bioSummary, careerHistory, awardsText,
         debutWork, debutYear, education, kmdbId, imdbId, sourceUrl, hiddenFields.join(","), source
@@ -4334,6 +4335,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           // [2026-07-24 신규] "프로필 생성" 탭에서 확신/애매 뱃지 표시용.
           // 기존 "인물 개별 검색" 화면은 이 필드를 그냥 무시하므로 영향 없음.
           match: result.match,
+          uncertain_reason: result.uncertain_reason,
           bio_summary: result.bio_summary,
           education: result.education,
           awards_text: result.awards_text,
@@ -4409,10 +4411,10 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       if (creditCount !== null && creditCount <= 3) {
         await env.DB.prepare(`
-          INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason)
-          VALUES (?, '', '', '', '', '', 'filmography_thin')
-          ON CONFLICT(tmdb_person_id) DO UPDATE SET reason = excluded.reason, created_at = datetime('now')
-        `).bind(candidate.tmdb_id).run();
+          INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason, detail)
+          VALUES (?, '', '', '', '', '', 'filmography_thin', ?)
+          ON CONFLICT(tmdb_person_id) DO UPDATE SET reason = excluded.reason, detail = excluded.detail, created_at = datetime('now')
+        `).bind(candidate.tmdb_id, `출연작 ${creditCount}개로 확인되어 AI 조사를 건너뜀`).run();
         await env.DB.prepare(
           `UPDATE persons SET ai_profile_checked_at = datetime('now') WHERE tmdb_id = ?`
         ).bind(candidate.tmdb_id).run();
@@ -4431,23 +4433,23 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       if (draft.match === "confirmed") {
         await env.DB.prepare(`
-          INSERT INTO person_wiki_cache (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, source)
-          VALUES (?, ?, ?, ?, ?, ?, 'ai')
+          INSERT INTO person_wiki_cache (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, source, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'ai', datetime('now'))
           ON CONFLICT(tmdb_person_id) DO UPDATE SET
             bio_summary = excluded.bio_summary, education = excluded.education,
             awards_text = excluded.awards_text, debut_work = excluded.debut_work,
-            debut_year = excluded.debut_year, source = excluded.source
+            debut_year = excluded.debut_year, source = excluded.source, updated_at = excluded.updated_at
         `).bind(candidate.tmdb_id, draft.bio_summary, draft.education, draft.awards_text, draft.debut_work, draft.debut_year).run();
         await env.DB.prepare(`DELETE FROM person_ai_pending WHERE tmdb_person_id = ?`).bind(candidate.tmdb_id).run();
       } else {
         await env.DB.prepare(`
-          INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason)
-          VALUES (?, ?, ?, ?, ?, ?, 'ai_uncertain')
+          INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason, detail)
+          VALUES (?, ?, ?, ?, ?, ?, 'ai_uncertain', ?)
           ON CONFLICT(tmdb_person_id) DO UPDATE SET
             bio_summary = excluded.bio_summary, education = excluded.education,
             awards_text = excluded.awards_text, debut_work = excluded.debut_work,
-            debut_year = excluded.debut_year, reason = excluded.reason, created_at = datetime('now')
-        `).bind(candidate.tmdb_id, draft.bio_summary, draft.education, draft.awards_text, draft.debut_work, draft.debut_year).run();
+            debut_year = excluded.debut_year, reason = excluded.reason, detail = excluded.detail, created_at = datetime('now')
+        `).bind(candidate.tmdb_id, draft.bio_summary, draft.education, draft.awards_text, draft.debut_work, draft.debut_year, draft.uncertain_reason || "").run();
       }
 
       await env.DB.prepare(
@@ -4481,7 +4483,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         FROM person_wiki_cache w
         JOIN persons p ON p.tmdb_id = w.tmdb_person_id
         WHERE w.source = 'ai'
-        ORDER BY w.tmdb_person_id DESC
+        ORDER BY w.updated_at DESC
         LIMIT ? OFFSET ?
       `).bind(limit, offset).all();
 
@@ -4510,7 +4512,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const offset = (page - 1) * limit;
 
       const { results: items } = await env.DB.prepare(`
-        SELECT p.tmdb_id, COALESCE(p.name_ko, p.name) AS display_name, q.reason, q.created_at
+        SELECT p.tmdb_id, COALESCE(p.name_ko, p.name) AS display_name, q.reason, q.detail, q.created_at
         FROM person_ai_pending q
         JOIN persons p ON p.tmdb_id = q.tmdb_person_id
         ORDER BY q.created_at DESC
@@ -5306,6 +5308,13 @@ async function _generatePersonProfileDraft(person, env) {
         "부족 등) \"uncertain\"으로 답해라. uncertain이어도 검색으로 찾은 정보가 있으면 아래 " +
         "항목에 최대한 채워서 제공해라(빈 문자열로 비우지 말고) — 관리자가 눈으로 보고 직접 " +
         "판단할 것이다. " +
+        // [2026-07-24 신규] "미확정" 목록에서 왜 애매하다고 판단했는지 관리자가 바로 알 수 있게,
+        // uncertain일 때 짧은 이유를 별도 필드로 받음. 관리자가 이 이유를 보고 검토 우선순위나
+        // 판단 방향을 빠르게 잡을 수 있음(예: 동명이인 때문인지, 자료 부족 때문인지 구분).
+        "match가 \"uncertain\"이면 왜 애매한지 한 문장(20자 내외)으로 \"uncertain_reason\" " +
+        "필드에 적어라(예: '동명이인으로 보이는 배우가 여러 명 검색됨', '생년이 일치하는 " +
+        "인물을 찾지 못함', '검색 결과가 거의 없어 확인 불가'). match가 \"confirmed\"면 이 " +
+        "필드는 빈 문자열로 둬라. " +
         "가장 중요한 원칙: 검색으로 확인 안 된 내용은 절대 추측하거나 지어내지 마라. " +
         "특히 수상 이름·연도, 학교 이름, 데뷔작 제목·연도처럼 사실관계가 명확해야 하는 항목은 " +
         "검색 결과로 명확히 확인된 것만 적고, 확실하지 않으면 그 필드는 빈 문자열로 남겨라. " +
@@ -5398,7 +5407,7 @@ async function _generatePersonProfileDraft(person, env) {
         "말고 실제 검색으로 찾은 것만 적어라. " +
         "검색과 조사 과정은 네 안에서만 하고, 최종 답변 메시지에는 다른 설명·인사말·검색 과정 서술을 " +
         "일절 남기지 말고 아래 JSON 객체 하나만 정확히 출력해라(코드블록 금지). " +
-        '출력 형식: {"match":"confirmed 또는 uncertain","profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
+        '출력 형식: {"match":"confirmed 또는 uncertain","uncertain_reason":"...", "profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
 
       const userPrompt = `인물: ${displayName}${identifierText} — 직업: ${jobLabel}\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
 
@@ -5458,6 +5467,7 @@ async function _generatePersonProfileDraft(person, env) {
         ok: true,
         // [2026-07-24 신규] "프로필 생성"/"프로필 자동 생성" 양쪽에서 확신/애매 판정에 사용.
         match: parsed.match === "confirmed" ? "confirmed" : "uncertain",
+        uncertain_reason: parsed.uncertain_reason || "",
         bio_summary: parsed.profile || "",
         education: parsed.education || "",
         awards_text: parsed.awards || "",
