@@ -1,4 +1,4 @@
-// 2026-07-24 rev.7 — admin.js ("프로필 자동 생성" 기능 신규: ai-auto-step/ai-confirmed-list/ai-pending-list 라우트 + _generatePersonProfileDraft 공용 헬퍼로 리팩터링 + 프롬프트 캐싱(cache_control)/max_uses 비용 절감 + 필모그래피 3개 이하 사전 필터링, wiki-manual-save에 source 필드+미확정 자동정리 추가)
+// 2026-07-24 rev.8 — admin.js (JSON 파싱 실패 방지: 문자열 내 줄바꿈 이스케이프 처리 / 성인물 인물 자동생성 대상 제외: persons.adult 컬럼+backfill-meta 캡처+ai-auto-step 필터링)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -3283,6 +3283,11 @@ export async function handleAdmin(path, request, env, url, headers) {
   // "also_known_as에서 한글 포함된 첫 이름을 대표이름으로" 로직을 그대로 재사용.
   // WHERE 조건에 name_ko IS NULL도 추가해서, 이전 배치에서 이미 처리됐지만
   // 한글 이름은 못 뽑았던 인물도 다시 대상에 포함.
+  // [2026-07-24 신규] adult(TMDB 자체 성인물 관련 인물 분류) 추가 — "프로필 자동 생성"이
+  // 인기도 순으로만 대상을 뽑다 보니 성인물 관련 인물이 먼저 뽑히는 문제가 발견되어,
+  // TMDB 인물상세 응답에 이미 포함된 이 필드를 추가 API 호출 없이 같이 저장.
+  // WHERE 조건에 adult IS NULL도 추가 — 이미 생년월일 등은 채워졌지만 adult는 아직
+  // 못 받은 기존 인물들도 이 배치를 다시 돌리면 자동으로 채워짐(캐치업).
   if (path === "/admin/persons/backfill-meta" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -3293,7 +3298,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const { results: targets } = await env.DB.prepare(`
         SELECT tmdb_id FROM persons
-        WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL
+        WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL OR adult IS NULL
         LIMIT ?
       `).bind(limit).all();
 
@@ -3321,7 +3326,7 @@ export async function handleAdmin(path, request, env, url, headers) {
             // [2026-07-22 추가] name_ko_checked_at도 같이 남겨서, "한글이름 재채우기"
             // 배치가 방금 처리한 이 사람을 곧바로 또 대상으로 잡는 걸 방지
             updates.push(
-              env.DB.prepare(`UPDATE persons SET birthday = '', has_korean_name = 0, name_ko = '', name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`).bind(row.tmdb_id)
+              env.DB.prepare(`UPDATE persons SET birthday = '', has_korean_name = 0, name_ko = '', adult = 0, name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`).bind(row.tmdb_id)
             );
             continue;
           }
@@ -3349,10 +3354,11 @@ export async function handleAdmin(path, request, env, url, headers) {
           // 잡는 중복 확인 버그가 안 생김(원인 발견 후 수정, 2026-07-22).
           updates.push(
             env.DB.prepare(
-              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ?, name_ko = ?, name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`
+              `UPDATE persons SET birthday = ?, popularity = ?, profile_path = ?, has_korean_name = ?, gender = ?, place_of_birth = ?, name_ko = ?, adult = ?, name_ko_checked_at = datetime('now') WHERE tmdb_id = ?`
             ).bind(
               data.birthday || "", data.popularity || null, data.profile_path || null,
               hasKorean, data.gender || null, placeOfBirth || null, koName,
+              data.adult ? 1 : 0,
               row.tmdb_id
             )
           );
@@ -3364,7 +3370,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (updates.length) await env.DB.batch(updates);
 
       const remainRow = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL"
+        "SELECT COUNT(*) as cnt FROM persons WHERE birthday IS NULL OR has_korean_name IS NULL OR name_ko IS NULL OR adult IS NULL"
       ).first();
 
       return new Response(JSON.stringify({
@@ -4346,7 +4352,12 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 반복 호출하는 방식 — Workers 요청 시간 제한을 넘기지 않도록 항상 1명씩만 처리.
   //
   // 처리 흐름:
-  //  1. 대상자 1명 선정(has_korean_name=1 + 생년 있음 + 프로필 비어있음 + 아직 미시도)
+  //  1. 대상자 1명 선정(has_korean_name=1 + 생년 있음 + adult=0(성인물 관련 아님) + 프로필
+  //     비어있음 + 아직 미시도)
+  //     ⚠️ [2026-07-24 신규] adult=0을 조건으로 걸어서, 아직 "인물 상세정보 채우기" 배치로
+  //     adult 값을 못 받은 사람(NULL)은 후보에서 자동 제외됨 — 즉 이 필터가 제대로
+  //     작동하려면 먼저 "인물 상세정보 채우기" 배치를 remaining 0 될 때까지 돌려서
+  //     기존 인물 전체의 adult 값을 채워둬야 함(관리자 작업 필요).
   //  2. 대상이 없으면 done:true 반환 → 프론트가 루프 정지
   //  3. TMDB 필모그래피 개수부터 확인(무료 호출) — 3개 이하면 AI 호출 없이 바로
   //     "미확정"(사유: 필모 부족)으로 분류해서 검색 비용 절약
@@ -4368,6 +4379,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         WHERE p.has_korean_name = 1
           AND p.birthday IS NOT NULL AND p.birthday NOT LIKE '0000%'
           AND p.ai_profile_checked_at IS NULL
+          AND p.adult = 0
           AND (w.bio_summary IS NULL OR w.bio_summary = '')
         ORDER BY p.popularity DESC
         LIMIT 1
@@ -5227,6 +5239,38 @@ export async function handleAdmin(path, request, env, url, headers) {
 // person: persons 테이블 행 { tmdb_id, name, name_ko, job, birthday }
 // 반환: { ok:true, match, bio_summary, education, awards_text, debut_work, debut_year }
 //       또는 { ok:false, status, message }
+// [2026-07-24 신규] JSON.parse 전처리용 — 문자열 리터럴("...") 안에 있는 실제 줄바꿈만
+// \n으로 이스케이프 처리. AI가 여러 줄짜리 텍스트(수상내역 등)를 JSON으로 출력할 때
+// 가끔 정식 이스케이프(\n) 대신 진짜 엔터를 그대로 넣어버려서 파싱이 깨지는 문제를 방지.
+// 문자열 "밖"의 줄바꿈(들여쓰기 등)은 원래 JSON 문법상 문제없어서 건드리지 않음.
+function _sanitizeJsonNewlines(text) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      result += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      result += ch;
+      continue;
+    }
+    if (inString && ch === "\n") { result += "\\n"; continue; }
+    if (inString && ch === "\r") { result += "\\r"; continue; }
+    result += ch;
+  }
+  return result;
+}
+
 async function _generatePersonProfileDraft(person, env) {
   if (!env.ANTHROPIC_API_KEY) {
     return { ok: false, status: 500, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다" };
@@ -5401,7 +5445,11 @@ async function _generatePersonProfileDraft(person, env) {
       try {
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("JSON 형식을 찾을 수 없음");
-        parsed = JSON.parse(jsonMatch[0]);
+        // [2026-07-24 신규] AI가 수상내역처럼 여러 줄인 항목을 쓸 때, JSON 규칙(\n)이 아니라
+        // 진짜 줄바꿈(엔터)을 문자열 안에 그대로 넣어버리는 경우가 실사용 중 확인됨(파싱
+        // 실패로 관리자님이 발견) — JSON.parse 전에 문자열 리터럴 "안"에 있는 실제
+        // 줄바꿈만 찾아서 \n으로 이스케이프 처리.
+        parsed = JSON.parse(_sanitizeJsonNewlines(jsonMatch[0]));
       } catch (e) {
         return { ok: false, status: 502, message: "AI 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300) };
       }
