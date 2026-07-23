@@ -1,4 +1,4 @@
-// 2026-07-24 rev.9 — admin.js ("프로필 자동 생성" 개선: 확정/미확정 리스트 최신순 정렬(person_wiki_cache.updated_at, person_ai_pending.created_at) + 미확정 사유(uncertain_reason) AI 응답에 추가 및 저장)
+// 2026-07-24 rev.10 — admin.js (AI 응답 파싱 실패 대응 강화: 문자열 내 따옴표도 자동 이스케이프, max_tokens 4000→7000, 파싱 실패 시 루프 멈추지 않고 그 사람만 미확정 처리 후 계속 진행)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -4427,6 +4427,26 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const draft = await _generatePersonProfileDraft(candidate, env);
       if (!draft.ok) {
+        // [2026-07-24 수정] "AI 응답 파싱 실패"는 그 사람 데이터가 이상했던 것뿐이지 시스템
+        // 전체에 문제가 생긴 게 아니므로, 루프를 멈추지 않고 그 사람만 미확정으로 보내고
+        // 계속 진행. 그 외(네트워크 오류, API 키 누락, Claude API 자체 오류 등 인프라성
+        // 문제)는 기존대로 루프를 멈춰서 관리자가 알아차리게 함.
+        const isParseFailure = draft.message && draft.message.includes("파싱 실패");
+        if (isParseFailure) {
+          await env.DB.prepare(`
+            INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason, detail)
+            VALUES (?, '', '', '', '', '', 'parse_failed', 'AI 응답 형식 오류로 처리하지 못함 — "프로필 생성" 탭에서 다시 시도해보세요')
+            ON CONFLICT(tmdb_person_id) DO UPDATE SET reason = excluded.reason, detail = excluded.detail, created_at = datetime('now')
+          `).bind(candidate.tmdb_id).run();
+          await env.DB.prepare(
+            `UPDATE persons SET ai_profile_checked_at = datetime('now') WHERE tmdb_id = ?`
+          ).bind(candidate.tmdb_id).run();
+          return new Response(JSON.stringify({
+            ok: true, done: false,
+            person: { tmdb_id: candidate.tmdb_id, name: displayName },
+            result: "skipped", reason: "parse_failed",
+          }), { headers });
+        }
         // AI 호출 자체가 실패한 경우 — checked 마킹 안 하고 에러 그대로 반환(재시도 가능하게)
         return new Response(JSON.stringify({ ok: false, message: draft.message }), { status: draft.status || 500, headers });
       }
@@ -5241,11 +5261,14 @@ export async function handleAdmin(path, request, env, url, headers) {
 // person: persons 테이블 행 { tmdb_id, name, name_ko, job, birthday }
 // 반환: { ok:true, match, bio_summary, education, awards_text, debut_work, debut_year }
 //       또는 { ok:false, status, message }
-// [2026-07-24 신규] JSON.parse 전처리용 — 문자열 리터럴("...") 안에 있는 실제 줄바꿈만
-// \n으로 이스케이프 처리. AI가 여러 줄짜리 텍스트(수상내역 등)를 JSON으로 출력할 때
-// 가끔 정식 이스케이프(\n) 대신 진짜 엔터를 그대로 넣어버려서 파싱이 깨지는 문제를 방지.
+// [2026-07-24 신규] JSON.parse 전처리용 — 문자열 리터럴("...") 안에 있는 문제들을 보정.
+// 1) 실제 줄바꿈(엔터) → \n으로 이스케이프 (수상내역 등 여러 줄 텍스트에서 발생)
+// 2) 문자열 안에 그대로 들어간 따옴표(") → \"로 이스케이프 (uncertain_reason처럼 자연어
+//    설명을 쓸 때 AI가 인용부호를 이스케이프 안 하고 그대로 쓰는 경우가 실사용 중 확인됨)
+// 따옴표는 "닫는 따옴표"와 "문장 속 따옴표"를 구분해야 해서, 뒤에 오는 문자가
+// JSON 구조상 문자열이 끝나는 자리에 어울리는지(, } ] : 또는 끝)를 보고 판단함.
 // 문자열 "밖"의 줄바꿈(들여쓰기 등)은 원래 JSON 문법상 문제없어서 건드리지 않음.
-function _sanitizeJsonNewlines(text) {
+function _sanitizeJsonString(text) {
   let result = "";
   let inString = false;
   let escaped = false;
@@ -5262,8 +5285,23 @@ function _sanitizeJsonNewlines(text) {
       continue;
     }
     if (ch === '"') {
-      inString = !inString;
-      result += ch;
+      if (!inString) {
+        inString = true;
+        result += ch;
+        continue;
+      }
+      // 문자열 안에서 따옴표를 만남 — 진짜 닫는 따옴표인지, AI가 문장 속에 그대로 쓴
+      // 따옴표인지 뒤쪽을 살펴봐서 판단(뒤에 콤마/닫는 괄호/콜론이 오면 닫는 따옴표로 간주).
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) j++;
+      const nextCh = text[j];
+      const looksLikeClose = nextCh === undefined || [",", "}", "]", ":"].includes(nextCh);
+      if (looksLikeClose) {
+        inString = false;
+        result += ch;
+      } else {
+        result += '\\"';
+      }
       continue;
     }
     if (inString && ch === "\n") { result += "\\n"; continue; }
@@ -5420,7 +5458,9 @@ async function _generatePersonProfileDraft(person, env) {
         },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
-          max_tokens: 4000,
+          // [2026-07-24 수정] 4000 → 7000 — 자료가 많은 인물(수상내역이 많거나 검색을
+          // 많이 한 경우) 응답이 한도에 걸려 JSON이 중간에 잘리는 사례 방지.
+          max_tokens: 7000,
           // [2026-07-24 신규] 프롬프트 캐싱 — systemPrompt에서 동적 분기를 제거해 매번
           // 완전히 동일한 문장이 되게 했으므로, 5분 내 재호출 시 이 부분 입력 토큰 비용이
           // 최대 90% 절감됨. "프로필 자동 생성"의 1명씩 연속 호출 루프와 궁합이 좋음.
@@ -5458,7 +5498,7 @@ async function _generatePersonProfileDraft(person, env) {
         // 진짜 줄바꿈(엔터)을 문자열 안에 그대로 넣어버리는 경우가 실사용 중 확인됨(파싱
         // 실패로 관리자님이 발견) — JSON.parse 전에 문자열 리터럴 "안"에 있는 실제
         // 줄바꿈만 찾아서 \n으로 이스케이프 처리.
-        parsed = JSON.parse(_sanitizeJsonNewlines(jsonMatch[0]));
+        parsed = JSON.parse(_sanitizeJsonString(jsonMatch[0]));
       } catch (e) {
         return { ok: false, status: 502, message: "AI 응답 파싱 실패 — 다시 시도해주세요", raw: rawText.slice(0, 300) };
       }
