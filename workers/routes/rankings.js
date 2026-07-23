@@ -1,4 +1,4 @@
-/* 2026-07-23 rev.1 — rankings.js (사이트맵: 한국 작품/인물 우선 정렬 + priority 차등) */
+/* 2026-07-24 rev.1 — rankings.js (사이트맵 priority 비율 변경: 작품 0.8/0.6→0.9/0.3, 인물 0.6/0.4→0.7/0.3) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -894,10 +894,10 @@ export async function handleRankings(path, request, env, url, headers) {
       }
 
       // 작품 상세 페이지 URL 생성
-      // [2026-07-23 수정] 한국작품 priority 0.8 / 외국작품 0.6 (기존엔 전부 0.7로 동일했음)
+      // [2026-07-24 수정] 한국작품 priority 0.9 / 외국작품 0.3 (기존 0.8/0.6에서 격차 확대)
       for (const w of works) {
         const loc = `${baseUrl}/title/1-${year}${w.tmdb_id}`;
-        const priority = w.original_language === "ko" ? "0.8" : "0.6";
+        const priority = w.original_language === "ko" ? "0.9" : "0.3";
         urls.push(
           `  <url>\n` +
           `    <loc>${loc}</loc>\n` +
@@ -912,15 +912,15 @@ export async function handleRankings(path, request, env, url, headers) {
       // 아직 매칭 안 된 사람은 2단 레이아웃 배포일(고정)을 사용.
       // ⚠️ 사이트맵 생성 시점의 "오늘" 날짜를 넣으면 안 됨 — 이 사이트맵은 1시간마다
       // 재생성되는데, 그때마다 오늘 날짜가 찍히면 매일 "방금 바뀜"이라는 거짓 신호가 됨
-      // [2026-07-23 수정] 한국인 priority 0.6 / 외국인(또는 아직 국적 미판정) 0.4
-      // (기존엔 전부 0.5로 동일했음)
+      // [2026-07-24 수정] 한국인 priority 0.7 / 외국인(또는 아직 국적 미판정) 0.3
+      // (기존 0.6/0.4에서 격차 확대)
       const PERSON_TEMPLATE_DEPLOYED = "2026-07-20"; // 2단 레이아웃 전체 배포일
       for (const p of persons) {
         const loc = `${baseUrl}/person/${p.tmdb_id}`;
         const lastmod = p.wiki_matched_at
           ? p.wiki_matched_at.slice(0, 10)
           : PERSON_TEMPLATE_DEPLOYED;
-        const priority = p.has_korean_name === 1 ? "0.6" : "0.4";
+        const priority = p.has_korean_name === 1 ? "0.7" : "0.3";
         urls.push(
           `  <url>\n` +
           `    <loc>${loc}</loc>\n` +
