@@ -1,4 +1,4 @@
-<!-- 2026-07-23 rev.1 — _title_detail.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
+<!-- 2026-07-23 rev.2 — _title_detail.html (방영상태: 완결/방영중/완결·다음시즌제작중 표시 추가) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2890,13 +2890,35 @@ async function loadTmdb(){
     let episodeHtml='';
     if(det.number_of_episodes)episodeHtml=`<span class="hero-meta-item">총 <b>${det.number_of_episodes}부작</b></span><span class="hero-meta-sep">·</span>`;
     else if(det.runtime)episodeHtml=`<span class="hero-meta-item"><b>${det.runtime}분</b></span><span class="hero-meta-sep">·</span>`;
+
+    // [2026-07-23 신규] 방영상태 표시 — TV 작품만 해당, TMDB status를 그대로 믿지 않고
+    // status + next_episode_to_air(다음 방영 회차 날짜 유무)를 조합해서 판단.
+    // "Returning Series" 하나로는 "진짜 매주 방영중"과 "시즌 끝났고 다음 시즌만 확정"을
+    // 구분 못 함(예: 무빙=다음 방영일 없음, 오싹한 연애=다음 방영일 있음) — 2026-07-23 상의 확정 사항.
+    // 총 부작수(number_of_episodes)는 방영중 작품에서 신뢰도 문제가 있어 별도 표시 안 함(기존 정책 유지).
+    let stateHtml='';
+    if(WORK.type==='tv'&&det.status){
+      if(det.status==='Ended'){
+        stateHtml=`<span class="hero-meta-item">완결</span><span class="hero-meta-sep">·</span>`;
+      }else if(det.status==='Returning Series'){
+        const nextAir=det.next_episode_to_air&&det.next_episode_to_air.air_date;
+        if(nextAir){
+          const nd=new Date(nextAir);
+          const daysKo=['일','월','화','수','목','금','토'];
+          stateHtml=`<span class="hero-meta-item">방영중 <b>(다음 화 ${nd.getMonth()+1}/${nd.getDate()} ${daysKo[nd.getDay()]}요일)</b></span><span class="hero-meta-sep">·</span>`;
+        }else{
+          stateHtml=`<span class="hero-meta-item">완결(다음 시즌 제작중)</span><span class="hero-meta-sep">·</span>`;
+        }
+      }
+      // Planned/In Production/Canceled/Pilot 등은 우리 서비스 등록작에서 거의 안 나오는 값이라 표시 안 함(안전하게 생략)
+    }
     const dateRaw=det.first_air_date||det.release_date||'';
     let dateHtml='';
     // media_type(WORK.type) 기준으로 라벨 분기: TV는 "공개일", 영화는 "개봉"
     // (works.media_type이 100% 확정된 값이므로 이걸 유일한 기준으로 사용 — det.number_of_seasons 같은
     //  TMDB 응답 필드로 다시 판단하던 옛 방식은 폐기)
     if(dateRaw){const d=new Date(dateRaw);const days=['일','월','화','수','목','금','토'];const dateLabel=WORK.type==='tv'?'공개일':'개봉';dateHtml=`<span class="hero-meta-item">${dateLabel} <b>${dateRaw.replace(/-/g,'.')} (${days[d.getDay()]})</b></span>`;}
-    document.getElementById('metaRow').innerHTML=`${seasHtml}${episodeHtml}${dateHtml}${ratingHtml}`;
+    document.getElementById('metaRow').innerHTML=`${seasHtml}${episodeHtml}${stateHtml}${dateHtml}${ratingHtml}`;
 
     // Credits
     if(creditsRes.status==='fulfilled'){
