@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.3 — admin_keywords.html (미확정 목록에 인물페이지 링크 + 애매함 사유(detail) 표시 추가) -->
+<!-- 2026-07-24 rev.4 — admin_keywords.html (AI 응답 파싱 실패 시 루프 정지 대신 건너뛰기로 바뀐 것에 맞춰 로그/미확정 사유 라벨에 parse_failed 반영) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2278,7 +2278,9 @@ async function agLoop(){
     }else if(data.result === 'uncertain'){
       agLogLine(`⚠️ ${name} — 애매함, 미확정으로 보냄`, '#f5a623');
     }else if(data.result === 'skipped'){
-      agLogLine(`⏭ ${name} — 필모그래피 부족, 건너뜀`, 'var(--muted)');
+      // [2026-07-24 수정] 건너뛴 사유가 필모부족 외에 AI 응답 파싱 실패도 추가됨
+      const skipMsg = data.reason === 'parse_failed' ? 'AI 응답 오류, 미확정으로 보냄' : '필모그래피 부족, 건너뜀';
+      agLogLine(`⏭ ${name} — ${skipMsg}`, 'var(--muted)');
     }
     document.getElementById('agStatus').textContent = `방금: ${name}`;
 
@@ -2338,6 +2340,7 @@ let pdTotal = 0;
 const PD_REASON_LABEL = {
   ai_uncertain: '⚠️ AI 판단 애매함',
   filmography_thin: '⏭ 필모그래피 부족',
+  parse_failed: '❌ AI 응답 오류',
 };
 
 async function loadPendingList(page){
