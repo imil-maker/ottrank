@@ -1,3 +1,4 @@
+<!-- 2026-07-23 rev.1 — admin.html (works 관리 수정/작품등록 모달에 시즌 포스터 선택 기능 추가) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -3061,6 +3062,14 @@ async function selectTmdbForEdit(tmdbId, tmdbType, title, posterPath, orgTitle, 
     }
   }
 
+  // 시즌 선택 상태 초기화 — 새로 선택된 작품 기준으로 "기본 포스터"를 다시 잡음
+  // (2026-07-23: works 관리/작품등록 모달도 시즌 포스터 기능을 쓰게 되면서 필요해진 안전장치.
+  //  이게 없으면 검색으로 작품을 바꿔도 이전 작품의 시즌 포스터 상태가 남아있을 수 있음)
+  window._editBasePoster    = dbWork?.poster_path || posterPath || null;
+  window._editCurrentSeason = null;
+  document.getElementById('editSeasonInp').value = '';
+  document.getElementById('editSeasonPosterWrap').style.display = 'none';
+
   // ── 선택된 작품 표시 카드 ──
   const dbBadge = dbWork
     ? `<span style="font-size:10px;font-family:var(--mono);color:var(--green);margin-left:6px">🗄️ DB있음</span>`
@@ -4306,10 +4315,14 @@ function openWorksModalNew() {
   document.querySelectorAll('input[name="editMediaType"]').forEach(radio => { radio.checked = false; });
   updateMediaTypeStyle('');
 
-  // 시즌 입력창 숨김 (신규 등록엔 불필요)
-  document.getElementById('editSeasonRow').style.display = 'none';
-  document.getElementById('editSeasonInp').value         = '';
+  // 시즌 입력창 표시 (2026-07-23: 작품등록에도 시즌 포스터 선택 기능 추가 — 랭킹 수정모달과 동일 UI)
+  document.getElementById('editSeasonRow').style.display        = '';
+  document.getElementById('editSeasonInp').value                = '';
   document.getElementById('editSeasonPosterWrap').style.display = 'none';
+  document.getElementById('editSeasonPoster').src               = '';
+  document.getElementById('editSeasonLoading').style.display    = 'none';
+  window._editBasePoster    = null;
+  window._editCurrentSeason = null;
 
   // 저장 버튼 → 신규 등록 모드
   const saveBtn = document.getElementById('editSaveBtn');
@@ -4352,6 +4365,16 @@ async function saveNewWorkFromModal() {
       }
     } catch (e) {}
   }
+
+  // 시즌 포스터가 선택돼 있으면 방금 조회한 기본 포스터 대신 그걸 사용
+  // (2026-07-23: 작품등록 시즌 포스터 기능 — saveEdit()의 랭킹용 로직과 동일한 방식)
+  const seasonVal = parseInt(document.getElementById('editSeasonInp').value) || null;
+  const seasonPosterEl = document.getElementById('editSeasonPoster');
+  const seasonPosterSrc = seasonPosterEl?.src || '';
+  const seasonMatchesFetched = !!seasonVal && window._editCurrentSeason === seasonVal;
+  const seasonPoster = (seasonMatchesFetched && seasonPosterSrc.includes('image.tmdb.org'))
+    ? seasonPosterSrc.replace(/.*\/t\/p\/w\d+/, '') : null;
+  if (seasonPoster) poster_path = seasonPoster;
 
   try {
     const res = await fetch(`${API}/admin/works/register`, {
@@ -4407,10 +4430,15 @@ function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
   });
   updateMediaTypeStyle(mt);
 
-  // 시즌 입력창 숨김 (works 수정 모드 — 시즌 기능 불필요)
-  document.getElementById('editSeasonRow').style.display = 'none';
-  document.getElementById('editSeasonInp').value         = '';
+  // 시즌 입력창 표시 (2026-07-23: works 수정에도 시즌 포스터 선택 기능 추가 — 랭킹 수정모달과 동일 UI)
+  document.getElementById('editSeasonRow').style.display        = '';
+  document.getElementById('editSeasonInp').value                = '';
   document.getElementById('editSeasonPosterWrap').style.display = 'none';
+  document.getElementById('editSeasonPoster').src               = '';
+  document.getElementById('editSeasonLoading').style.display    = 'none';
+  // 기존 포스터를 basePoster로 저장 (시즌 선택 후 "기본으로" 버튼 대비)
+  window._editBasePoster    = posterPath || null;
+  window._editCurrentSeason = null;
 
   // 저장 버튼 텍스트 변경 + 핸들러 교체
   const saveBtn = document.getElementById('editSaveBtn');
@@ -4471,6 +4499,16 @@ async function saveWorkFromModal() {
       } catch(e) {}
     }
   }
+
+  // 시즌 포스터가 선택돼 있으면 방금 조회한 기본 포스터 대신 그걸 사용
+  // (2026-07-23: works 관리 시즌 포스터 기능 — saveEdit()의 랭킹용 로직과 동일한 방식)
+  const seasonVal = parseInt(document.getElementById('editSeasonInp').value) || null;
+  const seasonPosterEl = document.getElementById('editSeasonPoster');
+  const seasonPosterSrc = seasonPosterEl?.src || '';
+  const seasonMatchesFetched = !!seasonVal && window._editCurrentSeason === seasonVal;
+  const seasonPoster = (seasonMatchesFetched && seasonPosterSrc.includes('image.tmdb.org'))
+    ? seasonPosterSrc.replace(/.*\/t\/p\/w\d+/, '') : null;
+  if (seasonPoster) poster_path = seasonPoster;
 
   try {
     const res = await fetch(`${API}/admin/works/${tmdbId}`, {
