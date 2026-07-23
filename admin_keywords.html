@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.4 — admin_keywords.html (AI 응답 파싱 실패 시 루프 정지 대신 건너뛰기로 바뀐 것에 맞춰 로그/미확정 사유 라벨에 parse_failed 반영) -->
+<!-- 2026-07-24 rev.6 — admin_keywords.html ("프로필 자동 생성" 탭에 <cite> 태그 일괄 정리 버튼 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -765,6 +765,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
 
       <div id="agLog" style="max-height:220px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:24px;font-size:12px;font-family:var(--mono);color:var(--muted2);display:none"></div>
+
+      <!-- [2026-07-24 신규] rev.11 이전에 저장된 AI 프로필에 <cite> 인용 태그가 섞여
+           들어간 문제를 정리하는 일회성 버튼. remaining 0 될 때까지 자동 반복 호출. -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div style="font-size:13px;color:var(--muted2)">🧹 예전에 저장된 프로필에 남아있는 &lt;cite&gt; 인용 태그를 한 번에 정리해요.</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="cleanupCiteStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+          <button class="btn-secondary" id="cleanupCiteBtn" onclick="cleanupCiteTags()" style="padding:8px 16px;font-size:13px">🧹 &lt;cite&gt; 태그 정리</button>
+        </div>
+      </div>
 
       <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">📄 저장된 사람 리스트</div>
       <div id="agConfirmedList"></div>
@@ -2246,6 +2256,8 @@ function agLogLine(text, color){
 }
 
 async function agLoop(){
+  let failCount = 0; // [2026-07-24 신규] 연속 실패 횟수 — D1 일시 지연 등 한 번의 오류로
+                      // 전체가 멈추지 않도록, 몇 초 쉬었다가 재시도. 연속 3회 실패해야 진짜 정지.
   while(agRunning){
     let data;
     try{
@@ -2255,16 +2267,22 @@ async function agLoop(){
       });
       data = await res.json();
     }catch(e){
-      agLogLine(`❌ 네트워크 오류: ${e.message}`, 'var(--accent)');
-      agStop();
-      break;
+      failCount++;
+      agLogLine(`❌ 네트워크 오류(${failCount}/3): ${e.message}`, 'var(--accent)');
+      if(failCount >= 3){ agLogLine('연속 3회 실패 — 정지합니다', 'var(--accent)'); agStop(); break; }
+      await new Promise(r => setTimeout(r, 5000));
+      continue;
     }
 
     if(!data || !data.ok){
-      agLogLine(`❌ 오류: ${(data && data.message) || '알 수 없는 오류'} — 정지합니다`, 'var(--accent)');
-      agStop();
-      break;
+      failCount++;
+      agLogLine(`❌ 오류(${failCount}/3): ${(data && data.message) || '알 수 없는 오류'}`, 'var(--accent)');
+      if(failCount >= 3){ agLogLine('연속 3회 실패 — 정지합니다', 'var(--accent)'); agStop(); break; }
+      await new Promise(r => setTimeout(r, 5000));
+      continue;
     }
+    failCount = 0; // 성공했으니 실패 카운트 리셋
+
     if(data.done){
       agLogLine('✅ 처리할 대상이 더 없어요 — 완료', 'var(--green)');
       document.getElementById('agStatus').textContent = '완료';
@@ -2327,6 +2345,48 @@ async function loadAgConfirmedList(page){
 }
 function agConfirmedPrev(){ if(agConfirmedPage > 1) loadAgConfirmedList(agConfirmedPage - 1); }
 function agConfirmedNext(){ if(agConfirmedPage * 20 < agConfirmedTotal) loadAgConfirmedList(agConfirmedPage + 1); }
+
+/* [2026-07-24 신규] <cite> 태그 정리 — remaining 0 될 때까지 자동 반복 호출.
+   "인물 상세정보 채우기"와 같은 패턴이지만, 이건 일회성 정리라 버튼 하나로 끝까지 돎. */
+let cleanupCiteRunning = false;
+async function cleanupCiteTags(){
+  if(cleanupCiteRunning) return;
+  cleanupCiteRunning = true;
+  const btn = document.getElementById('cleanupCiteBtn');
+  const status = document.getElementById('cleanupCiteStatus');
+  btn.disabled = true;
+  let totalUpdated = 0;
+
+  while(true){
+    status.textContent = `정리 중... (누적 ${totalUpdated}건)`;
+    try{
+      const res = await fetch(`${API}/admin/persons/cleanup-cite-tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+        body: JSON.stringify({ limit: 20 }),
+      });
+      const data = await res.json();
+      if(!res.ok || !data.ok){ status.textContent = `❌ 오류: ${(data && data.message) || res.status}`; break; }
+      totalUpdated += data.updated;
+      if(data.remaining === 0){
+        status.textContent = `✅ 완료 — 총 ${totalUpdated}건 정리됨`;
+        break;
+      }
+      if(data.updated === 0){
+        // 남았다고 하는데 이번엔 하나도 못 고쳤으면(이상 상황) 무한루프 방지
+        status.textContent = `⚠️ 처리 중단 — 남은 ${data.remaining}건 확인 필요`;
+        break;
+      }
+    }catch(e){
+      status.textContent = `❌ 네트워크 오류: ${e.message}`;
+      break;
+    }
+  }
+
+  btn.disabled = false;
+  cleanupCiteRunning = false;
+  loadAgConfirmedList(agConfirmedPage);
+}
 
 /* ══════════════════════════════════════════════════════════════
    [2026-07-24 신규] 서브탭: 미확정
