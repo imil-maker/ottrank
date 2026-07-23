@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.2 — person.html (배우 대표작 정렬: order(주연 여부) 1순위 + popularity 2순위로 개선) -->
+<!-- 2026-07-23 rev.3 — person.html (대표작: 0번 완전 단독 주연에 1.2배 점수 보너스 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1972,6 +1972,7 @@ async function initPage(){
         const pop = it.popularity || 0;
         const charName = (it.character || '').trim().toLowerCase();
         const isSelfAppearance = it.media_type === 'tv' && (!charName || charName === 'self');
+        let score;
         if(isSelfAppearance){
           // 본인 출연(예능/리얼리티) — 회차 수로 정도만 조절.
           // 고정 MC급(150회 이상)만 감점 거의 없고, 그 외(장수 예능 게스트 포함)는
@@ -1979,9 +1980,15 @@ async function initPage(){
           const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
           const ratio = Math.max(0, Math.min(1, ep / 180));
           const factor = Math.max(0.02, ratio * ratio);
-          return pop * factor;
+          score = pop * factor;
+        } else {
+          score = pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
         }
-        return pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
+        // [2026-07-23 신규] 0번(완전 단독 주연) 소폭 보너스 — 그룹을 통째로 올리는 게
+        // 아니라 점수에 1.2배만 얹어서, popularity 격차가 큰 흥행작까지 뒤엎지는 않고
+        // "비슷한 인기라면 완전 주연이 우선"이 되는 수준으로만 보정.
+        if(it._kind === 'act' && it.order === 0) score *= 1.2;
+        return score;
       };
 
       // [2026-07-23 신규] 배우(출연) 대표작 — 주연 여부(order)를 1순위, popularity를
