@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.3 — person.html (대표작: 0번 완전 단독 주연에 1.2배 점수 보너스 추가) -->
+<!-- 2026-07-23 rev.4 — person.html (대표작: 2년 이상+vote_count 5 이하 저인지도 작품 제외 필터 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2011,8 +2011,27 @@ async function initPage(){
         return 2;                    // 단역/카메오
       };
 
+      // [2026-07-23 신규] 저인지도 작품 제외 필터 — "공백의 얼굴들" 사례(초저예산
+      // 독립영화라 캐스트가 6명뿐이라 order=0으로 찍혀도 실제 "주연 비중"을 뜻하지
+      // 않는 경우)처럼, order 데이터 자체가 안 미더운 소규모 작품이 order 그룹 우선
+      // 순위 덕에 진짜 잘 알려진 작품(예: 조연으로 나온 대형 상업영화)을 이겨버리는
+      // 문제를 막기 위한 필터.
+      // 기준: 개봉/방영 후 2년이 지났는데도 vote_count(평가 참여자 수)가 5 이하면
+      // "그동안 시간이 지나도 계속 아무도 안 본 작품"으로 보고 대표작 후보에서
+      // 제외(필모그래피 탭에는 그대로 남음). 최신작은 아직 평가가 덜 쌓인 게
+      // 당연하므로 2년 미만이면 vote_count 상관없이 무조건 통과시킴.
+      const isLowProfile = (it) => {
+        const dateStr = it.release_date || it.first_air_date;
+        if(!dateStr) return false; // 날짜 정보 없으면 걸러내지 않음(과잉 필터링 방지)
+        const ageMs = Date.now() - new Date(dateStr).getTime();
+        const ageYears = ageMs / (1000*60*60*24*365);
+        const voteCount = typeof it.vote_count === 'number' ? it.vote_count : 0;
+        return ageYears >= 2 && voteCount <= 5;
+      };
+
       const knownFor = [...allCredits]
         .filter(it => it.poster_path)
+        .filter(it => !isLowProfile(it))
         .sort((a,b) => {
           const ta = castTier(a), tb = castTier(b);
           if(ta !== tb) return ta - tb; // 주연 그룹 우선
