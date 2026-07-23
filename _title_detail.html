@@ -1,4 +1,4 @@
-<!-- 2026-07-23 rev.2 — _title_detail.html (방영상태: 완결/방영중/완결·다음시즌제작중 표시 추가) -->
+<!-- 2026-07-23 rev.3 — _title_detail.html (포스터 표시 D1 우선순위 버그 수정 — works.poster_path가 TMDB 기본값에 항상 덮어써지던 문제) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2712,7 +2712,10 @@ async function loadTmdb(){
     WORK.title=title;WORK.season=season;
     WORK.year=year||WORK.year||new Date().getFullYear();
     WORK.type=WORK.type||(det.number_of_seasons?'tv':'movie');
-    WORK.poster_path=det.poster_path||'';
+    // [2026-07-23 수정] 포스터는 D1(works.poster_path)을 우선 신뢰 — 관리자가 works 관리에서
+    // 직접 지정한 포스터(시즌 포스터 등)가 있으면 그걸 쓰고, 없을 때만 TMDB 기본 포스터로 폴백.
+    // 예전엔 무조건 TMDB 실시간 값을 썼어서 관리자가 저장한 포스터가 화면에 반영 안 되는 버그가 있었음.
+    WORK.poster_path=worksData?.poster_path||det.poster_path||'';
     // JSON-LD datePublished용 원본 날짜(YYYY-MM-DD) — 화면 표시용 year(4자리)와 별도 보관
     WORK.releaseDate=det.first_air_date||det.release_date||'';
 
@@ -2756,7 +2759,11 @@ async function loadTmdb(){
           tmdb_id     : WORK.tmdb_id,
           title_ko    : title,
           title_en,
-          poster_path : det.poster_path || '',
+          // [2026-07-23 수정] 관리자가 works 관리에서 지정한 포스터(worksData.poster_path)가
+          // 있으면 그대로 유지해서 다시 보냄 — 예전엔 여기서 항상 det.poster_path(TMDB 기본값)를
+          // 보내서, 평점 자동 새로고침이 돌 때마다(1~5일 주기) 관리자가 저장한 포스터가
+          // 조용히 TMDB 기본 포스터로 되돌아가는 문제가 있었음.
+          poster_path : worksData?.poster_path || det.poster_path || '',
           media_type  : WORK.typeConfirmed?WORK.type:null, // 확신 없는 추측값은 DB에 등록하지 않음(오염 방지)
           genre       : genreStr || null,
           tmdb_rating : ratingVal,
@@ -2772,17 +2779,17 @@ async function loadTmdb(){
       bdImg.alt=title+' 배경 이미지';
       bdImg.onload=()=>bdImg.classList.add('loaded');
       bdImg.style.display='block';
-    }else if(det.poster_path){
+    }else if(WORK.poster_path){
       const bdImg=document.getElementById('backdropImg');
-      bdImg.src=IMG+det.poster_path;bdImg.alt=title+' 배경 이미지';bdImg.style.display='block';
+      bdImg.src=IMG+WORK.poster_path;bdImg.alt=title+' 배경 이미지';bdImg.style.display='block';
       bdImg.style.filter='blur(20px) scale(1.1)';bdImg.style.opacity='.4';
       bdImg.classList.add('loaded');
     }
 
-    // poster
-    if(det.poster_path){
+    // poster — WORK.poster_path(D1 우선, 없으면 TMDB) 기준으로 표시
+    if(WORK.poster_path){
       const img=document.getElementById('posterImg');
-      img.src=IMG+det.poster_path;img.alt=title+' 포스터';img.style.display='block';
+      img.src=IMG+WORK.poster_path;img.alt=title+' 포스터';img.style.display='block';
       document.getElementById('posterPh').style.display='none';
       syncMobHero();   // 포스터 세팅 직후 즉시 모바일 동기화 (타이밍 문제 해결)
     }
@@ -2843,7 +2850,7 @@ async function loadTmdb(){
     document.getElementById('overview').textContent=det.overview||'줄거리 정보가 없습니다.';
 
     // SEO + wish + rank row
-    updateSEO(title,det.overview||'',det.poster_path,WORK.platform,WORK.rank);
+    updateSEO(title,det.overview||'',WORK.poster_path,WORK.platform,WORK.rank);
     initWish(WORK.tmdb_id);initLifeSave(WORK.tmdb_id);
     renderRankRow();
 
