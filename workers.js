@@ -195,11 +195,11 @@ function et(r,s,t){if(!s.length)return r.slice(0,t).map((l,m)=>({...l,rank:m+1})
     <loc>${o}${a.path}</loc>
     <changefreq>${a.changefreq}</changefreq>
     <priority>${a.priority}</priority>
-  </url>`);for(let a of _){let d=`${o}/title/1-${n}${a.tmdb_id}`,c=a.original_language==="ko"?"0.8":"0.6";m.push(`  <url>
+  </url>`);for(let a of _){let d=`${o}/title/1-${n}${a.tmdb_id}`,c=a.original_language==="ko"?"0.9":"0.3";m.push(`  <url>
     <loc>${d}</loc>
     <changefreq>weekly</changefreq>
     <priority>${c}</priority>
-  </url>`)}let w="2026-07-20";for(let a of l){let d=`${o}/person/${a.tmdb_id}`,c=a.wiki_matched_at?a.wiki_matched_at.slice(0,10):w,u=a.has_korean_name===1?"0.6":"0.4";m.push(`  <url>
+  </url>`)}let w="2026-07-20";for(let a of l){let d=`${o}/person/${a.tmdb_id}`,c=a.wiki_matched_at?a.wiki_matched_at.slice(0,10):w,u=a.has_korean_name===1?"0.7":"0.3";m.push(`  <url>
     <loc>${d}</loc>
     <lastmod>${c}</lastmod>
     <changefreq>monthly</changefreq>
