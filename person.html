@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.1 — person.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
+<!-- 2026-07-23 rev.2 — person.html (배우 대표작 정렬: order(주연 여부) 1순위 + popularity 2순위로 개선) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1984,9 +1984,33 @@ async function initPage(){
         return pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
       };
 
+      // [2026-07-23 신규] 배우(출연) 대표작 — 주연 여부(order)를 1순위, popularity를
+      // 2순위로 사용. combined_credits 응답에 이미 포함된 cast 크레딧의 order 필드
+      // (0에 가까울수록 주연급 — TMDB 크레딧 표기 순서)로 먼저 "역할 비중" 그룹을
+      // 나누고, 같은 그룹 안에서는 기존 scoreFor(popularity + 게스트감점)로 순위를
+      // 매김. 추가 API 호출 없음(기존 데이터 재사용). 연출(크루) 항목은 order 개념이
+      // 없으므로 그룹 구분 없이 계속 popularity로만 경쟁(기존 방식 그대로 유지).
+      //
+      // ⚠️ TV(특히 여러 시즌 드라마)는 order 값이 비어있거나 부정확한 경우가 있어,
+      // 이런 "정보없음" 케이스는 주연/단역 그 어느 쪽으로도 단정하지 않고 별도 그룹으로
+      // 분류해서 popularity로만 순위를 매김(영화는 order 누락이 거의 없어 이 케이스가
+      // 드묾).
+      const castTier = (it) => {
+        if(it._kind !== 'act') return 0; // 연출 항목은 별도 그룹 없이 popularity로만 경쟁
+        const order = typeof it.order === 'number' ? it.order : null;
+        if(order === null) return 1; // order 정보 없음 — popularity로만 순위 매기는 그룹
+        if(order <= 2) return 0;     // 주연급
+        if(order <= 6) return 1;     // 비중 있는 조연
+        return 2;                    // 단역/카메오
+      };
+
       const knownFor = [...allCredits]
         .filter(it => it.poster_path)
-        .sort((a,b) => scoreFor(b) - scoreFor(a))
+        .sort((a,b) => {
+          const ta = castTier(a), tb = castTier(b);
+          if(ta !== tb) return ta - tb; // 주연 그룹 우선
+          return scoreFor(b) - scoreFor(a); // 같은 그룹 안에서는 popularity(+게스트감점)로 정렬
+        })
         .slice(0, document.body.classList.contains('layout-test') ? 5 : 6); // [2026-07-19] PC 2단 레이아웃은 5개만
       if(knownFor.length){
         document.getElementById('knownForSection').style.display = 'block';
