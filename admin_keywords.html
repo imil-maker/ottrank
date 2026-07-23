@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.1 — admin_keywords.html ("인물 매칭" 탭에 "프로필 생성" 서브탭 신규: AI로 프로필/학력/데뷔작/수상내역 조사 후 확신/애매 뱃지 확인하고 수동 저장) -->
+<!-- 2026-07-24 rev.2 — admin_keywords.html ("프로필 자동 생성"/"미확정" 서브탭 신규: 1명씩 자동 루프+저장목록 페이지네이션, 미확정 목록에서 "프로필 생성" 탭으로 검토 연결) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -618,6 +618,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
         프로필 생성
       </button>
+      <button id="subTabPmAuto" onclick="switchPersonMatchSubTab('auto')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+        프로필 자동 생성
+      </button>
+      <button id="subTabPmPending" onclick="switchPersonMatchSubTab('pending')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+        미확정
+      </button>
     </div>
 
     <!-- 서브탭: 인물매칭 (대량 처리) -->
@@ -737,6 +745,51 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
       <div id="pgSearchResultsWrap" style="margin-bottom:20px"></div>
       <div id="pgDetailWrap"></div>
+    </div>
+
+    <!-- 서브탭: 프로필 자동 생성 (2026-07-24 신규) — 1명씩 계속 도는 자동 루프.
+         "정지" 누르거나 대상자가 다 떨어질 때까지 /admin/persons/ai-auto-step을 반복 호출.
+         하단에 이미 저장된 사람 리스트(20명씩)를 페이지 링크/수정 링크와 함께 표시. -->
+    <div id="agWrap" style="display:none">
+      <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 프로필이 비어있는 한국 배우/감독을 1명씩 순서대로 AI가 조사해서, 확실하면 자동
+        저장하고 애매하면 <span style="color:var(--gold)">"미확정"</span> 탭으로 넘겨요.
+        필모그래피 3개 이하인 사람은 AI 호출 없이 바로 미확정으로 분류돼요(검색 비용 절약).
+        "정지"를 누르기 전까지 계속 돌아가요.
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
+        <button class="btn-primary" id="agStartBtn" onclick="agStart()" style="padding:10px 20px;font-size:14px">▶ 시작</button>
+        <button class="btn-secondary" id="agStopBtn" onclick="agStop()" style="display:none;padding:10px 20px;font-size:14px;color:var(--accent);border-color:rgba(230,57,70,.4)">⏹ 정지</button>
+        <span id="agStatus" style="font-size:13px;color:var(--muted);font-family:var(--mono)"></span>
+      </div>
+
+      <div id="agLog" style="max-height:220px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:24px;font-size:12px;font-family:var(--mono);color:var(--muted2);display:none"></div>
+
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">📄 저장된 사람 리스트</div>
+      <div id="agConfirmedList"></div>
+      <div style="display:flex;justify-content:center;gap:10px;padding:16px 0;align-items:center">
+        <button class="btn-secondary" onclick="agConfirmedPrev()" style="padding:8px 16px;font-size:13px">← 이전</button>
+        <span id="agConfirmedPageInfo" style="font-size:13px;color:var(--muted);font-family:var(--mono)"></span>
+        <button class="btn-secondary" onclick="agConfirmedNext()" style="padding:8px 16px;font-size:13px">다음 →</button>
+      </div>
+    </div>
+
+    <!-- 서브탭: 미확정 (2026-07-24 신규) — person_ai_pending 목록. "검토" 누르면
+         "프로필 생성" 탭으로 이동해서 그 사람 내용을 바로 확인/수정/저장할 수 있음. -->
+    <div id="pdWrap" style="display:none">
+      <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 "프로필 자동 생성"에서 AI가 애매하다고 판단했거나, 필모그래피가 너무 적어 건너뛴
+        사람들이에요. "검토"를 누르면 "프로필 생성" 탭으로 이동해서 내용을 확인·수정하고
+        저장할 수 있어요 — 저장하면 이 목록에서 자동으로 빠져요.
+      </div>
+      <button class="btn-secondary" onclick="loadPendingList(1)" style="padding:5px 14px;font-size:12px;margin-bottom:12px">🔄 새로고침</button>
+      <div id="pdList"></div>
+      <div style="display:flex;justify-content:center;gap:10px;padding:16px 0;align-items:center">
+        <button class="btn-secondary" onclick="pdPrev()" style="padding:8px 16px;font-size:13px">← 이전</button>
+        <span id="pdPageInfo" style="font-size:13px;color:var(--muted);font-family:var(--mono)"></span>
+        <button class="btn-secondary" onclick="pdNext()" style="padding:8px 16px;font-size:13px">다음 →</button>
+      </div>
     </div>
 
   </div>
@@ -1331,8 +1384,8 @@ let pmSelected  = new Set(); // 체크된 tmdb_id 모음 (페이지 넘어가도
 /* [2026-07-24 수정] 서브탭이 2개(list/search)에서 3개(list/search/generate)로 늘어나서
    "isList 아니면 무조건 search" 이분법 대신, 3개 각각을 명시적으로 켜고 끄는 방식으로 변경. */
 function switchPersonMatchSubTab(sub){
-  const panels = { list: 'pmListWrap', search: 'pmSearchWrap', generate: 'pgWrap' };
-  const tabs   = { list: 'subTabPmList', search: 'subTabPmSearch', generate: 'subTabPmGenerate' };
+  const panels = { list: 'pmListWrap', search: 'pmSearchWrap', generate: 'pgWrap', auto: 'agWrap', pending: 'pdWrap' };
+  const tabs   = { list: 'subTabPmList', search: 'subTabPmSearch', generate: 'subTabPmGenerate', auto: 'subTabPmAuto', pending: 'subTabPmPending' };
   Object.entries(panels).forEach(([key, id]) => {
     document.getElementById(id).style.display = (key === sub) ? 'block' : 'none';
   });
@@ -1345,6 +1398,9 @@ function switchPersonMatchSubTab(sub){
   // [2026-07-22 수정] 기본 서브탭이 '인물 개별 검색'으로 바뀌면서, '인물매칭'(목록)은
   // 이제 자동으로 안 열리므로 사용자가 직접 이 서브탭을 클릭했을 때 로드함
   if (sub === 'list') loadPersonMatchCandidates();
+  // [2026-07-24 신규] "프로필 자동 생성"/"미확정" 탭도 클릭했을 때 목록을 새로 불러옴
+  if (sub === 'auto') loadAgConfirmedList(1);
+  if (sub === 'pending') loadPendingList(1);
 }
 
 function setPmNationality(nat){
@@ -2134,6 +2190,9 @@ async function pgSave(tmdbId){
     imdb_id: pgOtherFields.imdb_id,
     source_url: pgOtherFields.source_url,
     hidden_fields: [],
+    // [2026-07-24 신규] "프로필 생성" 탭을 거쳐 저장되는 건 전부 AI 파이프라인 출처로 표시
+    // — "프로필 자동 생성" 탭 하단의 "저장된 사람 리스트"에 뜨게 하기 위함.
+    source: 'ai',
   };
 
   showToast('저장 중...');
@@ -2151,6 +2210,169 @@ async function pgSave(tmdbId){
     showToast(`❌ 네트워크 오류: ${e.message}`);
   }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   [2026-07-24 신규] 서브탭: 프로필 자동 생성
+   /admin/persons/ai-auto-step을 1명씩 반복 호출하는 루프. 정지 버튼을 누르거나
+   대상자가 다 떨어지면(done:true) 멈춤. 실행 로그는 새로고침하면 사라지는
+   화면용 표시일 뿐이고, 실제 결과는 항상 서버에 저장/대기 처리됨.
+   ══════════════════════════════════════════════════════════════ */
+let agRunning = false;
+
+async function agStart(){
+  if(agRunning) return;
+  agRunning = true;
+  document.getElementById('agStartBtn').style.display = 'none';
+  document.getElementById('agStopBtn').style.display = 'inline-block';
+  document.getElementById('agLog').style.display = 'block';
+  document.getElementById('agStatus').textContent = '처리 중...';
+  agLoop();
+}
+
+function agStop(){
+  agRunning = false;
+  document.getElementById('agStartBtn').style.display = 'inline-block';
+  document.getElementById('agStopBtn').style.display = 'none';
+  document.getElementById('agStatus').textContent = '정지됨';
+}
+
+function agLogLine(text, color){
+  const log = document.getElementById('agLog');
+  const line = document.createElement('div');
+  line.style.padding = '2px 0';
+  if(color) line.style.color = color;
+  line.textContent = text;
+  log.prepend(line);
+}
+
+async function agLoop(){
+  while(agRunning){
+    let data;
+    try{
+      const res = await fetch(`${API}/admin/persons/ai-auto-step`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+      });
+      data = await res.json();
+    }catch(e){
+      agLogLine(`❌ 네트워크 오류: ${e.message}`, 'var(--accent)');
+      agStop();
+      break;
+    }
+
+    if(!data || !data.ok){
+      agLogLine(`❌ 오류: ${(data && data.message) || '알 수 없는 오류'} — 정지합니다`, 'var(--accent)');
+      agStop();
+      break;
+    }
+    if(data.done){
+      agLogLine('✅ 처리할 대상이 더 없어요 — 완료', 'var(--green)');
+      document.getElementById('agStatus').textContent = '완료';
+      agStop();
+      break;
+    }
+
+    const name = data.person ? data.person.name : '(알 수 없음)';
+    if(data.result === 'confirmed'){
+      agLogLine(`✅ ${name} — 확실함, 자동 저장됨`, 'var(--green)');
+    }else if(data.result === 'uncertain'){
+      agLogLine(`⚠️ ${name} — 애매함, 미확정으로 보냄`, '#f5a623');
+    }else if(data.result === 'skipped'){
+      agLogLine(`⏭ ${name} — 필모그래피 부족, 건너뜀`, 'var(--muted)');
+    }
+    document.getElementById('agStatus').textContent = `방금: ${name}`;
+
+    // 확정 저장된 경우에만 리스트를 가끔 새로고침(매번 하면 화면이 깜빡여서 5건마다)
+    if(data.result === 'confirmed'){
+      loadAgConfirmedList(agConfirmedPage);
+    }
+  }
+}
+
+let agConfirmedPage = 1;
+let agConfirmedTotal = 0;
+
+async function loadAgConfirmedList(page){
+  agConfirmedPage = page;
+  const wrap = document.getElementById('agConfirmedList');
+  wrap.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>`;
+  try{
+    const res = await fetch(`${API}/admin/persons/ai-confirmed-list?page=${page}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){ wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">불러오기 실패</div>`; return; }
+    agConfirmedTotal = data.total || 0;
+
+    if(!data.items.length){
+      wrap.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">아직 저장된 사람이 없어요</div>`;
+    }else{
+      wrap.innerHTML = data.items.map(p => `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:14px;color:var(--text)">${escapeHtmlPm(p.display_name)}</span>
+          <div style="display:flex;gap:10px">
+            <a href="/person/${p.tmdb_id}" target="_blank" style="font-size:12px;color:#7ec8e3;text-decoration:none">🔗 페이지</a>
+            <a href="javascript:void(0)" onclick="switchPersonMatchSubTab('generate'); pgSelectPerson(${p.tmdb_id});" style="font-size:12px;color:var(--gold);text-decoration:none">✏️ 수정</a>
+          </div>
+        </div>
+      `).join('');
+    }
+    const totalPages = Math.max(1, Math.ceil(agConfirmedTotal / 20));
+    document.getElementById('agConfirmedPageInfo').textContent = `${page} / ${totalPages} 페이지 (총 ${agConfirmedTotal.toLocaleString()}명)`;
+  }catch(e){
+    wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }
+}
+function agConfirmedPrev(){ if(agConfirmedPage > 1) loadAgConfirmedList(agConfirmedPage - 1); }
+function agConfirmedNext(){ if(agConfirmedPage * 20 < agConfirmedTotal) loadAgConfirmedList(agConfirmedPage + 1); }
+
+/* ══════════════════════════════════════════════════════════════
+   [2026-07-24 신규] 서브탭: 미확정
+   person_ai_pending 목록. "검토" 클릭 시 "프로필 생성" 탭으로 이동해서
+   해당 인물을 바로 불러옴(pgSelectPerson 재사용) — 저장하면 wiki-manual-save가
+   person_ai_pending에서 자동으로 지워주므로 이 목록에서도 자연히 빠짐.
+   ══════════════════════════════════════════════════════════════ */
+let pdPage = 1;
+let pdTotal = 0;
+
+const PD_REASON_LABEL = {
+  ai_uncertain: '⚠️ AI 판단 애매함',
+  filmography_thin: '⏭ 필모그래피 부족',
+};
+
+async function loadPendingList(page){
+  pdPage = page;
+  const wrap = document.getElementById('pdList');
+  wrap.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>`;
+  try{
+    const res = await fetch(`${API}/admin/persons/ai-pending-list?page=${page}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){ wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">불러오기 실패</div>`; return; }
+    pdTotal = data.total || 0;
+
+    if(!data.items.length){
+      wrap.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">미확정 인물이 없어요</div>`;
+    }else{
+      wrap.innerHTML = data.items.map(p => `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <span style="font-size:14px;color:var(--text)">${escapeHtmlPm(p.display_name)}</span>
+            <span style="font-size:12px;color:var(--muted);margin-left:10px">${PD_REASON_LABEL[p.reason] || p.reason || ''}</span>
+          </div>
+          <a href="javascript:void(0)" onclick="switchPersonMatchSubTab('generate'); pgSelectPerson(${p.tmdb_id});" style="font-size:12px;color:var(--gold);text-decoration:none">📝 검토</a>
+        </div>
+      `).join('');
+    }
+    const totalPages = Math.max(1, Math.ceil(pdTotal / 20));
+    document.getElementById('pdPageInfo').textContent = `${page} / ${totalPages} 페이지 (총 ${pdTotal.toLocaleString()}명)`;
+  }catch(e){
+    wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }
+}
+function pdPrev(){ if(pdPage > 1) loadPendingList(pdPage - 1); }
+function pdNext(){ if(pdPage * 20 < pdTotal) loadPendingList(pdPage + 1); }
 
 
 /* ══════════════════════════════════════════════════════
