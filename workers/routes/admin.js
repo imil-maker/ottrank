@@ -1,4 +1,4 @@
-// 2026-07-24 rev.10 — admin.js (AI 응답 파싱 실패 대응 강화: 문자열 내 따옴표도 자동 이스케이프, max_tokens 4000→7000, 파싱 실패 시 루프 멈추지 않고 그 사람만 미확정 처리 후 계속 진행)
+// 2026-07-24 rev.12 — admin.js (기존에 저장된 AI 프로필의 <cite> 태그 일회성 정리 배치: POST /admin/persons/cleanup-cite-tags 신규, person_wiki_cache(source='ai')+person_ai_pending 양쪽 대상)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -79,6 +79,7 @@
    POST   /admin/persons/ai-auto-step         ← "프로필 자동 생성" 1명 처리(선정→필모확인→AI조사→확정저장/미확정대기)(2026-07-24 신설)
    GET    /admin/persons/ai-confirmed-list    ← AI 파이프라인으로 저장된 인물 목록, 20명씩(2026-07-24 신설)
    GET    /admin/persons/ai-pending-list      ← 미확정(uncertain/필모부족) 인물 목록, 20명씩(2026-07-24 신설)
+   POST   /admin/persons/cleanup-cite-tags    ← 저장된 AI 프로필에서 &lt;cite&gt; 태그 정리, 20개씩 반복(2026-07-24 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -4486,7 +4487,87 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
-  // ── GET /admin/persons/ai-confirmed-list ────────────────────────
+  // ── POST /admin/persons/cleanup-cite-tags ───────────────────────
+  // [2026-07-24 신규] rev.11 이전에 저장된 AI 프로필들에 <cite index="...">...</cite>
+  // 인용 태그가 그대로 섞여 들어간 문제(관리자님 발견) — 일회성 정리 배치. 태그가 남아있는
+  // 행만 골라서 정규식으로 태그만 벗겨내고(안의 문장은 그대로 살림) 다시 저장.
+  // person_wiki_cache(source='ai')와 person_ai_pending 양쪽 다 대상 — "프로필 생성" 탭에서
+  // 검토 대기 중인 미확정 초안에도 같은 문제가 섞여 있을 수 있어서.
+  // "인물 상세정보 채우기"와 같은 패턴: 한 번에 20개씩, remaining 0 될 때까지 반복 호출.
+  if (path === "/admin/persons/cleanup-cite-tags" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 20, 50);
+      const stripCite = (s) => (s || "").replace(/<\/?cite[^>]*>/g, "");
+
+      const { results: wikiRows } = await env.DB.prepare(`
+        SELECT tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year
+        FROM person_wiki_cache
+        WHERE source = 'ai' AND (
+          bio_summary LIKE '%<cite%' OR education LIKE '%<cite%' OR awards_text LIKE '%<cite%' OR
+          debut_work LIKE '%<cite%' OR debut_year LIKE '%<cite%'
+        )
+        LIMIT ?
+      `).bind(limit).all();
+
+      const { results: pendingRows } = await env.DB.prepare(`
+        SELECT tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year
+        FROM person_ai_pending
+        WHERE bio_summary LIKE '%<cite%' OR education LIKE '%<cite%' OR awards_text LIKE '%<cite%' OR
+              debut_work LIKE '%<cite%' OR debut_year LIKE '%<cite%'
+        LIMIT ?
+      `).bind(limit).all();
+
+      const updates = [];
+      for (const row of wikiRows) {
+        updates.push(
+          env.DB.prepare(
+            `UPDATE person_wiki_cache SET bio_summary = ?, education = ?, awards_text = ?, debut_work = ?, debut_year = ? WHERE tmdb_person_id = ?`
+          ).bind(
+            stripCite(row.bio_summary), stripCite(row.education), stripCite(row.awards_text),
+            stripCite(row.debut_work), stripCite(row.debut_year), row.tmdb_person_id
+          )
+        );
+      }
+      for (const row of pendingRows) {
+        updates.push(
+          env.DB.prepare(
+            `UPDATE person_ai_pending SET bio_summary = ?, education = ?, awards_text = ?, debut_work = ?, debut_year = ? WHERE tmdb_person_id = ?`
+          ).bind(
+            stripCite(row.bio_summary), stripCite(row.education), stripCite(row.awards_text),
+            stripCite(row.debut_work), stripCite(row.debut_year), row.tmdb_person_id
+          )
+        );
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainWiki = await env.DB.prepare(`
+        SELECT COUNT(*) AS cnt FROM person_wiki_cache
+        WHERE source = 'ai' AND (
+          bio_summary LIKE '%<cite%' OR education LIKE '%<cite%' OR awards_text LIKE '%<cite%' OR
+          debut_work LIKE '%<cite%' OR debut_year LIKE '%<cite%'
+        )
+      `).first();
+      const remainPending = await env.DB.prepare(`
+        SELECT COUNT(*) AS cnt FROM person_ai_pending
+        WHERE bio_summary LIKE '%<cite%' OR education LIKE '%<cite%' OR awards_text LIKE '%<cite%' OR
+              debut_work LIKE '%<cite%' OR debut_year LIKE '%<cite%'
+      `).first();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        updated: wikiRows.length + pendingRows.length,
+        remaining: (remainWiki?.cnt || 0) + (remainPending?.cnt || 0),
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+
   // [2026-07-24 신규] "프로필 자동 생성" 탭 하단 — AI 파이프라인(자동저장 또는 "프로필
   // 생성" 탭에서 검토 후 저장)을 거쳐 실제로 저장된 사람 목록. 20명씩 페이지네이션.
   if (path === "/admin/persons/ai-confirmed-list" && request.method === "GET") {
@@ -5445,6 +5526,7 @@ async function _generatePersonProfileDraft(person, env) {
         "말고 실제 검색으로 찾은 것만 적어라. " +
         "검색과 조사 과정은 네 안에서만 하고, 최종 답변 메시지에는 다른 설명·인사말·검색 과정 서술을 " +
         "일절 남기지 말고 아래 JSON 객체 하나만 정확히 출력해라(코드블록 금지). " +
+        "출처 표시나 <cite> 같은 인용 태그, 각주 번호도 절대 포함하지 말고 순수한 문장만 적어라. " +
         '출력 형식: {"match":"confirmed 또는 uncertain","uncertain_reason":"...", "profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
 
       const userPrompt = `인물: ${displayName}${identifierText} — 직업: ${jobLabel}\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
@@ -5488,7 +5570,11 @@ async function _generatePersonProfileDraft(person, env) {
       // ① 텍스트 블록 중 마지막 것(최종 답변)만 사용 ② 그 안에서도 첫 '{'부터 마지막
       // '}'까지만 정규식으로 잘라내서, 앞뒤에 설명이 섞여 있어도 JSON만 뽑아냄.
       const textBlocks = (claudeData.content || []).filter((b) => b.type === "text");
-      const rawText = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
+      let rawText = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
+      // [2026-07-24 신규] web_search 결과를 인용할 때 Claude가 <cite index="...">...</cite>
+      // 형태의 인용 표시를 텍스트에 그대로 남기는 경우가 실사용 중 확인됨(관리자님이 저장된
+      // 프로필에서 발견) — 태그만 제거하고 안에 있던 실제 문장은 그대로 살림.
+      rawText = rawText.replace(/<\/?cite[^>]*>/g, "");
 
       let parsed;
       try {
