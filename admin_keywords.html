@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.2 — admin_keywords.html ("프로필 자동 생성"/"미확정" 서브탭 신규: 1명씩 자동 루프+저장목록 페이지네이션, 미확정 목록에서 "프로필 생성" 탭으로 검토 연결) -->
+<!-- 2026-07-24 rev.3 — admin_keywords.html (미확정 목록에 인물페이지 링크 + 애매함 사유(detail) 표시 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2360,8 +2360,12 @@ async function loadPendingList(page){
           <div>
             <span style="font-size:14px;color:var(--text)">${escapeHtmlPm(p.display_name)}</span>
             <span style="font-size:12px;color:var(--muted);margin-left:10px">${PD_REASON_LABEL[p.reason] || p.reason || ''}</span>
+            ${p.detail ? `<div style="font-size:12px;color:#f5a623;margin-top:3px">${escapeHtmlPm(p.detail)}</div>` : ''}
           </div>
-          <a href="javascript:void(0)" onclick="switchPersonMatchSubTab('generate'); pgSelectPerson(${p.tmdb_id});" style="font-size:12px;color:var(--gold);text-decoration:none">📝 검토</a>
+          <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
+            <a href="/person/${p.tmdb_id}" target="_blank" style="font-size:12px;color:#7ec8e3;text-decoration:none">🔗 페이지</a>
+            <a href="javascript:void(0)" onclick="switchPersonMatchSubTab('generate'); pgSelectPerson(${p.tmdb_id});" style="font-size:12px;color:var(--gold);text-decoration:none">📝 검토</a>
+          </div>
         </div>
       `).join('');
     }
