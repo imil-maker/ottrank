@@ -1,9 +1,12 @@
-/* 2026-07-25 rev.2 — relationship.js (후보 정렬 기준 수정: 랭킹 우선 → 한국작품 우선 → 최근등록순, popularity/tmdb_rating 미사용) */
+/* 2026-07-25 rev.3 — relationship.js (공개 조회 GET /relationship-charts/:tmdb_id 신규 — 작품페이지 노출용) */
 /* ══════════════════════════════════════════════════════════════
    relationship.js — 등장인물 관계도 (2026-07-25 신설)
    - 인터넷에 이미 돌고 있는 방송사/제작사 공식 관계도 이미지를 관리자가 직접 찾아서
      업로드하는 방식. AI초안 방식(노드/관계선 자동 생성)은 추후 별도 구현 예정 — 이 파일은
      "공식 이미지 업로드" 경로만 우선 담당함.
+
+   GET /relationship-charts/:tmdb_id            ← 공개(비로그인) 조회, 작품페이지용(2026-07-25 신설)
+     - ?media_type=movie|tv 필수. status='approved'인 관계도가 있으면 image_url 반환.
 
    GET /admin/relationship-charts/candidates
      - 아직 관계도(relationship_charts 행)가 없는 작품을 10개씩 조회.
@@ -30,6 +33,33 @@
 import { _checkAuth } from "../utils/authUtils.js";
 
 export async function handleRelationship(path, request, env, url, headers) {
+  // ── GET /relationship-charts/:tmdb_id ───────────────────────────
+  // [2026-07-25 신규] 공개(비로그인) 조회 — 작품페이지에서 "인물관계도 보기" 박스 노출 여부와
+  // 이미지 주소를 확인할 때 씀. status='approved'인 것만 응답(초안/미승인은 절대 노출 안 함).
+  if (path.match(/^\/relationship-charts\/\d+$/) && request.method === "GET") {
+    try {
+      const tmdb_id   = parseInt(path.split("/")[2], 10);
+      const mediaType = url.searchParams.get("media_type");
+      if (mediaType !== "movie" && mediaType !== "tv") {
+        return new Response(JSON.stringify({ ok: true, has_chart: false }), { headers });
+      }
+      const row = await env.DB.prepare(
+        `SELECT image_url, source_type FROM relationship_charts
+         WHERE work_tmdb_id = ? AND work_media_type = ? AND status = 'approved'`
+      ).bind(tmdb_id, mediaType).first();
+
+      if (!row || !row.image_url) {
+        return new Response(JSON.stringify({ ok: true, has_chart: false }), { headers });
+      }
+      return new Response(JSON.stringify({
+        ok: true, has_chart: true, image_url: row.image_url, source_type: row.source_type,
+      }), { headers });
+    } catch (e) {
+      // 실패해도 작품페이지 본 기능엔 영향 없어야 하므로 has_chart:false로 조용히 처리
+      return new Response(JSON.stringify({ ok: true, has_chart: false }), { headers });
+    }
+  }
+
   // ── GET /admin/relationship-charts/candidates ──────────────────
   if (path === "/admin/relationship-charts/candidates" && request.method === "GET") {
     const isAuthed = await _checkAuth(request, env);
