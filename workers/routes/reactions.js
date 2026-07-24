@@ -1,3 +1,4 @@
+/* 2026-07-25 rev.1 — reactions.js (GET /reactions/work/:tmdb_id 성능개선: 순차 D1 쿼리 3회→병렬 1회로 축소) */
 /* ══════════════════════════════════════════════════════════════
    반응(Reactions) 관련 API 라우트
    GET    /reactions
@@ -48,6 +49,9 @@ export async function handleReactions(path, request, env, ctx, headers) {
 
   // ── GET /reactions/work/:tmdb_id ──────────────────────────
   // 작품 추천 비율 집계 + 내 선택 반환 (비로그인도 비율은 볼 수 있음)
+  // [2026-07-25 수정] 원래 집계→세션확인→내반응조회 3개 쿼리를 순서대로(순차) 기다렸는데,
+  // 뒤의 두 개(세션+내반응)를 JOIN 쿼리 하나로 합치고, 그걸 집계 쿼리랑 동시에(Promise.all)
+  // 쏘도록 바꿔서 D1 왕복을 3회→1회로 줄임 (작품페이지 "추천 바"가 유난히 늦게 뜨던 문제 원인).
   if (path.match(/^\/reactions\/work\/\d+$/) && request.method === "GET") {
     try {
       const tmdbId = parseInt(path.split("/")[3]);
@@ -55,13 +59,33 @@ export async function handleReactions(path, request, env, ctx, headers) {
       // 유효한 reaction 값
       const VALID = ["great", "good", "meh", "bad"];
 
-      // 전체 집계 (비율 계산용)
-      const { results: counts } = await env.DB.prepare(`
+      const sid = request.headers.get("Authorization")?.replace("Bearer ", "") ||
+                  (() => {
+                    const cookie = request.headers.get("Cookie") || "";
+                    const m = cookie.match(/session=([^;]+)/);
+                    return m ? m[1] : null;
+                  })();
+
+      // 전체 집계(비율 계산용)와, 로그인한 경우의 내 반응(세션확인+조회를 JOIN 하나로 합침)을
+      // 동시에 쏴서 D1 왕복 1번으로 처리.
+      const countsPromise = env.DB.prepare(`
         SELECT reaction, COUNT(*) as cnt
         FROM work_reactions
         WHERE tmdb_id = ?
         GROUP BY reaction
       `).bind(tmdbId).all();
+
+      const myReactionPromise = sid
+        ? env.DB.prepare(`
+            SELECT wr.reaction FROM sessions s
+            JOIN work_reactions wr ON wr.user_id = s.user_id AND wr.tmdb_id = ?
+            WHERE s.id = ? AND s.expires_at > datetime('now')
+            LIMIT 1
+          `).bind(tmdbId, sid).first()
+        : Promise.resolve(null);
+
+      const [{ results: counts }, myRow] = await Promise.all([countsPromise, myReactionPromise]);
+      const myReaction = myRow?.reaction || null;
 
       // 총 투표 수
       const total = counts.reduce((s, r) => s + r.cnt, 0);
@@ -88,27 +112,6 @@ export async function handleReactions(path, request, env, ctx, headers) {
         });
       } else {
         VALID.forEach(k => ratios[k] = 0);
-      }
-
-      // 내 선택 조회 (로그인한 경우)
-      let myReaction = null;
-      const sid = request.headers.get("Authorization")?.replace("Bearer ", "") ||
-                  (() => {
-                    const cookie = request.headers.get("Cookie") || "";
-                    const m = cookie.match(/session=([^;]+)/);
-                    return m ? m[1] : null;
-                  })();
-
-      if (sid) {
-        const session = await env.DB.prepare(
-          "SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now') LIMIT 1"
-        ).bind(sid).first();
-        if (session?.user_id) {
-          const myRow = await env.DB.prepare(
-            "SELECT reaction FROM work_reactions WHERE tmdb_id = ? AND user_id = ? LIMIT 1"
-          ).bind(tmdbId, session.user_id).first();
-          myReaction = myRow?.reaction || null;
-        }
       }
 
       return new Response(JSON.stringify({
