@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.5 — person.html (진짜 원인 발견: order 정보 없는 TV 크레딧이 tier 1로 강등되어 score 비교 기회조차 없이 밀려나던 버그 수정 — order 없음도 tier 0에서 경쟁하도록 변경. 진단용 콘솔 로그 제거, OTT 감점 배율 0.1→0.6 원복) -->
+<!-- 2026-07-24 rev.7 — person.html (SEO: 수상내역 제목에도 인물 이름 추가 — "🏆 수상내역" → "🏆 OO 수상내역", 로딩 순서 무관하게 반영되도록 양쪽에서 보정) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -708,7 +708,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
         <!-- [2026-07-19 신규] 수상내역 — 약력 바로 아래, 대표작(TMDB)보다 먼저 보이는 위치
              [2026-07-20 신규] 모바일 2줄 초과 시 더보기 버튼용으로 텍스트/버튼 분리 -->
         <div class="profile-awards" id="profileAwards" style="display:none">
-          <b style="color:var(--text)">🏆 수상내역</b>
+          <b style="color:var(--text)" id="profileAwardsTitle">🏆 수상내역</b>
           <div class="profile-awards-text" id="profileAwardsText"></div>
           <button class="profile-awards-toggle" id="profileAwardsToggle" onclick="toggleAwards()">더보기 ▾</button>
         </div>
@@ -757,7 +757,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
        지금은 필모그래피 위에 그대로 쌓는 구조. -->
   <!-- [2026-07-11 추가] 대표작(인기순 강조) -->
   <div id="knownForSection" class="known-for-section" style="display:none">
-    <div class="section-title">🌟 대표작</div>
+    <div class="section-title" id="knownForTitle">🌟 대표작</div>
     <div class="scroll-row-wrap">
       <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('knownForRow',-1)" aria-label="이전 작품">‹</button>
       <div class="known-for-row" id="knownForRow"></div>
@@ -1273,6 +1273,11 @@ async function loadWikiTest(personId){
       const awardsTextEl = document.getElementById('profileAwardsText');
       awardsTextEl.textContent = d.awards_text;
       awardsEl.style.display = 'block';
+      // [2026-07-24 신규] SEO 목적 — "OO 수상내역"처럼 인물 이름을 제목에 같이 노출.
+      // loadWikiTest는 TMDB 기본 정보 로딩과 타이밍이 겹칠 수 있어, personDisplayName이
+      // 아직 비어있으면(초기값 '') 기본 제목("🏆 수상내역")을 그대로 둠(안전한 폴백).
+      const awardsTitleEl = document.getElementById('profileAwardsTitle');
+      if(awardsTitleEl && personDisplayName) awardsTitleEl.textContent = `🏆 ${personDisplayName} 수상내역`;
       // [2026-07-20 수정] 모바일 2줄 / PC 4줄 초과 여부 계산 — CSS 미디어쿼리 기준(640px)과 동일하게 분기
       requestAnimationFrame(()=>{
         const lineH = parseFloat(getComputedStyle(awardsTextEl).lineHeight) || 22;
@@ -1790,6 +1795,12 @@ async function initPage(){
     document.getElementById('personName').textContent   = displayName;
     document.getElementById('personNameEn').textContent = enName;
     personDisplayName = displayName; // [2026-07-20 신규]
+    // [2026-07-24 신규] 수상내역 제목에 이름 넣기 — 위키 데이터(loadWikiTest)가 이 코드보다
+    // 먼저 실행돼서 그때는 personDisplayName이 비어있었을 경우를 대비한 보정.
+    const awardsTitleElNow = document.getElementById('profileAwardsTitle');
+    if(awardsTitleElNow && awardsTitleElNow.textContent === '🏆 수상내역') {
+      awardsTitleElNow.textContent = `🏆 ${displayName} 수상내역`;
+    }
 
     /* ③ 프로필 사진 */
     if(data.profile_path){
@@ -2070,6 +2081,9 @@ async function initPage(){
         .slice(0, document.body.classList.contains('layout-test') ? 5 : 6); // [2026-07-19] PC 2단 레이아웃은 5개만
       if(knownFor.length){
         document.getElementById('knownForSection').style.display = 'block';
+        // [2026-07-24 신규] SEO 목적 — 구글 등 검색엔진이 "OO 대표작"처럼 인물 이름과
+        // 섹션 제목을 함께 읽을 수 있게, 제목 앞에 인물 이름을 붙임.
+        document.getElementById('knownForTitle').textContent = `🌟 ${displayName} 대표작`;
         const knownForRow = document.getElementById('knownForRow');
         knownForRow.classList.toggle('few-items', knownFor.length <= 2); // [2026-07-11 추가]
         knownForRow.innerHTML = knownFor.map(workCardHtml).join('');
