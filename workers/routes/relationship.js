@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.3 — relationship.js (공개 조회 GET /relationship-charts/:tmdb_id 신규 — 작품페이지 노출용) */
+/* 2026-07-25 rev.4 — relationship.js (GET /admin/relationship-charts/search 신규 — 검색으로 업로드/교체/삭제용) */
 /* ══════════════════════════════════════════════════════════════
    relationship.js — 등장인물 관계도 (2026-07-25 신설)
    - 인터넷에 이미 돌고 있는 방송사/제작사 공식 관계도 이미지를 관리자가 직접 찾아서
@@ -16,6 +16,11 @@
        (주의: works 테이블엔 popularity 컬럼이 없음 — persons 테이블에만 있음. 처음에
         w.popularity로 잘못 짰다가 SQLITE_ERROR로 발견해서 위 기준으로 수정함, 2026-07-25)
      - ?page=1부터 시작, ?limit=10 기본값.
+
+   GET /admin/relationship-charts/search          ← 2026-07-25 신규
+     - ?q= 필수(제목 또는 tmdb_id). candidates와 달리 이미 관계도가 있는 작품도 결과에 포함되며,
+       has_chart/image_url을 같이 반환해서 프론트에서 "교체/삭제" 버튼을 보여줄 수 있게 함.
+       (업로드/삭제 자체는 아래 PUT/DELETE 엔드포인트를 그대로 재사용 — 업로드가 곧 교체임)
 
    PUT /admin/relationship-charts/:tmdb_id/upload
      - 관계도 이미지를 R2(ottrank-images 버킷)에 업로드하고, relationship_charts에
@@ -102,6 +107,58 @@ export async function handleRelationship(path, request, env, url, headers) {
       }));
 
       return new Response(JSON.stringify({ ok: true, items, page, limit, has_more: hasMore }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/relationship-charts/search ───────────────────────
+  // [2026-07-25 신규] 이미 등록된 관계도를 수정/삭제하거나, 특정 작품을 직접 찾아서
+  // 업로드하고 싶을 때 쓰는 검색. candidates와 달리 이미 관계도가 있는 작품도 결과에 포함됨
+  // (있으면 has_chart:true + 기존 image_url을 같이 줘서, 프론트에서 "교체/삭제" 버튼을 보여줄 수 있게 함).
+  if (path === "/admin/relationship-charts/search" && request.method === "GET") {
+    const isAuthed = await _checkAuth(request, env);
+    if (!isAuthed) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
+      }
+      const isNumeric = /^\d+$/.test(q);
+
+      const sql = isNumeric
+        ? `SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
+                  rc.image_url, rc.status
+           FROM works w
+           LEFT JOIN relationship_charts rc
+             ON rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
+           WHERE w.tmdb_id = ?
+           LIMIT 10`
+        : `SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
+                  rc.image_url, rc.status
+           FROM works w
+           LEFT JOIN relationship_charts rc
+             ON rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
+           WHERE w.title_ko LIKE ? OR w.title_en LIKE ?
+           ORDER BY (w.original_language = 'ko') DESC, w.first_matched_date DESC
+           LIMIT 10`;
+
+      const { results } = isNumeric
+        ? await env.DB.prepare(sql).bind(parseInt(q, 10)).all()
+        : await env.DB.prepare(sql).bind(`%${q}%`, `%${q}%`).all();
+
+      const items = results.map(r => ({
+        tmdb_id: r.tmdb_id,
+        title: r.title_ko || r.title_en,
+        media_type: r.media_type,
+        poster_path: r.poster_path,
+        has_chart: !!(r.image_url && r.status === "approved"),
+        image_url: r.image_url || null,
+      }));
+
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
