@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.1 — admin_keywords.html ("관계도 매칭" 탭 신규 — 공식 인물관계도 이미지 구글검색+업로드) -->
+<!-- 2026-07-25 rev.2 — admin_keywords.html (관계도 매칭 탭에 "검색으로 업로드·교체·삭제" 서브섹션 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -624,6 +624,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div style="display:flex;justify-content:center;gap:8px;padding:20px 0">
       <button class="btn-secondary" id="rcPrevBtn" onclick="rcPrevPage()" style="padding:6px 18px">← 이전</button>
       <button class="btn-secondary" id="rcNextBtn" onclick="rcNextPage()" style="padding:6px 18px">다음 10개 →</button>
+    </div>
+
+    <!-- 검색으로 업로드/교체/삭제 (2026-07-25 신규) -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:20px">
+      <h3 style="margin-bottom:6px;font-size:15px">🔍 작품 검색으로 업로드 · 교체 · 삭제</h3>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        위 목록에 없는 특정 작품을 직접 찾거나, 이미 올린 관계도가 잘못됐을 때 교체·삭제할 때 써요.
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input class="form-input" id="rcSearchInput" type="text" placeholder="작품 제목 또는 tmdb_id" style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')rcSearch()">
+        <button class="btn-crawl" onclick="rcSearch()" style="padding:10px 20px;font-size:13px">🔍 검색</button>
+      </div>
+      <div id="rcSearchEmpty" style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center;display:none">검색 결과가 없어요</div>
+      <div id="rcSearchList"></div>
     </div>
 
   </div>
@@ -3477,6 +3491,100 @@ async function rcUploadFile(inputEl, tmdbId, mediaType){
   }catch(e){
     showToast(`❌ 업로드 실패: ${e.message}`);
     if(rowEl) rowEl.style.opacity = '1';
+  }
+}
+
+/* ── 검색으로 업로드/교체/삭제 (2026-07-25 신규) ── */
+async function rcSearch(){
+  const q = document.getElementById('rcSearchInput').value.trim();
+  const listEl  = document.getElementById('rcSearchList');
+  const emptyEl = document.getElementById('rcSearchEmpty');
+  if(!q){ showToast('⚠️ 작품 제목 또는 tmdb_id를 입력해주세요'); return; }
+
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0">검색 중...</div>';
+  emptyEl.style.display = 'none';
+
+  try{
+    const res  = await fetch(`${API}/admin/relationship-charts/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    if(!data.items || !data.items.length){
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+    rcSearchRenderList(data.items);
+  }catch(e){
+    listEl.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0">검색 실패: ${e.message}</div>`;
+  }
+}
+
+function rcSearchRenderList(items){
+  const listEl = document.getElementById('rcSearchList');
+  listEl.innerHTML = items.map(it => `
+    <div id="rcSearchRow-${it.tmdb_id}-${it.media_type}" style="display:flex;align-items:center;gap:14px;padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:8px">
+      <img src="https://poster.ottrank.kr/tmdb-img/w92${it.poster_path||''}" onerror="this.style.visibility='hidden'"
+        style="width:40px;height:56px;border-radius:4px;object-fit:cover;background:var(--bg2);flex-shrink:0">
+      <div style="flex:1;min-width:0;font-size:13px;color:var(--text)">${escapeAttrPm(it.title || '(제목없음)')}</div>
+      ${it.has_chart ? `
+        <img src="${it.image_url}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;border:1px solid var(--border2)" title="현재 등록된 이미지">
+        <label style="padding:6px 14px;white-space:nowrap;font-size:12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted2)">
+          🔄 새 파일로 교체
+          <input type="file" accept="image/*" style="display:none" onchange="rcSearchUploadFile(this, ${it.tmdb_id}, '${it.media_type}')">
+        </label>
+        <button class="btn-secondary" onclick="rcDeleteChart(${it.tmdb_id}, '${it.media_type}')" style="padding:6px 14px;white-space:nowrap;font-size:12px;color:var(--red)">🗑 삭제</button>
+      ` : `
+        <label style="padding:6px 14px;white-space:nowrap;font-size:12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted2)">
+          📁 파일 선택
+          <input type="file" accept="image/*" style="display:none" onchange="rcSearchUploadFile(this, ${it.tmdb_id}, '${it.media_type}')">
+        </label>
+      `}
+    </div>
+  `).join('');
+}
+
+async function rcSearchUploadFile(inputEl, tmdbId, mediaType){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  const rowEl = document.getElementById(`rcSearchRow-${tmdbId}-${mediaType}`);
+  if(rowEl) rowEl.style.opacity = '.5';
+  try{
+    const res = await fetch(`${API}/admin/relationship-charts/${tmdbId}/upload?media_type=${mediaType}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'image/jpeg',
+        Authorization: `Bearer ${ADMIN_SECRET}`,
+      },
+      body: file,
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    showToast('✅ 업로드 완료');
+    rcSearch(); // 최신 상태로 다시 검색해서 미리보기 갱신
+  }catch(e){
+    showToast(`❌ 업로드 실패: ${e.message}`);
+    if(rowEl) rowEl.style.opacity = '1';
+  }
+}
+
+async function rcDeleteChart(tmdbId, mediaType){
+  if(!confirm('이 작품의 관계도 이미지를 삭제할까요?')) return;
+  try{
+    const res = await fetch(`${API}/admin/relationship-charts/${tmdbId}?media_type=${mediaType}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    showToast('✅ 삭제 완료');
+    rcSearch(); // 최신 상태로 다시 검색해서 갱신
+  }catch(e){
+    showToast(`❌ 삭제 실패: ${e.message}`);
   }
 }
 </script>
