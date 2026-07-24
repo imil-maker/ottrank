@@ -1,4 +1,4 @@
-// 2026-07-24 rev.12 — admin.js (기존에 저장된 AI 프로필의 <cite> 태그 일회성 정리 배치: POST /admin/persons/cleanup-cite-tags 신규, person_wiki_cache(source='ai')+person_ai_pending 양쪽 대상)
+// 2026-07-24 rev.13 — admin.js (비용 절감: AI 조사 전 무료 위키 사전확인 신규(못 찾으면 AI 호출 자체 스킵, wiki-recheck-step으로 재시도), max_uses 6→4 기본값+인기도별 차등(2~5), 수상내역 과잉검색 지시 완화)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -80,6 +80,7 @@
    GET    /admin/persons/ai-confirmed-list    ← AI 파이프라인으로 저장된 인물 목록, 20명씩(2026-07-24 신설)
    GET    /admin/persons/ai-pending-list      ← 미확정(uncertain/필모부족) 인물 목록, 20명씩(2026-07-24 신설)
    POST   /admin/persons/cleanup-cite-tags    ← 저장된 AI 프로필에서 &lt;cite&gt; 태그 정리, 20개씩 반복(2026-07-24 신설)
+   POST   /admin/persons/wiki-recheck-step    ← 위키 미확인(wiki_unmatched) 1명 재검색, 찾으면 AI 조사(2026-07-24 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
@@ -4376,7 +4377,7 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
     try {
       const candidate = await env.DB.prepare(`
-        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday
+        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday, p.popularity
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
         WHERE p.has_korean_name = 1
@@ -4426,7 +4427,38 @@ export async function handleAdmin(path, request, env, url, headers) {
         }), { headers });
       }
 
-      const draft = await _generatePersonProfileDraft(candidate, env);
+      // [2026-07-24 신규] 무료 위키 사전확인 — 비싼 AI 조사를 시작하기 전에, 이 사람과
+      // 일치하는 위키백과 문서가 있는지부터 먼저 확인. 못 찾으면 AI 호출 자체를 안 하고
+      // "위키 미확인"으로 보류(비용 0원) — 나중에 "위키 미확인 재검색"으로 다시 시도 가능.
+      // (AI가 조사해도 위키에도 없는 사람은 결국 비슷하게 애매한 결과가 나올 확률이 높다는
+      // 관리자 판단 — 어차피 비슷한 결과라면 무료 단계에서 먼저 걸러서 비용을 아끼는 게 나음)
+      const displayNameForWiki = candidate.name_ko || candidate.name;
+      const wikiBirthYear = (candidate.birthday && /^\d{4}/.test(candidate.birthday)) ? candidate.birthday.slice(0, 4) : "";
+      const wiki = await _checkWikiMatch(displayNameForWiki, wikiBirthYear, env);
+
+      if (!wiki.matched) {
+        await env.DB.prepare(`
+          INSERT INTO person_ai_pending (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, reason, detail)
+          VALUES (?, '', '', '', '', '', 'wiki_unmatched', '위키백과에서 일치하는 문서를 찾지 못함 — 재검색으로 다시 시도 가능')
+          ON CONFLICT(tmdb_person_id) DO UPDATE SET reason = excluded.reason, detail = excluded.detail, created_at = datetime('now')
+        `).bind(candidate.tmdb_id).run();
+        await env.DB.prepare(
+          `UPDATE persons SET ai_profile_checked_at = datetime('now') WHERE tmdb_id = ?`
+        ).bind(candidate.tmdb_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: candidate.tmdb_id, name: displayName },
+          result: "skipped", reason: "wiki_unmatched",
+        }), { headers });
+      }
+
+      // [2026-07-24 신규] 인기도별 검색 횟수 차등 — 인기 낮은 인물은 자료 자체가 적어서
+      // 검색을 많이 해도 못 찾을 확률이 높으니, max_uses를 낮게 줘서 비용 절약.
+      const maxUses = candidate.popularity >= 10 ? 5 : candidate.popularity >= 3 ? 3 : 2;
+
+      const draft = await _generatePersonProfileDraft(candidate, env, {
+        wikiConfirmed: true, wikiSummary: wiki.wikiSummary, maxUses,
+      });
       if (!draft.ok) {
         // [2026-07-24 수정] "AI 응답 파싱 실패"는 그 사람 데이터가 이상했던 것뿐이지 시스템
         // 전체에 문제가 생긴 게 아니므로, 루프를 멈추지 않고 그 사람만 미확정으로 보내고
@@ -4626,6 +4658,101 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       return new Response(JSON.stringify({
         ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/wiki-recheck-step ───────────────────────
+  // [2026-07-24 신규] "미확정" 탭의 "🔄 위키 미확인 재검색" 버튼용 — reason='wiki_unmatched'로
+  // 쌓인 사람 1명을 골라 위키를 무료로 다시 검색. 이번엔 찾아지면 그제서야 AI(비용 발생)로
+  // 넘겨서 실제 조사. 여전히 못 찾으면 created_at만 갱신해서 대기열 맨 뒤로 보냄 — 프론트가
+  // "이번 회차에 이미 본 tmdb_id"를 기억해뒀다가 한 바퀴(중복 발견) 돌면 스스로 멈추는 방식.
+  if (path === "/admin/persons/wiki-recheck-step" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const row = await env.DB.prepare(`
+        SELECT q.tmdb_person_id, p.name, p.name_ko, p.job, p.birthday, p.popularity
+        FROM person_ai_pending q
+        JOIN persons p ON p.tmdb_id = q.tmdb_person_id
+        WHERE q.reason = 'wiki_unmatched'
+        ORDER BY q.created_at ASC
+        LIMIT 1
+      `).first();
+
+      if (!row) {
+        return new Response(JSON.stringify({ ok: true, done: true }), { headers });
+      }
+
+      const displayName = row.name_ko || row.name;
+      const wikiBirthYear = (row.birthday && /^\d{4}/.test(row.birthday)) ? row.birthday.slice(0, 4) : "";
+      const wiki = await _checkWikiMatch(displayName, wikiBirthYear, env);
+
+      if (!wiki.matched) {
+        // 여전히 못 찾음 — created_at 갱신해서 대기열 맨 뒤로(이번 회차 반복 방지용)
+        await env.DB.prepare(
+          `UPDATE person_ai_pending SET created_at = datetime('now') WHERE tmdb_person_id = ?`
+        ).bind(row.tmdb_person_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: row.tmdb_person_id, name: displayName },
+          result: "still_unmatched",
+        }), { headers });
+      }
+
+      // 위키에서 찾음 — 이제 AI 조사(비용 발생)
+      const person = { tmdb_id: row.tmdb_person_id, name: row.name, name_ko: row.name_ko, job: row.job, birthday: row.birthday };
+      const maxUses = row.popularity >= 10 ? 5 : row.popularity >= 3 ? 3 : 2;
+      const draft = await _generatePersonProfileDraft(person, env, {
+        wikiConfirmed: true, wikiSummary: wiki.wikiSummary, maxUses,
+      });
+
+      if (!draft.ok) {
+        const isParseFailure = draft.message && draft.message.includes("파싱 실패");
+        if (isParseFailure) {
+          await env.DB.prepare(`
+            UPDATE person_ai_pending SET reason = 'parse_failed', detail = 'AI 응답 형식 오류로 처리하지 못함 — "프로필 생성" 탭에서 다시 시도해보세요', created_at = datetime('now')
+            WHERE tmdb_person_id = ?
+          `).bind(row.tmdb_person_id).run();
+          return new Response(JSON.stringify({
+            ok: true, done: false,
+            person: { tmdb_id: row.tmdb_person_id, name: displayName },
+            result: "skipped", reason: "parse_failed",
+          }), { headers });
+        }
+        return new Response(JSON.stringify({ ok: false, message: draft.message }), { status: draft.status || 500, headers });
+      }
+
+      if (draft.match === "confirmed") {
+        await env.DB.prepare(`
+          INSERT INTO person_wiki_cache (tmdb_person_id, bio_summary, education, awards_text, debut_work, debut_year, source, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'ai', datetime('now'))
+          ON CONFLICT(tmdb_person_id) DO UPDATE SET
+            bio_summary = excluded.bio_summary, education = excluded.education,
+            awards_text = excluded.awards_text, debut_work = excluded.debut_work,
+            debut_year = excluded.debut_year, source = excluded.source, updated_at = excluded.updated_at
+        `).bind(row.tmdb_person_id, draft.bio_summary, draft.education, draft.awards_text, draft.debut_work, draft.debut_year).run();
+        await env.DB.prepare(`DELETE FROM person_ai_pending WHERE tmdb_person_id = ?`).bind(row.tmdb_person_id).run();
+      } else {
+        await env.DB.prepare(`
+          UPDATE person_ai_pending SET
+            bio_summary = ?, education = ?, awards_text = ?, debut_work = ?, debut_year = ?,
+            reason = 'ai_uncertain', detail = ?, created_at = datetime('now')
+          WHERE tmdb_person_id = ?
+        `).bind(draft.bio_summary, draft.education, draft.awards_text, draft.debut_work, draft.debut_year, draft.uncertain_reason || "", row.tmdb_person_id).run();
+      }
+
+      await env.DB.prepare(
+        `UPDATE persons SET ai_profile_checked_at = datetime('now') WHERE tmdb_id = ?`
+      ).bind(row.tmdb_person_id).run();
+
+      return new Response(JSON.stringify({
+        ok: true, done: false,
+        person: { tmdb_id: row.tmdb_person_id, name: displayName },
+        result: draft.match, // 'confirmed' | 'uncertain'
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
@@ -5392,7 +5519,73 @@ function _sanitizeJsonString(text) {
   return result;
 }
 
-async function _generatePersonProfileDraft(person, env) {
+// [2026-07-24 신규] 무료 위키 사전확인 헬퍼 — "프로필 자동 생성"이 비싼 AI 조사를 시작하기
+// 전에, 이 사람과 일치하는 위키백과 문서가 있는지만 먼저(무료로) 확인하는 용도.
+// POST /admin/persons/wiki-match-attempt의 검색+생년대조 로직을 그대로 축약해서 재사용 —
+// 다만 여긴 수상내역/전체이력 같은 무거운 파싱은 안 하고 "일치하는 문서가 있는지 + 짧은
+// 요약"만 돌려줌(AI 프롬프트에 신원 확인 근거로 살짝 얹어주는 용도).
+// 반환: { matched: true/false, wikiTitle, wikiSummary }
+async function _checkWikiMatch(displayName, tmdbYear, env) {
+  const WIKI_UA = { "User-Agent": "OttrankBot/1.0 (https://ottrank.kr; 오뜨랑 인물 위키매칭)" };
+  try {
+    const searchRes = await fetch(
+      `https://ko.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(displayName)}&limit=5&namespace=0&format=json`,
+      { headers: WIKI_UA }
+    );
+    if (!searchRes.ok) return { matched: false };
+    const searchData = await searchRes.json();
+    const titles = searchData[1] || [];
+    const urls   = searchData[3] || [];
+
+    const disambigTitle = `${displayName} (배우)`;
+    if (!titles.includes(disambigTitle)) {
+      titles.unshift(disambigTitle);
+      urls.unshift(`https://ko.wikipedia.org/wiki/${encodeURIComponent(disambigTitle.replace(/ /g, "_"))}`);
+    }
+
+    const CURRENT_YEAR = new Date().getFullYear();
+    const isPlausibleYear = (y) => { const n = parseInt(y, 10); return n >= 1900 && n <= CURRENT_YEAR; };
+    const extractBirthYear = (text) => {
+      const parenMatch = text.match(/\(([^)]{0,80})\)/);
+      if (parenMatch) {
+        const y = parenMatch[1].match(/(\d{4})년/);
+        if (y && isPlausibleYear(y[1])) return y[1];
+      }
+      const loose = text.match(/(\d{4})년/);
+      if (loose && isPlausibleYear(loose[1])) return loose[1];
+      return null;
+    };
+
+    for (let i = 0; i < titles.length; i++) {
+      const title = titles[i];
+      const extractRes = await fetch(
+        `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json`,
+        { headers: WIKI_UA }
+      );
+      if (!extractRes.ok) continue;
+      const extractData = await extractRes.json();
+      const pages   = (extractData.query && extractData.query.pages) || {};
+      const pageObj = Object.values(pages)[0];
+      const extract = (pageObj && pageObj.extract) || "";
+      const pageMissing = !pageObj || ("missing" in pageObj) || !extract;
+      if (pageMissing) continue;
+
+      const wikiYear = extractBirthYear(extract);
+      const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
+      const isYearConflict = tmdbYear && wikiYear && tmdbYear !== wikiYear;
+      const isDisambigPageExists = title === disambigTitle && !pageMissing;
+      if (isYearConflict) continue; // 생년이 다르다고 확인되면 이 후보는 확실히 제외
+      if (isYearMatch || (isDisambigPageExists && !tmdbYear)) {
+        return { matched: true, wikiTitle: title, wikiSummary: extract.slice(0, 200) };
+      }
+    }
+    return { matched: false };
+  } catch (e) {
+    return { matched: false };
+  }
+}
+
+async function _generatePersonProfileDraft(person, env, opts = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     return { ok: false, status: 500, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다" };
   }
@@ -5408,6 +5601,14 @@ async function _generatePersonProfileDraft(person, env) {
       birthYear = person.birthday.slice(0, 4);
     }
     const identifierText = birthYear ? ` (${birthYear}년생)` : "";
+
+    // [2026-07-24 신규] "프로필 자동 생성"이 AI 호출 전에 무료 위키 사전확인을 거치도록
+    // 바뀌면서, 위키에서 이미 신원이 확인된 경우 그 근거를 프롬프트에 같이 넘겨줌 —
+    // AI 입장에서 동명이인 걱정을 덜 하게 되어 불필요하게 uncertain으로 빠지는 비율을
+    // 줄이는 효과(어차피 AI 조사 비용은 이미 쓴 뒤라, 확정 저장으로 이어질 확률을 높이는 게 중요).
+    const wikiConfirmText = opts.wikiConfirmed
+      ? `\n참고: 위키백과에서 이 조건과 일치하는 문서가 이미 확인됐다(${opts.wikiSummary ? opts.wikiSummary.slice(0, 150) : ""}). 이 정보를 신원 확인의 근거로 활용해라.`
+      : "";
 
       const systemPrompt =
         "너는 한국 OTT 서비스에 등록할 배우/감독 인물 정보를 조사하는 리서처다. " +
@@ -5515,12 +5716,13 @@ async function _generatePersonProfileDraft(person, env) {
         "인물 이름으로 시작하는가, (2) 마지막 문장에 평가 또는 기대감이 담겨 있는가, (3) 실제로 " +
         "확인된 정보량에 비해 분량이 너무 짧지는 않은가(반대로 확인 안 된 내용을 지어내서 " +
         "억지로 늘리지는 않았는가). 셋 중 하나라도 아니면 그 부분을 고쳐서 다시 써라. " +
-        // [2026-07-24 수정] 수상내역 형식 강제("연도 시상식명 부문(작품명)") 제거 → 찾은 그대로 자유형식.
-        // 국내 시상식 위주로만 찾고 국제 영화제를 놓치는 사례가 확인되어 명시적으로 강조.
-        "수상내역(awards)은 검색으로 확인되는 것을 최대한 빠짐없이 모아라. 한두 개만 찾고 멈추지 " +
-        "말고 여러 차례 검색해서 이 인물이 받은 상을 가능한 한 많이 찾아라. **국내 시상식뿐 " +
-        "아니라 칸·베를린·베니스영화제, 아카데미상 같은 국제 영화제 수상 여부도 반드시 별도로 " +
-        "검색해서 확인해라** — 국내 시상식만 찾고 끝내지 마라. 형식을 억지로 통일하지 " +
+        // [2026-07-24 비용절감 수정] "여러 차례 검색해서 최대한 많이/국제영화제도 별도로
+        // 검색해라"는 지시가 AI의 검색 횟수를 실제로 늘려서 비용이 커진 원인 중 하나로
+        // 확인됨(관리자 지적). 검색 예산(max_uses)이 제한적이니, 수상내역만 따로 여러 번
+        // 검색하지 말고 프로필/학력/데뷔작 조사 과정에서 자연스럽게 확인되는 선에서 정리하도록 완화.
+        "수상내역(awards)은 검색 예산이 제한적이니, 이것만 따로 여러 번 검색하지 말고 " +
+        "프로필/학력/데뷔작을 조사하는 과정에서 자연스럽게 확인되는 수상 정보를 정리하는 " +
+        "정도로 충분하다. 형식을 억지로 통일하지 " +
         "말고 검색으로 확인된 그대로 적어라(작품명이 확인 안 되면 작품명 없이 적어도 된다). 각 " +
         "수상 내역은 한 줄에 하나씩 줄바꿈(\\n)으로 구분해라. 확인 안 된 항목은 절대 지어내지 " +
         "말고 실제 검색으로 찾은 것만 적어라. " +
@@ -5529,7 +5731,7 @@ async function _generatePersonProfileDraft(person, env) {
         "출처 표시나 <cite> 같은 인용 태그, 각주 번호도 절대 포함하지 말고 순수한 문장만 적어라. " +
         '출력 형식: {"match":"confirmed 또는 uncertain","uncertain_reason":"...", "profile":"...", "education":"...", "awards":"...", "debut_work":"...", "debut_year":"..."}';
 
-      const userPrompt = `인물: ${displayName}${identifierText} — 직업: ${jobLabel}\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.`;
+      const userPrompt = `인물: ${displayName}${identifierText} — 직업: ${jobLabel}\n이 인물의 프로필/학력/수상내역/데뷔작 정보를 조사해줘.${wikiConfirmText}`;
 
       const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -5550,11 +5752,12 @@ async function _generatePersonProfileDraft(person, env) {
             { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
           ],
           messages: [{ role: "user", content: userPrompt }],
-          // [2026-07-24 신규] max_uses로 검색 횟수 상한 — 정보가 많은 유명인일수록 검색을
-          // 과도하게 반복해서 비용이 튀는 것을 방지(관리자 요청으로 비용 절감 조치 추가).
+          // [2026-07-24 수정] max_uses 기본값 6 → 4로 하향(비용 절감 요청). 인기도별로
+          // 다르게 주고 싶으면 호출부(ai-auto-step)에서 opts.maxUses로 지정 — 인기 낮은
+          // 인물(어차피 자료 없을 확률 높음)은 더 낮게, 인기 높은 인물만 넉넉하게.
           tools: [{
             type: "web_search_20250305", name: "web_search",
-            max_uses: 6, cache_control: { type: "ephemeral" },
+            max_uses: opts.maxUses || 4, cache_control: { type: "ephemeral" },
           }],
         }),
       });
