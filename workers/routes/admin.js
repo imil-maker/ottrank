@@ -1,4 +1,4 @@
-// 2026-07-24 rev.13 — admin.js (비용 절감: AI 조사 전 무료 위키 사전확인 신규(못 찾으면 AI 호출 자체 스킵, wiki-recheck-step으로 재시도), max_uses 6→4 기본값+인기도별 차등(2~5), 수상내역 과잉검색 지시 완화)
+// 2026-07-25 rev.1 — admin.js (POST /admin/works/backfill-overview 신규 — 줄거리 백필, backfill-rating과 동일 패턴 + '__NONE__' 센티널)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -86,6 +86,7 @@
    POST   /admin/works/backfill-language
    POST   /admin/works/backfill-release-year
    POST   /admin/works/backfill-rating
+   POST   /admin/works/backfill-overview   ← 줄거리(overview) 백필, backfill-rating과 동일 패턴(2026-07-25 신설)
    POST   /admin/works/batch-imdb-search   ← IMDb 매칭 배치 (OMDB 제목검색)
    POST   /admin/works/imdb-manual         ← IMDb 평점 수동 입력 (OMDB 반영 지연 대응)
    GET    /admin/works/missing-media-type
@@ -5036,6 +5037,77 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const remainRow = await env.DB.prepare(
         "SELECT COUNT(*) as cnt FROM works WHERE tmdb_rating IS NULL AND rating_updated_at IS NULL"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/backfill-overview ───────────────────────
+  // overview(줄거리)가 비어있는 작품에 TMDB 줄거리를 채워넣음
+  // (backfill-language / backfill-release-year / backfill-rating과 동일한 배치+반복 패턴)
+  // 계기: _title_detail.html 작품페이지는 방문 시 TMDB에 실시간으로 물어봐서 화면에
+  //       채우고 있어서 관리자 눈엔 안 보였지만, D1 works.overview 자체는 전체 4923개 중
+  //       3233개(65%+)가 비어있던 걸 발견함 — 봇용 SSR(functions/title/[slug].js)이
+  //       D1만 보고 응답하기 때문에 이 사본이 비어있으면 봇에게 빈 줄거리가 노출됨.
+  //
+  // 센티널 값 사용 이유: overview는 TEXT 컬럼이라 release_year(정수)처럼 숫자 센티널을
+  // 못 쓰지만, 원어 정보(original_language='unknown')·키워드('__NONE__')와 같은 원칙으로
+  // "TMDB에도 줄거리가 없었다"는 걸 '__NONE__' 문자열로 저장해 무한 재시도를 막음.
+  // ('__NONE__'은 NULL도 빈 문자열도 아니라서 WHERE 조건에서 자동으로 재대상 제외됨)
+  if (path === "/admin/works/backfill-overview" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 30, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE overview IS NULL OR overview = ''
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: 0, message: "채울 작품 없음"
+        }), { headers });
+      }
+
+      const updates = [];
+      let filled = 0;
+
+      for (const row of targets) {
+        const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
+        let overview = null;
+
+        for (const mtype of mtypes) {
+          try {
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+            );
+            if (!resp.ok) continue;
+            const data = await resp.json();
+            const ov = (data.overview || "").trim();
+            if (ov) { overview = ov; break; }
+          } catch (e) { /* 다음 media_type으로 계속 시도 */ }
+        }
+
+        updates.push(
+          env.DB.prepare("UPDATE works SET overview = ? WHERE tmdb_id = ?")
+            .bind(overview || "__NONE__", row.tmdb_id)
+        );
+        if (overview) filled++;
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE overview IS NULL OR overview = ''"
       ).first();
 
       return new Response(JSON.stringify({
