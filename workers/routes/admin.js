@@ -1,4 +1,4 @@
-// 2026-07-25 rev.1 — admin.js (POST /admin/works/backfill-overview 신규 — 줄거리 백필, backfill-rating과 동일 패턴 + '__NONE__' 센티널)
+// 2026-07-25 rev.2 — admin.js (POST /admin/persons/add-manual 신규 — TMDB ID로 인물 1명 수동 추가)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -82,6 +82,7 @@
    POST   /admin/persons/cleanup-cite-tags    ← 저장된 AI 프로필에서 &lt;cite&gt; 태그 정리, 20개씩 반복(2026-07-24 신설)
    POST   /admin/persons/wiki-recheck-step    ← 위키 미확인(wiki_unmatched) 1명 재검색, 찾으면 AI 조사(2026-07-24 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
+   POST   /admin/persons/add-manual    ← TMDB ID로 인물 1명 수동 추가(2026-07-25 신설)
    DELETE /admin/persons/:tmdb_id      ← 인물 삭제(2026-07-12 신설)
    POST   /admin/works/backfill-language
    POST   /admin/works/backfill-release-year
@@ -4127,6 +4128,51 @@ export async function handleAdmin(path, request, env, url, headers) {
         ORDER BY p.name LIMIT 30
       `).bind(`%${q}%`, `%${q}%`).all();
       return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/add-manual ────────────────────────────
+  // [2026-07-25 신규] "프로필 생성" 탭에서 이름 검색 결과가 없을 때, TMDB 인물 ID를
+  // 직접 입력해서 persons에 추가하는 기능. 기존 자동수집(/admin/persons/collect)이
+  // 작품 크레딧 상위 15명만 훑기 때문에, 그 밖의 조연(예: 관계도에는 꼭 필요한 인물)은
+  // persons에 아예 없는 경우가 있어서 만듦 — 그런 인물을 즉시 1명만 추가하는 용도.
+  if (path === "/admin/persons/add-manual" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body   = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id, 10);
+      if (!tmdbId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+
+      const resp = await fetch(
+        `https://api.themoviedb.org/3/person/${tmdbId}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+      );
+      if (!resp.ok) {
+        return new Response(JSON.stringify({ ok: false, message: "TMDB에서 이 ID를 찾을 수 없어요" }), { status: 404, headers });
+      }
+      const data = await resp.json();
+      const name = data.name || "";
+      if (!name) {
+        return new Response(JSON.stringify({ ok: false, message: "TMDB 응답에 이름이 없어요" }), { status: 400, headers });
+      }
+      // 이름에 한글이 포함돼 있으면(한국 배우는 TMDB name 필드 자체가 한글인 경우가 많음)
+      // name_ko도 같이 채움 — 없으면 비워두고 다른 백필 배치가 나중에 채우게 둠
+      const nameKo = /[가-힣]/.test(name) ? name : null;
+
+      await env.DB.prepare(
+        `INSERT INTO persons (tmdb_id, name, name_ko, job, gender, popularity, profile_path)
+         VALUES (?, ?, ?, 'act', ?, ?, ?)
+         ON CONFLICT(tmdb_id) DO NOTHING`
+      ).bind(tmdbId, name, nameKo, data.gender ?? null, data.popularity ?? null, data.profile_path || null).run();
+
+      return new Response(JSON.stringify({
+        ok: true, person: { tmdb_id: tmdbId, name, name_ko: nameKo },
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
