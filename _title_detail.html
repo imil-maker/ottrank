@@ -1,4 +1,4 @@
-<!-- 2026-07-25 rev.4 — _title_detail.html (관계도 박스 로딩 순서를 맨 앞으로 당김 — 다른 데이터 다 끝날 때까지 기다리지 않고 즉시 시작) -->
+<!-- 2026-07-25 rev.5 — _title_detail.html (추천바/리뷰/영상 등이 순위·플랫폼 로딩을 불필요하게 기다리던 구조 수정 — loadWatchProviders만 분리, 나머지는 즉시 병렬 시작) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -385,7 +385,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .relchart-section{margin-bottom:28px}
 .relchart-toggle-btn{
   width:100%;display:flex;align-items:center;justify-content:space-between;
-  padding:14px 18px;border-radius:var(--r-lg);border:.5px solid rgba(255,255,255,0.30);
+  padding:14px 18px;border-radius:var(--r-lg);border:.5px solid rgba(255,255,255,0.40);
   background:var(--bg2);color:var(--text);font-size:15px;font-weight:600;
   font-family:var(--font-sans);cursor:pointer;transition:background .15s;
 }
@@ -4502,16 +4502,19 @@ async function init(){
   if(WORK.tmdb_id){
     loadRelationshipChart(); // [2026-07-25 수정] 다른 로딩을 기다릴 필요 없어서 맨 앞에서 바로 fire-and-forget 시작
 
-    // 1단계: loadTop10Days(WORK_CATEGORY_SLOT 세팅) + loadPlatforms(WORK_PLATFORMS 세팅) 병렬 완료
-    // loadWatchProviders는 두 값이 모두 필요하므로 반드시 이후에 실행
-    await Promise.all([
-      loadTop10Days(),    // → WORK_CATEGORY_SLOT 세팅
-      loadPlatforms(),    // → WORK_PLATFORMS 세팅
-    ]);
+    // [2026-07-25 수정] 순위(WORK_CATEGORY_SLOT)/플랫폼(WORK_PLATFORMS) 정보가 실제로 필요한 건
+    // loadWatchProviders 하나뿐인데, 그동안 추천바/리뷰/영상/뱃지까지 전부 이 둘이 끝날 때까지
+    // 불필요하게 대기하고 있었음 — loadWatchProviders 체인만 따로 분리하고, 나머지는 처음부터 같이 시작.
+    const watchProvidersChain = (async()=>{
+      await Promise.all([
+        loadTop10Days(),    // → WORK_CATEGORY_SLOT 세팅
+        loadPlatforms(),    // → WORK_PLATFORMS 세팅
+      ]);
+      await loadWatchProviders(); // Priority 1(랭킹) + 2(쿠팡) + 3(Watch Providers)
+    })();
 
-    // 2단계: 나머지 병렬 실행 (loadWatchProviders는 위 두 값이 준비된 후 실행)
     await Promise.all([
-      loadWatchProviders(),   // Priority 1(랭킹) + 2(쿠팡) + 3(Watch Providers)
+      watchProvidersChain,
       loadManualBadges(),
       loadReviews(WORK.tmdb_id),
       loadTitleVideos(),
