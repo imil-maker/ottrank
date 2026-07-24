@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.1 — relationship.js (등장인물 관계도 — 공식 이미지 업로드 방식, 신규 파일) */
+/* 2026-07-25 rev.2 — relationship.js (후보 정렬 기준 수정: 랭킹 우선 → 한국작품 우선 → 최근등록순, popularity/tmdb_rating 미사용) */
 /* ══════════════════════════════════════════════════════════════
    relationship.js — 등장인물 관계도 (2026-07-25 신설)
    - 인터넷에 이미 돌고 있는 방송사/제작사 공식 관계도 이미지를 관리자가 직접 찾아서
@@ -8,7 +8,10 @@
    GET /admin/relationship-charts/candidates
      - 아직 관계도(relationship_charts 행)가 없는 작품을 10개씩 조회.
      - 정렬: ① 지금 HOT100(hot100_scores)에 있는 작품 먼저(순위 높은 순),
-             ② 그 다음 나머지는 인기도(works.popularity) 내림차순.
+             ② 랭킹 없는 작품 중에서는 한국 작품(original_language='ko') 먼저,
+             ③ 그 안에서는 최근 등록순(first_matched_date DESC).
+       (주의: works 테이블엔 popularity 컬럼이 없음 — persons 테이블에만 있음. 처음에
+        w.popularity로 잘못 짰다가 SQLITE_ERROR로 발견해서 위 기준으로 수정함, 2026-07-25)
      - ?page=1부터 시작, ?limit=10 기본값.
 
    PUT /admin/relationship-charts/:tmdb_id/upload
@@ -43,7 +46,7 @@ export async function handleRelationship(path, request, env, url, headers) {
       // 없는 작품은 뒤로 밀리게(랭킹 있는 작품이 항상 위) CASE로 그룹을 먼저 나눔.
       const sql = `
         SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
-               w.popularity, hs.total_score
+               w.original_language, w.first_matched_date, hs.total_score
         FROM works w
         LEFT JOIN hot100_scores hs ON hs.tmdb_id = w.tmdb_id
         WHERE NOT EXISTS (
@@ -53,7 +56,8 @@ export async function handleRelationship(path, request, env, url, headers) {
         ORDER BY
           CASE WHEN hs.total_score IS NOT NULL THEN 0 ELSE 1 END,
           hs.total_score DESC,
-          w.popularity DESC
+          CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
+          w.first_matched_date DESC
         LIMIT ? OFFSET ?
       `;
       const { results } = await env.DB.prepare(sql).bind(limit + 1, offset).all();
