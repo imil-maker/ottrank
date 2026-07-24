@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.3 — person.html (진단용: OTT 미제공 감점 0.6 → 0.1로 강화, 실제 반영 여부 확인용) -->
+<!-- 2026-07-24 rev.4 — person.html (임시 진단용: 대표작 후보 계산값(tier/hasOtt/popularity/score)을 콘솔 표로 출력 — 원인 확인 후 제거 예정) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2052,6 +2052,26 @@ async function initPage(){
         const voteCount = typeof it.vote_count === 'number' ? it.vote_count : 0;
         return ageYears >= 2 && voteCount <= 5;
       };
+
+      // [2026-07-24 임시 진단용] 대표작 후보 전체의 계산값을 콘솔에 표로 출력.
+      // F12 → Console 탭에서 "대표작 후보 계산값" 표를 찾아서, 아랑/킬러들의 쇼핑몰의
+      // hasOtt/score가 실제로 어떻게 나오는지 직접 확인 가능. 원인 확인되면 이 블록은 제거 예정.
+      console.log('[진단] 대표작 후보 계산값 — hasOtt/score 확인용');
+      console.table(
+        [...allCredits]
+          .filter(it => it.poster_path)
+          .filter(it => !isLowProfile(it))
+          .map(it => ({
+            id: it.id,
+            title: it.title || it.name,
+            media_type: it.media_type,
+            order: it.order,
+            tier: castTier(it),
+            hasOtt: hasCurrentOtt(it),
+            popularity: it.popularity,
+            score: Math.round(scoreFor(it) * 100) / 100,
+          }))
+      );
 
       const knownFor = [...allCredits]
         .filter(it => it.poster_path)
