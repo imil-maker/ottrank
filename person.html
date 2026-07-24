@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.7 — person.html (SEO: 수상내역 제목에도 인물 이름 추가 — "🏆 수상내역" → "🏆 OO 수상내역", 로딩 순서 무관하게 반영되도록 양쪽에서 보정) -->
+<!-- 2026-07-24 rev.8 — person.html (대표작 3차 수정: order 없는 배역을 무조건 tier 0으로 승격시키던 것이 예능 게스트 출연까지 대표작으로 끌어올리는 부작용 발견 — 해당 작품의 실제 출연진 목록을 다시 조회해서 진짜 캐스팅 순위로 tier 판정, 조회 실패시에만 tier 1로 안전 처리) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1991,6 +1991,32 @@ async function initPage(){
         return Array.isArray(keys) && keys.length > 0;
       };
 
+      // [2026-07-24 추가 수정] order 정보가 없는 배역을 무조건 tier 0으로 넣었더니,
+      // 예능/리얼리티 게스트 출연(원래 order 자체가 없는 경우가 많음)까지 주연급으로
+      // 같이 승격되는 부작용이 발견됨(박한별 배우 사례 — 런닝맨/정글의 법칙이 대표작 상단에 뜸).
+      // "본인 출연인지 아닌지"를 따로 추정하는 대신, 그 작품 자체의 실제 출연진 목록을
+      // TMDB에서 다시 조회해서 이 인물의 진짜 캐스팅 순위를 확인 — 예능 게스트라면
+      // 자연스럽게 한참 뒤 순위로 나오고, 킬러들의 쇼핑몰처럼 진짜 주연인데 개인 크레딧에만
+      // order가 안 찍힌 경우는 조회하면 앞쪽 순위로 확인됨. order가 이미 있는 항목은
+      // 이 조회 대상에서 제외(추가 호출 없음).
+      const missingOrderItems = allCredits.filter(
+        it => it._kind === 'act' && typeof it.order !== 'number' && it.poster_path
+      );
+      const orderLookup = {}; // `${id}_${media_type}` -> 실제 조회된 order(또는 배열 순번)
+      await Promise.all(missingOrderItems.map(async (it) => {
+        try {
+          const path = it.media_type === 'movie' ? `movie/${it.id}/credits` : `tv/${it.id}/aggregate_credits`;
+          const res = await fetch(`${TMDB_PROXY}/${path}?language=ko-KR`);
+          if(!res.ok) return;
+          const data = await res.json();
+          const castList = data.cast || [];
+          const idx = castList.findIndex(c => c.id === personId);
+          if(idx === -1) return; // 이 작품 출연진 목록에서 못 찾으면 기본값(모름) 유지
+          const found = castList[idx];
+          orderLookup[`${it.id}_${it.media_type}`] = typeof found.order === 'number' ? found.order : idx;
+        } catch(e) { /* 실패하면 기본값(모름) 유지 — 아래 castTier에서 안전하게 처리 */ }
+      }));
+
       const scoreFor = (it) => {
         const pop = it.popularity || 0;
         const charName = (it.character || '').trim().toLowerCase();
@@ -2043,13 +2069,22 @@ async function initPage(){
       // scoreFor(popularity+OTT감점) 비교 기회조차 없이 무조건 밀려나는 문제가 있었음.
       // order 정보 없음을 tier 0(주연급 후보)에 남겨서 점수 경쟁에는 참여시키되, 진짜
       // 저인지도 작품은 별도의 isLowProfile 필터(2년 이상+vote_count 5 이하)가 걸러줌.
+      // ⚠️ [2026-07-24 3차 수정] "order 없으면 무조건 tier 0"이 예능 게스트 출연까지
+      // 승격시키는 부작용이 있어, 위에서 미리 조회해둔 orderLookup(그 작품 실제 출연진
+      // 목록에서 확인한 진짜 순위)을 먼저 참고하도록 변경. 그래도 못 찾은 경우(조회
+      // 실패 등)만 안전하게 tier 1(중간)로 처리 — 예전처럼 무조건 조연 취급하되,
+      // 최소한 무조건 tier 0으로 승격되는 일은 없게 함.
       const castTier = (it) => {
         if(it._kind !== 'act') return jobLabel === '감독' ? 0 : 2;
-        const order = typeof it.order === 'number' ? it.order : null;
-        if(order === null) return 0; // order 정보 없음 — tier 0에서 점수(popularity+OTT)로 경쟁
+        let order = typeof it.order === 'number' ? it.order : null;
+        if(order === null){
+          const resolved = orderLookup[`${it.id}_${it.media_type}`];
+          order = (typeof resolved === 'number') ? resolved : null;
+        }
+        if(order === null) return 1; // 그래도 확인 안 되면 안전하게 중간 그룹
         if(order <= 2) return 0;     // 주연급
         if(order <= 6) return 1;     // 비중 있는 조연
-        return 2;                    // 단역/카메오
+        return 2;                    // 단역/카메오/예능 게스트 등
       };
 
       // [2026-07-23 신규] 저인지도 작품 제외 필터 — "공백의 얼굴들" 사례(초저예산
