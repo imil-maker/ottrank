@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.6 — admin_keywords.html ("프로필 자동 생성" 탭에 <cite> 태그 일괄 정리 버튼 추가) -->
+<!-- 2026-07-24 rev.7 — admin_keywords.html (비용 절감: 미확정 사유에 위키 미확인(wiki_unmatched) 추가, "🔄 위키 미확인 재검색" 버튼 신규(한 바퀴 돌면 자동 정지)) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -789,10 +789,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
          "프로필 생성" 탭으로 이동해서 그 사람 내용을 바로 확인/수정/저장할 수 있음. -->
     <div id="pdWrap" style="display:none">
       <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
-        💡 "프로필 자동 생성"에서 AI가 애매하다고 판단했거나, 필모그래피가 너무 적어 건너뛴
-        사람들이에요. "검토"를 누르면 "프로필 생성" 탭으로 이동해서 내용을 확인·수정하고
-        저장할 수 있어요 — 저장하면 이 목록에서 자동으로 빠져요.
+        💡 "프로필 자동 생성"에서 AI가 애매하다고 판단했거나, 필모그래피가 너무 적어 건너뛰었거나,
+        위키백과에서 아직 확인이 안 돼서 AI 호출 자체를 안 한 사람들이에요. "검토"를 누르면
+        "프로필 생성" 탭으로 이동해서 내용을 확인·수정하고 저장할 수 있어요 — 저장하면 이
+        목록에서 자동으로 빠져요.
       </div>
+
+      <!-- [2026-07-24 신규] 위키 미확인(wiki_unmatched)만 골라서 무료로 재검색 — 찾아지면
+           그제서야 AI(비용 발생)로 넘어감. "그 시점 미확인자들만" 한 바퀴 훑고 자동으로
+           멈춤(계속 안 돎) — pdRecheckSeen에 이번 회차에 이미 본 tmdb_id를 기억해뒀다가
+           같은 사람이 다시 나오면 한 바퀴 다 돈 걸로 보고 정지. -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div style="font-size:13px;color:var(--muted2)">📖 "위키 미확인"으로 보류된 사람들만 무료로 다시 검색해요. 찾아지면 그때 AI로 넘어가요.</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="pdRecheckStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+          <button class="btn-secondary" id="pdRecheckBtn" onclick="pdRecheckWiki()" style="padding:8px 16px;font-size:13px">🔄 위키 미확인 재검색</button>
+        </div>
+      </div>
+
       <button class="btn-secondary" onclick="loadPendingList(1)" style="padding:5px 14px;font-size:12px;margin-bottom:12px">🔄 새로고침</button>
       <div id="pdList"></div>
       <div style="display:flex;justify-content:center;gap:10px;padding:16px 0;align-items:center">
@@ -2296,8 +2310,13 @@ async function agLoop(){
     }else if(data.result === 'uncertain'){
       agLogLine(`⚠️ ${name} — 애매함, 미확정으로 보냄`, '#f5a623');
     }else if(data.result === 'skipped'){
-      // [2026-07-24 수정] 건너뛴 사유가 필모부족 외에 AI 응답 파싱 실패도 추가됨
-      const skipMsg = data.reason === 'parse_failed' ? 'AI 응답 오류, 미확정으로 보냄' : '필모그래피 부족, 건너뜀';
+      // [2026-07-24 수정] 건너뛴 사유에 위키 미확인(무료 사전확인 단계) 추가
+      const skipMsgMap = {
+        parse_failed: 'AI 응답 오류, 미확정으로 보냄',
+        wiki_unmatched: '위키 미확인, AI 호출 없이 보류(비용 절약)',
+        filmography_thin: '필모그래피 부족, 건너뜀',
+      };
+      const skipMsg = skipMsgMap[data.reason] || '건너뜀';
       agLogLine(`⏭ ${name} — ${skipMsg}`, 'var(--muted)');
     }
     document.getElementById('agStatus').textContent = `방금: ${name}`;
@@ -2401,6 +2420,7 @@ const PD_REASON_LABEL = {
   ai_uncertain: '⚠️ AI 판단 애매함',
   filmography_thin: '⏭ 필모그래피 부족',
   parse_failed: '❌ AI 응답 오류',
+  wiki_unmatched: '📖 위키 미확인',
 };
 
 async function loadPendingList(page){
@@ -2440,6 +2460,60 @@ async function loadPendingList(page){
 }
 function pdPrev(){ if(pdPage > 1) loadPendingList(pdPage - 1); }
 function pdNext(){ if(pdPage * 20 < pdTotal) loadPendingList(pdPage + 1); }
+
+/* [2026-07-24 신규] 위키 미확인(wiki_unmatched) 재검색 — "그 시점 미확인자들만" 한 바퀴
+   훑고 자동으로 멈춤(계속 안 돎). 서버는 상태를 안 갖고 있어서, 이번 회차에 이미 본
+   tmdb_id를 클라이언트(pdRecheckSeen)에서 기억해뒀다가 같은 사람이 다시 나오면
+   "한 바퀴 다 돌았다"고 보고 정지. */
+let pdRecheckRunning = false;
+async function pdRecheckWiki(){
+  if(pdRecheckRunning) return;
+  pdRecheckRunning = true;
+  const btn = document.getElementById('pdRecheckBtn');
+  const status = document.getElementById('pdRecheckStatus');
+  btn.disabled = true;
+  const seen = new Set();
+  let checked = 0, foundCount = 0;
+
+  while(true){
+    status.textContent = `재검색 중... (확인 ${checked}명, 위키 찾음 ${foundCount}명)`;
+    let data;
+    try{
+      const res = await fetch(`${API}/admin/persons/wiki-recheck-step`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+      });
+      data = await res.json();
+    }catch(e){
+      status.textContent = `❌ 네트워크 오류: ${e.message}`;
+      break;
+    }
+
+    if(!data || !data.ok){
+      status.textContent = `❌ 오류: ${(data && data.message) || '알 수 없는 오류'}`;
+      break;
+    }
+    if(data.done){
+      status.textContent = `✅ 완료 — 확인 ${checked}명 중 ${foundCount}명 위키에서 찾아서 AI로 넘김`;
+      break;
+    }
+
+    const tmdbId = data.person.tmdb_id;
+    if(seen.has(tmdbId)){
+      // 이미 본 사람이 다시 나옴 = 한 바퀴 다 돎(전부 여전히 미확인) — 정지
+      status.textContent = `✅ 한 바퀴 완료 — 확인 ${checked}명 중 ${foundCount}명 위키에서 찾아서 AI로 넘김`;
+      break;
+    }
+    seen.add(tmdbId);
+    checked++;
+    if(data.result !== 'still_unmatched') foundCount++;
+  }
+
+  btn.disabled = false;
+  pdRecheckRunning = false;
+  loadPendingList(pdPage);
+  if(typeof loadAgConfirmedList === 'function') loadAgConfirmedList(agConfirmedPage || 1);
+}
 
 
 /* ══════════════════════════════════════════════════════
