@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.1 — admin_videos.html (미디어타입 채우기: 18개씩 로드, 전체선택/전체삭제 버튼 추가, 저장버튼 글자 대비 수정) -->
+<!-- 2026-07-25 rev.1 — admin_videos.html ("줄거리 채우기" 탭 신규 — works.overview 백필, 평점 채우기와 동일 패턴) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -291,6 +291,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabImdb" onclick="switchPageTab('imdb')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎬 IMDb 매칭 
+        </button>
+        <button id="tabOverview" onclick="switchPageTab('overview')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          📝 줄거리 채우기
         </button>
         <button id="tabAdult" onclick="switchPageTab('adult')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
@@ -1082,6 +1086,54 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   </div>
 
+  <!-- ══ 줄거리 채우기 섹션 (2026-07-25 신규) ══ -->
+  <div class="wrap" id="overviewWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 <span style="color:var(--green)">works.overview</span>가 비어있는 작품들에 TMDB 줄거리를 채웁니다.<br>
+      작품페이지 자체는 방문 시 TMDB에 실시간으로 물어봐서 화면엔 잘 보이지만, D1 사본이 비어있으면
+      <span style="color:var(--gold)">봇용 서버사이드 프리필(functions/title/[slug].js)</span>이 빈 줄거리를 내보내게 됩니다.<br>
+      TMDB에도 줄거리가 없는 작품은 <span style="color:var(--gold)">'__NONE__'</span>으로 저장해 다음 배치에서 또 시도하지 않게 처리했습니다.
+    </div>
+
+    <!-- 상태 카드 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="ovAttempted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">채워짐</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="ovFilled">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">남음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="ovRemaining">-</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="ovStartBtn" onclick="startOverviewBackfill()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 줄거리 채우기 시작
+        </button>
+        <button class="btn-secondary" id="ovStopBtn" onclick="stopOverviewBackfill()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="ovStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <!-- 최근 배치 로그 -->
+    <div id="ovLogWrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="ovLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+  </div>
+
   <!-- ══ 성인물 정리 섹션 ══ -->
   <div class="wrap" id="adultWrap" style="display:none">
 
@@ -1752,6 +1804,7 @@ const PAGE_TABS = [
   { key: 'variety',   wrapId: 'varietyWrap',   btnId: 'tabVariety',   title: '🎭 예능 태그',       onColor: 'rgba(236,72,153,.2)',  onText: '#f472b6' },
   { key: 'rating',    wrapId: 'ratingWrap',    btnId: 'tabRating',    title: '⭐ TMDB 평점',      onColor: 'rgba(240,180,41,.2)',  onText: 'var(--gold)' },
   { key: 'imdb',      wrapId: 'imdbWrap',      btnId: 'tabImdb',      title: '🎬 IMDb 매칭 채우기', onColor: 'rgba(245,197,24,.2)',  onText: '#F5C518' },
+  { key: 'overview',  wrapId: 'overviewWrap',  btnId: 'tabOverview',  title: '📝 줄거리 채우기',    onColor: 'rgba(52,211,153,.2)',  onText: 'var(--green)' },
   { key: 'adult',     wrapId: 'adultWrap',     btnId: 'tabAdult',     title: '🔞 성인물 정리',      onColor: 'rgba(240,68,68,.2)',   onText: 'var(--red)' },
 ];
 let currentPageTab = 'video';
@@ -2904,6 +2957,117 @@ function stopRatingBackfill() {
   setTimeout(() => {
     document.getElementById('rtStopBtn').disabled = false;
     document.getElementById('rtStopBtn').textContent = '⏸ 중단';
+  }, 1500);
+}
+
+/* ══════════════════════════════════════
+   줄거리 채우기 (works.overview 백필) — 2026-07-25 신규
+   /admin/works/backfill-overview 를 remaining이 0이 될 때까지 반복 호출
+   (평점 채우기 탭과 동일한 배치+반복 패턴)
+══════════════════════════════════════ */
+let ovRunning        = false;
+let ovStopRequested  = false;
+let ovTotalAttempted = 0;
+let ovTotalFilled    = 0;
+
+function ovLog(msg, isError) {
+  const logWrap = document.getElementById('ovLogWrap');
+  const logEl   = document.getElementById('ovLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function ovUpdateCounters(remaining) {
+  document.getElementById('ovAttempted').textContent = ovTotalAttempted;
+  document.getElementById('ovFilled').textContent    = ovTotalFilled;
+  document.getElementById('ovRemaining').textContent = remaining === null ? '-' : remaining;
+}
+
+async function startOverviewBackfill() {
+  if (ovRunning) return;
+  ovRunning        = true;
+  ovStopRequested  = false;
+  ovTotalAttempted = 0;
+  ovTotalFilled    = 0;
+
+  const startBtn   = document.getElementById('ovStartBtn');
+  const stopBtn    = document.getElementById('ovStopBtn');
+  const statusLine = document.getElementById('ovStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '채우는 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('ovLog').innerHTML = '';
+  ovUpdateCounters(null);
+  ovLog('줄거리 채우기 시작');
+
+  let batchNum = 0;
+
+  try {
+    while (true) {
+      if (ovStopRequested) {
+        ovLog('사용자 요청으로 중단됨');
+        break;
+      }
+      batchNum++;
+      statusLine.textContent = `${batchNum}번째 배치 처리 중...`;
+
+      let res, data;
+      try {
+        res = await fetch(`${API}/admin/works/backfill-overview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+          body: JSON.stringify({ limit: 30 }),
+        });
+        data = await res.json();
+      } catch (e) {
+        ovLog(`네트워크 오류 — 배치 ${batchNum} 실패: ${e.message}`, true);
+        statusLine.textContent = '네트워크 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        ovLog(`API 오류 — 배치 ${batchNum}: ${data.message || res.status}`, true);
+        statusLine.textContent = 'API 오류로 중단됨. 다시 시작 버튼을 눌러 이어서 진행할 수 있어요.';
+        break;
+      }
+
+      ovTotalAttempted += data.attempted || 0;
+      ovTotalFilled    += data.filled    || 0;
+      ovUpdateCounters(data.remaining);
+      ovLog(`배치 ${batchNum}: 시도 ${data.attempted}개 · 채워짐 ${data.filled}개 · 남음 ${data.remaining}개`);
+
+      if (!data.attempted || data.remaining === 0) {
+        statusLine.textContent = `✅ 완료! 총 ${ovTotalAttempted}개 시도, ${ovTotalFilled}개 채워짐`;
+        ovLog('모든 작품 처리 완료');
+        showToast('✅ 줄거리 채우기 완료!');
+        break;
+      }
+
+      await _sleep(400);
+    }
+  } finally {
+    ovRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 줄거리 채우기 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopOverviewBackfill() {
+  if (!ovRunning) return;
+  ovStopRequested = true;
+  document.getElementById('ovStopBtn').disabled = true;
+  document.getElementById('ovStopBtn').textContent = '중단 중...';
+  setTimeout(() => {
+    document.getElementById('ovStopBtn').disabled = false;
+    document.getElementById('ovStopBtn').textContent = '⏸ 중단';
   }, 1500);
 }
 
