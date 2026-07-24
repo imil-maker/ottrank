@@ -1,4 +1,4 @@
-<!-- 2026-07-25 rev.3 — _title_detail.html (관계도 이미지 클릭 시 확대 대신 다시 접히도록 변경, 안 쓰는 라이트박스 함수 제거) -->
+<!-- 2026-07-25 rev.4 — _title_detail.html (관계도 박스 로딩 순서를 맨 앞으로 당김 — 다른 데이터 다 끝날 때까지 기다리지 않고 즉시 시작) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -4500,6 +4500,8 @@ async function init(){
   await loadTmdb();
 
   if(WORK.tmdb_id){
+    loadRelationshipChart(); // [2026-07-25 수정] 다른 로딩을 기다릴 필요 없어서 맨 앞에서 바로 fire-and-forget 시작
+
     // 1단계: loadTop10Days(WORK_CATEGORY_SLOT 세팅) + loadPlatforms(WORK_PLATFORMS 세팅) 병렬 완료
     // loadWatchProviders는 두 값이 모두 필요하므로 반드시 이후에 실행
     await Promise.all([
@@ -4517,7 +4519,6 @@ async function init(){
       loadUpcomingOttBadge(), // 공개예정 뱃지 (release_date > 오늘 + 관리자 수동입력 있을 때만)
       loadBoxofficeInfo(),    // [2026-07-19 신설] KOBIS 박스오피스 상세 지표 (영화만 해당)
     ]);
-    loadRelationshipChart(); // [2026-07-25 신규] 다른 로딩과 무관한 fire-and-forget — 실패해도 페이지 영향 없음
   }else{
     renderComments();
     updateUserRatingCard();
