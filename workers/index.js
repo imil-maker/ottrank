@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.1 — index.js (/admin/relationship-charts/* 라우팅 추가) */
+/* 2026-07-25 rev.2 — index.js (공개 조회 GET /relationship-charts/:tmdb_id 라우팅 추가) */
 /* ══════════════════════════════════════════════════════════════
    오뜨랑 Worker 진입점
    - CORS 처리
@@ -144,7 +144,12 @@ export default {
     // 3-4. 등장인물 관계도 (공식 이미지 업로드) — 2026-07-25 신규
     //      /admin/relationship-charts/*는 12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함
     //      (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — track.js/inquiry.js와 동일 패턴)
-    if (!res && path.startsWith("/admin/relationship-charts")) {
+    //      /relationship-charts/:tmdb_id (공개 조회, 작품페이지용, 2026-07-25 추가)는 인증 없이도 통과되도록
+    //      handleRelationship 안에서 자체적으로 구분함(경로가 /admin/으로 시작 안 해서 그냥 여기서 같이 처리).
+    if (!res && (
+      path.startsWith("/admin/relationship-charts") ||
+      path.match(/^\/relationship-charts\/\d+$/)
+    )) {
       res = await handleRelationship(path, request, env, url, headers);
     }
 
