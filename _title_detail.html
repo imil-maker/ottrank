@@ -1,4 +1,4 @@
-<!-- 2026-07-25 rev.2 — _title_detail.html (관계도 박스 테두리 투명도 0.30 조절, 아이콘 빨간색(--accent)으로 변경) -->
+<!-- 2026-07-25 rev.3 — _title_detail.html (관계도 이미지 클릭 시 확대 대신 다시 접히도록 변경, 안 쓰는 라이트박스 함수 제거) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -393,7 +393,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .relchart-toggle-icon{transition:transform .2s}
 .relchart-toggle-icon.open{transform:rotate(180deg)}
 .relchart-body{margin-top:10px;border-radius:var(--r-lg);overflow:hidden;background:var(--bg3)}
-.relchart-body img{width:100%;height:auto;display:block;cursor:zoom-in}
+.relchart-body img{width:100%;height:auto;display:block;cursor:pointer}
 
 /* ══ TMDB 이미지 갤러리 ══ */
 .gallery-section{margin-bottom:28px}
@@ -1533,7 +1533,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <i class="ti ti-chevron-down relchart-toggle-icon" id="relChartToggleIcon"></i>
   </button>
   <div class="relchart-body" id="relChartBody" style="display:none">
-    <img id="relChartImg" src="" alt="인물관계도" loading="lazy" onclick="openRelChartLightbox()">
+    <img id="relChartImg" src="" alt="인물관계도" loading="lazy" onclick="toggleRelChart()">
   </div>
 </div>
 
@@ -3211,19 +3211,6 @@ function toggleRelChart(){
   const opening=body.style.display==='none';
   body.style.display=opening?'block':'none';
   icon.classList.toggle('open',opening);
-}
-function openRelChartLightbox(){
-  const img=document.getElementById('relChartImg');
-  if(!img.src)return;
-  const overlay=document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;cursor:zoom-out';
-  overlay.onclick=()=>overlay.remove();
-  const full=document.createElement('img');
-  full.src=img.src;
-  full.alt=img.alt;
-  full.style.cssText='max-width:100%;max-height:100%;border-radius:var(--r-lg);object-fit:contain';
-  overlay.appendChild(full);
-  document.body.appendChild(overlay);
 }
 
 /* == 출연진 화살표 스크롤 == */
