@@ -1,4 +1,4 @@
-<!-- 2026-07-23 rev.3 — _title_detail.html (포스터 표시 D1 우선순위 버그 수정 — works.poster_path가 TMDB 기본값에 항상 덮어써지던 문제) -->
+<!-- 2026-07-25 rev.1 — _title_detail.html (등장인물 관계도 "보기" 박스 신규 — 출연진 섹션 아래, 스포일러 방지 클릭-펼침) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -380,6 +380,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 /* ══ 섹션 공통 ══ */
 .sec-title{font-size:16px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .sec-title small{font-size:14px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
+
+/* ══ 등장인물 관계도 (2026-07-25 신설) — 스포일러 방지용 클릭-펼침 박스 ══ */
+.relchart-section{margin-bottom:28px}
+.relchart-toggle-btn{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-radius:var(--r-lg);border:.5px solid var(--border2);
+  background:var(--bg2);color:var(--text);font-size:15px;font-weight:600;
+  font-family:var(--font-sans);cursor:pointer;transition:background .15s;
+}
+.relchart-toggle-btn:hover{background:var(--bg3)}
+.relchart-toggle-icon{transition:transform .2s}
+.relchart-toggle-icon.open{transform:rotate(180deg)}
+.relchart-body{margin-top:10px;border-radius:var(--r-lg);overflow:hidden;background:var(--bg3)}
+.relchart-body img{width:100%;height:auto;display:block;cursor:zoom-in}
 
 /* ══ TMDB 이미지 갤러리 ══ */
 .gallery-section{margin-bottom:28px}
@@ -1509,6 +1523,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
     <div class="cast-scroll" id="castScroll"></div>
     <button class="cast-arrow cast-arrow-left" id="castArrowLeft" onclick="scrollCast(-1)" aria-label="이전">‹</button>
     <button class="cast-arrow cast-arrow-right" id="castArrowRight" onclick="scrollCast(1)" aria-label="다음">›</button>
+  </div>
+</div>
+
+<!-- ══ 등장인물 관계도 (공식 이미지, 2026-07-25 신설) — 스포일러 방지를 위해 클릭해야 펼쳐짐 ══ -->
+<div class="relchart-section" id="relChartSection" style="display:none">
+  <button class="relchart-toggle-btn" id="relChartToggleBtn" onclick="toggleRelChart()">
+    <span><i class="ti ti-affiliate" style="font-size:16px"></i> <span id="relChartToggleTitle">인물관계도 보기</span></span>
+    <i class="ti ti-chevron-down relchart-toggle-icon" id="relChartToggleIcon"></i>
+  </button>
+  <div class="relchart-body" id="relChartBody" style="display:none">
+    <img id="relChartImg" src="" alt="인물관계도" loading="lazy" onclick="openRelChartLightbox()">
   </div>
 </div>
 
@@ -3161,6 +3186,46 @@ function resetHalfStar(){
   }
 }
 
+/* ══ 등장인물 관계도 (2026-07-25 신설) ══ */
+async function loadRelationshipChart(){
+  if(!WORK.tmdb_id)return;
+  const mediaType=WORK.type==='movie'?'movie':'tv';
+  try{
+    const res=await fetch(`${OTTRANK_API}/relationship-charts/${WORK.tmdb_id}?media_type=${mediaType}`);
+    const data=await res.json();
+    if(!data.ok||!data.has_chart)return;
+
+    const section=document.getElementById('relChartSection');
+    const img=document.getElementById('relChartImg');
+    const titleEl=document.getElementById('relChartToggleTitle');
+    const t=document.getElementById('mainTitle')?.textContent||WORK.title||'이 작품';
+    titleEl.textContent=`${t} 인물관계도 보기`;
+    img.src=data.image_url;
+    img.alt=`${t} 인물관계도`;
+    section.style.display='block';
+  }catch(e){ /* 실패해도 페이지 본 기능엔 영향 없이 조용히 무시 */ }
+}
+function toggleRelChart(){
+  const body=document.getElementById('relChartBody');
+  const icon=document.getElementById('relChartToggleIcon');
+  const opening=body.style.display==='none';
+  body.style.display=opening?'block':'none';
+  icon.classList.toggle('open',opening);
+}
+function openRelChartLightbox(){
+  const img=document.getElementById('relChartImg');
+  if(!img.src)return;
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;cursor:zoom-out';
+  overlay.onclick=()=>overlay.remove();
+  const full=document.createElement('img');
+  full.src=img.src;
+  full.alt=img.alt;
+  full.style.cssText='max-width:100%;max-height:100%;border-radius:var(--r-lg);object-fit:contain';
+  overlay.appendChild(full);
+  document.body.appendChild(overlay);
+}
+
 /* == 출연진 화살표 스크롤 == */
 function scrollCast(dir){
   const el=document.getElementById('castScroll');if(!el)return;
@@ -4465,6 +4530,7 @@ async function init(){
       loadUpcomingOttBadge(), // 공개예정 뱃지 (release_date > 오늘 + 관리자 수동입력 있을 때만)
       loadBoxofficeInfo(),    // [2026-07-19 신설] KOBIS 박스오피스 상세 지표 (영화만 해당)
     ]);
+    loadRelationshipChart(); // [2026-07-25 신규] 다른 로딩과 무관한 fire-and-forget — 실패해도 페이지 영향 없음
   }else{
     renderComments();
     updateUserRatingCard();
