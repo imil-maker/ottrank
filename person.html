@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.4 — person.html (대표작: 2년 이상+vote_count 5 이하 저인지도 작품 제외 필터 추가) -->
+<!-- 2026-07-24 rev.1 — person.html (대표작 castTier 버그 수정: 크루 크레딧이 배우 프로필에서 주연급과 동일한 최상위 그룹(tier 0)으로 잘못 취급되던 문제 — "배우" 인물은 크루 크레딧을 최하위 tier로 내림) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2002,8 +2002,17 @@ async function initPage(){
       // 이런 "정보없음" 케이스는 주연/단역 그 어느 쪽으로도 단정하지 않고 별도 그룹으로
       // 분류해서 popularity로만 순위를 매김(영화는 order 누락이 거의 없어 이 케이스가
       // 드묾).
+      // ⚠️ [2026-07-24 버그 수정] 원래 "연출 항목은 별도 그룹 없이 popularity로만 경쟁"할
+      // 의도였는데, 실제로는 return 0을 줘서 주연급(tier 0)과 완전히 같은 최상위 그룹으로
+      // 취급되고 있었음. 그 결과 배우로 등록된 인물의 프로필에 TMDB 데이터 오류로 무관한
+      // 스태프 크레딧(예: 애니메이션 미술팀)이 섞여 들어오면, popularity만 높으면(대형
+      // 해외 프랜차이즈 작품 등) 실제 주연작보다도 앞서 대표작 1위를 차지해버리는 문제가
+      // 있었음(이동욱 배우 사례에서 발견). 이 인물이 "감독"으로 등록된 경우에는 연출
+      // 크레딧이 진짜 본업이므로 그대로 tier 0(최우선)을 주고, "배우"로 등록된 인물의
+      // 크루 크레딧은 대부분 무관한 참여이므로 가장 낮은 tier(2)로 내려서, popularity가
+      // 아무리 높아도 그 배우의 실제 주연/조연 출연작을 절대 못 이기게 함.
       const castTier = (it) => {
-        if(it._kind !== 'act') return 0; // 연출 항목은 별도 그룹 없이 popularity로만 경쟁
+        if(it._kind !== 'act') return jobLabel === '감독' ? 0 : 2;
         const order = typeof it.order === 'number' ? it.order : null;
         if(order === null) return 1; // order 정보 없음 — popularity로만 순위 매기는 그룹
         if(order <= 2) return 0;     // 주연급
