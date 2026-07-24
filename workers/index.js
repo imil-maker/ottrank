@@ -1,4 +1,4 @@
-/* 2026-07-23 rev.1 — index.js (/admin/track/rank 라우팅 추가) */
+/* 2026-07-25 rev.1 — index.js (/admin/relationship-charts/* 라우팅 추가) */
 /* ══════════════════════════════════════════════════════════════
    오뜨랑 Worker 진입점
    - CORS 처리
@@ -23,6 +23,7 @@
    person-wiki.js : /person-wiki/*  (인물 위키백과 보강 데이터, 테스트용, 2026-07-19 신설)
    track.js     : /track/view, /admin/track/logs, /admin/track/rank  (작품/인물 페이지 실시간 조회 이벤트 기록·조회 +
                   기간별 실시간 순위, 2026-07-21 신설, 2026-07-23 순위 라우트 추가)
+   relationship.js : /admin/relationship-charts/*  (등장인물 관계도 — 공식 이미지 업로드, 2026-07-25 신설)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -39,6 +40,7 @@ import { handleInquiry   } from "./routes/inquiry.js";
 import { handleImageProxy } from "./routes/image-proxy.js";
 import { handlePersonWiki } from "./routes/person-wiki.js";
 import { handleTrack      } from "./routes/track.js";
+import { handleRelationship } from "./routes/relationship.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -137,6 +139,13 @@ export default {
     //      앞에 있어야 함 (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — 다른 /admin/* 예외 라우트들과 동일 패턴)
     if (!res && (path === "/track/view" || path === "/admin/track/logs" || path === "/admin/track/rank")) {
       res = await handleTrack(path, request, env, url, headers);
+    }
+
+    // 3-4. 등장인물 관계도 (공식 이미지 업로드) — 2026-07-25 신규
+    //      /admin/relationship-charts/*는 12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함
+    //      (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — track.js/inquiry.js와 동일 패턴)
+    if (!res && path.startsWith("/admin/relationship-charts")) {
+      res = await handleRelationship(path, request, env, url, headers);
     }
 
     // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
