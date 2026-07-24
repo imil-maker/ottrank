@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.7 — admin_keywords.html (비용 절감: 미확정 사유에 위키 미확인(wiki_unmatched) 추가, "🔄 위키 미확인 재검색" 버튼 신규(한 바퀴 돌면 자동 정지)) -->
+<!-- 2026-07-25 rev.1 — admin_keywords.html ("관계도 매칭" 탭 신규 — 공식 인물관계도 이미지 구글검색+업로드) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -158,6 +158,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans);position:relative">
           ✏️ 프로필 수정요청
           <span id="peaBadge" class="pea-badge" style="display:none">NEW</span>
+        </button>
+        <button id="tabRelationshipMatch" onclick="switchPageTab('relationshipMatch')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🔗 관계도 매칭
         </button>
       </div>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
@@ -598,6 +602,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="peaList"></div>
 
     <div style="display:flex;justify-content:center;gap:6px;padding:20px 0" id="peaPagination"></div>
+
+  </div>
+
+  <!-- ══ 관계도 매칭 탭 (2026-07-25 신규) ══ -->
+  <div class="wrap" id="relationshipMatchWrap" style="display:none">
+
+    <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 인터넷에 이미 돌고 있는 방송사·제작사 공식 인물관계도 이미지를 찾아서 그대로 업로드하는 방식이에요.
+      ① "구글에서 찾기" 클릭 → ② 마음에 드는 이미지 우클릭해서 저장 → ③ "파일 선택"으로 업로드하면 끝.
+      랭킹(HOT100)에 있는 작품이 항상 위쪽에 먼저 나와요.
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+      <button class="btn-secondary" onclick="rcLoad(1)" style="padding:0 20px;white-space:nowrap;height:34px">🔄 새로고침</button>
+      <span id="rcPageInfo" style="font-size:12px;color:var(--muted2);font-family:var(--mono)"></span>
+    </div>
+
+    <div id="rcList"></div>
+
+    <div style="display:flex;justify-content:center;gap:8px;padding:20px 0">
+      <button class="btn-secondary" id="rcPrevBtn" onclick="rcPrevPage()" style="padding:6px 18px">← 이전</button>
+      <button class="btn-secondary" id="rcNextBtn" onclick="rcNextPage()" style="padding:6px 18px">다음 10개 →</button>
+    </div>
 
   </div>
 
@@ -1367,6 +1394,7 @@ const PAGE_TABS = [
   { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'likeRanking',      wrapId: 'likeRankingWrap',       btnId: 'tabLikeRanking',      title: '👍 인물 좋아요 순위', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
   { key: 'profileEdits',     wrapId: 'profileEditsWrap',      btnId: 'tabProfileEdits',     title: '✏️ 프로필 수정요청', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
+  { key: 'relationshipMatch', wrapId: 'relationshipMatchWrap', btnId: 'tabRelationshipMatch', title: '🔗 관계도 매칭', onColor: 'rgba(230,57,70,.2)', onText: 'var(--accent)' },
 ];
 let currentPageTab = 'keyword';
 function switchPageTab(tab) {
@@ -1385,6 +1413,7 @@ function switchPageTab(tab) {
   if (tab === 'personMatch') switchPersonMatchSubTab('search');
   if (tab === 'likeRanking') switchLikeRankingPeriod('all');
   if (tab === 'profileEdits') loadProfileEdits(1);
+  if (tab === 'relationshipMatch') rcLoad(1);
 }
 
 function showToast(msg){
@@ -3357,6 +3386,97 @@ async function applyStuckTypeFix() {
   } finally {
     btn.disabled = false;
     btn.textContent = '✅ 선택 항목 일괄 수정';
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   [2026-07-25 신규] 관계도 매칭 — 공식 이미지 업로드 방식
+   AI초안 없이, 인터넷에 돌고 있는 방송사/제작사 공식 관계도 이미지를
+   관리자가 직접 찾아서 업로드하는 방식(relationship.js와 짝을 이룸)
+══════════════════════════════════════════════════════ */
+let rcPage    = 1;
+const RC_LIMIT = 10;
+let rcHasMore = false;
+let rcItems   = [];
+
+async function rcLoad(page){
+  rcPage = page;
+  const listEl = document.getElementById('rcList');
+  listEl.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중…</div>';
+  try{
+    const res  = await fetch(`${API}/admin/relationship-charts/candidates?page=${page}&limit=${RC_LIMIT}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok){
+      listEl.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--accent);font-size:14px">불러오기 실패: ${data.message||res.status}</div>`;
+      return;
+    }
+    rcItems   = data.items || [];
+    rcHasMore = !!data.has_more;
+    rcRenderList();
+    document.getElementById('rcPageInfo').textContent = `${page}페이지 (${rcItems.length}개)`;
+    document.getElementById('rcPrevBtn').disabled = page <= 1;
+    document.getElementById('rcNextBtn').disabled = !rcHasMore;
+  }catch(e){
+    listEl.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--accent);font-size:14px">네트워크 오류: ${e.message}</div>`;
+  }
+}
+
+function rcPrevPage(){ if(rcPage > 1) rcLoad(rcPage - 1); }
+function rcNextPage(){ if(rcHasMore) rcLoad(rcPage + 1); }
+
+function rcRenderList(){
+  const listEl = document.getElementById('rcList');
+  if(!rcItems.length){
+    listEl.innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">관계도가 없는 작품이 더 이상 없어요 🎉</div>';
+    return;
+  }
+  listEl.innerHTML = rcItems.map(it => `
+    <div id="rcRow-${it.tmdb_id}-${it.media_type}" style="display:flex;align-items:center;gap:14px;padding:12px 10px;border-bottom:1px solid var(--border)">
+      <img src="https://poster.ottrank.kr/tmdb-img/w92${it.poster_path||''}" onerror="this.style.visibility='hidden'"
+        style="width:40px;height:56px;border-radius:4px;object-fit:cover;background:var(--bg3);flex-shrink:0">
+      <div style="flex:1;min-width:0;font-size:13px;color:var(--text)">
+        ${escapeAttrPm(it.title || '(제목없음)')}
+        ${it.in_hot100 ? '<span style="margin-left:6px;font-size:11px;color:var(--gold);font-family:var(--mono)">🔥랭킹중</span>' : ''}
+      </div>
+      <button class="btn-secondary" onclick="rcSearchGoogle('${escapeAttrPm(it.title||'').replace(/'/g,"\\'")}')" style="padding:6px 14px;white-space:nowrap;font-size:12px">🔍 구글에서 찾기</button>
+      <label style="padding:6px 14px;white-space:nowrap;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted2)">
+        📁 파일 선택
+        <input type="file" accept="image/*" style="display:none" onchange="rcUploadFile(this, ${it.tmdb_id}, '${it.media_type}')">
+      </label>
+    </div>
+  `).join('');
+}
+
+function rcSearchGoogle(title){
+  const q = encodeURIComponent(`${title} 인물관계도`);
+  window.open(`https://www.google.com/search?q=${q}&tbm=isch`, '_blank');
+}
+
+async function rcUploadFile(inputEl, tmdbId, mediaType){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  const rowEl = document.getElementById(`rcRow-${tmdbId}-${mediaType}`);
+  if(rowEl) rowEl.style.opacity = '.5';
+  try{
+    const res = await fetch(`${API}/admin/relationship-charts/${tmdbId}/upload?media_type=${mediaType}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'image/jpeg',
+        Authorization: `Bearer ${ADMIN_SECRET}`,
+      },
+      body: file,
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    showToast('✅ 관계도 이미지 업로드 완료');
+    rcItems = rcItems.filter(it => !(it.tmdb_id === tmdbId && it.media_type === mediaType));
+    rcRenderList();
+  }catch(e){
+    showToast(`❌ 업로드 실패: ${e.message}`);
+    if(rowEl) rowEl.style.opacity = '1';
   }
 }
 </script>
