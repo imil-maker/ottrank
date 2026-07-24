@@ -1,4 +1,4 @@
-<!-- 2026-07-25 rev.5 — _title_detail.html (추천바/리뷰/영상 등이 순위·플랫폼 로딩을 불필요하게 기다리던 구조 수정 — loadWatchProviders만 분리, 나머지는 즉시 병렬 시작) -->
+<!-- 2026-07-25 rev.6 — _title_detail.html (관계도 박스 배경에 연한 빨간톤 색상 추가 — 눈에 잘 안 띄던 문제 개선) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -385,11 +385,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .relchart-section{margin-bottom:28px}
 .relchart-toggle-btn{
   width:100%;display:flex;align-items:center;justify-content:space-between;
-  padding:14px 18px;border-radius:var(--r-lg);border:.5px solid rgba(255,255,255,0.40);
-  background:var(--bg2);color:var(--text);font-size:15px;font-weight:600;
+  padding:14px 18px;border-radius:var(--r-lg);border:.5px solid rgba(230,57,70,.35);
+  background:rgba(230,57,70,.08);color:var(--text);font-size:15px;font-weight:600;
   font-family:var(--font-sans);cursor:pointer;transition:background .15s;
 }
-.relchart-toggle-btn:hover{background:var(--bg3)}
+.relchart-toggle-btn:hover{background:rgba(230,57,70,.14)}
 .relchart-toggle-icon{transition:transform .2s}
 .relchart-toggle-icon.open{transform:rotate(180deg)}
 .relchart-body{margin-top:10px;border-radius:var(--r-lg);overflow:hidden;background:var(--bg3)}
