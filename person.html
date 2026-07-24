@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.4 — person.html (임시 진단용: 대표작 후보 계산값(tier/hasOtt/popularity/score)을 콘솔 표로 출력 — 원인 확인 후 제거 예정) -->
+<!-- 2026-07-24 rev.5 — person.html (진짜 원인 발견: order 정보 없는 TV 크레딧이 tier 1로 강등되어 score 비교 기회조차 없이 밀려나던 버그 수정 — order 없음도 tier 0에서 경쟁하도록 변경. 진단용 콘솔 로그 제거, OTT 감점 배율 0.1→0.6 원복) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2002,7 +2002,7 @@ async function initPage(){
         if(it._kind === 'act' && it.order === 0) score *= 1.2;
         // [2026-07-24 신규] 현재 OTT 미제공 감점(40%) — 완전히 제외하진 않고 감점만 해서,
         // 정말 압도적인 popularity 격차가 있으면 그래도 대표작에 남을 여지는 둠.
-        if(!hasCurrentOtt(it)) score *= 0.1; // [2026-07-24 진단용 강화] 0.6 → 0.1 — 감점이 실제로 적용되는지 확인용
+        if(!hasCurrentOtt(it)) score *= 0.6;
         return score;
       };
 
@@ -2026,10 +2026,16 @@ async function initPage(){
       // 크레딧이 진짜 본업이므로 그대로 tier 0(최우선)을 주고, "배우"로 등록된 인물의
       // 크루 크레딧은 대부분 무관한 참여이므로 가장 낮은 tier(2)로 내려서, popularity가
       // 아무리 높아도 그 배우의 실제 주연/조연 출연작을 절대 못 이기게 함.
+      // ⚠️ [2026-07-24 버그 수정] order 정보가 없는 경우 tier 1(조연급)로 강등시켰는데,
+      // 실제로는 order 자체가 안 넘어오는 TV 작품이 꽤 있고(이번에 발견된 "킬러들의
+      // 쇼핑몰"도 order=undefined) — 이 배우가 실제로는 투톱 주연급인데도 tier가 갈려서
+      // scoreFor(popularity+OTT감점) 비교 기회조차 없이 무조건 밀려나는 문제가 있었음.
+      // order 정보 없음을 tier 0(주연급 후보)에 남겨서 점수 경쟁에는 참여시키되, 진짜
+      // 저인지도 작품은 별도의 isLowProfile 필터(2년 이상+vote_count 5 이하)가 걸러줌.
       const castTier = (it) => {
         if(it._kind !== 'act') return jobLabel === '감독' ? 0 : 2;
         const order = typeof it.order === 'number' ? it.order : null;
-        if(order === null) return 1; // order 정보 없음 — popularity로만 순위 매기는 그룹
+        if(order === null) return 0; // order 정보 없음 — tier 0에서 점수(popularity+OTT)로 경쟁
         if(order <= 2) return 0;     // 주연급
         if(order <= 6) return 1;     // 비중 있는 조연
         return 2;                    // 단역/카메오
@@ -2052,26 +2058,6 @@ async function initPage(){
         const voteCount = typeof it.vote_count === 'number' ? it.vote_count : 0;
         return ageYears >= 2 && voteCount <= 5;
       };
-
-      // [2026-07-24 임시 진단용] 대표작 후보 전체의 계산값을 콘솔에 표로 출력.
-      // F12 → Console 탭에서 "대표작 후보 계산값" 표를 찾아서, 아랑/킬러들의 쇼핑몰의
-      // hasOtt/score가 실제로 어떻게 나오는지 직접 확인 가능. 원인 확인되면 이 블록은 제거 예정.
-      console.log('[진단] 대표작 후보 계산값 — hasOtt/score 확인용');
-      console.table(
-        [...allCredits]
-          .filter(it => it.poster_path)
-          .filter(it => !isLowProfile(it))
-          .map(it => ({
-            id: it.id,
-            title: it.title || it.name,
-            media_type: it.media_type,
-            order: it.order,
-            tier: castTier(it),
-            hasOtt: hasCurrentOtt(it),
-            popularity: it.popularity,
-            score: Math.round(scoreFor(it) * 100) / 100,
-          }))
-      );
 
       const knownFor = [...allCredits]
         .filter(it => it.poster_path)
