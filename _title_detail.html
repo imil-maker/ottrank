@@ -1,4 +1,4 @@
-<!-- 2026-07-25 rev.1 — _title_detail.html (등장인물 관계도 "보기" 박스 신규 — 출연진 섹션 아래, 스포일러 방지 클릭-펼침) -->
+<!-- 2026-07-25 rev.2 — _title_detail.html (관계도 박스 테두리 투명도 0.30 조절, 아이콘 빨간색(--accent)으로 변경) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -385,7 +385,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .relchart-section{margin-bottom:28px}
 .relchart-toggle-btn{
   width:100%;display:flex;align-items:center;justify-content:space-between;
-  padding:14px 18px;border-radius:var(--r-lg);border:.5px solid var(--border2);
+  padding:14px 18px;border-radius:var(--r-lg);border:.5px solid rgba(255,255,255,0.30);
   background:var(--bg2);color:var(--text);font-size:15px;font-weight:600;
   font-family:var(--font-sans);cursor:pointer;transition:background .15s;
 }
@@ -1529,7 +1529,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 <!-- ══ 등장인물 관계도 (공식 이미지, 2026-07-25 신설) — 스포일러 방지를 위해 클릭해야 펼쳐짐 ══ -->
 <div class="relchart-section" id="relChartSection" style="display:none">
   <button class="relchart-toggle-btn" id="relChartToggleBtn" onclick="toggleRelChart()">
-    <span><i class="ti ti-affiliate" style="font-size:16px"></i> <span id="relChartToggleTitle">인물관계도 보기</span></span>
+    <span><i class="ti ti-affiliate" style="font-size:16px;color:var(--accent)"></i> <span id="relChartToggleTitle">인물관계도 보기</span></span>
     <i class="ti ti-chevron-down relchart-toggle-icon" id="relChartToggleIcon"></i>
   </button>
   <div class="relchart-body" id="relChartBody" style="display:none">
