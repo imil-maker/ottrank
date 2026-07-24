@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.1 — functions/title/[slug].js (신규 — 작품페이지 제목/줄거리/메타태그 서버사이드 프리필) */
+/* 2026-07-25 rev.2 — functions/title/[slug].js (D1 overview가 비어있으면 TMDB 실시간 조회 + D1 자동 백필 추가) */
 /* ══════════════════════════════════════════════════════════════
    Cloudflare Pages Function — /title/:slug 요청을 가로채서,
    정적 _title_detail.html을 그대로 가져온 다음 <title>/메타태그/줄거리 부분만
@@ -9,10 +9,17 @@
    나머지(리뷰/출연진/순위 등 복잡한 부분)는 전혀 안 건드리고 그대로 클라이언트
    자바스크립트가 이어받아서 처리함 — "제목+줄거리+메타태그"만 다루는 부분 SSR.
 
-   필요 사전설정: 이 Pages 프로젝트에 D1(ottrank-db)이 변수명 DB로 바인딩되어 있어야 함
-   (Workers & Pages → 해당 Pages 프로젝트 → Settings → Functions → D1 database bindings).
+   [2026-07-25 발견] D1 works.overview가 전체 4923개 중 3233개(65%+)나 비어있는 걸 확인함
+   (works 페이지 자체는 TMDB에 실시간으로 물어봐서 채우고 있어서 사람 눈엔 안 보이던 문제).
+   그래서 D1 조회 결과 overview가 비어있으면 TMDB API로 한 번 직접 물어보고,
+   받아온 값을 이번 응답에도 쓰고 D1에도 같이 저장(백필)해서 다음부터는 안 비게 만듦.
 
-   실패 시 동작: 어떤 이유로든 실패하면(D1 조회 실패, 파싱 실패 등) 원본 정적 HTML을
+   필요 사전설정:
+   ① 이 Pages 프로젝트에 D1(ottrank-db)이 변수명 DB로 바인딩되어 있어야 함
+      (Workers & Pages → 해당 Pages 프로젝트 → Settings → Functions → D1 database bindings)
+   ② 같은 곳에 환경변수 TMDB_API_KEY도 추가되어 있어야 함(D1 백필용 TMDB 직접 호출)
+
+   실패 시 동작: 어떤 이유로든 실패하면(D1/TMDB 조회 실패, 파싱 실패 등) 원본 정적 HTML을
    그대로 반환한다 — 이 기능 때문에 페이지 자체가 깨지는 일은 절대 없어야 하므로.
 ══════════════════════════════════════════════════════════════ */
 
@@ -76,7 +83,7 @@ export async function onRequestGet(context) {
     const parsed = parseSlugForSeo(slug);
     if (parsed && env.DB) {
       const row = await env.DB.prepare(`
-        SELECT title_ko, title_en, overview, poster_path
+        SELECT title_ko, title_en, overview, poster_path, media_type
         FROM works
         WHERE tmdb_id = ?
         ORDER BY (release_year = ?) DESC
@@ -85,7 +92,33 @@ export async function onRequestGet(context) {
 
       if (row) {
         const title = row.title_ko || row.title_en || "";
-        const overview = (row.overview || "").trim();
+        let overview = (row.overview || "").trim();
+
+        // [2026-07-25 추가] D1엔 줄거리가 비어있는 작품이 65%가 넘어서, 비어있으면
+        // TMDB에 직접 한 번 물어보고, 받은 값을 이번 응답에 쓰는 동시에 D1에도 백필해둠
+        // (다음 방문부터는 이 조회 자체가 필요 없어짐 — 스스로 채워지는 구조).
+        if (!overview && row.media_type && env.TMDB_API_KEY) {
+          try {
+            const tmdbRes = await fetch(
+              `https://api.themoviedb.org/3/${row.media_type}/${parsed.tmdb_id}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+            );
+            if (tmdbRes.ok) {
+              const tmdbData = await tmdbRes.json();
+              const tmdbOverview = (tmdbData.overview || "").trim();
+              if (tmdbOverview) {
+                overview = tmdbOverview;
+                context.waitUntil(
+                  env.DB.prepare(
+                    "UPDATE works SET overview = ? WHERE tmdb_id = ? AND media_type = ?"
+                  ).bind(tmdbOverview, parsed.tmdb_id, row.media_type).run()
+                );
+              }
+            }
+          } catch (e) {
+            // TMDB 조회 실패해도 아래 로직은 그대로 진행(빈 줄거리로라도 나머지 메타태그는 채움)
+          }
+        }
+
         const poster = row.poster_path ? `https://poster.ottrank.kr/tmdb-img/w500${row.poster_path}` : "";
         const pageUrl = `https://ottrank.kr/title/${slug}`;
 
