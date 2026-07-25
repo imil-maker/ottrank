@@ -1,4 +1,4 @@
-/* 2026-07-24 rev.1 — rankings.js (사이트맵 priority 비율 변경: 작품 0.8/0.6→0.9/0.3, 인물 0.6/0.4→0.7/0.3) */
+/* 2026-07-26 rev.1 — rankings.js (sitemap의 persons 목록에서 "고아 데이터"—작품에 안 걸리고 위키/AI 프로필도 없고 좋아요도 없는 사람—를 자동 제외하도록 조건 추가. 색인 품질 개선을 위해 대량 삭제한 것과 동일 기준을 앞으로도 자동 유지) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -872,11 +872,27 @@ export async function handleRankings(path, request, env, url, headers) {
       // person_wiki_cache(위키 매칭 승인 시점=created_at)를 LEFT JOIN
       // [2026-07-23 수정] has_korean_name(국적 판정 컬럼, 어드민 인물매칭 국적 필터와 동일 기준)으로
       // 한국인을 먼저 나열 — works와 동일한 목적(봇이 한국 콘텐츠 먼저 보게 유도)
+      // [2026-07-26 수정] "고아 데이터" 자동 제외 — 등록된 작품이 나중에 삭제되면서 딸려있던
+      // 배우 정보만 남는 경우가 실제로 다수 발견됨(2026-07-26 세션, 8,844명 수동 정리).
+      // 아래 세 조건 중 하나라도 있으면 포함, 셋 다 없으면 sitemap에서 제외:
+      //   ① work_cast에 우리 작품 출연 이력이 있음  ② 위키/AI 프로필이 있음  ③ 좋아요가 있음
+      // 삭제까지는 안 하고 sitemap에서만 빼는 이유: 나중에 그 사람이 나온 작품이 다시 등록되면
+      // work_cast 조건에 자동으로 다시 걸려서, 별도 복구 작업 없이도 sitemap에 알아서 재노출됨.
       const { results: persons } = await env.DB.prepare(`
         SELECT p.tmdb_id, p.has_korean_name, w.created_at AS wiki_matched_at
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        LEFT JOIN (
+          SELECT person_tmdb_id, COUNT(DISTINCT tmdb_id) AS work_count
+          FROM work_cast
+          GROUP BY person_tmdb_id
+        ) wc ON wc.person_tmdb_id = p.tmdb_id
         WHERE p.tmdb_id IS NOT NULL
+          AND (
+            wc.work_count IS NOT NULL
+            OR w.tmdb_person_id IS NOT NULL
+            OR p.like_count > 0
+          )
         ORDER BY (p.has_korean_name = 1) DESC, p.tmdb_id
       `).all();
 
