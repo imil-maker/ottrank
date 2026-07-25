@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.1 — index.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
+<!-- 2026-07-25 rev.1 — index.html (메인페이지 OTT 줄 순서 버그 수정 — 어드민에서 설정한 main_order를 안 쓰고 고정배열 순서로 그리던 문제) -->
 <html lang="ko"><head><meta charset="UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -999,6 +999,14 @@ const MOVIE_PLATFORMS = [
 ];
 const PC={netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
 
+// [2026-07-25 신규] 어드민 "페이지 카테고리 설정"에서 저장한 순서(main_order)를 담아두는 맵.
+// PLATFORMS/MOVIE_PLATFORMS는 카드 렌더링에 필요한 고정 정보(이름/색/링크)만 담긴 배열이고,
+// 실제 화면에 그려지는 "순서"는 이 맵 값을 기준으로 renderGrids()에서 정렬해서 결정한다.
+// (예전엔 이 순서 정보를 API에서 받고도 안 쓰고 PLATFORMS 배열 순서 그대로 그려서,
+//  어드민에서 순서를 바꿔도 메인페이지에 반영이 안 되던 버그가 있었음)
+let TV_ORDER = {};
+let MOVIE_ORDER = {};
+
 const API = 'https://ottrank-api.tdidream.workers.dev';
 
 // API에서 받은 데이터를 RANKINGS 구조로 변환 (새 category_slot 방식)
@@ -1010,6 +1018,7 @@ function buildRankingsFromMain(mainData) {
   // TV 섹션
   (mainData.tv || []).forEach(group => {
     const pid = group.platform;
+    TV_ORDER[pid] = group.main_order ?? 999; // [2026-07-25 추가] 화면 렌더링 순서 반영용
     result.tv[pid] = (group.items || []).map(row => ({
       t:       row.title_ko,
       q:       row.title_en || row.title_ko,
@@ -1026,6 +1035,7 @@ function buildRankingsFromMain(mainData) {
   // 영화 섹션
   (mainData.movie || []).forEach(group => {
     const pid = group.platform;
+    MOVIE_ORDER[pid] = group.main_order ?? 999; // [2026-07-25 추가] 화면 렌더링 순서 반영용
     if (!result.movie[pid]) result.movie[pid] = [];
     result.movie[pid] = (group.items || []).map(row => ({
       t:       row.title_ko,
@@ -1220,8 +1230,14 @@ function renderCard(p,items){
 
 const curCat='tv';
 function renderGrids(){
-  document.getElementById('tvGrid').innerHTML=PLATFORMS.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');
-  document.getElementById('movieGrid').innerHTML=MOVIE_PLATFORMS.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
+  // [2026-07-25 수정] 예전엔 PLATFORMS/MOVIE_PLATFORMS 배열 순서 그대로 그려서 어드민에서
+  // 순서를 바꿔도 반영이 안 됐음 — TV_ORDER/MOVIE_ORDER(main_order) 기준으로 정렬한
+  // 사본을 만들어서 그 순서로 그림. 값이 같거나 없는 플랫폼은 원래 배열 순서를 그대로 유지함
+  // (Array.sort는 안정 정렬이라 동점자는 순서가 안 흔들림).
+  const tvSorted    = [...PLATFORMS].sort((a,b)=>(TV_ORDER[a.id]??999)-(TV_ORDER[b.id]??999));
+  const movieSorted = [...MOVIE_PLATFORMS].sort((a,b)=>(MOVIE_ORDER[a.id]??999)-(MOVIE_ORDER[b.id]??999));
+  document.getElementById('tvGrid').innerHTML=tvSorted.map(p=>renderCard(p,RANKINGS.tv[p.id]||[])).join('');
+  document.getElementById('movieGrid').innerHTML=movieSorted.map(p=>renderCard(p,RANKINGS.movie[p.id]||[])).join('');
   updateFtArrows('tvGrid');
   updateFtArrows('movieGrid');
   // 렌더링에 사용한 RANKINGS 그대로 JSON-LD ItemList 생성 (화면에 보이는 것과 마크업 내용 일치)
