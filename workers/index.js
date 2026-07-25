@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.2 — index.js (공개 조회 GET /relationship-charts/:tmdb_id 라우팅 추가) */
+/* 2026-07-25 rev.3 — index.js (/admin/track/excluded-vids 라우팅 추가) */
 /* ══════════════════════════════════════════════════════════════
    오뜨랑 Worker 진입점
    - CORS 처리
@@ -137,7 +137,12 @@ export default {
     //      2026-07-23 실시간 순위 /admin/track/rank 추가)
     //      /admin/track/logs, /admin/track/rank는 12번 관리자 캐치올(handleAdmin)보다 반드시
     //      앞에 있어야 함 (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — 다른 /admin/* 예외 라우트들과 동일 패턴)
-    if (!res && (path === "/track/view" || path === "/admin/track/logs" || path === "/admin/track/rank")) {
+    if (!res && (
+      path === "/track/view" ||
+      path === "/admin/track/logs" ||
+      path === "/admin/track/rank" ||
+      path.startsWith("/admin/track/excluded-vids")
+    )) {
       res = await handleTrack(path, request, env, url, headers);
     }
 
