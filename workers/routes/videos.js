@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.2 — videos.js (출연진 조회/동기화 공개 API 2개 신규 — GET /works/:id/cast, POST /works/:id/cast-sync. 프론트가 우리 DB를 먼저 확인하고, 없을 때만 TMDB를 부르도록 하기 위함) */
+/* 2026-07-26 rev.3 — videos.js (_saveCastForWork: 외국 작품은 출연진 상위 10명만 저장하도록 제한 — admin.js와 동일 기준. cast-sync는 원어를 클라이언트 입력 대신 D1에서 직접 조회) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
@@ -29,8 +29,12 @@ import { _crawlYoutubeVideos, _batchCrawlYoutubeVideos, _saveTmdbVideos } from "
 // POST /works/register 응답을 막지 않도록 ctx.waitUntil()로 완전히 분리해서 백그라운드 처리하고,
 // 실패해도 조용히 넘어감(작품 등록 자체는 이미 끝난 뒤라 사용자에게 영향 없음, 다음에 어드민
 // 배치("🎭 출연진 채우기")로도 다시 채울 수 있음).
-async function _saveCastForWork(tmdbId, mediaType, env) {
-  const mtypes = mediaType ? [mediaType] : ["movie", "tv"];
+// [2026-07-26 수정] originalLanguage 파라미터 추가 — 한국 작품('ko')만 출연진 무제한 저장,
+// 그 외(외국작품/원어 미확인)는 상위 10명만 저장. 미국 장수 수사물(NCIS, CSI 등)이 시즌
+// 15~25개씩 누적되며 작품당 최대 7,613명까지 쌓이던 문제를 admin.js와 동일하게 방지.
+async function _saveCastForWork(tmdbId, mediaType, env, originalLanguage) {
+  const mtypes  = mediaType ? [mediaType] : ["movie", "tv"];
+  const castCap = originalLanguage === "ko" ? Infinity : 10;
   for (const mtype of mtypes) {
     try {
       const endpoint = mtype === "tv" ? "aggregate_credits" : "credits";
@@ -43,7 +47,7 @@ async function _saveCastForWork(tmdbId, mediaType, env) {
       const directors = (data.crew || [])
         .filter(p => p.job === "Director" || p.department === "Directing")
         .slice(0, 3);
-      const castList = data.cast || [];
+      const castList = (data.cast || []).slice(0, castCap);
       if (!directors.length && !castList.length) continue; // 못 찾았으면 다음 media_type 시도
 
       const stmts = [
@@ -678,7 +682,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // [2026-07-26 신규] 신규 등록된 작품만 출연진/감독을 조용히 저장 (기존 작품은 어드민 배치가 담당)
       // 키워드/성인물 판별과 동일하게 "최초 1회, INSERT 시점에만" — 재방문마다 반복 호출되지 않게
       if (!existing) {
-        ctx.waitUntil(_saveCastForWork(parseInt(tmdb_id), mediaTypeForInsert, env));
+        ctx.waitUntil(_saveCastForWork(parseInt(tmdb_id), mediaTypeForInsert, env, original_language));
       }
 
       return new Response(JSON.stringify({ ok: true }), { headers });
@@ -727,10 +731,17 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   // 호출. 서버가 TMDB에서 다시 받아와 저장(_saveCastForWork 재사용)하는 동안 응답을 기다리지
   // 않고 바로 돌려줌(ctx.waitUntil) — 방문자 화면엔 전혀 영향 없이, "다음 방문자부터는 이
   // 작품도 우리 DB로 바로 나가게" 조용히 채워두는 용도(2026-07-26 신설).
+  // [2026-07-26 수정] 외국작품 상위 10명 제한을 위해 original_language가 필요한데, 클라이언트
+  // 입력을 그대로 믿지 않고 D1 works에서 직접 조회해서 사용(신뢰 가능한 값만 사용).
   if (/^\/works\/\d+\/cast-sync$/.test(path) && request.method === "POST") {
     const tmdbId = parseInt(path.match(/^\/works\/(\d+)\/cast-sync$/)[1]);
     const body   = await request.json().catch(() => ({}));
-    ctx.waitUntil(_saveCastForWork(tmdbId, body.media_type || null, env));
+    ctx.waitUntil((async () => {
+      const w = await env.DB.prepare(
+        "SELECT original_language FROM works WHERE tmdb_id = ?"
+      ).bind(tmdbId).first();
+      await _saveCastForWork(tmdbId, body.media_type || null, env, w?.original_language || null);
+    })());
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
   // 공개 API — 작품 상세페이지 "비슷한 취향의 작품" 섹션에서 최우선 후보로 사용
