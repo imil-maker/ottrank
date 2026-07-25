@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.2 — videos.js (포르노그라피 즉시차단 일본어제목 길이기준 28자→35자 재조정 — 부제 포함 정상 일본 드라마 오탐 발견, _title_detail.html과 동일 기준 유지) */
+/* 2026-07-26 rev.1 — videos.js (신규 작품 등록 시 출연진/감독을 work_cast에 자동 저장 — SEO 서버사이드 프리필용, admin.js backfill-cast와 동일 로직의 단건 버전) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
@@ -19,6 +19,61 @@
 
 import { _checkAuth } from "../utils/authUtils.js";
 import { _crawlYoutubeVideos, _batchCrawlYoutubeVideos, _saveTmdbVideos } from "../utils/youtube.js";
+
+// [2026-07-26 신규] 신규 작품 등록 시 출연진/감독을 work_cast에 조용히 저장 (SEO 서버사이드 프리필용)
+// admin.js의 POST /admin/works/backfill-cast(기존 작품 일괄 채우기)와 완전히 동일한 로직의
+// "단건 버전". 신규 등록되는 작품은 이 함수가 자동으로 채워주므로, 앞으로 어드민 배치는
+// "이 기능이 생기기 전에 등록된 기존 작품"만 채우면 됨 — 매번 수동으로 안 돌려도 됨.
+// POST /works/register 응답을 막지 않도록 ctx.waitUntil()로 완전히 분리해서 백그라운드 처리하고,
+// 실패해도 조용히 넘어감(작품 등록 자체는 이미 끝난 뒤라 사용자에게 영향 없음, 다음에 어드민
+// 배치("🎭 출연진 채우기")로도 다시 채울 수 있음).
+async function _saveCastForWork(tmdbId, mediaType, env) {
+  const mtypes = mediaType ? [mediaType] : ["movie", "tv"];
+  for (const mtype of mtypes) {
+    try {
+      const endpoint = mtype === "tv" ? "aggregate_credits" : "credits";
+      const resp = await fetch(
+        `https://api.themoviedb.org/3/${mtype}/${tmdbId}/${endpoint}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+      );
+      if (!resp.ok) continue;
+      const data = await resp.json();
+
+      const directors = (data.crew || [])
+        .filter(p => p.job === "Director" || p.department === "Directing")
+        .slice(0, 3);
+      const castList = data.cast || [];
+      if (!directors.length && !castList.length) continue; // 못 찾았으면 다음 media_type 시도
+
+      const stmts = [
+        env.DB.prepare("DELETE FROM work_cast WHERE tmdb_id = ? AND media_type = ?").bind(tmdbId, mtype),
+      ];
+      directors.forEach((p, idx) => {
+        stmts.push(env.DB.prepare(`
+          INSERT INTO work_cast (tmdb_id, media_type, person_tmdb_id, name, role, character_name, profile_path, billing_order)
+          VALUES (?, ?, ?, ?, 'director', NULL, ?, ?)
+        `).bind(tmdbId, mtype, p.id, p.name || "", p.profile_path || null, idx));
+      });
+      castList.forEach((p, idx) => {
+        // TV(aggregate_credits)는 캐릭터명이 roles 배열 안에, 영화(credits)는 바로 character에 있음
+        const characterName = mtype === "tv"
+          ? ((p.roles && p.roles[0] && p.roles[0].character) || "")
+          : (p.character || "");
+        const order = (p.order !== undefined && p.order !== null) ? p.order : idx;
+        stmts.push(env.DB.prepare(`
+          INSERT INTO work_cast (tmdb_id, media_type, person_tmdb_id, name, role, character_name, profile_path, billing_order)
+          VALUES (?, ?, ?, ?, 'cast', ?, ?, ?)
+        `).bind(tmdbId, mtype, p.id, p.name || "", characterName, p.profile_path || null, order));
+      });
+      stmts.push(
+        env.DB.prepare("UPDATE works SET cast_synced_at = ? WHERE tmdb_id = ?")
+          .bind(new Date().toISOString(), tmdbId)
+      );
+
+      await env.DB.batch(stmts);
+      return; // 성공했으면 다른 media_type은 시도할 필요 없음
+    } catch (e) { /* 다음 media_type으로 계속 시도 — 둘 다 실패하면 조용히 포기 */ }
+  }
+}
 
 export async function handleVideos(path, request, env, ctx, url, headers) {
 
@@ -617,6 +672,12 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         keywordsVal,
         adultFlagVal
       ).run();
+
+      // [2026-07-26 신규] 신규 등록된 작품만 출연진/감독을 조용히 저장 (기존 작품은 어드민 배치가 담당)
+      // 키워드/성인물 판별과 동일하게 "최초 1회, INSERT 시점에만" — 재방문마다 반복 호출되지 않게
+      if (!existing) {
+        ctx.waitUntil(_saveCastForWork(parseInt(tmdb_id), mediaTypeForInsert, env));
+      }
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
