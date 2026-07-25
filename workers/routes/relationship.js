@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.5 — relationship.js (candidates 정렬을 HOT100 우선에서 방영일 최신순으로 변경 — TV+한국작품+드라마만(예능/리얼리티/토크/다큐 제외)) */
+/* 2026-07-25 rev.6 — relationship.js (candidates 응답에 release_year 추가 — 어드민에서 작품페이지 링크 생성용) */
 /* ══════════════════════════════════════════════════════════════
    relationship.js — 등장인물 관계도 (2026-07-25 신설)
    - 인터넷에 이미 돌고 있는 방송사/제작사 공식 관계도 이미지를 관리자가 직접 찾아서
@@ -87,7 +87,7 @@ export async function handleRelationship(path, request, env, url, headers) {
       // 표시용으로만 같이 내려줌(참고 정보).
       const sql = `
         SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
-               w.original_language, w.first_matched_date, hs.total_score
+               w.original_language, w.first_matched_date, w.release_year, hs.total_score
         FROM works w
         LEFT JOIN hot100_scores hs ON hs.tmdb_id = w.tmdb_id
         WHERE w.media_type = 'tv'
@@ -111,6 +111,7 @@ export async function handleRelationship(path, request, env, url, headers) {
         title: r.title_ko || r.title_en,
         media_type: r.media_type,
         poster_path: r.poster_path,
+        release_year: r.release_year || null,
         in_hot100: r.total_score != null,
       }));
 
