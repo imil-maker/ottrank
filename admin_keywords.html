@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.7 — admin_keywords.html (프로필 생성: 검색결과 있어도 동명이인 수동추가 가능하게 TMDB ID 추가 칸 항상 표시) -->
+<!-- 2026-07-25 rev.8 — admin_keywords.html (관계도매칭 리스트에 작품페이지 링크 + 작품 수정모달 바로가기 링크 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -3669,13 +3669,24 @@ function rcRenderList(){
     listEl.innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">관계도가 없는 작품이 더 이상 없어요 🎉</div>';
     return;
   }
-  listEl.innerHTML = rcItems.map(it => `
+  listEl.innerHTML = rcItems.map(it => {
+    // [2026-07-25 신규] 작품페이지/수정모달 바로가기 링크. 슬러그 규칙은 person.html의
+    // goWork()와 동일하게 "1-{연도}{tmdb_id}"(대시 하나) — 연도가 없으면(release_year NULL)
+    // 서버가 tmdb_id만으로도 찾아주므로 현재연도로 대체.
+    const linkYear = it.release_year || new Date().getFullYear();
+    const titleUrl = `/title/1-${linkYear}${it.tmdb_id}`;
+    const editUrl  = `/admin.html?edit_tmdb=${it.tmdb_id}&media_type=${it.media_type}`
+      + `&title=${encodeURIComponent(it.title || '')}&poster=${encodeURIComponent(it.poster_path || '')}`;
+    return `
     <div id="rcRow-${it.tmdb_id}-${it.media_type}" style="display:flex;align-items:center;gap:14px;padding:12px 10px;border-bottom:1px solid var(--border)">
-      <img src="https://poster.ottrank.kr/tmdb-img/w92${it.poster_path||''}" onerror="this.style.visibility='hidden'"
-        style="width:40px;height:56px;border-radius:4px;object-fit:cover;background:var(--bg3);flex-shrink:0">
+      <a href="${titleUrl}" target="_blank" title="작품페이지 열기">
+        <img src="https://poster.ottrank.kr/tmdb-img/w92${it.poster_path||''}" onerror="this.style.visibility='hidden'"
+          style="width:40px;height:56px;border-radius:4px;object-fit:cover;background:var(--bg3);flex-shrink:0">
+      </a>
       <div style="flex:1;min-width:0;font-size:13px;color:var(--text)">
-        ${escapeAttrPm(it.title || '(제목없음)')}
+        <a href="${titleUrl}" target="_blank" style="color:var(--text);text-decoration:none">${escapeAttrPm(it.title || '(제목없음)')}</a>
         ${it.in_hot100 ? '<span style="margin-left:6px;font-size:11px;color:var(--gold);font-family:var(--mono)">🔥랭킹중</span>' : ''}
+        <a href="${editUrl}" target="_blank" style="margin-left:8px;font-size:11px;color:#7ec8e3;text-decoration:none">✏️ 작품 수정</a>
       </div>
       <button class="btn-secondary" onclick="rcSearchGoogle('${escapeAttrPm(it.title||'').replace(/'/g,"\\'")}')" style="padding:6px 14px;white-space:nowrap;font-size:12px">🔍 구글에서 찾기</button>
       <label style="padding:6px 14px;white-space:nowrap;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted2)">
@@ -3683,7 +3694,8 @@ function rcRenderList(){
         <input type="file" accept="image/*" style="display:none" onchange="rcUploadFile(this, ${it.tmdb_id}, '${it.media_type}')">
       </label>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function rcSearchGoogle(title){
