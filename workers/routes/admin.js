@@ -1,4 +1,4 @@
-// 2026-07-26 rev.1 — admin.js (출연진 채우기 배치 /admin/works/backfill-cast 신규 — work_cast 테이블에 저장, SEO 서버사이드 프리필용)
+// 2026-07-26 rev.2 — admin.js (backfill-cast: 외국 작품은 출연진 상위 10명만 저장하도록 제한 — 미국 장수 수사물이 시즌 누적으로 작품당 최대 7,613명까지 부풀리던 문제 발견)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5193,8 +5193,13 @@ export async function handleAdmin(path, request, env, url, headers) {
   //
   // 화면(_title_detail.html)이 실제로 렌더링하는 것과 동일한 기준으로 저장:
   // - 감독: job==='Director' 또는 department==='Directing'인 크루만 최대 3명
-  // - 배우: 인원 제한 없이 TMDB가 주는 순서(billing order) 그대로 전부 저장
-  //         (화면은 이 전체를 다 보여주고, SSR 프리필 단계에서만 상위 일부로 자름 — §4 예정)
+  // - 배우(한국 작품, original_language='ko'): 인원 제한 없이 전부 저장
+  // - 배우(외국 작품): 상위 10명만 저장 [2026-07-26 추가] — 미국 장수 수사물(NCIS, CSI,
+  //   Law & Order: SVU 등)이 시즌 15~25개씩 되면서 aggregate_credits가 1회성 단역까지
+  //   전부 누적해서 작품 하나당 수천 명(최대 7,613명)까지 쌓이는 문제를 실측으로 발견함
+  //   (한국 작품 평균 5.4명/작품 vs 외국 작품 평균 56.8명/작품, 최대 10배 이상 차이).
+  //   화면은 원래도 인원 제한 없이 다 보여주므로 영향 없고(TMDB 실시간 조회 유지), 이건
+  //   어디까지나 "우리 DB/SSR 프리필용" 저장 규모만 줄이는 것.
   // TV는 aggregate_credits(캐릭터명이 roles[0].character 안에 있음), 영화는 credits(캐릭터명이
   // character에 바로 있음) — 두 응답 구조 차이를 여기서 흡수해서 동일한 형태로 저장.
   if (path === "/admin/works/backfill-cast" && request.method === "POST") {
@@ -5206,7 +5211,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const limit = Math.min(parseInt(body.limit) || 20, 30);
 
       const { results: targets } = await env.DB.prepare(`
-        SELECT tmdb_id, media_type FROM works
+        SELECT tmdb_id, media_type, original_language FROM works
         WHERE cast_synced_at IS NULL
         LIMIT ?
       `).bind(limit).all();
@@ -5222,7 +5227,9 @@ export async function handleAdmin(path, request, env, url, headers) {
       let filled   = 0;
 
       for (const row of targets) {
-        const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
+        const mtypes  = row.media_type ? [row.media_type] : ["tv", "movie"];
+        // 한국 작품만 무제한, 그 외(외국작품 + 아직 원어 미확인)는 상위 10명으로 안전하게 제한
+        const castCap = row.original_language === "ko" ? Infinity : 10;
 
         for (const mtype of mtypes) {
           try {
@@ -5236,7 +5243,7 @@ export async function handleAdmin(path, request, env, url, headers) {
             const directors = (data.crew || [])
               .filter(p => p.job === "Director" || p.department === "Directing")
               .slice(0, 3);
-            const castList = data.cast || [];
+            const castList = (data.cast || []).slice(0, castCap);
 
             // 재수집 시에도 항상 최신 상태를 유지하도록, 기존 저장분을 먼저 지우고 새로 채움
             stmts.push(env.DB.prepare(
