@@ -1,4 +1,4 @@
-// 2026-07-25 rev.3 — admin.js (POST /admin/persons/backfill-filmography 신규 — 봇용 필모그래피 문장 자동생성)
+// 2026-07-25 rev.4 — admin.js (wiki-detail/wiki-manual-save에 auto_filmography_text 연결 — "프로필 생성" 탭에서 봇용 필모문장도 조회/수정 가능하게, 다른 화면은 안 건드리도록 안전 보존 처리)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -4202,7 +4202,8 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const wiki = await env.DB.prepare(
         `SELECT tmdb_person_id, wiki_title, bio_summary, career_history, awards_text,
-                debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields
+                debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields,
+                auto_filmography_text
          FROM person_wiki_cache WHERE tmdb_person_id = ?`
       ).bind(tmdbId).first();
 
@@ -4214,7 +4215,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           wiki: {
             wiki_title: null, bio_summary: null, career_history: null, awards_text: null,
             debut_work: null, debut_year: null, education: null,
-            kmdb_id: null, imdb_id: null, source_url: null,
+            kmdb_id: null, imdb_id: null, source_url: null, auto_filmography_text: null,
           },
           hiddenFields: [],
         }), { headers });
@@ -4267,6 +4268,13 @@ export async function handleAdmin(path, request, env, url, headers) {
       const kmdbId       = norm(body.kmdb_id);
       const imdbId       = norm(body.imdb_id);
       const sourceUrl    = norm(body.source_url);
+      // [2026-07-25 신규] 봇용 필모문장(auto_filmography_text) — "프로필 생성" 탭에서만
+      // 이 필드를 보냄. "인물 개별 검색" 등 다른 화면은 이 필드 자체를 안 보내는데,
+      // 그 경우 기존 값을 그대로 보존해야 함(안 그러면 필모채우기 배치 결과가 다른
+      // 화면에서 저장할 때마다 지워지는 사고가 남). hasOwnProperty로 "보냈는지 여부"를
+      // 구분하고, 안 보냈으면 UPDATE 시 기존 컬럼값을 그대로 유지(CASE문 참고).
+      const autoFilmoProvided = Object.prototype.hasOwnProperty.call(body, "auto_filmography_text");
+      const autoFilmoText     = norm(body.auto_filmography_text);
       // [2026-07-24 신규] "프로필 생성" 탭이 AI 초안을 검토해서 저장할 때 'ai'로 표시.
       // "인물 개별 검색"은 이 필드를 안 보내므로 항상 null(=순수 수동/위키) 유지됨.
       const source       = norm(body.source);
@@ -4278,8 +4286,9 @@ export async function handleAdmin(path, request, env, url, headers) {
       await env.DB.prepare(`
         INSERT INTO person_wiki_cache
           (tmdb_person_id, wiki_title, bio_summary, career_history, awards_text,
-           debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields, source, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+           debut_work, debut_year, education, kmdb_id, imdb_id, source_url, hidden_fields, source,
+           auto_filmography_text, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(tmdb_person_id) DO UPDATE SET
           wiki_title = excluded.wiki_title,
           bio_summary = excluded.bio_summary,
@@ -4293,10 +4302,14 @@ export async function handleAdmin(path, request, env, url, headers) {
           source_url = excluded.source_url,
           hidden_fields = excluded.hidden_fields,
           source = excluded.source,
+          auto_filmography_text = CASE WHEN ? = 1
+            THEN excluded.auto_filmography_text
+            ELSE person_wiki_cache.auto_filmography_text END,
           updated_at = excluded.updated_at
       `).bind(
         tmdbId, wikiTitle, bioSummary, careerHistory, awardsText,
-        debutWork, debutYear, education, kmdbId, imdbId, sourceUrl, hiddenFields.join(","), source
+        debutWork, debutYear, education, kmdbId, imdbId, sourceUrl, hiddenFields.join(","), source,
+        autoFilmoText, autoFilmoProvided ? 1 : 0
       ).run();
 
       // [2026-07-24 신규] "미확정" 목록에 있던 사람이 "프로필 생성" 탭에서 검토·저장되면
