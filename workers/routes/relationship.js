@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.4 — relationship.js (GET /admin/relationship-charts/search 신규 — 검색으로 업로드/교체/삭제용) */
+/* 2026-07-25 rev.5 — relationship.js (candidates 정렬을 HOT100 우선에서 방영일 최신순으로 변경 — TV+한국작품+드라마만(예능/리얼리티/토크/다큐 제외)) */
 /* ══════════════════════════════════════════════════════════════
    relationship.js — 등장인물 관계도 (2026-07-25 신설)
    - 인터넷에 이미 돌고 있는 방송사/제작사 공식 관계도 이미지를 관리자가 직접 찾아서
@@ -66,6 +66,12 @@ export async function handleRelationship(path, request, env, url, headers) {
   }
 
   // ── GET /admin/relationship-charts/candidates ──────────────────
+  // [2026-07-25 수정] 정렬 기준을 HOT100 랭킹 우선에서 "실제 방영일 최신순"으로 변경.
+  // 관리자님 요청 — 랭킹과 무관하게 최근 방영한 드라마부터 관계도를 채우고 싶어서.
+  // 대상도 TV+한국 작품+드라마만으로 좁힘(영화 제외, 예능/리얼리티/토크/다큐 제외 —
+  // variety-similar 분류에 쓰던 것과 같은 genre 키워드 패턴 재사용).
+  // release_date가 없는 작품은 release_year로 대략 보정(YYYY-01-01)해서 순서에 반영하고,
+  // 그것도 없으면 맨 뒤로 밀림(SQLite에서 NULL은 DESC 정렬 시 가장 마지막).
   if (path === "/admin/relationship-charts/candidates" && request.method === "GET") {
     const isAuthed = await _checkAuth(request, env);
     if (!isAuthed) {
@@ -77,22 +83,24 @@ export async function handleRelationship(path, request, env, url, headers) {
       const offset = (page - 1) * limit;
 
       // 관계도가 이미 있는 작품(work_tmdb_id + work_media_type 조합)은 후보에서 제외.
-      // hot100_scores에 있으면 그 순위(total_score DESC)를 우선 정렬키로 쓰고,
-      // 없는 작품은 뒤로 밀리게(랭킹 있는 작품이 항상 위) CASE로 그룹을 먼저 나눔.
+      // HOT100 여부(hs.total_score)는 더 이상 정렬에 안 쓰고, 화면에 "🔥랭킹중" 배지
+      // 표시용으로만 같이 내려줌(참고 정보).
       const sql = `
         SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
                w.original_language, w.first_matched_date, hs.total_score
         FROM works w
         LEFT JOIN hot100_scores hs ON hs.tmdb_id = w.tmdb_id
-        WHERE NOT EXISTS (
-          SELECT 1 FROM relationship_charts rc
-          WHERE rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
-        )
-        ORDER BY
-          CASE WHEN hs.total_score IS NOT NULL THEN 0 ELSE 1 END,
-          hs.total_score DESC,
-          CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
-          w.first_matched_date DESC
+        WHERE w.media_type = 'tv'
+          AND w.original_language = 'ko'
+          AND NOT (
+            w.genre LIKE '%Reality%' OR w.genre LIKE '%Talk%' OR
+            w.genre LIKE '%다큐멘터리%' OR w.genre LIKE '%리얼리티%' OR w.genre LIKE '%토크%'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM relationship_charts rc
+            WHERE rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
+          )
+        ORDER BY COALESCE(w.release_date, w.release_year || '-01-01') DESC
         LIMIT ? OFFSET ?
       `;
       const { results } = await env.DB.prepare(sql).bind(limit + 1, offset).all();
