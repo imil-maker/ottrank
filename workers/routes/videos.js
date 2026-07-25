@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.1 — videos.js (신규 작품 등록 시 출연진/감독을 work_cast에 자동 저장 — SEO 서버사이드 프리필용, admin.js backfill-cast와 동일 로직의 단건 버전) */
+/* 2026-07-26 rev.2 — videos.js (출연진 조회/동기화 공개 API 2개 신규 — GET /works/:id/cast, POST /works/:id/cast-sync. 프론트가 우리 DB를 먼저 확인하고, 없을 때만 TMDB를 부르도록 하기 위함) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
@@ -11,6 +11,8 @@
    POST   /imdb/save                IMDb ID 저장
    GET    /youtube/trending         YouTube 한국 급상승 TOP50
    GET    /works/variety-similar/:tmdb_id  예능 태그 기반 비슷한 작품 (공개, % 계산 포함)
+   GET    /works/:tmdb_id/cast      우리 DB(work_cast) 출연진 조회 (공개, 2026-07-26 신설)
+   POST   /works/:tmdb_id/cast-sync 우리 DB에 없을 때만 호출 — 서버가 TMDB에서 받아와 저장 (공개, 2026-07-26 신설)
    GET    /works/:tmdb_id           작품 단건 조회
    GET    /search/keyword           키워드로 작품 검색 (공개, 한국작품 우선)
 
@@ -685,7 +687,52 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     }
   }
 
-  // ── GET /works/variety-similar/:tmdb_id ───────────────────
+  // ── GET /works/:tmdb_id/cast ───────────────────────────────
+  // 공개 API — 우리 DB(work_cast)에 저장된 출연진/감독을 그대로 돌려줌(2026-07-26 신설).
+  // 목적: 작품페이지가 매번 TMDB를 다시 부르지 않고 여기부터 먼저 확인해서, 있으면 TMDB
+  // 호출 자체를 건너뛰게 하기 위함. 저장된 게 없으면 data:null을 돌려주고, 그걸 신호로
+  // 프론트가 지금처럼 TMDB로 폴백함(§POST cast-sync 참고).
+  // ⚠️ 반드시 아래 범용 "GET /works/:tmdb_id"보다 앞에 있어야 함 — 안 그러면 그쪽이 먼저
+  // "12345/cast" 전체를 tmdb_id로 잘못 파싱해서 가로챔(정규식 매칭이라 그 위험 자체가 없음).
+  if (/^\/works\/\d+\/cast$/.test(path) && request.method === "GET") {
+    const tmdbId    = parseInt(path.match(/^\/works\/(\d+)\/cast$/)[1]);
+    const mediaType = url.searchParams.get("media_type") || "";
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT person_tmdb_id, name, role, character_name, profile_path
+        FROM work_cast
+        WHERE tmdb_id = ? AND media_type = ?
+        ORDER BY billing_order ASC
+      `).bind(tmdbId, mediaType).all();
+
+      if (!results.length) {
+        return new Response(JSON.stringify({ ok: true, data: null }), { headers });
+      }
+
+      const directors = results.filter(p => p.role === "director").map(p => ({
+        id: p.person_tmdb_id, name: p.name, profile_path: p.profile_path,
+      }));
+      const cast = results.filter(p => p.role === "cast").map(p => ({
+        id: p.person_tmdb_id, name: p.name, profile_path: p.profile_path, character: p.character_name,
+      }));
+
+      return new Response(JSON.stringify({ ok: true, data: { directors, cast } }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /works/:tmdb_id/cast-sync ──────────────────────────
+  // 공개 API — 위 GET에서 data:null(우리 DB에 없음)을 받은 프론트가 TMDB 폴백 조회를 한 직후
+  // 호출. 서버가 TMDB에서 다시 받아와 저장(_saveCastForWork 재사용)하는 동안 응답을 기다리지
+  // 않고 바로 돌려줌(ctx.waitUntil) — 방문자 화면엔 전혀 영향 없이, "다음 방문자부터는 이
+  // 작품도 우리 DB로 바로 나가게" 조용히 채워두는 용도(2026-07-26 신설).
+  if (/^\/works\/\d+\/cast-sync$/.test(path) && request.method === "POST") {
+    const tmdbId = parseInt(path.match(/^\/works\/(\d+)\/cast-sync$/)[1]);
+    const body   = await request.json().catch(() => ({}));
+    ctx.waitUntil(_saveCastForWork(tmdbId, body.media_type || null, env));
+    return new Response(JSON.stringify({ ok: true }), { headers });
+  }
   // 공개 API — 작품 상세페이지 "비슷한 취향의 작품" 섹션에서 최우선 후보로 사용
   // TMDB엔 없는 국내 예능 세부장르(works.variety_genre, 관리자 큐레이션)가 겹치는 작품을 찾아
   // 매칭 % 까지 서버에서 계산해서 내려줌 — 프론트는 받은 숫자를 뱃지에 그대로 사용
