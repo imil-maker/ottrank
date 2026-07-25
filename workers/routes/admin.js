@@ -1,4 +1,4 @@
-// 2026-07-25 rev.2 — admin.js (POST /admin/persons/add-manual 신규 — TMDB ID로 인물 1명 수동 추가)
+// 2026-07-25 rev.3 — admin.js (POST /admin/persons/backfill-filmography 신규 — 봇용 필모그래피 문장 자동생성)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -88,6 +88,7 @@
    POST   /admin/works/backfill-release-year
    POST   /admin/works/backfill-rating
    POST   /admin/works/backfill-overview   ← 줄거리(overview) 백필, backfill-rating과 동일 패턴(2026-07-25 신설)
+   POST   /admin/persons/backfill-filmography  ← 봇용 필모그래피 문장 자동생성, person_wiki_cache.auto_filmography_text에 저장(2026-07-25 신설)
    POST   /admin/works/batch-imdb-search   ← IMDb 매칭 배치 (OMDB 제목검색)
    POST   /admin/works/imdb-manual         ← IMDb 평점 수동 입력 (OMDB 반영 지연 대응)
    GET    /admin/works/missing-media-type
@@ -5155,6 +5156,133 @@ export async function handleAdmin(path, request, env, url, headers) {
       const remainRow = await env.DB.prepare(
         "SELECT COUNT(*) as cnt FROM works WHERE overview IS NULL OR overview = ''"
       ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/backfill-filmography ───────────────────────
+  // 봇(검색엔진)용 필모그래피 문장 자동생성. bio_summary(진짜 약력)와는 완전히 분리된
+  // person_wiki_cache.auto_filmography_text 컬럼에만 저장 — bio_summary는 절대 안 건드림.
+  //
+  // 대상: has_korean_name=1인 사람 전체(약력 유무 상관없이) 중 auto_filmography_text가 비어있는 사람.
+  // "대표작"은 person.html처럼 작품마다 실제 출연진을 재조회해서 확인하지 않고(호출량 폭증 방지),
+  // TMDB combined_credits가 credit 항목마다 이미 내려주는 order(출연 순번)를 그대로 활용하는
+  // 단순화된 버전 — order<=5인 항목 중 인기도 상위를 대표작으로 간주.
+  if (path === "/admin/persons/backfill-filmography" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 30, 50);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday, p.place_of_birth
+        FROM persons p
+        LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        WHERE p.has_korean_name = 1
+          AND (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
+        ORDER BY p.popularity DESC
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: 0, message: "채울 인물 없음"
+        }), { headers });
+      }
+
+      const updates = [];
+      let filled = 0;
+
+      for (const row of targets) {
+        const displayName = row.name_ko || row.name;
+        const isDirector = row.job === "direct";
+        let sentence = "__NONE__"; // 필모그래피를 하나도 못 찾았을 때 저장할 센티널(무한 재시도 방지)
+
+        try {
+          const resp = await fetch(
+            `https://api.themoviedb.org/3/person/${row.tmdb_id}/combined_credits?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+          );
+
+          if (resp.ok) {
+            const data = await resp.json();
+
+            // 배우면 cast(출연) 목록, 감독이면 crew 중 감독/크리에이터 항목만 사용
+            const rawEntries = isDirector
+              ? (data.crew || []).filter(c => c.job === "Director" || c.job === "Creator")
+              : (data.cast || []);
+
+            const entries = rawEntries
+              .map(c => ({
+                title: c.title || c.name || "",
+                order: typeof c.order === "number" ? c.order : null,
+                popularity: c.popularity || 0,
+              }))
+              .filter(c => c.title);
+
+            // 제목 중복 제거 (합작/시즌 재출연 등으로 같은 제목이 여러 번 나올 수 있음)
+            const seen = new Set();
+            const deduped = entries.filter(e => {
+              if (seen.has(e.title)) return false;
+              seen.add(e.title);
+              return true;
+            });
+
+            if (deduped.length) {
+              // 전체 필모(최대 30개) — 인기도 높은 순
+              const byPopularity = [...deduped].sort((a, b) => b.popularity - a.popularity);
+              const fullList = byPopularity.slice(0, 30).map(e => e.title);
+
+              // 대표작(최대 5개) — order<=5(주연급) 중 인기도 상위, 부족하면 전체 목록에서 채움
+              const leadRoles = byPopularity.filter(e => e.order !== null && e.order <= 5);
+              const repList = (leadRoles.length ? leadRoles : byPopularity).slice(0, 5).map(e => e.title);
+
+              // 메타(생년월일/출생지) — 없으면 자연스럽게 생략
+              const metaBits = [];
+              if (row.birthday && !row.birthday.startsWith("0000")) {
+                metaBits.push(`${row.birthday.slice(0, 4)}년생`);
+              }
+              if (row.place_of_birth) metaBits.push(row.place_of_birth);
+              const metaText = metaBits.length ? `(${metaBits.join(", ")}) ` : "";
+
+              const jobLabel = isDirector ? "감독" : "배우";
+              const verb = isDirector ? "연출했다" : "출연했다";
+
+              const repText = repList.length
+                ? `대표작으로 ${repList.join(", ")}가 있으며, `
+                : "";
+              const fullText = `${fullList.join(", ")} 등에 ${verb}`;
+
+              sentence = `${displayName}${metaText}는 대한민국의 ${jobLabel}로, ${repText}${fullText}.`;
+            }
+          }
+        } catch (e) {
+          sentence = "__NONE__"; // 조회 실패 시에도 재시도 폭주 막기 위해 센티널로 기록
+        }
+
+        updates.push(
+          env.DB.prepare(`
+            INSERT INTO person_wiki_cache (tmdb_person_id, auto_filmography_text)
+            VALUES (?, ?)
+            ON CONFLICT(tmdb_person_id) DO UPDATE SET auto_filmography_text = excluded.auto_filmography_text
+          `).bind(row.tmdb_id, sentence)
+        );
+        if (sentence !== "__NONE__") filled++;
+      }
+      if (updates.length) await env.DB.batch(updates);
+
+      const remainRow = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM persons p
+        LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        WHERE p.has_korean_name = 1
+          AND (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
+      `).first();
 
       return new Response(JSON.stringify({
         ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
