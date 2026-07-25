@@ -1,4 +1,4 @@
-// 2026-07-25 rev.5 — admin.js (필모채우기: persons.job 대신 TMDB known_for_department 사용 — 작가/감독/제작자/배우·방송인 정확히 구분)
+// 2026-07-25 rev.6 — admin.js (IMDb 수동입력을 imdb_manual 플래그로 표시하고, batch-imdb-search가 주기적으로 재확인해서 실제 OMDB 값이 나오면 자동으로 덮어쓰도록 변경 — "자동이 결국 우선"으로 방침 전환)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5345,7 +5345,15 @@ export async function handleAdmin(path, request, env, url, headers) {
   //      위해, 반드시 관리자가 수동으로 실행하는 배치로만 동작하고
   //      성공/실패 관계없이 imdb_search_attempted_at을 기록해 재시도를
   //      7일 쿨다운으로 제한함.
-  //   대상: imdb_id 없음 AND (attempted_at NULL 또는 7일 경과)
+  //   대상: ① imdb_id 없음 (신규 매칭 — 제목검색) ② imdb_manual=1인 작품
+  //         (수동입력 재확인 — imdb_id로 직접 조회, 더 정확함)
+  //         둘 다 (attempted_at NULL 또는 7일 경과) 조건 공통 적용.
+  //   [2026-07-25 신규] ② 그룹 추가 — 예전엔 수동입력된 작품은 imdb_id가
+  //   이미 있다는 이유로 이 배치의 대상에서 영원히 빠져서, 실제 OMDB 값이
+  //   나중에 채워져도 자동으로 안 갱신되는 문제가 있었음(관리자 확인 후 결정
+  //   변경 — "자동이 결국 우선시돼야 한다"). imdb_manual=1인 작품은 imdb_id로
+  //   직접 조회(제목검색보다 정확)해서, 실제 값이 확인되면 덮어쓰고 imdb_manual
+  //   플래그를 0으로 해제함. 아직 OMDB에 반영 안 됐으면 수동값 그대로 유지.
   //   우선순위: 오늘 rankings에 있는 작품(인기작) → created_at 최신순
   //   예산: body.limit (기본 30)
   if (path === "/admin/works/batch-imdb-search" && request.method === "POST") {
@@ -5375,9 +5383,12 @@ export async function handleAdmin(path, request, env, url, headers) {
       const latestDate = latestDateRow?.latest_date || null;
 
       const { results: candidates } = await env.DB.prepare(`
-        SELECT w.tmdb_id, w.title_en, w.release_year, w.media_type
+        SELECT w.tmdb_id, w.title_en, w.release_year, w.media_type, w.imdb_id, w.imdb_manual
         FROM works w
-        WHERE (w.imdb_id IS NULL OR w.imdb_id = '')
+        WHERE (
+          (w.imdb_id IS NULL OR w.imdb_id = '')
+          OR (w.imdb_manual = 1 AND w.imdb_id IS NOT NULL AND w.imdb_id != '')
+        )
         AND (
           w.imdb_search_attempted_at IS NULL
           OR w.imdb_search_attempted_at < datetime('now', '-7 days')
@@ -5406,7 +5417,9 @@ export async function handleAdmin(path, request, env, url, headers) {
       // 순차 처리 (레이트리밋 회피 목적, 병렬 처리 안 함 — batch-crawl과 동일 원칙)
       for (const c of candidates) {
         try {
-          if (!c.title_en) {
+          const isManualRecheck = c.imdb_manual === 1 && c.imdb_id;
+
+          if (!isManualRecheck && !c.title_en) {
             // 영문 제목이 없으면 OMDB 제목검색 자체가 불가능 — 시도 기록만 남기고 스킵
             await env.DB.prepare(
               "UPDATE works SET imdb_search_attempted_at = ? WHERE tmdb_id = ?"
@@ -5414,9 +5427,13 @@ export async function handleAdmin(path, request, env, url, headers) {
             continue;
           }
 
+          // [2026-07-25 신규] 수동입력 재확인은 imdb_id로 직접 조회(i=), 신규 매칭은
+          // 기존처럼 제목+연도로 검색(t=&y=) — id로 직접 조회하는 쪽이 훨씬 정확함.
           const omdbType = c.media_type === "movie" ? "movie" : "series";
-          const params = new URLSearchParams({ t: c.title_en, type: omdbType, apikey: omdbKey });
-          if (c.release_year) params.set("y", String(c.release_year));
+          const params = isManualRecheck
+            ? new URLSearchParams({ i: c.imdb_id, apikey: omdbKey })
+            : new URLSearchParams({ t: c.title_en, type: omdbType, apikey: omdbKey });
+          if (!isManualRecheck && c.release_year) params.set("y", String(c.release_year));
 
           const omdbRes  = await fetch(`https://www.omdbapi.com/?${params.toString()}`);
           const omdbData = await omdbRes.json();
@@ -5425,16 +5442,25 @@ export async function handleAdmin(path, request, env, url, headers) {
             const r = parseFloat(omdbData.imdbRating);
             if (!isNaN(r)) {
               const v = omdbData.imdbVotes || "";
+              // 수동재확인이든 신규매칭이든, 실제 OMDB 값이 확인됐으면 imdb_manual 해제
+              // (이제부터는 진짜 자동 데이터라는 뜻)
               await env.DB.prepare(
-                "UPDATE works SET imdb_id = ?, imdb_rating = ?, imdb_votes = ?, imdb_updated = ?, imdb_search_attempted_at = ? WHERE tmdb_id = ?"
+                "UPDATE works SET imdb_id = ?, imdb_rating = ?, imdb_votes = ?, imdb_updated = ?, imdb_search_attempted_at = ?, imdb_manual = 0 WHERE tmdb_id = ?"
               ).bind(omdbData.imdbID, r, v, now, now, c.tmdb_id).run();
+              filled++;
             } else {
-              // imdb_id는 찾았지만 평점이 아직 없는 경우 — id만 저장, 평점은 기존 /imdb/:id 실시간 캐시 로직이 이후 채움
-              await env.DB.prepare(
-                "UPDATE works SET imdb_id = ?, imdb_search_attempted_at = ? WHERE tmdb_id = ?"
-              ).bind(omdbData.imdbID, now, c.tmdb_id).run();
+              // imdb_id는 찾았지만(또는 이미 있지만) 평점이 아직 없는 경우 — 수동재확인이면
+              // 기존 수동값을 그대로 두고(덮어쓰지 않음), 신규매칭이면 id만 저장.
+              if (!isManualRecheck) {
+                await env.DB.prepare(
+                  "UPDATE works SET imdb_id = ?, imdb_search_attempted_at = ? WHERE tmdb_id = ?"
+                ).bind(omdbData.imdbID, now, c.tmdb_id).run();
+              } else {
+                await env.DB.prepare(
+                  "UPDATE works SET imdb_search_attempted_at = ? WHERE tmdb_id = ?"
+                ).bind(now, c.tmdb_id).run();
+              }
             }
-            filled++;
           } else {
             // 매칭 실패 — 반드시 attempted_at 기록 (무한 재시도 방지, 오늘 확립한 핵심 원칙)
             await env.DB.prepare(
@@ -5451,7 +5477,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       // 남은 대상 개수 재조회
       const remainRow = await env.DB.prepare(`
         SELECT COUNT(*) AS cnt FROM works w
-        WHERE (w.imdb_id IS NULL OR w.imdb_id = '')
+        WHERE (
+          (w.imdb_id IS NULL OR w.imdb_id = '')
+          OR (w.imdb_manual = 1 AND w.imdb_id IS NOT NULL AND w.imdb_id != '')
+        )
         AND (
           w.imdb_search_attempted_at IS NULL
           OR w.imdb_search_attempted_at < datetime('now', '-7 days')
@@ -5472,10 +5501,10 @@ export async function handleAdmin(path, request, env, url, headers) {
   //   배경: 김부장(tmdb_id=296206)처럼 imdb_id는 이미 매칭됐지만 OMDB가
   //         아직 평점을 못 채운 신작을, 검색 유입이 많을 때 관리자가
   //         직접 IMDb 사이트에서 확인한 값을 넣어 즉시 반영하기 위함.
-  //   ⚠️ 주의: 프론트(_title_detail.html)는 works.imdb_rating이 있으면
-  //      OMDB를 다시 호출하지 않고 그 값을 그대로 표시함 → 여기서 넣은
-  //      값은 나중에 실제 OMDB 데이터로 자동으로 안 바뀌고 고정됨.
-  //      (사용자 확인 및 동의됨 — 필요시 나중에 다시 이 API로 갱신)
+  //   [2026-07-25 수정] "수동입력은 영구 고정"이던 방침을 변경 — imdb_manual=1로
+  //   표시해두면 batch-imdb-search가 주기적으로(7일 쿨다운) imdb_id로 직접 재조회해서,
+  //   실제 OMDB 값이 확인되는 순간 자동으로 덮어쓰고 플래그를 해제함. 즉 수동입력은
+  //   "OMDB가 채울 때까지의 임시값"이라는 의미로 바뀜(관리자 확인 및 결정).
   //   ⚠️ imdb_id 자체가 없는 작품(TMDB external_ids 미매핑)은 평점을
   //      넣어도 화면에 카드 자체가 안 뜸 — 응답에 warning으로 안내.
   if (path === "/admin/works/imdb-manual" && request.method === "POST") {
@@ -5503,8 +5532,10 @@ export async function handleAdmin(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "해당 tmdb_id 작품을 찾을 수 없습니다" }), { status: 404, headers });
       }
 
+      // [2026-07-25 수정] imdb_manual=1로 표시 — batch-imdb-search가 이후 주기적으로
+      // 재확인해서 실제 값이 나오면 자동으로 덮어쓸 수 있게 함.
       await env.DB.prepare(
-        "UPDATE works SET imdb_rating = ?, imdb_votes = ?, imdb_updated = datetime('now') WHERE tmdb_id = ?"
+        "UPDATE works SET imdb_rating = ?, imdb_votes = ?, imdb_updated = datetime('now'), imdb_manual = 1 WHERE tmdb_id = ?"
       ).bind(rating, votes, tmdb_id).run();
 
       return new Response(JSON.stringify({
