@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.3 — functions/title/[slug].js (TMDB 실시간 조회/백필 로직 제거, D1만 읽는 단순 구조로 되돌림 — 줄거리 채우기는 admin.js backfill-overview로 완전히 분리) */
+/* 2026-07-25 rev.4 — functions/title/[slug].js (TMDB 평점 + 인물관계도 이미지 프리필 추가 — 봇 색인 개선) */
 /* ══════════════════════════════════════════════════════════════
    Cloudflare Pages Function — /title/:slug 요청을 가로채서,
    정적 _title_detail.html을 그대로 가져온 다음 <title>/메타태그/줄거리 부분만
@@ -82,7 +82,7 @@ export async function onRequestGet(context) {
     const parsed = parseSlugForSeo(slug);
     if (parsed && env.DB) {
       const row = await env.DB.prepare(`
-        SELECT title_ko, title_en, overview, poster_path
+        SELECT title_ko, title_en, overview, poster_path, media_type, tmdb_rating
         FROM works
         WHERE tmdb_id = ?
         ORDER BY (release_year = ?) DESC
@@ -125,6 +125,46 @@ export async function onRequestGet(context) {
             /(<p class="hero-overview" id="overview">)[^<]*(<\/p>)/,
             (_, pre, post) => `${pre}${escText(overview || "줄거리 정보가 없습니다.")}${post}`
           );
+
+          // [2026-07-25 신규] TMDB 평점 프리필 — IMDb는 D1에 캐시된 값이 없어서(실시간
+          // OMDB 조회만 존재) 이번엔 손대지 않음. tmdb_rating은 0점(투표수 부족)도 유효한
+          // 값이라 null/undefined일 때만 건너뜀.
+          if (row.tmdb_rating !== null && row.tmdb_rating !== undefined) {
+            const scoreText = Number(row.tmdb_rating).toFixed(1);
+            html = html.replace(
+              /(<div class="r-score" id="tmdbScore" style="color:#01b4e4">)[^<]*(<\/div>)/,
+              (_, pre, post) => `${pre}${escText(scoreText)}${post}`
+            );
+          }
+
+          // [2026-07-25 신규] 인물관계도 이미지 프리필 — 공식 이미지가 등록돼있으면
+          // (relationship_charts, status='approved') src/alt를 채우고 섹션을 노출.
+          // 스포일러 방지용 접힘(relChartBody display:none)은 그대로 유지 — 펼치는 동작만
+          // 막을 뿐, 이미지 자체는 페이지 소스에 존재해야 봇이 인식 가능.
+          if (row.media_type) {
+            try {
+              const chart = await env.DB.prepare(`
+                SELECT image_url FROM relationship_charts
+                WHERE work_tmdb_id = ? AND work_media_type = ? AND status = 'approved'
+                  AND image_url IS NOT NULL AND image_url != ''
+                LIMIT 1
+              `).bind(parsed.tmdb_id, row.media_type).first();
+
+              if (chart && chart.image_url) {
+                const chartAlt = `${title} 인물관계도`;
+                html = html.replace(
+                  /(<img id="relChartImg" src=")[^"]*("[^>]*alt=")[^"]*(")/,
+                  (_, pre, mid, post) => `${pre}${escAttr(chart.image_url)}${mid}${escAttr(chartAlt)}${post}`
+                );
+                html = html.replace(
+                  /(<div class="relchart-section" id="relChartSection" style=")display:none(")/,
+                  (_, pre, post) => `${pre}${post}`
+                );
+              }
+            } catch (e) {
+              // 관계도 조회 실패해도 나머지 프리필(제목/줄거리/평점)엔 영향 없게 조용히 무시
+            }
+          }
         }
       }
     }
