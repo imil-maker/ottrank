@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.1 — rankings.js (sitemap의 persons 목록에서 "고아 데이터"—작품에 안 걸리고 위키/AI 프로필도 없고 좋아요도 없는 사람—를 자동 제외하도록 조건 추가. 색인 품질 개선을 위해 대량 삭제한 것과 동일 기준을 앞으로도 자동 유지) */
+/* 2026-07-26 rev.2 — rankings.js (sitemap 정적 페이지 목록에서 /review, /reactions, /mypage, /my_review 제거 — robots.txt 크롤 차단과 맞춰 콘텐츠 없는 페이지 노출 정리) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -833,6 +833,10 @@ export async function handleRankings(path, request, env, url, headers) {
       // 정적 페이지 목록 — { path, changefreq, priority }
       // changefreq: 랭킹/리뷰 페이지는 daily, 소개/약관은 monthly
       // priority: 메인 1.0, OTT 0.9, 커뮤니티 0.8, 기타 0.6
+      // [2026-07-26 수정] /review(리뷰 작성 페이지, 콘텐츠 없음), /reactions(해외반응,
+      // 데이터 거의 없음), /mypage·/my_review(개인 페이지)는 robots.txt에서도 차단 처리 —
+      // 크롤 차단된 페이지를 sitemap에 올리는 건 앞뒤가 안 맞아 목록에서도 함께 제거함.
+      // 데이터가 충분히 쌓이면(특히 /reactions) 다시 등록 검토.
       const staticPages = [
         // 메인
         { path: "/",              changefreq: "daily",   priority: "1.0" },
@@ -845,12 +849,7 @@ export async function handleRankings(path, request, env, url, headers) {
         { path: "/boxoffice",     changefreq: "daily",   priority: "0.9" },
         // 커뮤니티/콘텐츠 (자주 업데이트)
         { path: "/community",     changefreq: "daily",   priority: "0.8" },
-        { path: "/review",        changefreq: "daily",   priority: "0.8" },
-        { path: "/reactions",     changefreq: "daily",   priority: "0.8" },
         { path: "/contents",      changefreq: "daily",   priority: "0.8" },
-        // 공개 사용자 페이지
-        { path: "/mypage",        changefreq: "weekly",  priority: "0.6" },
-        { path: "/my_review",     changefreq: "weekly",  priority: "0.6" },
         // 서비스 안내
         { path: "/ott_intro.html",changefreq: "monthly", priority: "0.6" },
         { path: "/privacy",       changefreq: "monthly", priority: "0.4" },
