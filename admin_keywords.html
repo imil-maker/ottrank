@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.6 — admin_keywords.html ("프로필 생성" 탭에 필모(봇용, auto_filmography_text) 조회/수정 칸 신규 추가) -->
+<!-- 2026-07-25 rev.7 — admin_keywords.html (프로필 생성: 검색결과 있어도 동명이인 수동추가 가능하게 TMDB ID 추가 칸 항상 표시) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2268,6 +2268,22 @@ async function pgSearchByName(){
       return;
     }
 
+    // [2026-07-25 신규] 검색 결과가 있어도(동명이인 등) TMDB ID로 직접 추가할 수 있는
+    // 칸을 항상 함께 보여줌 — 예전엔 검색결과가 0건일 때만 나와서, 동명이인이 이미
+    // 등록돼있으면 다른 사람(같은 이름의 또 다른 tmdb_id)을 추가할 방법이 없었음.
+    const manualAddBox = `
+      <div style="padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-top:10px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">위 목록에 찾는 사람이 없나요? (동명이인 등) TMDB 인물 ID를 알고 있으면 직접 추가할 수 있어요.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="pgManualIdInput" placeholder="TMDB 인물 ID (예: 6329680)"
+            style="flex:1;min-width:160px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"
+            onkeydown="if(event.key==='Enter'){ event.preventDefault(); pgAddManualPerson('${escapeHtmlPm(q).replace(/'/g,"\\'")}'); }">
+          <button class="btn-primary" onclick="pgAddManualPerson('${escapeHtmlPm(q).replace(/'/g,"\\'")}')" style="padding:8px 16px;font-size:13px;white-space:nowrap">➕ 추가</button>
+        </div>
+        <div id="pgManualAddStatus" style="font-size:12px;margin-top:8px"></div>
+      </div>
+    `;
+
     resultsWrap.innerHTML = data.items.map(p => {
       const yearBit = (p.birthday && !p.birthday.includes('00-00')) ? `${p.birthday.slice(0,4)}년생` : '생년 정보 없음';
       return `
@@ -2283,7 +2299,7 @@ async function pgSearchByName(){
         <span style="font-size:12px;color:${p.matched ? 'var(--green)' : 'var(--muted)'}">${p.matched ? '📄 프로필 있음' : '⬜ 프로필 없음'}</span>
       </div>
     `;
-    }).join('');
+    }).join('') + manualAddBox;
   }catch(e){
     resultsWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
   }
