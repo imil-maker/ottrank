@@ -1,3 +1,4 @@
+/* 2026-07-25 rev.1 — videos.js (포르노그라피 즉시차단 기준 조정: 일본어제목 길이기준 20자→28자 완화 + AV 전용단어 목록 확장 — _title_detail.html과 동일 기준으로 맞춤) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
@@ -527,15 +528,21 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
         // [2026-07-20 추가] 포르노그라피 자동 판별 (adult_flag=2, 일반 성인물=1보다 강한 차단 대상)
         // 실측으로 검증된 3가지 신호만 사용 — 셋 중 하나라도 걸리면 포르노로 확정:
-        //   ① title_ko에 일본어 문자 + 20자 이상 (JAV 특유의 긴 설명형 제목, 20자 미만 정상작품과 뚜렷이 구분됨)
+        //   ① title_ko에 일본어 문자 + 28자 이상 (JAV 특유의 긴 설명형 제목)
         //   ② title_ko에 노골적 단어(SEX는 대문자만 — "섹스 앤 더 시티" 등 한글 표기 정상작품과 구분하기 위함)
         //   ③ TMDB keywords에 노골적 하드코어 전용 단어
+        // [2026-07-25 수정] 일본어+길이 기준 오탐 발견 — 일본 소극장 연극 녹화본처럼 정상적인
+        // 작품인데도 제목이 길다는 이유만으로 차단되는 사례("城山羊の会「평화에 의한...」" 21자)가
+        // 실제로 있었음(_title_detail.html에서 먼저 발견). 20자→28자로 완화하고, 대신 AV 전용
+        // 단어 목록을 늘려서(길이와 무관하게 걸리는 2차 신호 강화) 놓치는 진짜 위험작이 없도록
+        // 보완 — _title_detail.html의 즉시차단 로직과 반드시 동일 기준으로 맞출 것.
         const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF]/.test(title_ko || "");
-        const isLongJapaneseTitle = hasJapanese && title_ko.length >= 20;
+        const isLongJapaneseTitle = hasJapanese && title_ko.length >= 28;
         // SEX는 ESSEX 등 일반 단어에 포함될 위험이 커서 제외.
         // NTR은 CONTROL/COUNTRY 등에 우연히 포함될 수 있어 \b(단어 경계)로 "독립된 단어"일 때만 매칭.
+        const JP_PORN_WORDS = ["中出し", "手コキ", "人妻", "巨乳", "爆乳", "素人", "痴女", "熟女"];
         const hasPornTitleWord = /\bNTR\b/.test(title_ko || "") ||
-          (title_ko || "").includes("中出し") || (title_ko || "").includes("手コキ");
+          JP_PORN_WORDS.some(w => (title_ko || "").includes(w));
         const PORN_KEYWORDS = ["creampie", "orgy", "gang rape", "netorare", "cuckold", "big tits", "handjob"];
         const hasPornKeyword = !!(keywordsVal && PORN_KEYWORDS.some(w => keywordsVal.includes(w)));
 
