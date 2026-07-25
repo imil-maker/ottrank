@@ -1,3 +1,4 @@
+/* 2026-07-25 rev.1 — functions/person/[id].js (D1 bio_summary/auto_filmography_text 프리필 추가 — bio_summary 100자 미만이면 필모문장 이어붙임, 본문/description/JSON-LD 모두 적용) */
 /* functions/person/[id].js - 오뜨랑 인물 상세 페이지 라우팅 + SSR SEO */
 
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -28,6 +29,7 @@ export async function onRequest(context) {
   let seoOgImage   = 'https://ottrank.kr/og-image.png';
   let seoCanonical = `https://ottrank.kr/person/${personId}`;
   let jsonLd       = '{}';
+  let bioSource    = ''; // [2026-07-25 신규] D1 약력(bio_summary/auto_filmography_text) 우선, 없으면 TMDB로 폴백
 
   /* ── 3. TMDB Person API 호출 ── */
   if (personId) {
@@ -48,8 +50,32 @@ export async function onRequest(context) {
         const dept      = data.known_for_department || '';
         const jobLabel  = dept === 'Directing' ? '감독' : '배우';
 
+        /* [2026-07-25 신규] D1 약력 프리필 — bio_summary(진짜 약력) 100자 이상이면 그것만,
+           100자 미만(또는 없음)이면 auto_filmography_text(자동생성 필모문장)를 이어붙임.
+           D1 조회 실패해도 TMDB biography로 그대로 폴백 — 페이지가 깨지는 일은 없음. */
+        if (env.DB) {
+          try {
+            const wikiRow = await env.DB.prepare(
+              `SELECT bio_summary, auto_filmography_text FROM person_wiki_cache WHERE tmdb_person_id = ?`
+            ).bind(personId).first();
+
+            if (wikiRow) {
+              const manualBio = (wikiRow.bio_summary || '').trim();
+              const autoRaw   = (wikiRow.auto_filmography_text || '').trim();
+              const autoText  = (autoRaw && autoRaw !== '__NONE__') ? autoRaw : '';
+
+              bioSource = manualBio.length >= 100
+                ? manualBio
+                : [manualBio, autoText].filter(Boolean).join(' ');
+            }
+          } catch (e) {
+            bioSource = ''; // 조회 실패 시 아래에서 TMDB biography로 폴백
+          }
+        }
+        if (!bioSource) bioSource = data.biography || '';
+
         /* 약력 앞 100자 */
-        const bio       = (data.biography || '').slice(0, 100).replace(/\n/g, ' ');
+        const bio       = bioSource.slice(0, 100).replace(/\n/g, ' ');
 
         /* 출연작 상위 3개 (최신순) */
         const credits   = data.combined_credits || {};
@@ -102,7 +128,7 @@ export async function onRequest(context) {
           image:      seoOgImage,
           jobTitle:   jobLabel,
         };
-        if (data.biography)    ld.description    = data.biography.slice(0, 200);
+        if (bioSource)          ld.description    = bioSource.slice(0, 200);
         if (data.birthday)     ld.birthDate      = data.birthday;
         if (data.place_of_birth) ld.birthPlace   = data.place_of_birth;
         if (enName)            ld.alternateName  = enName;
@@ -158,6 +184,16 @@ export async function onRequest(context) {
     .replace(/<meta[^>]+id="seoTwDesc"[^>]*>/i, '')
     .replace(/<link[^>]+id="seoCanonical"[^>]*>/i, '')
     .replace('<head>', `<head>\n${metaInject}`);
+
+  /* [2026-07-25 신규] 본문 약력 자리(id="bioText")도 미리 채움 — 화면에는 자바스크립트가
+     로드 후 다시 자기 로직(위키 우선 등)으로 덮어쓰므로 사람 눈엔 영향 없음. bioSource가
+     비어있으면(D1도 TMDB도 없음) 건드리지 않고 기존 빈 상태 그대로 둠. */
+  if (bioSource) {
+    html = html.replace(
+      /(<div class="bio-text" id="bioText">)[\s\S]*?(<\/div>)/,
+      (_, pre, post) => `${pre}${esc(bioSource)}${post}`
+    );
+  }
 
   return new Response(html, {
     status: 200,
