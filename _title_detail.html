@@ -1,4 +1,4 @@
-<!-- 2026-07-25 rev.8 — _title_detail.html (포르노그라피 즉시차단 일본어제목 길이기준 28자→35자 재조정 — "新年早々 不適切にもほどがある！～真面目な話、しちゃダメですか？～"(33자) 부제 포함 정상 일본 드라마 오탐 발견) -->
+<!-- 2026-07-26 rev.1 — _title_detail.html (TMDB 미번역 장르 3종 한글 치환 추가 — Action & Adventure/Sci-Fi & Fantasy/War & Politics가 TMDB에서 원래부터 한국어 번역이 없어 화면에 영어 그대로 노출되던 문제, 화면 칩+JSON-LD 양쪽 다 적용) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2848,6 +2848,15 @@ async function loadTmdb(){
 
     const genreStr=det.genre||'';
     const genres=det.genres||(genreStr?genreStr.split(',').map(g=>({name:g.trim()})):[]);
+    // [2026-07-26 신규] TMDB가 언어(language=ko-KR) 상관없이 원래부터 한국어 번역을 안 주는
+    // TV 전용 장르 3종 — 한국어 요청해도 항상 영어로만 돌아옴(TMDB 자체 한계, 우리 데이터 문제 아님).
+    // 화면 칩(genreHtml)과 JSON-LD(WORK.genreNames) 둘 다 여기서 한 번에 치환해서 일관되게 반영.
+    const GENRE_NAME_FIX={
+      'Action & Adventure':'액션/어드벤처',
+      'Sci-Fi & Fantasy':'SF/판타지',
+      'War & Politics':'전쟁/정치',
+    };
+    const fixGenreName=(name)=>GENRE_NAME_FIX[name]||name;
     // 예능 태그(works.variety_genre) — TMDB엔 없는 국내 예능 세부장르, 관리자가 직접 큐레이션한 값
     // 항상 장르 목록 맨 앞에 표시 (일반 장르와 구분되게 hero-tag-variety 스타일 적용)
     const varietyTags=(worksData?.variety_genre||'').split(',').map(s=>s.trim()).filter(Boolean);
@@ -2855,10 +2864,10 @@ async function loadTmdb(){
     // 관리자 수동 연결(work_pinned_similar) — 이미 받아온 /works/{id} 응답에 딸려옴, 추가 fetch 없음
     WORK.pinnedSimilar=worksData?.pinned_similar||[];
     const varietyHtml=varietyTags.map(t=>`<span class="hero-tag hero-tag-variety">${_hesc(t)}</span>`).join('');
-    const genreHtml=genres.map(g=>`<span class="hero-tag">${_hesc(g.name||g)}</span>`).join('');
+    const genreHtml=genres.map(g=>`<span class="hero-tag">${_hesc(fixGenreName(g.name||g))}</span>`).join('');
     document.getElementById('genreTags').innerHTML=varietyHtml+genreHtml;
     // JSON-LD genre용 — 장르 이름만 뽑은 배열 (예능 태그는 schema.org genre 취지와 안 맞아 제외)
-    WORK.genreNames=genres.map(g=>g.name||g).filter(Boolean);
+    WORK.genreNames=genres.map(g=>fixGenreName(g.name||g)).filter(Boolean);
 
     // 키워드 태그 — worksData.keywords는 D1에 미리 수집해둔 콤마구분 영문 키워드
     // '__NONE__'은 "TMDB에 키워드 자체가 없어서 시도했지만 결과 없음" 센티널 → 빈 배열로 취급
