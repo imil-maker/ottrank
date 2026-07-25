@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.11 — person.html (대표작 4차 수정: 명단에서 못 찾음+국내 OTT 미제공이 겹치면 tier 최하위로 구조적 강등, OTT 미제공 감점도 40%→60%로 강화 — 해외 장수작품이 인기도만으로 대표작 상단 차지하는 문제 수정) -->
+<!-- 2026-07-25 rev.12 — person.html (대표작 5차 수정: "명단없음+OTT미제공 동시" 조건 대신 "OTT 미제공이면 무조건 tier 1단계 강등"으로 단순화/강화 — 확인된 진짜 주연이어도 국내 OTT에 없으면 밀리게) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2103,24 +2103,29 @@ async function initPage(){
       // 목록에서 확인한 진짜 순위)을 먼저 참고하도록 변경. 그래도 못 찾은 경우(조회
       // 실패 등)만 안전하게 tier 1(중간)로 처리 — 예전처럼 무조건 조연 취급하되,
       // 최소한 무조건 tier 0으로 승격되는 일은 없게 함.
+      // [2026-07-25 재수정] "명단에 없음 확인 + OTT 미제공" 둘 다 겹칠 때만 강등하던
+      // 규칙을, "OTT 미제공이면 order 확인 여부와 상관없이 무조건 tier 1단계 강등"으로
+      // 더 단순하고 강하게 변경(0→1, 1→2, 2→2). 계기: 국내 OTT에 전혀 없는 해외
+      // 독립/소규모 작품 위주인 배우의 경우, order가 실제로 확인된 진짜 주연작이어도
+      // "지금 볼 수 없는 작품"이 대표작 최상단을 차지하는 게 서비스 성격(오뜨랑=지금
+      // 볼 수 있는 것 중심)과 안 맞는다는 판단(나카지마 아유무 배우 사례, 2026-07-25).
       const castTier = (it) => {
-        if(it._kind !== 'act') return jobLabel === '감독' ? 0 : 2;
-        let order = typeof it.order === 'number' ? it.order : null;
-        if(order === null){
-          const key = `${it.id}_${it.media_type}`;
-          const resolved = orderLookup[key];
-          order = (typeof resolved === 'number') ? resolved : null;
-          // [2026-07-25 신규] "명단에 없음 확인" + "국내 OTT 미제공"이 동시에 겹치면
-          // 점수 감점만으로는 부족할 수 있어(인기도 격차가 워낙 큰 경우) tier 자체를
-          // 최하위(2)로 구조적으로 내림 — 점수가 아무리 높아도 절대 못 올라오게.
-          // 둘 중 하나만 해당하면(예: 명단엔 없지만 국내 OTT엔 있는 진짜 주연작) tier는
-          // 그대로 두고 scoreFor의 감점으로만 처리(과잉 필터링 방지).
-          if(order === null && notFoundInCast.has(key) && !hasCurrentOtt(it)) return 2;
+        let tier;
+        if(it._kind !== 'act'){
+          tier = jobLabel === '감독' ? 0 : 2;
+        } else {
+          let order = typeof it.order === 'number' ? it.order : null;
+          if(order === null){
+            const resolved = orderLookup[`${it.id}_${it.media_type}`];
+            order = (typeof resolved === 'number') ? resolved : null;
+          }
+          if(order === null) tier = 1;      // 확인 안 됨 — 안전하게 중간 그룹
+          else if(order <= 2) tier = 0;     // 주연급
+          else if(order <= 6) tier = 1;     // 비중 있는 조연
+          else tier = 2;                    // 단역/카메오/예능 게스트 등
         }
-        if(order === null) return 1; // 그래도 확인 안 되면 안전하게 중간 그룹
-        if(order <= 2) return 0;     // 주연급
-        if(order <= 6) return 1;     // 비중 있는 조연
-        return 2;                    // 단역/카메오/예능 게스트 등
+        if(!hasCurrentOtt(it)) tier = Math.min(tier + 1, 2); // OTT 미제공 → 무조건 1단계 강등
+        return tier;
       };
 
       // [2026-07-23 신규] 저인지도 작품 제외 필터 — "공백의 얼굴들" 사례(초저예산
