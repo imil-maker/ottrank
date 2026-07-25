@@ -1,4 +1,4 @@
-// 2026-07-25 rev.4 — admin.js (wiki-detail/wiki-manual-save에 auto_filmography_text 연결 — "프로필 생성" 탭에서 봇용 필모문장도 조회/수정 가능하게, 다른 화면은 안 건드리도록 안전 보존 처리)
+// 2026-07-25 rev.5 — admin.js (필모채우기: persons.job 대신 TMDB known_for_department 사용 — 작가/감독/제작자/배우·방송인 정확히 구분)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5186,6 +5186,14 @@ export async function handleAdmin(path, request, env, url, headers) {
   // "대표작"은 person.html처럼 작품마다 실제 출연진을 재조회해서 확인하지 않고(호출량 폭증 방지),
   // TMDB combined_credits가 credit 항목마다 이미 내려주는 order(출연 순번)를 그대로 활용하는
   // 단순화된 버전 — order<=5인 항목 중 인기도 상위를 대표작으로 간주.
+  //
+  // [2026-07-25 수정] persons.job(배우/감독 둘뿐인 값) 대신 TMDB known_for_department를
+  // 직접 사용하도록 변경. 계기: persons.job이 "Creator" 직함을 가진 드라마 작가까지
+  // 전부 감독으로 잘못 분류하고 있었음(수집 로직이 Director/Creator를 묶어서 판정).
+  // known_for_department는 person 상세 API 하나로 combined_credits와 함께 받아올 수 있어
+  // 추가 호출 없이 더 정확한 분류가 가능함. 감독/작가/제작자는 crew에서, 그 외(배우 포함)는
+  // cast에서 뽑음. 방송인(MC/예능인)은 TMDB에 별도 분류가 없어서, cast 작품 중 예능/토크
+  // 장르 비중이 절반 이상이면 "배우" 대신 "방송인"으로 표기하는 방식으로 근사함.
   if (path === "/admin/persons/backfill-filmography" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -5195,7 +5203,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const limit = Math.min(parseInt(body.limit) || 30, 50);
 
       const { results: targets } = await env.DB.prepare(`
-        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday, p.place_of_birth
+        SELECT p.tmdb_id, p.name, p.name_ko, p.birthday, p.place_of_birth
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
         WHERE p.has_korean_name = 1
@@ -5210,26 +5218,50 @@ export async function handleAdmin(path, request, env, url, headers) {
         }), { headers });
       }
 
+      // 감독/작가/제작자 — crew 중 이 조건에 맞는 항목만 사용. 그 외 부서(연기 포함,
+      // 미분류 등)는 전부 아래 else 분기(cast 기반, 배우/방송인)로 처리.
+      const CREW_CATEGORIES = {
+        Directing:  { jobLabel: "감독",   verb: "연출했다", match: c => c.job === "Director" || c.job === "Creator" },
+        Writing:    { jobLabel: "작가",   verb: "참여했다", match: c => c.department === "Writing" },
+        Production: { jobLabel: "제작자", verb: "제작했다", match: c => c.department === "Production" },
+      };
+      const VARIETY_GENRE_IDS = [10764, 10767]; // 리얼리티, 토크쇼
+
       const updates = [];
       let filled = 0;
 
       for (const row of targets) {
         const displayName = row.name_ko || row.name;
-        const isDirector = row.job === "direct";
         let sentence = "__NONE__"; // 필모그래피를 하나도 못 찾았을 때 저장할 센티널(무한 재시도 방지)
 
         try {
           const resp = await fetch(
-            `https://api.themoviedb.org/3/person/${row.tmdb_id}/combined_credits?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+            `https://api.themoviedb.org/3/person/${row.tmdb_id}?api_key=${env.TMDB_API_KEY}&language=ko-KR&append_to_response=combined_credits`
           );
 
           if (resp.ok) {
             const data = await resp.json();
+            const credits    = data.combined_credits || {};
+            const department = data.known_for_department || "";
+            const crewCat    = CREW_CATEGORIES[department];
 
-            // 배우면 cast(출연) 목록, 감독이면 crew 중 감독/크리에이터 항목만 사용
-            const rawEntries = isDirector
-              ? (data.crew || []).filter(c => c.job === "Director" || c.job === "Creator")
-              : (data.cast || []);
+            let rawEntries, jobLabel, verb;
+
+            if (crewCat) {
+              rawEntries = (credits.crew || []).filter(crewCat.match);
+              jobLabel   = crewCat.jobLabel;
+              verb       = crewCat.verb;
+            } else {
+              rawEntries = credits.cast || [];
+              // 방송인 판별 — cast 작품 중 예능/토크쇼 장르 비중이 절반 이상이면 방송인으로 표기
+              const total = rawEntries.length;
+              const varietyCount = rawEntries.filter(c =>
+                Array.isArray(c.genre_ids) && c.genre_ids.some(g => VARIETY_GENRE_IDS.includes(g))
+              ).length;
+              const isBroadcaster = total > 0 && (varietyCount / total) >= 0.5;
+              jobLabel = isBroadcaster ? "방송인" : "배우";
+              verb     = "출연했다";
+            }
 
             const entries = rawEntries
               .map(c => ({
@@ -5252,7 +5284,8 @@ export async function handleAdmin(path, request, env, url, headers) {
               const byPopularity = [...deduped].sort((a, b) => b.popularity - a.popularity);
               const fullList = byPopularity.slice(0, 30).map(e => e.title);
 
-              // 대표작(최대 5개) — order<=5(주연급) 중 인기도 상위, 부족하면 전체 목록에서 채움
+              // 대표작(최대 5개) — order<=5(주연급) 중 인기도 상위, 부족하면 전체 목록에서 채움.
+              // crew 항목은 order 자체가 없어서(null) 항상 아래 else(byPopularity)로 자연 폴백됨.
               const leadRoles = byPopularity.filter(e => e.order !== null && e.order <= 5);
               const repList = (leadRoles.length ? leadRoles : byPopularity).slice(0, 5).map(e => e.title);
 
@@ -5263,9 +5296,6 @@ export async function handleAdmin(path, request, env, url, headers) {
               }
               if (row.place_of_birth) metaBits.push(row.place_of_birth);
               const metaText = metaBits.length ? `(${metaBits.join(", ")}) ` : "";
-
-              const jobLabel = isDirector ? "감독" : "배우";
-              const verb = isDirector ? "연출했다" : "출연했다";
 
               const repText = repList.length
                 ? `대표작으로 ${repList.join(", ")}가 있으며, `
