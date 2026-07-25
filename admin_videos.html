@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.1 — admin_videos.html ("줄거리 채우기" 탭 신규 — works.overview 백필, 평점 채우기와 동일 패턴) -->
+<!-- 2026-07-25 rev.2 — admin_videos.html (IMDb 수동입력 안내문구 수정 — "영구 고정" 대신 "자동배치가 주기적으로 재확인해서 실제 값 나오면 덮어씀"으로 방침 변경 반영) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -989,7 +989,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       💡 TMDB에 <span style="color:#F5C518">imdb_id가 매핑 안 된 작품</span>(주로 한국 드라마)의 IMDb 평점 카드가 영구히 비어있던 문제를 채웁니다.<br>
       OMDB 제목검색(제목+연도)으로 imdb_id를 직접 찾아 매칭하고, 매칭 성공 시 평점까지 함께 저장합니다.<br>
       매칭 실패한 작품은 <span style="color:#F5C518">7일 쿨다운 후 자동 재시도</span> 대상이 됩니다 (무한 재시도 방지).<br>
-      영문 제목이 없는 작품은 검색 자체가 불가능해 스킵됩니다.
+      영문 제목이 없는 작품은 검색 자체가 불가능해 스킵됩니다.<br>
+      <span style="color:#F5C518">아래 "개별 작품 수동 입력"으로 넣은 값도 이 배치가 주기적으로 재확인</span>해서, 실제 OMDB 값이 나오면 자동으로 덮어써요.
     </div>
 
     <!-- 상태 카드 -->
@@ -1034,7 +1035,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div style="font-size:15px;font-weight:700;margin-bottom:4px">📝 개별 작품 수동 입력</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
       OMDB 반영이 늦은 인기작(예: 신작인데 검색 유입 많은 작품)에 평점을 직접 입력합니다.<br>
-      <span style="color:#F5C518">주의:</span> 여기 입력한 값은 이후 OMDB가 실제 데이터를 채워도 자동으로 안 바뀝니다 — 나중에 다시 확인하고 갱신해주세요.
+      <span style="color:#F5C518">참고:</span> 여기 입력한 값은 임시값이에요 — 이후 "IMDb 매칭 채우기" 배치가 주기적으로(7일 간격) 재확인해서, OMDB에 실제 평점이 뜨면 자동으로 덮어써요.
     </div>
 
     <div class="search-tabs">
