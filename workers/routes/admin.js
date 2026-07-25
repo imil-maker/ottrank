@@ -1,4 +1,4 @@
-// 2026-07-25 rev.6 — admin.js (IMDb 수동입력을 imdb_manual 플래그로 표시하고, batch-imdb-search가 주기적으로 재확인해서 실제 OMDB 값이 나오면 자동으로 덮어쓰도록 변경 — "자동이 결국 우선"으로 방침 전환)
+// 2026-07-26 rev.1 — admin.js (출연진 채우기 배치 /admin/works/backfill-cast 신규 — work_cast 테이블에 저장, SEO 서버사이드 프리필용)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -88,6 +88,7 @@
    POST   /admin/works/backfill-release-year
    POST   /admin/works/backfill-rating
    POST   /admin/works/backfill-overview   ← 줄거리(overview) 백필, backfill-rating과 동일 패턴(2026-07-25 신설)
+   POST   /admin/works/backfill-cast   ← 출연진/감독을 work_cast에 저장(SEO 서버사이드 프리필용, 2026-07-26 신설)
    POST   /admin/persons/backfill-filmography  ← 봇용 필모그래피 문장 자동생성, person_wiki_cache.auto_filmography_text에 저장(2026-07-25 신설)
    POST   /admin/works/batch-imdb-search   ← IMDb 매칭 배치 (OMDB 제목검색)
    POST   /admin/works/imdb-manual         ← IMDb 평점 수동 입력 (OMDB 반영 지연 대응)
@@ -5168,6 +5169,114 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       const remainRow = await env.DB.prepare(
         "SELECT COUNT(*) as cnt FROM works WHERE overview IS NULL OR overview = ''"
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/backfill-cast ───────────────────────
+  // 출연진/감독을 work_cast 테이블에 저장 (SEO 서버사이드 프리필용, 2026-07-26 신설)
+  // 계기: 인물페이지(1만 9천여 개)가 구글 크롤링 예산 부족으로 재방문이 뜸해진 상황에서,
+  //       작품페이지의 출연진 링크가 전부 자바스크립트로만 만들어져(_title_detail.html이
+  //       빈 껍데기 정적 파일) 구글이 JS 렌더링을 생략하면 인물페이지로 가는 링크 자체를
+  //       못 볼 수 있음을 발견. 제목/줄거리처럼 출연진도 D1에 저장해두고
+  //       functions/title/[slug].js가 서버에서 미리 HTML에 심어 내려주도록 하기 위한 사전작업.
+  //
+  // 대상: works.cast_synced_at IS NULL(한 번도 처리 안 한 작품)만. 이미 처리된 작품은
+  // work_cast에 저장된 값을 그대로 유지 — 무한 재시도 방지(overview/rating 백필과 동일 원칙).
+  // 나중에 출연진 정보를 최신화하고 싶으면 cast_synced_at을 다시 NULL로 돌리면 재대상이 됨.
+  //
+  // 화면(_title_detail.html)이 실제로 렌더링하는 것과 동일한 기준으로 저장:
+  // - 감독: job==='Director' 또는 department==='Directing'인 크루만 최대 3명
+  // - 배우: 인원 제한 없이 TMDB가 주는 순서(billing order) 그대로 전부 저장
+  //         (화면은 이 전체를 다 보여주고, SSR 프리필 단계에서만 상위 일부로 자름 — §4 예정)
+  // TV는 aggregate_credits(캐릭터명이 roles[0].character 안에 있음), 영화는 credits(캐릭터명이
+  // character에 바로 있음) — 두 응답 구조 차이를 여기서 흡수해서 동일한 형태로 저장.
+  if (path === "/admin/works/backfill-cast" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body  = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 20, 30);
+
+      const { results: targets } = await env.DB.prepare(`
+        SELECT tmdb_id, media_type FROM works
+        WHERE cast_synced_at IS NULL
+        LIMIT ?
+      `).bind(limit).all();
+
+      if (!targets.length) {
+        return new Response(JSON.stringify({
+          ok: true, attempted: 0, filled: 0, remaining: 0, message: "채울 작품 없음"
+        }), { headers });
+      }
+
+      const nowIso = new Date().toISOString();
+      const stmts  = [];
+      let filled   = 0;
+
+      for (const row of targets) {
+        const mtypes = row.media_type ? [row.media_type] : ["tv", "movie"];
+
+        for (const mtype of mtypes) {
+          try {
+            const endpoint = mtype === "tv" ? "aggregate_credits" : "credits";
+            const resp = await fetch(
+              `https://api.themoviedb.org/3/${mtype}/${row.tmdb_id}/${endpoint}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+            );
+            if (!resp.ok) continue;
+            const data = await resp.json();
+
+            const directors = (data.crew || [])
+              .filter(p => p.job === "Director" || p.department === "Directing")
+              .slice(0, 3);
+            const castList = data.cast || [];
+
+            // 재수집 시에도 항상 최신 상태를 유지하도록, 기존 저장분을 먼저 지우고 새로 채움
+            stmts.push(env.DB.prepare(
+              "DELETE FROM work_cast WHERE tmdb_id = ? AND media_type = ?"
+            ).bind(row.tmdb_id, mtype));
+
+            directors.forEach((p, idx) => {
+              stmts.push(env.DB.prepare(`
+                INSERT INTO work_cast (tmdb_id, media_type, person_tmdb_id, name, role, character_name, profile_path, billing_order)
+                VALUES (?, ?, ?, ?, 'director', NULL, ?, ?)
+              `).bind(row.tmdb_id, mtype, p.id, p.name || "", p.profile_path || null, idx));
+            });
+
+            castList.forEach((p, idx) => {
+              // TV(aggregate_credits)는 캐릭터명이 roles 배열 안에, 영화(credits)는 바로 character에 있음
+              const characterName = mtype === "tv"
+                ? ((p.roles && p.roles[0] && p.roles[0].character) || "")
+                : (p.character || "");
+              const order = (p.order !== undefined && p.order !== null) ? p.order : idx;
+              stmts.push(env.DB.prepare(`
+                INSERT INTO work_cast (tmdb_id, media_type, person_tmdb_id, name, role, character_name, profile_path, billing_order)
+                VALUES (?, ?, ?, ?, 'cast', ?, ?, ?)
+              `).bind(row.tmdb_id, mtype, p.id, p.name || "", characterName, p.profile_path || null, order));
+            });
+
+            if (directors.length || castList.length) filled++;
+            break; // 이 media_type으로 성공했으니 다음 media_type 시도 불필요
+          } catch (e) { /* 다음 media_type으로 계속 시도 */ }
+        }
+
+        // 성공/실패 여부와 무관하게 "시도했다"는 기록은 반드시 남김 (무한 재시도 방지)
+        stmts.push(env.DB.prepare(
+          "UPDATE works SET cast_synced_at = ? WHERE tmdb_id = ?"
+        ).bind(nowIso, row.tmdb_id));
+      }
+
+      if (stmts.length) await env.DB.batch(stmts);
+
+      const remainRow = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM works WHERE cast_synced_at IS NULL"
       ).first();
 
       return new Response(JSON.stringify({
