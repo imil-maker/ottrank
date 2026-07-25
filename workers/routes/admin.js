@@ -1,4 +1,4 @@
-// 2026-07-26 rev.2 — admin.js (backfill-cast: 외국 작품은 출연진 상위 10명만 저장하도록 제한 — 미국 장수 수사물이 시즌 누적으로 작품당 최대 7,613명까지 부풀리던 문제 발견)
+// 2026-07-26 rev.3 — admin.js (sitemap 캐시 즉시비우기 API 신규 — POST /admin/sitemap/clear-cache)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -89,6 +89,7 @@
    POST   /admin/works/backfill-rating
    POST   /admin/works/backfill-overview   ← 줄거리(overview) 백필, backfill-rating과 동일 패턴(2026-07-25 신설)
    POST   /admin/works/backfill-cast   ← 출연진/감독을 work_cast에 저장(SEO 서버사이드 프리필용, 2026-07-26 신설)
+   POST   /admin/sitemap/clear-cache   ← sitemap.xml KV 캐시 즉시 비우기(2026-07-26 신설)
    POST   /admin/persons/backfill-filmography  ← 봇용 필모그래피 문장 자동생성, person_wiki_cache.auto_filmography_text에 저장(2026-07-25 신설)
    POST   /admin/works/batch-imdb-search   ← IMDb 매칭 배치 (OMDB 제목검색)
    POST   /admin/works/imdb-manual         ← IMDb 평점 수동 입력 (OMDB 반영 지연 대응)
@@ -5289,6 +5290,28 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/sitemap/clear-cache ───────────────────────
+  // sitemap.xml의 KV 캐시(1시간 TTL)를 즉시 비움 — 대량 데이터 정리(작품/인물 삭제 등) 직후,
+  // 캐시가 자연 만료될 때까지 기다리지 않고 바로 최신 결과를 확인하고 싶을 때 사용 (2026-07-26 신설).
+  // 삭제만 할 뿐 별도 재생성은 안 함 — 다음 sitemap.xml 요청이 왔을 때 rankings.js의 기존
+  // "캐시 없으면 D1에서 새로 만들기" 로직이 자동으로 처리하므로 여기서 더 할 일 없음.
+  if (path === "/admin/sitemap/clear-cache" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      if (!env.SITEMAP_CACHE) {
+        return new Response(JSON.stringify({
+          ok: true, message: "SITEMAP_CACHE 바인딩이 없어 원래도 캐시가 안 쓰이고 있습니다."
+        }), { headers });
+      }
+      await env.SITEMAP_CACHE.delete("sitemap_xml");
+      return new Response(JSON.stringify({ ok: true, message: "sitemap 캐시를 비웠습니다." }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
