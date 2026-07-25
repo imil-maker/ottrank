@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.9 — person.html (약력 100자 미만이면 auto_filmography_text(봇용 필모문장) 화면에도 같이 이어붙여 표시 — bio_summary 아예 없어도 필모문장만으로 표시) -->
+<!-- 2026-07-25 rev.10 — person.html (작품 이동 링크 슬러그: "오늘 날짜 현재연도"라는 눈속임 값 대신 카드의 실제 방영/개봉연도(data-year)를 쓰도록 수정 — 링크 규칙 일관성 확보) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1385,7 +1385,7 @@ function workCardHtml(item){
   const badgeId = `rankBadge-${item.id}-${badgeMediaType}`;
   return `
     <a class="work-card" data-tmdb="${item.id}" data-type="${mediaType}"
-       data-title="${title}" onclick="goWork(this)">
+       data-title="${title}" data-year="${year}" onclick="goWork(this)">
       <div class="work-poster">
         ${poster}
         <div class="work-ott-badges" id="ottBadge-${item.id}-${badgeMediaType}"></div>
@@ -1504,7 +1504,12 @@ function goWork(el){
   const type  = el.dataset.type || null;
   const title = el.dataset.title || '';
   if(!tmdbId) return;
-  const y    = new Date().getFullYear();
+  // [2026-07-25 수정] 슬러그 규칙을 "오늘 날짜의 현재 연도"라는 눈속임 값 대신, 카드에
+  // 실제로 있는 방영/개봉연도(data-year)를 쓰도록 변경 — 서버가 tmdb_id만으로도 찾아주긴
+  // 하지만(release_year는 동일 tmdb_id로 movie/tv가 충돌할 때만 구분용으로 쓰임), 값 자체가
+  // 사실과 다르면 나중에 링크 규칙이 헷갈리는 원인이 되므로 정확한 값을 우선 사용.
+  // data-year가 없는 극히 일부 카드(랭킹위젯 등 연도 정보를 안 주는 소스)만 현재연도로 폴백.
+  const y    = el.dataset.year || new Date().getFullYear();
   const slug = `1-${y}${tmdbId}`;
   // platform을 지정하지 않음 → _title_detail.html의 loadPlatforms()가
   // 실제 OTT 순위 API를 조회해서 올바른 플랫폼을 표시
@@ -1722,7 +1727,7 @@ function rankingWidgetCardHtml(item){
     : `<div class="work-poster-ph">🎬</div>`;
   return `
     <a class="work-card" data-tmdb="${item.tmdb_id}" data-type="${mediaType}"
-       data-title="${title}" onclick="goWork(this)">
+       data-title="${title}" data-year="${item.release_year || ''}" onclick="goWork(this)">
       <div class="work-poster">
         ${poster}
         <span class="ranking-widget-rank">${item.rank}</span>
