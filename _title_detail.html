@@ -1,4 +1,4 @@
-<!-- 2026-07-25 rev.7 — _title_detail.html (포르노그라피 즉시차단 기준 조정: 일본어제목 길이기준 20자→28자 완화 + AV 전용단어 목록 확장 — 정상 일본 소극장/독립영화 제목 오탐 방지) -->
+<!-- 2026-07-25 rev.8 — _title_detail.html (포르노그라피 즉시차단 일본어제목 길이기준 28자→35자 재조정 — "新年早々 不適切にもほどがある！～真面目な話、しちゃダメですか？～"(33자) 부제 포함 정상 일본 드라마 오탐 발견) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2719,11 +2719,11 @@ async function loadTmdb(){
     // - videos.js의 title_ko 신호와 동일 기준으로 맞춰야 함(다음에 videos.js도 같이 수정)
     // [2026-07-25 수정] 일본어+길이 기준 오탐 발견 — 일본 소극장 연극 녹화본처럼 정상적인
     // 작품인데도 제목이 길다는 이유만으로 차단되는 사례("城山羊の会「평화에 의한...」" 21자)가
-    // 실제로 있었음. 20자→28자로 완화하고, 대신 AV 전용 단어 목록을 늘려서(길이와 무관하게
+    // 실제로 있었음. 20자→28자→35자로 순차 완화하고, 대신 AV 전용 단어 목록을 늘려서(길이와 무관하게
     // 걸리는 2차 신호 강화) 놓치는 진짜 위험작이 없도록 보완.
     {
       const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF]/.test(title||'');
-      const isLongJapaneseTitle = hasJapanese && title.length>=28;
+      const isLongJapaneseTitle = hasJapanese && title.length>=35;
       const pornWords = ['中出し','手コキ','人妻','巨乳','爆乳','素人','痴女','熟女'];
       const hasPornTitleWord = /\bNTR\b/.test(title||'') || pornWords.some(w => (title||'').includes(w));
       if(isLongJapaneseTitle || hasPornTitleWord){
