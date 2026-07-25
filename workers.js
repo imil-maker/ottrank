@@ -1635,15 +1635,17 @@ ${D.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
                w.original_language, w.first_matched_date, hs.total_score
         FROM works w
         LEFT JOIN hot100_scores hs ON hs.tmdb_id = w.tmdb_id
-        WHERE NOT EXISTS (
-          SELECT 1 FROM relationship_charts rc
-          WHERE rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
-        )
-        ORDER BY
-          CASE WHEN hs.total_score IS NOT NULL THEN 0 ELSE 1 END,
-          hs.total_score DESC,
-          CASE WHEN w.original_language = 'ko' THEN 0 ELSE 1 END,
-          w.first_matched_date DESC
+        WHERE w.media_type = 'tv'
+          AND w.original_language = 'ko'
+          AND NOT (
+            w.genre LIKE '%Reality%' OR w.genre LIKE '%Talk%' OR
+            w.genre LIKE '%\uB2E4\uD050\uBA58\uD130\uB9AC%' OR w.genre LIKE '%\uB9AC\uC5BC\uB9AC\uD2F0%' OR w.genre LIKE '%\uD1A0\uD06C%'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM relationship_charts rc
+            WHERE rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
+          )
+        ORDER BY COALESCE(w.release_date, w.release_year || '-01-01') DESC
         LIMIT ? OFFSET ?
       `,{results:m}=await t.DB.prepare(c).bind(n+1,_).all(),k=m.length>n,i=m.slice(0,n).map(a=>({tmdb_id:a.tmdb_id,title:a.title_ko||a.title_en,media_type:a.media_type,poster_path:a.poster_path,in_hot100:a.total_score!=null}));return new Response(JSON.stringify({ok:!0,items:i,page:p,limit:n,has_more:k}),{headers:e})}catch(n){return new Response(JSON.stringify({ok:!1,message:n.message}),{status:500,headers:e})}}if(r==="/admin/relationship-charts/search"&&s.method==="GET"){if(!await h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});try{let n=(g.searchParams.get("q")||"").trim();if(!n)return new Response(JSON.stringify({ok:!1,message:"q required"}),{status:400,headers:e});let p=/^\d+$/.test(n),_=p?`SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
                   rc.image_url, rc.status
