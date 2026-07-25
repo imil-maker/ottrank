@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.5 — admin_keywords.html (인물매칭 옆 "필모채우기" 탭 신규 — 봇용 필모그래피 문장 자동생성 배치) -->
+<!-- 2026-07-25 rev.6 — admin_keywords.html ("프로필 생성" 탭에 필모(봇용, auto_filmography_text) 조회/수정 칸 신규 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2371,6 +2371,16 @@ function pgRenderDetail(data){
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);padding:8px 10px;resize:vertical;box-sizing:border-box">${escapeHtmlPm(w.bio_summary || '')}</textarea>
     </div>
 
+    <!-- [2026-07-25 신규] 필모(봇용) — "필모채우기" 배치가 자동으로 만든 문장.
+         프로필(bio_summary)이 100자 미만일 때 인물페이지 화면에도 같이 이어붙여
+         노출되는 텍스트라, 여기서도 확인하고 고칠 수 있게 함. -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px">
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">📝 필모(봇용, 자동생성)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">프로필이 100자 미만일 때 인물페이지 화면에도 같이 붙어서 보여요. "필모채우기" 배치가 자동으로 채운 값이에요.</div>
+      <textarea id="pgFieldAutoFilmo" rows="4" placeholder="필모채우기 배치가 아직 안 채웠거나, 직접 입력"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);padding:8px 10px;resize:vertical;box-sizing:border-box">${escapeHtmlPm((w.auto_filmography_text && w.auto_filmography_text !== '__NONE__') ? w.auto_filmography_text : '')}</textarea>
+    </div>
+
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px">
       <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">학력</div>
       <input type="text" id="pgFieldEducation" value="${escapeAttrPm(w.education || '')}" placeholder="AI로 생성하거나 직접 입력"
@@ -2447,6 +2457,7 @@ async function pgSave(tmdbId){
     awards_text: document.getElementById('pgFieldAwards').value.trim(),
     debut_work: document.getElementById('pgFieldDebutWork').value.trim(),
     debut_year: document.getElementById('pgFieldDebutYear').value.trim(),
+    auto_filmography_text: document.getElementById('pgFieldAutoFilmo').value.trim(),
     wiki_title: pgOtherFields.wiki_title,
     career_history: pgOtherFields.career_history,
     kmdb_id: pgOtherFields.kmdb_id,
