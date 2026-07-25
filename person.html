@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-24 rev.8 — person.html (대표작 3차 수정: order 없는 배역을 무조건 tier 0으로 승격시키던 것이 예능 게스트 출연까지 대표작으로 끌어올리는 부작용 발견 — 해당 작품의 실제 출연진 목록을 다시 조회해서 진짜 캐스팅 순위로 tier 판정, 조회 실패시에만 tier 1로 안전 처리) -->
+<!-- 2026-07-25 rev.9 — person.html (약력 100자 미만이면 auto_filmography_text(봇용 필모문장) 화면에도 같이 이어붙여 표시 — bio_summary 아예 없어도 필모문장만으로 표시) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1240,15 +1240,26 @@ async function loadWikiTest(personId){
     const d = json.data;
     if(!d) return; // 캐시에 데이터 없음 — 조용히 종료
 
-    if(d.bio_summary){
+    /* [2026-07-25 신규] 봇용으로 미리 만들어둔 필모그래피 문장 — 약력이 부실할 때
+       화면에도 같이 보여주기로 함(관리자님 결정). '__NONE__'은 채우기 시도했지만
+       필모그래피 자체를 못 찾은 센티널이라 빈 값과 동일하게 처리. */
+    const rawAutoFilmo = (d.auto_filmography_text || '').trim();
+    const autoFilmoText = (rawAutoFilmo && rawAutoFilmo !== '__NONE__') ? rawAutoFilmo : '';
+
+    if(d.bio_summary || autoFilmoText){
       /* [2026-07-19 신규] 오른쪽 상단 프로필의 "약력" 자리를 위키 요약글로 대체.
          TMDB 약력은 영어인 경우가 대부분이라, 한국어인 위키 요약글을 우선시함.
-         단, 위키 요약글이 너무 짧으면(80자 미만) 정보가 부족하니 TMDB 약력을 이어붙임. */
+         단, 위키 요약글이 너무 짧으면(80자 미만) 정보가 부족하니 TMDB 약력을 이어붙임.
+         [2026-07-25 수정] 그렇게 만든 텍스트가 여전히 100자 미만이면, 필모그래피
+         문장까지 추가로 이어붙임. 약력이 아예 없으면 필모문장만 단독으로 표시. */
       const bioEl = document.getElementById('bioText');
       if(bioEl){
-        const combined = d.bio_summary.length < 80 && tmdbBioText
-          ? `${d.bio_summary} ${tmdbBioText}`
-          : d.bio_summary;
+        let combined = d.bio_summary
+          ? (d.bio_summary.length < 80 && tmdbBioText ? `${d.bio_summary} ${tmdbBioText}` : d.bio_summary)
+          : '';
+        if(combined.length < 100 && autoFilmoText){
+          combined = combined ? `${combined} ${autoFilmoText}` : autoFilmoText;
+        }
         bioEl.textContent = combined;
         wikiBioApplied = true; // [2026-07-20 신규] TMDB 약력 폴백이 이걸 덮어쓰지 않게 표시
         requestAnimationFrame(()=>{
