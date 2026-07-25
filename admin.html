@@ -1,4 +1,4 @@
-<!-- 2026-07-23 rev.1 — admin.html (works 관리 수정/작품등록 모달에 시즌 포스터 선택 기능 추가) -->
+<!-- 2026-07-25 rev.2 — admin.html (URL 파라미터 edit_tmdb로 works 수정모달 자동오픈 지원 — 관계도매칭 등 다른 어드민 화면에서 바로가기 링크로 진입 가능) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -1192,6 +1192,23 @@ function login() {
   loadGrades();
   loadQueueCount();
   checkPendingInquiries();
+
+  // [2026-07-25 신규] 다른 어드민 화면(관계도 매칭 등)에서 "이 작품 바로 수정하기" 링크로
+  // 들어왔을 때, 로그인 직후 자동으로 works 탭 전환 + 수정모달을 열어줌.
+  // URL 예: admin.html?edit_tmdb=12345&media_type=tv&title=제목&poster=%2Fxxx.jpg
+  const editParams = new URLSearchParams(location.search);
+  const editTmdbId = editParams.get('edit_tmdb');
+  if (editTmdbId) {
+    const worksBtn = document.querySelector('.page-tab[onclick*="works"]');
+    if (worksBtn) switchPage('works', worksBtn);
+    openWorksModal(
+      parseInt(editTmdbId, 10),
+      editParams.get('title') || '',
+      '',
+      editParams.get('poster') || '',
+      editParams.get('media_type') || ''
+    );
+  }
 }
 
 function logout() {
