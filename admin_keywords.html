@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.4 — admin_keywords.html (페이지 로그: 방문자 vid "🚫제외" 버튼 + 실시간 순위 탭에 제외 목록 관리 패널 신규) -->
+<!-- 2026-07-25 rev.5 — admin_keywords.html (인물매칭 옆 "필모채우기" 탭 신규 — 봇용 필모그래피 문장 자동생성 배치) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -149,6 +149,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabPersonMatch" onclick="switchPageTab('personMatch')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎭 인물 매칭
+        </button>
+        <button id="tabFilmography" onclick="switchPageTab('filmography')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          📝 필모채우기
         </button>
         <button id="tabLikeRanking" onclick="switchPageTab('likeRanking')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
@@ -644,6 +648,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div id="rcSearchEmpty" style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center;display:none">검색 결과가 없어요</div>
       <div id="rcSearchList"></div>
     </div>
+
+  </div>
+
+  <!-- ══ 필모채우기 탭 (2026-07-25 신규) ══ -->
+  <div class="wrap" id="filmographyWrap" style="display:none">
+
+    <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 검색엔진 봇용 필모그래피 문장을 자동으로 만들어서 저장해요. 화면(사람이 보는 인물페이지)엔
+      영향 없어요 — <span style="color:var(--gold)">약력(bio_summary)은 절대 안 건드리고</span>,
+      별도 칸(auto_filmography_text)에만 저장돼요. 대상은 한국인 전체(약력 있든 없든)예요.
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
+      <button class="btn-primary" id="fmStartBtn" onclick="fmStart()" style="padding:10px 20px;font-size:14px">▶ 시작</button>
+      <button class="btn-secondary" id="fmStopBtn" onclick="fmStop()" style="display:none;padding:10px 20px;font-size:14px;color:var(--accent);border-color:rgba(230,57,70,.4)">⏹ 정지</button>
+      <span id="fmStatus" style="font-size:13px;color:var(--muted);font-family:var(--mono)"></span>
+    </div>
+
+    <div id="fmLog" style="max-height:260px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12px;font-family:var(--mono);color:var(--muted2);display:none"></div>
 
   </div>
 
@@ -1473,6 +1496,7 @@ const PAGE_TABS = [
   { key: 'searchLog',        wrapId: 'searchLogWrap',        btnId: 'tabSearchLog',        title: '🔍 검색어 로그', onColor: 'rgba(230,57,70,.2)',  onText: 'var(--accent)' },
   { key: 'pageLog',          wrapId: 'pageLogWrap',          btnId: 'tabPageLog',          title: '📊 페이지 로그', onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
+  { key: 'filmography',      wrapId: 'filmographyWrap',      btnId: 'tabFilmography',      title: '📝 필모채우기',  onColor: 'rgba(245,166,35,.2)', onText: '#f5a623' },
   { key: 'likeRanking',      wrapId: 'likeRankingWrap',       btnId: 'tabLikeRanking',      title: '👍 인물 좋아요 순위', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
   { key: 'profileEdits',     wrapId: 'profileEditsWrap',      btnId: 'tabProfileEdits',     title: '✏️ 프로필 수정요청', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'relationshipMatch', wrapId: 'relationshipMatchWrap', btnId: 'tabRelationshipMatch', title: '🔗 관계도 매칭', onColor: 'rgba(230,57,70,.2)', onText: 'var(--accent)' },
@@ -1501,6 +1525,64 @@ function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ══════════════════════════════════════════════════════
+   [2026-07-25 신규] 필모채우기 — 봇용 필모그래피 문장 자동생성
+   /admin/persons/backfill-filmography를 30명씩 반복 호출.
+   "정지" 누르거나 remaining이 0이 될 때까지 계속 돎.
+══════════════════════════════════════════════════════ */
+let fmRunning = false;
+
+function fmLogLine(text){
+  const log = document.getElementById('fmLog');
+  log.style.display = 'block';
+  const line = document.createElement('div');
+  line.textContent = text;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function fmStart(){
+  if (fmRunning) return;
+  fmRunning = true;
+  document.getElementById('fmStartBtn').style.display = 'none';
+  document.getElementById('fmStopBtn').style.display   = 'inline-block';
+  document.getElementById('fmLog').innerHTML = '';
+  fmLogLine('▶ 시작...');
+
+  while (fmRunning) {
+    try {
+      const res  = await fetch(`${API}/admin/persons/backfill-filmography`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ADMIN_SECRET}` },
+        body: JSON.stringify({ limit: 30 }),
+      });
+      const data = await res.json();
+      if (!data.ok) { fmLogLine(`⚠️ 오류: ${data.message || '알 수 없음'}`); break; }
+
+      fmLogLine(`처리 ${data.attempted}명 (문장생성 ${data.filled}명) · 남음 ${data.remaining}명`);
+      document.getElementById('fmStatus').textContent = `남음 ${data.remaining}명`;
+
+      if (data.attempted === 0 || data.remaining === 0) {
+        fmLogLine('✅ 완료 — 더 이상 채울 인물이 없어요.');
+        break;
+      }
+    } catch (e) {
+      fmLogLine(`⚠️ 네트워크 오류: ${e.message}`);
+      break;
+    }
+    await new Promise(r => setTimeout(r, 300)); // 너무 빠르게 연속 호출하지 않도록 약간의 간격
+  }
+
+  fmRunning = false;
+  document.getElementById('fmStartBtn').style.display = 'inline-block';
+  document.getElementById('fmStopBtn').style.display   = 'none';
+}
+
+function fmStop(){
+  fmRunning = false;
+  fmLogLine('⏹ 정지됨');
 }
 
 /* ══════════════════════════════════════════════════════
