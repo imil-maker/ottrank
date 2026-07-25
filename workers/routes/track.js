@@ -1,4 +1,4 @@
-// 2026-07-23 rev.5 — track.js (최근 조회 목록에 봇 제외(excludeBot) 파라미터 추가)
+// 2026-07-25 rev.6 — track.js (제외 vid 목록 관리 엔드포인트 신규 + 실시간 순위 집계에서 제외 vid도 함께 뺌)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
@@ -11,9 +11,14 @@
        작품/인물뿐 아니라 메인/OTT별/커뮤니티 페이지까지 전부 포함해서 종류+ID별로 집계 후 내림차순 정렬.
        봇 트래픽은 여기선 제외하고 집계함(2026-07-23 추가) — "실제로 사람들이 많이 보는 것"을 보려는
        목적이라, 로그 목록(위)과 달리 순위는 봇을 아예 빼고 계산.
+       [2026-07-25 추가] 봇뿐 아니라 excluded_vids(D1)에 등록된 vid(관리자 자신 등)도 같이 제외.
+   - GET/POST/DELETE /admin/track/excluded-vids : [2026-07-25 신규] "실시간 순위" 집계에서
+       뺄 vid 목록 관리(D1 excluded_vids 테이블). 관리자 본인 브라우저처럼, 실제 방문자
+       트래픽이 아닌 조회를 순위에서 걸러내고 싶을 때 씀.
    - D1은 기록(쓰기) 시점엔 전혀 안 건드리고 Cloudflare Analytics Engine(PAGE_VIEWS 바인딩)에만
      기록. 조회(읽기) 시점에만 D1에서 제목/이름을 붙이기 위해 잠깐 조회함(work/person만 — 나머지
-     페이지 종류는 고정된 이름이라 D1 조회 자체가 필요 없음, 아래 PAGE_META 참고).
+     페이지 종류는 고정된 이름이라 D1 조회 자체가 필요 없음, 아래 PAGE_META 참고). excluded_vids
+     관리 엔드포인트만 예외적으로 D1을 직접 읽고 씀(설정값이라 Analytics Engine에 안 어울림).
    - 기록 자체가 실패해도 방문자 화면엔 아무 영향 없어야 하므로, 실패해도
      조용히 ok:false만 돌려주고 500 에러로 화면에 영향 주지 않음.
    ══════════════════════════════════════════════════════════════ */
@@ -283,6 +288,62 @@ export async function handleTrack(path, request, env, url, headers) {
     }
   }
 
+  // ── GET /admin/track/excluded-vids ───────────────────────────
+  // [2026-07-25 신규] "실시간 순위" 집계에서 뺄 vid(관리자 자신 등) 목록 조회.
+  if (path === "/admin/track/excluded-vids" && request.method === "GET") {
+    const isAuthed = await _checkAuth(request, env);
+    if (!isAuthed) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(
+        "SELECT vid, note, created_at FROM excluded_vids ORDER BY created_at DESC"
+      ).all();
+      return new Response(JSON.stringify({ ok: true, items: results }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/track/excluded-vids ──────────────────────────
+  // [2026-07-25 신규] vid 하나를 제외 목록에 추가(예: 관리자 본인 브라우저).
+  if (path === "/admin/track/excluded-vids" && request.method === "POST") {
+    const isAuthed = await _checkAuth(request, env);
+    if (!isAuthed) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const vid  = (body.vid || "").trim();
+      const note = (body.note || "").trim() || null;
+      if (!/^[a-z0-9]{1,64}$/.test(vid)) {
+        return new Response(JSON.stringify({ ok: false, message: "vid 형식이 올바르지 않아요" }), { status: 400, headers });
+      }
+      await env.DB.prepare(
+        "INSERT INTO excluded_vids (vid, note) VALUES (?, ?) ON CONFLICT(vid) DO UPDATE SET note = excluded.note"
+      ).bind(vid, note).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/track/excluded-vids/:vid ───────────────────
+  // [2026-07-25 신규] 제외 목록에서 vid 하나 제거(다시 순위 집계에 포함시킴).
+  if (path.match(/^\/admin\/track\/excluded-vids\/[a-z0-9]{1,64}$/) && request.method === "DELETE") {
+    const isAuthed = await _checkAuth(request, env);
+    if (!isAuthed) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const vid = path.split("/").pop();
+      await env.DB.prepare("DELETE FROM excluded_vids WHERE vid = ?").bind(vid).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── GET /admin/track/rank ─────────────────────────────────────
   // [2026-07-22 신규] 실시간 순위 — 기간(어제/오늘/24시간) 동안 종류+ID별 조회수를 집계해서
   // 내림차순으로 반환. 작품/인물뿐 아니라 메인/OTT별/커뮤니티 페이지까지 전부 포함(요청사항).
@@ -310,6 +371,18 @@ export async function handleTrack(path, request, env, url, headers) {
       // [2026-07-23 추가] 봇(검색엔진 크롤러) 제외 — blob4='1'이면 봇으로 기록된 것.
       // 봇 판별 기능 배포 전 기록은 blob4가 빈 문자열이라 정상적으로 포함됨(오탐 없음).
       whereSql += ` AND blob4 != '1'`;
+
+      // [2026-07-25 추가] 관리자 자신처럼 "제외 목록"에 등록해둔 vid도 순위 집계에서 뺌
+      // (D1 excluded_vids 테이블, /admin/track/excluded-vids로 관리). vid는 저장 시점에
+      // 이미 영숫자만 통과하는 화이트리스트를 거쳤지만, SQL 문자열에 다시 끼워 넣는 자리라
+      // 여기서도 한 번 더 검증해서 이중으로 방어함.
+      const { results: excludedRows } = await env.DB.prepare(
+        "SELECT vid FROM excluded_vids"
+      ).all();
+      const excludedVids = excludedRows.map(r => r.vid).filter(v => /^[a-z0-9]{1,64}$/.test(v));
+      if (excludedVids.length) {
+        whereSql += ` AND blob3 NOT IN (${excludedVids.map(v => `'${v}'`).join(",")})`;
+      }
 
       // 종류(blob1)+ID(blob2)별로 묶어서 조회수(SUM) 집계 후 내림차순. has_more 판단을 위해
       // limit보다 1개 더(limit+1) 가져와서, 실제로 그만큼 있으면 다음 페이지도 있다고 판단.
