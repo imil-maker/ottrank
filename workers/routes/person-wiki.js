@@ -1,4 +1,4 @@
-// 2026-07-22 rev.4 — person-wiki.js (manual 응답에 poster_badge 추가: 관리자 수동 지정 포스터 배지)
+// 2026-07-25 rev.1 — person-wiki.js (조회 응답에 auto_filmography_text 추가 — 봇용 필모문장, person.html에서 약력 100자 미만일 때 이어붙이는 용도)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -75,7 +75,7 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     const row = await env.DB.prepare(
       `SELECT tmdb_person_id, wiki_title, bio_summary, career_history,
               debut_work, debut_year, education, awards_text,
-              kmdb_id, imdb_id, source_url, hidden_fields
+              kmdb_id, imdb_id, source_url, hidden_fields, auto_filmography_text
        FROM person_wiki_cache
        WHERE tmdb_person_id = ?`
     )
