@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.4 — functions/title/[slug].js (TMDB 평점 + 인물관계도 이미지 프리필 추가 — 봇 색인 개선) */
+/* 2026-07-26 rev.5 — functions/title/[slug].js (출연진/감독 프리필 추가 — work_cast에서 읽어와 directorRow/castScroll을 미리 채움, 봇이 JS 실행 없이도 인물페이지 링크를 볼 수 있게 함) */
 /* ══════════════════════════════════════════════════════════════
    Cloudflare Pages Function — /title/:slug 요청을 가로채서,
    정적 _title_detail.html을 그대로 가져온 다음 <title>/메타태그/줄거리 부분만
@@ -64,6 +64,12 @@ function escAttr(s) {
   return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// <script> 태그 안에 JSON을 안전하게 심기 위한 이스케이프 — 제목/줄거리 등에 "</script>"와
+// 비슷한 문자열이 우연히 섞여도 스크립트 태그가 조기 종료되지 않도록 '<' 전부를 유니코드로 치환
+function safeJsonForScript(obj) {
+  return JSON.stringify(obj).replace(/</g, "\\u003c");
+}
+
 // id="seoXxx" 메타/링크 태그의 content(또는 href) 속성값만 교체
 function replaceAttrById(html, id, attrName, value) {
   const re = new RegExp(`(id="${id}"[^>]*?\\s${attrName}=")[^"]*(")`);
@@ -82,7 +88,8 @@ export async function onRequestGet(context) {
     const parsed = parseSlugForSeo(slug);
     if (parsed && env.DB) {
       const row = await env.DB.prepare(`
-        SELECT title_ko, title_en, overview, poster_path, media_type, tmdb_rating
+        SELECT title_ko, title_en, overview, poster_path, media_type, tmdb_rating,
+               genre, release_date, imdb_rating
         FROM works
         WHERE tmdb_id = ?
         ORDER BY (release_year = ?) DESC
@@ -100,8 +107,8 @@ export async function onRequestGet(context) {
         const pageUrl = `https://ottrank.kr/title/${slug}`;
 
         if (title) {
-          const pageTitle = `${title} 평점, 줄거리, 순위 정보 | 오뜨랑`;
-          const desc = overview ? overview.slice(0, 150) : `${title}의 평점, 줄거리, 순위, 후기를 오뜨랑에서 확인하세요.`;
+          const pageTitle = `${title} 다시보기, 평점, 순위 정보 | 오뜨랑`;
+          const desc = overview ? overview.slice(0, 150) : `${title} 다시보기, 평점, 순위, 후기 정보를 오뜨랑에서 확인하세요.`;
 
           html = html.replace(
             /(<title id="seoTitle">)[^<]*(<\/title>)/,
@@ -126,8 +133,7 @@ export async function onRequestGet(context) {
             (_, pre, post) => `${pre}${escText(overview || "줄거리 정보가 없습니다.")}${post}`
           );
 
-          // [2026-07-25 신규] TMDB 평점 프리필 — IMDb는 D1에 캐시된 값이 없어서(실시간
-          // OMDB 조회만 존재) 이번엔 손대지 않음. tmdb_rating은 0점(투표수 부족)도 유효한
+          // [2026-07-25 신규] TMDB 평점 프리필. tmdb_rating은 0점(투표수 부족)도 유효한
           // 값이라 null/undefined일 때만 건너뜀.
           if (row.tmdb_rating !== null && row.tmdb_rating !== undefined) {
             const scoreText = Number(row.tmdb_rating).toFixed(1);
@@ -135,6 +141,105 @@ export async function onRequestGet(context) {
               /(<div class="r-score" id="tmdbScore" style="color:#01b4e4">)[^<]*(<\/div>)/,
               (_, pre, post) => `${pre}${escText(scoreText)}${post}`
             );
+          }
+
+          // [2026-07-26 신규] IMDb 평점 프리필 — works.imdb_rating은 어드민 배치(batch-imdb-search)가
+          // OMDB에서 미리 받아와 저장해둔 값이라 D1만 읽으면 됨(TMDB 평점과 동일한 방식).
+          if (row.imdb_rating !== null && row.imdb_rating !== undefined && row.imdb_rating !== "") {
+            const imdbNum = parseFloat(row.imdb_rating);
+            if (!isNaN(imdbNum)) {
+              html = html.replace(
+                /(<div class="r-score" id="imdbScore" style="color:#F5C518">)[^<]*(<\/div>)/,
+                (_, pre, post) => `${pre}${escText(imdbNum.toFixed(1))}${post}`
+              );
+            }
+          }
+
+          // [2026-07-26 신규] metaRow 프리필 — 공개일/개봉일 + 바로보기(OTT) 두 가지를 함께 채움.
+          // 시즌·부작수·방영상태는 TMDB 실시간 조회로만 나오고 D1엔 없어서 이번엔 손대지 않음.
+          // 자바스크립트 로드 전에도 최소한의 정보는 봇에게 보이게 하는 게 목적이고,
+          // 로드되면 화면은 원래대로 더 완전한 값으로 덮어써짐(방문자 눈엔 차이 없음).
+          const metaItems = [];
+
+          if (row.release_date) {
+            const relDate = new Date(row.release_date);
+            if (!isNaN(relDate.getTime())) {
+              const days = ["일", "월", "화", "수", "목", "금", "토"];
+              const dateLabel = row.media_type === "tv" ? "공개일" : "개봉";
+              metaItems.push(
+                `${dateLabel} ${escText(row.release_date.replace(/-/g, "."))} (${days[relDate.getDay()]})`
+              );
+            }
+          }
+
+          // 바로보기(OTT) — work_ott는 어드민 배치(collect-ott)가 15일 주기로 미리 채워둔
+          // 정규화 테이블이라 D1만 읽으면 됨. "다시보기 OTT" 검색어가 실제로 검색량이 가장
+          // 높은 축이라 SEO상 중요도가 커서, 화면(복잡한 탭 UI)은 안 건드리고 텍스트로만 노출.
+          try {
+            const { results: ottRows } = await env.DB.prepare(
+              "SELECT ott_key FROM work_ott WHERE tmdb_id = ?"
+            ).bind(parsed.tmdb_id).all();
+            if (ottRows && ottRows.length) {
+              const OTT_NAMES = {
+                netflix: "넷플릭스", tving: "티빙", wavve: "웨이브",
+                disney: "디즈니+", coupang: "쿠팡플레이", watcha: "왓챠",
+              };
+              const ottNames = ottRows.map(r => OTT_NAMES[r.ott_key] || r.ott_key).filter(Boolean);
+              if (ottNames.length) {
+                metaItems.push(`다시보기 ${escText(ottNames.join(", "))}`);
+              }
+            }
+          } catch (e) {
+            // OTT 조회 실패해도 나머지 프리필엔 영향 없게 조용히 무시
+          }
+
+          if (metaItems.length) {
+            const metaHtml = metaItems
+              .map(t => `<span class="hero-meta-item">${t}</span>`)
+              .join('<span class="hero-meta-sep">·</span>');
+            html = html.replace(
+              '<div class="hero-meta" id="metaRow"></div>',
+              `<div class="hero-meta" id="metaRow">${metaHtml}</div>`
+            );
+          }
+
+          // [2026-07-26 신규] 구조화 데이터(JSON-LD) 프리필 — 기존엔 <script id="ldJson">{}</script>로
+          // 완전히 비어있는 채로 나가서, 자바스크립트를 실행하지 않는 봇에겐 구조화 데이터가 아예
+          // 없는 것과 같았음. D1에 있는 값만으로 우선 채워서 최소한의 구조화 데이터가 항상 나가게 함
+          // (자바스크립트가 로드되면 평점 개수 등을 포함한 더 완전한 값으로 덮어씀 — 화면 동작 그대로).
+          // TMDB aggregateRating은 투표수(vote_count)가 D1에 없어서 넣지 않음 — ratingCount 없이
+          // 넣으면 구조화 데이터 오류로 잡힐 수 있어, 값이 확실한 IMDb 평점(review 형태, 개수 불필요)만 포함.
+          try {
+            const ldType = row.media_type === "movie" ? "Movie" : "TVSeries";
+            const ld = {
+              "@context": "https://schema.org",
+              "@type": ldType,
+              "name": title,
+              "description": desc,
+              "url": pageUrl,
+            };
+            if (poster) ld.image = poster;
+            if (row.genre) {
+              const genreNames = row.genre.split(",").map(s => s.trim()).filter(Boolean);
+              if (genreNames.length) ld.genre = genreNames;
+            }
+            if (row.release_date) ld.datePublished = row.release_date;
+            if (row.imdb_rating) {
+              const imdbNum = parseFloat(row.imdb_rating);
+              if (!isNaN(imdbNum)) {
+                ld.review = [{
+                  "@type": "Review",
+                  "author": { "@type": "Organization", "name": "IMDb" },
+                  "reviewRating": { "@type": "Rating", "ratingValue": imdbNum, "bestRating": 10, "worstRating": 0 },
+                }];
+              }
+            }
+            html = html.replace(
+              '<script id="ldJson" type="application/ld+json">{}</script>',
+              `<script id="ldJson" type="application/ld+json">${safeJsonForScript(ld)}</script>`
+            );
+          } catch (e) {
+            // 구조화 데이터 프리필 실패해도 나머지(제목/줄거리/평점)엔 영향 없게 조용히 무시
           }
 
           // [2026-07-25 신규] 인물관계도 이미지 프리필 — 공식 이미지가 등록돼있으면
@@ -163,6 +268,67 @@ export async function onRequestGet(context) {
               }
             } catch (e) {
               // 관계도 조회 실패해도 나머지 프리필(제목/줄거리/평점)엔 영향 없게 조용히 무시
+            }
+          }
+
+          // [2026-07-26 신규] 출연진/감독 프리필 — work_cast에 저장된 값이 있으면 봇이 자바스크립트를
+          // 실행하지 않아도 인물페이지(/person/{id}) 링크를 미리 볼 수 있음. 화면(방문자)은 잠시 뒤
+          // 자바스크립트가 TMDB 실시간 데이터로 그대로 덮어쓰므로 사람 눈엔 차이가 없음 — 이 프리필은
+          // 오직 "JS를 실행하지 않는 봇"을 위한 것. 페이지 크기/속도를 위해 배우는 상위 30명까지만
+          // 심음(화면은 여전히 전체 다 보여줌, _title_detail.html은 안 건드림).
+          if (row.media_type) {
+            try {
+              const { results: castRows } = await env.DB.prepare(`
+                SELECT person_tmdb_id, name, role, character_name, profile_path
+                FROM work_cast
+                WHERE tmdb_id = ? AND media_type = ?
+                ORDER BY billing_order ASC
+              `).bind(parsed.tmdb_id, row.media_type).all();
+
+              const directors = (castRows || []).filter(p => p.role === "director").slice(0, 3);
+              const castList  = (castRows || []).filter(p => p.role === "cast").slice(0, 30);
+
+              if (directors.length || castList.length) {
+                const IMG_PROFILE = "https://poster.ottrank.kr/tmdb-img/w185";
+
+                const directorHtml = directors.map(p => `
+                  <a class="director-chip" href="/person/${p.person_tmdb_id}">
+                    <div class="director-photo">${p.profile_path
+                      ? `<img src="${IMG_PROFILE}${escAttr(p.profile_path)}" alt="${escAttr(p.name || "")}" loading="lazy">`
+                      : `<div class="director-photo-ph">${escText((p.name || "?")[0])}</div>`}
+                    </div>
+                    <div class="director-info">
+                      <span class="director-name">${escText(p.name || "")}</span>
+                      <span class="director-label">감독</span>
+                    </div>
+                  </a>`).join("");
+
+                const castHtml = castList.map(p => `
+                  <a class="cast-card" href="/person/${p.person_tmdb_id}">
+                    <div class="cast-photo">
+                      ${p.profile_path
+                        ? `<img src="${IMG_PROFILE}${escAttr(p.profile_path)}" alt="${escAttr(p.name || "")}" loading="lazy">`
+                        : `<div class="cast-photo-ph">${escText((p.name || "?")[0])}</div>`}
+                    </div>
+                    <div class="cast-name">${escText(p.name || "")}</div>
+                    <div class="cast-role">${escText(p.character_name || "")}</div>
+                  </a>`).join("");
+
+                html = html.replace(
+                  '<div class="director-row" id="directorRow"></div>',
+                  `<div class="director-row" id="directorRow">${directorHtml}</div>`
+                );
+                html = html.replace(
+                  '<div class="cast-scroll" id="castScroll"></div>',
+                  `<div class="cast-scroll" id="castScroll">${castHtml}</div>`
+                );
+                html = html.replace(
+                  '<div class="cast-section" id="castSection" style="display:none">',
+                  '<div class="cast-section" id="castSection">'
+                );
+              }
+            } catch (e) {
+              // 출연진 조회 실패해도 나머지 프리필(제목/줄거리/평점/관계도)엔 영향 없게 조용히 무시
             }
           }
         }
