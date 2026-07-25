@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.5 — functions/title/[slug].js (출연진/감독 프리필 추가 — work_cast에서 읽어와 directorRow/castScroll을 미리 채움, 봇이 JS 실행 없이도 인물페이지 링크를 볼 수 있게 함) */
+/* 2026-07-26 rev.6 — functions/title/[slug].js (인물관계도 버튼 텍스트에 작품명 프리필 추가 — "{작품명} 인물관계도 보기"가 이미지는 숨겨진 채로도 크롤링되도록) */
 /* ══════════════════════════════════════════════════════════════
    Cloudflare Pages Function — /title/:slug 요청을 가로채서,
    정적 _title_detail.html을 그대로 가져온 다음 <title>/메타태그/줄거리 부분만
@@ -264,6 +264,14 @@ export async function onRequestGet(context) {
                 html = html.replace(
                   /(<div class="relchart-section" id="relChartSection" style=")display:none(")/,
                   (_, pre, post) => `${pre}${post}`
+                );
+                // [2026-07-26 신규] 버튼 텍스트("인물관계도 보기")는 relChartBody(이미지 박스)와
+                // 달리 display:none으로 안 숨겨져 있어 원래도 크롤링 가능한 상태였지만, 제목이
+                // 안 붙은 채로만 나가고 있었음. 이미지는 스포일러 방지 목적상 숨겨둔 채 그대로 두고,
+                // 이 텍스트만 최소한으로 "{작품명} 인물관계도 보기"가 되도록 채워서 검색 단서를 남김.
+                html = html.replace(
+                  /(<span id="relChartToggleTitle">)[^<]*(<\/span>)/,
+                  (_, pre, post) => `${pre}${escText(`${title} 인물관계도 보기`)}${post}`
                 );
               }
             } catch (e) {
