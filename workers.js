@@ -189,7 +189,17 @@ function et(r,s,t){if(!s.length)return r.slice(0,t).map((c,m)=>({...c,rank:m+1})
         SELECT p.tmdb_id, p.has_korean_name, w.created_at AS wiki_matched_at
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+        LEFT JOIN (
+          SELECT person_tmdb_id, COUNT(DISTINCT tmdb_id) AS work_count
+          FROM work_cast
+          GROUP BY person_tmdb_id
+        ) wc ON wc.person_tmdb_id = p.tmdb_id
         WHERE p.tmdb_id IS NOT NULL
+          AND (
+            wc.work_count IS NOT NULL
+            OR w.tmdb_person_id IS NOT NULL
+            OR p.like_count > 0
+          )
         ORDER BY (p.has_korean_name = 1) DESC, p.tmdb_id
       `).all(),m=[];for(let a of p)m.push(`  <url>
     <loc>${o}${a.path}</loc>
