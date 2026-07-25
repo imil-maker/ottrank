@@ -1,4 +1,4 @@
-<!-- 2026-07-26 rev.1 — _title_detail.html (TMDB 미번역 장르 3종 한글 치환 추가 — Action & Adventure/Sci-Fi & Fantasy/War & Politics가 TMDB에서 원래부터 한국어 번역이 없어 화면에 영어 그대로 노출되던 문제, 화면 칩+JSON-LD 양쪽 다 적용) -->
+<!-- 2026-07-26 rev.2 — _title_detail.html (출연진 로딩을 "우리 DB 먼저, 없으면 TMDB" 방식으로 변경 — GET /works/:id/cast 우선 조회, 없을 때만 TMDB 호출 후 cast-sync로 조용히 저장) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2903,14 +2903,15 @@ async function loadTmdb(){
     // 후기 API와 무관하게 바로 표시 가능
     renderMbtiSection(WORK.mbti_tags||null);
 
-    // TV 작품은 aggregate_credits 사용 — 기본 /credits는 시즌 일부 출연진만 내려주지만
-    // TMDB 웹사이트가 실제로 보여주는 전체 출연진(에피소드 전체 기준 집계)은 aggregate_credits 응답 기준임.
-    // 영화는 기본 /credits가 이미 전체 출연진을 담고 있어 그대로 사용.
+    // [2026-07-26 수정] 출연진/감독은 우리 DB(work_cast)를 먼저 확인하고, 없을 때만 TMDB를
+    // 부르도록 변경 — 한 번이라도 방문된 작품은 그다음부턴 TMDB 호출 자체가 아예 안 일어남.
+    // TV는 aggregate_credits(에피소드 전체 기준 집계), 영화는 credits — 우리 DB에 없어서
+    // TMDB로 폴백할 때만 이 구분이 필요함(admin.js backfill-cast와 동일 기준).
     const creditsEndpoint=WORK.type==='tv'?'aggregate_credits':'credits';
 
     // Parallel API calls after hero shown
-    const [creditsRes, videosRes, ratingsRes, extIdsRes] = await Promise.allSettled([
-      fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${creditsEndpoint}?language=ko-KR`).then(r=>r.json()),
+    const [dbCastRes, videosRes, ratingsRes, extIdsRes] = await Promise.allSettled([
+      fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}/cast?media_type=${WORK.type}`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/videos?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${WORK.type==='tv'?'content_ratings':'release_dates'}?language=ko-KR`).then(r=>r.json()),
       fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/external_ids`).then(r=>r.json()),
@@ -2966,54 +2967,70 @@ async function loadTmdb(){
     if(dateRaw){const d=new Date(dateRaw);const days=['일','월','화','수','목','금','토'];const dateLabel=WORK.type==='tv'?'공개일':'개봉';dateHtml=`<span class="hero-meta-item">${dateLabel} <b>${dateRaw.replace(/-/g,'.')} (${days[d.getDay()]})</b></span>`;}
     document.getElementById('metaRow').innerHTML=`${seasHtml}${episodeHtml}${stateHtml}${dateHtml}${ratingHtml}`;
 
-    // Credits
-    if(creditsRes.status==='fulfilled'){
-      const cr=creditsRes.value;
-      const directors=(cr.crew||[]).filter(p=>p.job==='Director'||p.department==='Directing').slice(0,3);
-      // 출연진 캡 제거 — TMDB credits API가 내려주는 cast 전체(billing order 순)를 그대로 렌더링
-      // 가로 스크롤 카드(cast-scroll)라 인원이 많아도 화살표로 끝까지 탐색 가능
-      const cast=(cr.cast||[]);
+    // Credits — 우리 DB에 있으면 그대로 쓰고(TMDB 호출 없음), 없으면 TMDB에서 받아온 뒤
+    // 조용히 우리 DB에도 저장(cast-sync)해서 다음 방문자부터는 이 작품도 DB로 바로 나가게 함.
+    let directors=[], cast=[];
+    const dbCast=(dbCastRes.status==='fulfilled')?dbCastRes.value?.data:null;
 
-      if(directors.length||cast.length){
-        document.getElementById('castSection').style.display='block';
+    if(dbCast && ((dbCast.directors&&dbCast.directors.length) || (dbCast.cast&&dbCast.cast.length))){
+      directors=dbCast.directors||[];
+      cast=dbCast.cast||[];
+    }else{
+      try{
+        const cr=await fetch(`${TMDB_PROXY}/${WORK.type}/${WORK.tmdb_id}/${creditsEndpoint}?language=ko-KR`).then(r=>r.json());
+        directors=(cr.crew||[]).filter(p=>p.job==='Director'||p.department==='Directing').slice(0,3);
+        // 출연진 캡 제거 — TMDB credits API가 내려주는 cast 전체(billing order 순)를 그대로 렌더링
+        cast=(cr.cast||[]);
+        // 조용히 우리 DB에도 저장 — 응답을 기다리지 않음(화면 렌더링과 무관, 실패해도 무시)
+        if(directors.length||cast.length){
+          fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}/cast-sync`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({media_type:WORK.type}),
+          }).catch(()=>{});
+        }
+      }catch(e){ /* TMDB 폴백까지 실패하면 출연진 섹션은 그냥 비워둠(아래 length 체크로 자연스럽게 숨겨짐) */ }
+    }
 
-        // 인물 페이지 내부 URL — /person/{id} 경로 방식 (SSR SEO 지원)
-        const personUrl=(id)=>`/person/${id}`;
+    if(directors.length||cast.length){
+      document.getElementById('castSection').style.display='block';
 
-        // 감독 칩 렌더
-        document.getElementById('directorRow').innerHTML=directors.map(p=>`
-          <a class="director-chip" href="${personUrl(p.id)}">
-            <div class="director-photo">${p.profile_path
-              ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy">`
-              :`<div class="director-photo-ph">${(p.name||'?')[0]}</div>`}
-            </div>
-            <div class="director-info">
-              <span class="director-name">${p.name}</span>
-              <span class="director-label">감독</span>
-            </div>
-          </a>`).join('');
+      // 인물 페이지 내부 URL — /person/{id} 경로 방식 (SSR SEO 지원)
+      const personUrl=(id)=>`/person/${id}`;
 
-        // 배우 카드 렌더
-        document.getElementById('castScroll').innerHTML=cast.map(p=>`
-          <a class="cast-card" href="${personUrl(p.id)}">
-            <div class="cast-photo">
-              ${p.profile_path
-                ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-                :''}
-              <div class="cast-photo-ph" style="${p.profile_path?'display:none':'display:flex'}">${(p.name||'?')[0]}</div>
-            </div>
-            <div class="cast-name">${p.name}</div>
-            <div class="cast-role">${p.character||p.roles?.[0]?.character||''}</div>
-          </a>`).join('');
+      // 감독 칩 렌더
+      document.getElementById('directorRow').innerHTML=directors.map(p=>`
+        <a class="director-chip" href="${personUrl(p.id)}">
+          <div class="director-photo">${p.profile_path
+            ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy">`
+            :`<div class="director-photo-ph">${(p.name||'?')[0]}</div>`}
+          </div>
+          <div class="director-info">
+            <span class="director-name">${p.name}</span>
+            <span class="director-label">감독</span>
+          </div>
+        </a>`).join('');
 
-        // 화살표 초기 상태 + 스크롤 이벤트 연결
-        setTimeout(()=>{
-          updateCastArrows();
-          const cs=document.getElementById('castScroll');
-          if(cs)cs.addEventListener('scroll',updateCastArrows,{passive:true});
-        },100);
-      }
+      // 배우 카드 렌더
+      document.getElementById('castScroll').innerHTML=cast.map(p=>`
+        <a class="cast-card" href="${personUrl(p.id)}">
+          <div class="cast-photo">
+            ${p.profile_path
+              ?`<img src="${IMG_PROFILE}${p.profile_path}" alt="${p.name}" loading="lazy"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+              :''}
+            <div class="cast-photo-ph" style="${p.profile_path?'display:none':'display:flex'}">${(p.name||'?')[0]}</div>
+          </div>
+          <div class="cast-name">${p.name}</div>
+          <div class="cast-role">${p.character||p.roles?.[0]?.character||''}</div>
+        </a>`).join('');
+
+      // 화살표 초기 상태 + 스크롤 이벤트 연결
+      setTimeout(()=>{
+        updateCastArrows();
+        const cs=document.getElementById('castScroll');
+        if(cs)cs.addEventListener('scroll',updateCastArrows,{passive:true});
+      },100);
     }
 
     // Videos
