@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-26 rev.1 — admin_videos.html (출연진 채우기 탭 신규 — work_cast 테이블 백필, SEO 서버사이드 프리필용) -->
+<!-- 2026-07-26 rev.2 — admin_videos.html (sitemap 캐시 즉시비우기 버튼 신규 — 모든 탭 상단에 항상 표시) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -305,6 +305,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           🔞 성인물 정리
         </button>
       </div>
+      <button onclick="clearSitemapCache()" id="sitemapCacheBtn"
+        style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans);white-space:nowrap;margin-right:10px">
+        🗺 sitemap 캐시 비우기
+      </button>
       <a class="back-btn" href="/admin.html">← 어드민으로</a>
     </div>
   </div>
@@ -2182,6 +2186,33 @@ function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ══ sitemap 캐시 즉시 비우기 (2026-07-26 신규) ══
+   대량 데이터 정리(작품/인물 삭제 등) 직후, sitemap.xml의 1시간 캐시가 자연 만료될 때까지
+   기다리지 않고 바로 최신 결과를 확인하고 싶을 때 사용. 어느 탭에서든 상단에 항상 떠있음. */
+async function clearSitemapCache(){
+  const btn = document.getElementById('sitemapCacheBtn');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '비우는 중...';
+  try{
+    const res = await fetch(`${API}/admin/sitemap/clear-cache`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if(res.ok && data.ok){
+      showToast('✅ sitemap 캐시를 비웠어요. 지금 다시 열어보면 최신 데이터예요.');
+    }else{
+      showToast(`❌ 실패: ${data.message || res.status}`);
+    }
+  }catch(e){
+    showToast(`❌ 네트워크 오류: ${e.message}`);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = original;
+  }
 }
 
 // 짧은 대기 — 배치 사이 간격을 둬서 Workers/TMDB에 요청이 몰리지 않도록 함
