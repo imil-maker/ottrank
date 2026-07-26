@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.12 — person.html (대표작 5차 수정: "명단없음+OTT미제공 동시" 조건 대신 "OTT 미제공이면 무조건 tier 1단계 강등"으로 단순화/강화 — 확인된 진짜 주연이어도 국내 OTT에 없으면 밀리게) -->
+<!-- 2026-07-26 rev.1 — person.html (korean_confirmed 국적분기 추가 — 한국인은 기존로직 그대로, 외국인/미확인은 위키/TMDB 기본+100자미만시 필모문장 보충) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1246,6 +1246,14 @@ async function loadWikiTest(personId){
     const rawAutoFilmo = (d.auto_filmography_text || '').trim();
     const autoFilmoText = (rawAutoFilmo && rawAutoFilmo !== '__NONE__') ? rawAutoFilmo : '';
 
+    /* [2026-07-26 신규] 국적 분기 — korean_confirmed=1(한국인)만 기존 로직 그대로 두고,
+       외국인/미확인(0 또는 null)은 별도 분기 추가. 한국인은 TMDB 약력을 아예 안 쓰지만
+       (TMDB 한국어 약력이 부실한 경우가 많아서), 외국인은 반대로 TMDB 약력이 잘 되어있는
+       경우가 많아서 위키 다음으로 우선시하고, 그것도 100자 미만으로 부실할 때만
+       필모문장(SEO용)을 보충으로 붙임 — 한국인과 완전히 같은 "부실할 때만 보충" 규칙. */
+    const koreanConfirmed = json.korean_confirmed;
+
+    if(koreanConfirmed === 1){
     if(d.bio_summary || autoFilmoText){
       /* [2026-07-19 신규] 오른쪽 상단 프로필의 "약력" 자리를 위키 요약글로 대체.
          TMDB 약력은 영어인 경우가 대부분이라, 한국어인 위키 요약글을 우선시함.
@@ -1267,6 +1275,26 @@ async function loadWikiTest(personId){
           const toggleBtn = document.getElementById('bioToggle');
           if(toggleBtn) toggleBtn.style.display = (bioEl.scrollHeight > lineH * 4 + 4) ? 'inline' : 'none';
         });
+      }
+    }
+    } else {
+      // 외국인/미확인 — 기본 텍스트는 위키 있으면 위키, 없으면 TMDB 약력.
+      // 그 기본 텍스트가 100자 미만으로 부실할 때만 필모문장(SEO용)을 보충으로 붙임.
+      const bioEl = document.getElementById('bioText');
+      if(bioEl){
+        let combined = d.bio_summary || tmdbBioText || '';
+        if(combined.length < 100 && autoFilmoText){
+          combined = combined ? `${combined} ${autoFilmoText}` : autoFilmoText;
+        }
+        if(combined){
+          bioEl.textContent = combined;
+          wikiBioApplied = true;
+          requestAnimationFrame(()=>{
+            const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
+            const toggleBtn = document.getElementById('bioToggle');
+            if(toggleBtn) toggleBtn.style.display = (bioEl.scrollHeight > lineH * 4 + 4) ? 'inline' : 'none';
+          });
+        }
       }
     }
 
