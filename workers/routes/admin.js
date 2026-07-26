@@ -5317,6 +5317,97 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
+  // ── POST /admin/persons/korean-confirm-domestic ────────────────────
+  // [2026-07-26 신규] "필모채우기" 위에 놓일 판정 버튼1 — korean_confirmed가 아직 NULL(미검토)인
+  // 사람 중, 아래 두 조건 중 하나라도 맞으면 korean_confirmed=1(확정 한국인)로 UPDATE.
+  //   A. 출생지(place_of_birth)에 한국 지역명(수도권/광역시/도 전체)이 포함된 경우
+  //   B. 출생지가 아예 없고 + 한글이름(name_ko, 앞뒤 공백 제거 후) 2~4자 + 한국어 작품(work_cast+
+  //      works.original_language='ko') 출연 이력이 있는 경우
+  // 오늘 관리자님과 D1 콘솔에서 샘플 검증(100명 전수 확인 등)까지 마친 기준을 그대로 코드화한 것.
+  // 추가 API 호출이 필요 없는 순수 DB 연산이라 배치 반복 없이 UPDATE 1번으로 끝남.
+  if (path === "/admin/persons/korean-confirm-domestic" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      // 한국 지역명 — 영문/한글 둘 다(TMDB 출생지 표기가 섞여있어서). 시/도 단위 광역명까지 포함.
+      const KOREA_REGION_TERMS = [
+        "Korea", "한국", "Seoul", "서울",
+        "Busan", "부산", "Incheon", "인천", "Daegu", "대구", "Daejeon", "대전",
+        "Gwangju", "광주", "Ulsan", "울산", "Sejong", "세종",
+        "Gyeonggi", "경기", "Gangwon", "강원",
+        "Chungcheong", "Chungnam", "Chungbuk", "충청",
+        "Jeolla", "Jeonnam", "Jeonbuk", "전라",
+        "Gyeongsang", "Gyeongnam", "Gyeongbuk", "경상",
+        "Jeju", "제주",
+      ];
+      const regionOr = KOREA_REGION_TERMS.map(() => "p.place_of_birth LIKE ?").join(" OR ");
+      const regionBinds = KOREA_REGION_TERMS.map(t => `%${t}%`);
+
+      const result = await env.DB.prepare(`
+        UPDATE persons
+        SET korean_confirmed = 1
+        WHERE korean_confirmed IS NULL
+          AND (
+            (${regionOr})
+            OR (
+              (place_of_birth IS NULL OR place_of_birth = '')
+              AND LENGTH(TRIM(name_ko)) BETWEEN 2 AND 4
+              AND tmdb_id IN (
+                SELECT wc.person_tmdb_id FROM work_cast wc
+                JOIN works w ON w.tmdb_id = wc.tmdb_id
+                WHERE w.original_language = 'ko'
+              )
+            )
+          )
+      `).bind(...regionBinds).run();
+
+      return new Response(JSON.stringify({
+        ok: true, updated: result.meta?.changes || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/korean-confirm-foreign ──────────────────────
+  // [2026-07-26 신규] 판정 버튼2 — korean_confirmed가 NULL인 사람 중, 출생지 정보는 있는데
+  // 한국 지역명이 전혀 안 걸리면 korean_confirmed=0(확정 외국인)으로 UPDATE.
+  // 출생지가 아예 없는 사람은 이 버튼 대상이 아님(버튼1의 B조건에서 걸러지지 않으면 계속 미검토로 남음).
+  if (path === "/admin/persons/korean-confirm-foreign" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const KOREA_REGION_TERMS = [
+        "Korea", "한국", "Seoul", "서울",
+        "Busan", "부산", "Incheon", "인천", "Daegu", "대구", "Daejeon", "대전",
+        "Gwangju", "광주", "Ulsan", "울산", "Sejong", "세종",
+        "Gyeonggi", "경기", "Gangwon", "강원",
+        "Chungcheong", "Chungnam", "Chungbuk", "충청",
+        "Jeolla", "Jeonnam", "Jeonbuk", "전라",
+        "Gyeongsang", "Gyeongnam", "Gyeongbuk", "경상",
+        "Jeju", "제주",
+      ];
+      const regionOr = KOREA_REGION_TERMS.map(() => "p.place_of_birth LIKE ?").join(" OR ");
+      const regionBinds = KOREA_REGION_TERMS.map(t => `%${t}%`);
+
+      const result = await env.DB.prepare(`
+        UPDATE persons
+        SET korean_confirmed = 0
+        WHERE korean_confirmed IS NULL
+          AND place_of_birth IS NOT NULL AND place_of_birth != ''
+          AND NOT (${regionOr})
+      `).bind(...regionBinds).run();
+
+      return new Response(JSON.stringify({
+        ok: true, updated: result.meta?.changes || 0,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
   // ── POST /admin/persons/backfill-filmography ───────────────────────
   // 봇(검색엔진)용 필모그래피 문장 자동생성. bio_summary(진짜 약력)와는 완전히 분리된
   // person_wiki_cache.auto_filmography_text 컬럼에만 저장 — bio_summary는 절대 안 건드림.
