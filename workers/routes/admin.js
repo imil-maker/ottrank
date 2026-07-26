@@ -1,4 +1,4 @@
-// 2026-07-27 rev.3 — admin.js (MBTI 수집 대상에서 job='act' 제한 제거 — 위키 이름+생년 확인이 이미 동명이인 방지 역할을 하므로 배우 한정할 필요 없이 korean_confirmed=1 전체로 확대, AI 프롬프트도 배우/감독 등 실제 직업에 맞게 표시)
+// 2026-07-27 rev.5 — admin.js (나무위키 생년 검증을 문자열 비교 대신 숫자 변환 비교로 수정 — 표기 형태 차이로 인한 오판 방지)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -4767,7 +4767,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
   // ── POST /admin/persons/mbti-auto-step ───────────────────────────
   // [2026-07-27 신규] "MBTI 수집" 탭 — 버튼 한 번에 1명만 처리(다른 auto-step들과 동일 패턴).
-  // 처리 흐름: ① 대상자 선정(korean_confirmed=1 + job='act' + mbti_checked_at 없음)
+  // 처리 흐름: ① 대상자 선정(korean_confirmed=1 + mbti_checked_at 없음, 직업 무관)
   //           ② 무료 위키 사전확인 — 동명이인 방지, 매칭 안 되면 AI 호출 없이 바로 체크 처리
   //           ③ 나무위키 무료 크롤링 시도 — 찾으면 여기서 끝(AI 비용 0)
   //           ④ 그래도 못 찾으면 AI 웹서치(최대 3회)로 폴백
@@ -4811,7 +4811,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       // ③ 나무위키 무료 크롤링
-      const namuMbti = await _fetchNamuwikiMbti(displayName);
+      const namuMbti = await _fetchNamuwikiMbti(displayName, birthYear);
       if (namuMbti) {
         await env.DB.prepare(
           `UPDATE persons SET mbti = ?, mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
@@ -6346,7 +6346,11 @@ async function _checkWikiMatch(displayName, tmdbYear, env) {
 // 그대로 가져온 뒤 태그를 제거해 순수 텍스트로 만들고, "MBTI" 글자 뒤 30자 이내에서 유효한
 // 4글자 유형(EI/SN/FT/JP 조합)을 정규식으로 찾는다. 배우 인물 문서는 보통 인포박스에
 // "MBTI [ESFJ]" 형태로 들어있어 이 방식으로 상당수 커버 가능. 못 찾으면 null(AI 웹서치로 폴백).
-async function _fetchNamuwikiMbti(displayName) {
+// [2026-07-27 수정] 동명이인 검증 추가 — namu.wiki/w/이름 이 항상 우리가 찾는 그 사람으로
+// 연결된다는 보장이 없음(흔한 이름이면 더 유명한 동명이인 문서로 갈 수 있음). 페이지 안에서
+// "출생 ... YYYY년"을 찾아 우리가 아는 생년과 일치할 때만 신뢰하고, 생년을 못 찾거나
+// 다르면 null 반환(AI 웹서치로 폴백 — 잘못된 값을 저장하느니 못 찾은 걸로 처리하는 게 안전).
+async function _fetchNamuwikiMbti(displayName, birthYear) {
   try {
     const resp = await fetch(`https://namu.wiki/w/${encodeURIComponent(displayName)}`, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; OttrankBot/1.0; +https://ottrank.kr)" },
@@ -6357,6 +6361,15 @@ async function _fetchNamuwikiMbti(displayName) {
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " ");
+
+    // 생년 검증 — "출생" 글자 뒤 40자 이내에서 "YYYY년" 패턴을 찾는다.
+    // 문자열끼리 그대로 비교하면 공백/자릿수 등 사소한 표기 차이로 오판할 수 있어서
+    // 숫자로 변환해서 비교(예: " 1993" vs "1993"도 동일하게 처리됨).
+    // 우리 쪽에 생년 정보가 없으면(드묾) 검증 자체가 불가능하므로 안전하게 null 반환.
+    if (!birthYear) return null;
+    const birthMatch = text.match(/출생[^0-9]{0,40}(\d{4})년/);
+    if (!birthMatch || parseInt(birthMatch[1], 10) !== parseInt(birthYear, 10)) return null;
+
     const m = text.match(/MBTI[^A-Za-z]{0,30}([EI][SN][FT][JP])\b/);
     return m ? m[1].toUpperCase() : null;
   } catch (e) {
