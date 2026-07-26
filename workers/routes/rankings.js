@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.3 — rankings.js (/rankings/platform 박스오피스 관객수 조인 수정 — r.date=bs.date 정확 매칭 대신 tmdb_id별 가장 최근 boxoffice_stats 값을 가져오도록 변경, 순위표 날짜와 KOBIS 날짜가 항상 하루 어긋나 관객수가 계속 안 보이던 문제 해결) */
+/* 2026-07-26 rev.4 — rankings.js (_fetchFallbackForMissing 보충쿼리에 boxoffice_stats 조인 추가 — 박스오피스는 매일 "오늘자 정확매칭"이 아니라 이 보충경로로 채워지고 있었는데, 이 경로가 애초부터 audi_cnt를 아예 조회하지 않고 있어서 rev.3 수정과 무관하게 계속 관객수가 안 보였던 근본 원인 수정) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -99,15 +99,19 @@ export async function _fetchFallbackForMissing(env, missingCats) {
 
   const statements = missingCats.map(c =>
     env.DB.prepare(`
-      SELECT platform, category_slot, rank, title_ko, title_en, tmdb_id,
-             poster_path, genre, tmdb_rating, release_year, memo, date
-      FROM rankings
-      WHERE platform = ? AND category_slot = ?
-        AND date = (
+      SELECT r.platform, r.category_slot, r.rank, r.title_ko, r.title_en, r.tmdb_id,
+             r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo, r.date,
+             bs.audi_cnt AS audi_cnt
+      FROM rankings r
+      LEFT JOIN boxoffice_stats bs
+        ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id
+        AND bs.date = (SELECT MAX(b2.date) FROM boxoffice_stats b2 WHERE b2.tmdb_id = r.tmdb_id)
+      WHERE r.platform = ? AND r.category_slot = ?
+        AND r.date = (
           SELECT MAX(date) FROM rankings
           WHERE platform = ? AND category_slot = ? AND date != 'manual'
         )
-      ORDER BY rank ASC
+      ORDER BY r.rank ASC
     `).bind(c.platform, c.category_slot, c.platform, c.category_slot)
   );
 
