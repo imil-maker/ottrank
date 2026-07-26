@@ -1,4 +1,4 @@
-// 2026-07-26 rev.3 — admin.js (sitemap 캐시 즉시비우기 API 신규 — POST /admin/sitemap/clear-cache)
+// 2026-07-26 rev.4 — admin.js (필모채우기: 국가명 삭제, 조사/동사 오류 수정, 외국인 대상 확장)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5321,7 +5321,10 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 봇(검색엔진)용 필모그래피 문장 자동생성. bio_summary(진짜 약력)와는 완전히 분리된
   // person_wiki_cache.auto_filmography_text 컬럼에만 저장 — bio_summary는 절대 안 건드림.
   //
-  // 대상: has_korean_name=1인 사람 전체(약력 유무 상관없이) 중 auto_filmography_text가 비어있는 사람.
+  // 대상: auto_filmography_text가 비어있는 사람 전체(한국인/외국인 구분 없음, 약력 유무 상관없이).
+  // [2026-07-26 수정] 원래 has_korean_name=1(한국인)만 대상이었으나, 외국 배우도 SEO 목적으로
+  // 같은 방식으로 채워야 해서 국적 제한을 없앰. 나중에 프론트에서 "한국인만/외국인만" 골라
+  // 돌리고 싶을 수 있어 body.nationality 파라미터로 선택 가능하게 열어둠(생략하면 전체 대상).
   // "대표작"은 person.html처럼 작품마다 실제 출연진을 재조회해서 확인하지 않고(호출량 폭증 방지),
   // TMDB combined_credits가 credit 항목마다 이미 내려주는 order(출연 순번)를 그대로 활용하는
   // 단순화된 버전 — order<=5인 항목 중 인기도 상위를 대표작으로 간주.
@@ -5333,6 +5336,11 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 추가 호출 없이 더 정확한 분류가 가능함. 감독/작가/제작자는 crew에서, 그 외(배우 포함)는
   // cast에서 뽑음. 방송인(MC/예능인)은 TMDB에 별도 분류가 없어서, cast 작품 중 예능/토크
   // 장르 비중이 절반 이상이면 "배우" 대신 "방송인"으로 표기하는 방식으로 근사함.
+  //
+  // [2026-07-26 수정] 문장에서 "대한민국의" 국적 표현 삭제(한국인도 동일 — 외국 배우와 문장
+  // 형식을 통일하기 위함). 대신 jobLabel 받침 유무에 따라 "으로/로" 조사를 자동판정하고,
+  // 연출/제작은 "을", 출연/참여는 "에"를 쓰도록 동사별 조사를 분리(기존엔 전부 "에"로
+  // 고정되어 "작품에 연출했다"처럼 어색한 문장이 나왔음).
   if (path === "/admin/persons/backfill-filmography" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -5341,12 +5349,17 @@ export async function handleAdmin(path, request, env, url, headers) {
       const body  = await request.json().catch(() => ({}));
       const limit = Math.min(parseInt(body.limit) || 30, 50);
 
+      // nationality: "korean" | "foreign" | 생략(전체)
+      let nationalityCond = "";
+      if (body.nationality === "korean") nationalityCond = "AND p.has_korean_name = 1";
+      if (body.nationality === "foreign") nationalityCond = "AND p.has_korean_name = 0";
+
       const { results: targets } = await env.DB.prepare(`
         SELECT p.tmdb_id, p.name, p.name_ko, p.birthday, p.place_of_birth
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
-        WHERE p.has_korean_name = 1
-          AND (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
+        WHERE (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
+          ${nationalityCond}
         ORDER BY p.popularity DESC
         LIMIT ?
       `).bind(limit).all();
@@ -5357,12 +5370,22 @@ export async function handleAdmin(path, request, env, url, headers) {
         }), { headers });
       }
 
+      // 한글 단어 마지막 글자에 받침이 있는지 판정 → "으로/로" 조사 자동선택용.
+      // (완성형 한글 유니코드 범위 밖의 문자, 예: 영문/숫자로 끝나는 경우는 받침 없는 것으로 간주)
+      function hasBatchim(word) {
+        const ch = word[word.length - 1];
+        const code = ch.charCodeAt(0) - 0xAC00;
+        if (code < 0 || code > 11171) return false;
+        return code % 28 !== 0;
+      }
+
       // 감독/작가/제작자 — crew 중 이 조건에 맞는 항목만 사용. 그 외 부서(연기 포함,
       // 미분류 등)는 전부 아래 else 분기(cast 기반, 배우/방송인)로 처리.
+      // josa: 문장 끝 "등OO ${verb}"에 붙는 조사 — 연출/제작은 목적어라 "을", 출연/참여는 "에".
       const CREW_CATEGORIES = {
-        Directing:  { jobLabel: "감독",   verb: "연출했다", match: c => c.job === "Director" || c.job === "Creator" },
-        Writing:    { jobLabel: "작가",   verb: "참여했다", match: c => c.department === "Writing" },
-        Production: { jobLabel: "제작자", verb: "제작했다", match: c => c.department === "Production" },
+        Directing:  { jobLabel: "감독",   verb: "연출했다", josa: "을", match: c => c.job === "Director" || c.job === "Creator" },
+        Writing:    { jobLabel: "작가",   verb: "참여했다", josa: "에", match: c => c.department === "Writing" },
+        Production: { jobLabel: "제작자", verb: "제작했다", josa: "을", match: c => c.department === "Production" },
       };
       const VARIETY_GENRE_IDS = [10764, 10767]; // 리얼리티, 토크쇼
 
@@ -5384,12 +5407,13 @@ export async function handleAdmin(path, request, env, url, headers) {
             const department = data.known_for_department || "";
             const crewCat    = CREW_CATEGORIES[department];
 
-            let rawEntries, jobLabel, verb;
+            let rawEntries, jobLabel, verb, josa;
 
             if (crewCat) {
               rawEntries = (credits.crew || []).filter(crewCat.match);
               jobLabel   = crewCat.jobLabel;
               verb       = crewCat.verb;
+              josa       = crewCat.josa;
             } else {
               rawEntries = credits.cast || [];
               // 방송인 판별 — cast 작품 중 예능/토크쇼 장르 비중이 절반 이상이면 방송인으로 표기
@@ -5400,6 +5424,7 @@ export async function handleAdmin(path, request, env, url, headers) {
               const isBroadcaster = total > 0 && (varietyCount / total) >= 0.5;
               jobLabel = isBroadcaster ? "방송인" : "배우";
               verb     = "출연했다";
+              josa     = "에";
             }
 
             const entries = rawEntries
@@ -5439,9 +5464,10 @@ export async function handleAdmin(path, request, env, url, headers) {
               const repText = repList.length
                 ? `대표작으로 ${repList.join(", ")}가 있으며, `
                 : "";
-              const fullText = `${fullList.join(", ")} 등에 ${verb}`;
+              const fullText = `${fullList.join(", ")} 등${josa} ${verb}`;
+              const jobParticle = hasBatchim(jobLabel) ? "으로" : "로"; // 예: 감독→으로, 배우/작가/제작자→로
 
-              sentence = `${displayName}${metaText}는 대한민국의 ${jobLabel}로, ${repText}${fullText}.`;
+              sentence = `${displayName}${metaText}는 ${jobLabel}${jobParticle}, ${repText}${fullText}.`;
             }
           }
         } catch (e) {
@@ -5462,8 +5488,8 @@ export async function handleAdmin(path, request, env, url, headers) {
       const remainRow = await env.DB.prepare(`
         SELECT COUNT(*) as cnt FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
-        WHERE p.has_korean_name = 1
-          AND (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
+        WHERE (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
+          ${nationalityCond}
       `).first();
 
       return new Response(JSON.stringify({
