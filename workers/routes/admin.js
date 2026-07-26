@@ -1,4 +1,4 @@
-// 2026-07-26 rev.8 — admin.js (korean_confirmed 판정 버튼(한국인/외국출생) 신규, UPDATE문 별칭 버그 수정)
+// 2026-07-27 rev.1 — admin.js (특정 작품 하나만 즉시 OTT 재수집하는 POST /admin/works/recollect-ott 신규 — 기존 _recollectOttForWork 함수 재사용, 15일 주기와 무관하게 즉시 반영)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -51,6 +51,7 @@
    POST   /admin/works/:tmdb_id/reset-keyword-cache    ← 특정 작품 키워드 캐시(keyword_ko_map) 초기화(2026-07-15 신설)
    POST   /admin/works/collect-ott                     ← OTT 서비스현황 일괄 수집(work_ott 정규화 테이블, 15일 주기 갱신, 2026-07-17 신설)
    GET    /admin/works/ott-stuck                       ← OTT 수집 계속 실패 중인(ott_updated_at NULL) 작품 목록(2026-07-17 신설)
+   POST   /admin/works/recollect-ott                    ← 작품 하나만 즉시 OTT 재수집(15일 주기 무시, 2026-07-27 신설)
    POST   /admin/works/verify-type                     ← media_type 반대 저장 의심 작품 TMDB로 실제 타입 확인(2026-07-17 신설)
    POST   /admin/works/apply-type-fix                   ← 확인된 media_type 일괄 수정(2026-07-17 신설)
    POST   /admin/works/discover-collect
@@ -2058,7 +2059,42 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
-  // ── POST /admin/works/verify-type ────────────────────────────
+  // ── POST /admin/works/recollect-ott ──────────────────────────
+  // [2026-07-27 신규] 작품 하나만 지금 즉시 OTT 재수집 — 일괄 수집(15일 주기)의 ott_updated_at
+  // 지난 15일 규칙과 무관하게, 어드민이 특정 작품을 골라서 바로 반영하고 싶을 때 사용.
+  // 기존에 있던 _recollectOttForWork(오버라이드 저장/삭제 시 내부적으로만 쓰이던 함수)를 그대로 재사용.
+  if (path === "/admin/works/recollect-ott" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      if (!tmdbId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id 필요해요" }), { status: 400, headers });
+      }
+
+      const work = await env.DB.prepare(
+        `SELECT tmdb_id FROM works WHERE tmdb_id = ?`
+      ).bind(tmdbId).first();
+      if (!work) {
+        return new Response(JSON.stringify({ ok: false, message: "works에 없는 작품이에요" }), { status: 404, headers });
+      }
+
+      await _recollectOttForWork(env, tmdbId);
+
+      const { results: ottRows } = await env.DB.prepare(
+        `SELECT ott_key FROM work_ott WHERE tmdb_id = ?`
+      ).bind(tmdbId).all();
+
+      return new Response(
+        JSON.stringify({ ok: true, tmdb_id: tmdbId, ott_keys: ottRows.map(r => r.ott_key) }),
+        { headers }
+      );
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
   // media_type이 반대로 저장돼서 계속 404나는 작품들을 위한 확인용.
   // movie/tv 둘 다 TMDB에 직접 물어봐서, 실제로 존재하는 쪽을 찾아 알려줌 (자동 수정은 안 함).
   if (path === "/admin/works/verify-type" && request.method === "POST") {
