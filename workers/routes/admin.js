@@ -1,4 +1,4 @@
-// 2026-07-26 rev.4 — admin.js (필모채우기: 국가명 삭제, 조사/동사 오류 수정, 외국인 대상 확장)
+// 2026-07-26 rev.5 — admin.js (필모채우기: korean_confirmed 기준으로 대상 변경, 한국인만 "대한민국의" 표기)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5337,10 +5337,13 @@ export async function handleAdmin(path, request, env, url, headers) {
   // cast에서 뽑음. 방송인(MC/예능인)은 TMDB에 별도 분류가 없어서, cast 작품 중 예능/토크
   // 장르 비중이 절반 이상이면 "배우" 대신 "방송인"으로 표기하는 방식으로 근사함.
   //
-  // [2026-07-26 수정] 문장에서 "대한민국의" 국적 표현 삭제(한국인도 동일 — 외국 배우와 문장
-  // 형식을 통일하기 위함). 대신 jobLabel 받침 유무에 따라 "으로/로" 조사를 자동판정하고,
-  // 연출/제작은 "을", 출연/참여는 "에"를 쓰도록 동사별 조사를 분리(기존엔 전부 "에"로
-  // 고정되어 "작품에 연출했다"처럼 어색한 문장이 나왔음).
+  // [2026-07-26 재수정] 대상 필터를 has_korean_name → korean_confirmed로 교체.
+  // 배경: has_korean_name은 "이름에 한글이 있는지"만 보는 값이라 출생지가 비어있으면
+  // 외국인도 한국인으로 오탐되는 구멍이 있었음(J.B. Rogers 등 실사례 확인).
+  // korean_confirmed는 그 구멍을 메꾼 새 컬럼(관리자와 함께 데이터 검증 후 채움) —
+  // 1=확정 한국인, 0=확정 외국인, NULL=미검토(대상에서 자동 제외됨).
+  // nationality 파라미터를 필수로 받아 "korean"/"foreign" 둘 중 하나로만 동작(전체 없음) —
+  // 한국인/외국인 문장 형식(국가명 유무)이 서로 달라서 섞어 돌리면 안 되기 때문.
   if (path === "/admin/persons/backfill-filmography" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -5349,10 +5352,14 @@ export async function handleAdmin(path, request, env, url, headers) {
       const body  = await request.json().catch(() => ({}));
       const limit = Math.min(parseInt(body.limit) || 30, 50);
 
-      // nationality: "korean" | "foreign" | 생략(전체)
-      let nationalityCond = "";
-      if (body.nationality === "korean") nationalityCond = "AND p.has_korean_name = 1";
-      if (body.nationality === "foreign") nationalityCond = "AND p.has_korean_name = 0";
+      // nationality: "korean" | "foreign" — 둘 중 하나 필수
+      if (body.nationality !== "korean" && body.nationality !== "foreign") {
+        return new Response(JSON.stringify({
+          ok: false, message: "nationality 값은 'korean' 또는 'foreign'이어야 합니다."
+        }), { status: 400, headers });
+      }
+      const isKorean = body.nationality === "korean";
+      const nationalityCond = isKorean ? "AND p.korean_confirmed = 1" : "AND p.korean_confirmed = 0";
 
       const { results: targets } = await env.DB.prepare(`
         SELECT p.tmdb_id, p.name, p.name_ko, p.birthday, p.place_of_birth
@@ -5466,8 +5473,9 @@ export async function handleAdmin(path, request, env, url, headers) {
                 : "";
               const fullText = `${fullList.join(", ")} 등${josa} ${verb}`;
               const jobParticle = hasBatchim(jobLabel) ? "으로" : "로"; // 예: 감독→으로, 배우/작가/제작자→로
+              const nationText = isKorean ? "대한민국의 " : ""; // 한국인만 국가명 표기
 
-              sentence = `${displayName}${metaText}는 ${jobLabel}${jobParticle}, ${repText}${fullText}.`;
+              sentence = `${displayName}${metaText}는 ${nationText}${jobLabel}${jobParticle}, ${repText}${fullText}.`;
             }
           }
         } catch (e) {
