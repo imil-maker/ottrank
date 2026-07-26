@@ -1,4 +1,4 @@
-<!-- 2026-07-27 rev.1 — _title_detail.html (모바일 관련영상 1개일 때 꽉 차게 표시 + 줄거리 더보기/접기 버튼 PC 3줄·모바일 2줄 기준 추가) -->
+<!-- 2026-07-27 rev.2 — _title_detail.html (줄거리 더보기/접기 버튼을 person.html 스타일(화살표 링크)로 교체 + 별도 줄이 아니라 텍스트 끝에 오버레이/이어붙임 방식으로 배치) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -131,8 +131,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .keyword-results-empty{font-size:13px;color:var(--muted);padding:12px 0}
 .hero-overview{font-size:15px;color:rgba(255,255,255,.6);line-height:1.75;max-width:520px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .hero-overview.expanded{-webkit-line-clamp:unset;overflow:visible}
-.overview-more-btn{display:none;background:none;border:none;padding:2px 0 0;margin-top:2px;font-size:13px;font-weight:600;color:rgba(255,255,255,.85);cursor:pointer}
+.hero-overview-wrap{position:relative;max-width:520px}
+/* [2026-07-27 신규] 더보기/접기 — person.html 약력(bio-toggle)과 동일한 스타일(화살표 텍스트 링크) 재사용.
+   더보기: 잘린 텍스트 마지막 줄 우측에 그라데이션으로 겹쳐서 "...더보기"처럼 보이게(오버레이 방식).
+   접기: <p> 안의 마지막 인라인 요소라서 펼쳐지면 문장 끝에 자연스럽게 이어붙음(별도 줄 아님). */
+.overview-more-btn{
+  display:none;position:absolute;right:0;bottom:0;padding-left:26px;
+  background:linear-gradient(to right,transparent,var(--bg2) 45%);
+  border:none;color:var(--info);font-size:13px;cursor:pointer;font-family:var(--font-mono);
+}
 .overview-more-btn.show{display:inline-block}
+.overview-more-btn:hover{text-decoration:underline}
+.overview-less-btn{
+  display:none;background:none;border:none;color:var(--info);
+  font-size:13px;cursor:pointer;font-family:var(--font-mono);padding:0;margin-left:4px;
+}
+.overview-less-btn:hover{text-decoration:underline}
+.hero-overview.expanded .overview-less-btn{display:inline}
 
 /* 감정 표현 4버튼 (히어로 하단) */
 .feeling-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
@@ -1463,8 +1478,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="hero-tags mob-hide-in-hero" id="genreTags"></div>
       <div class="hero-meta" id="metaRow"></div>
 
-      <p class="hero-overview" id="overview">줄거리 정보 불러오는 중…</p>
-      <button type="button" class="overview-more-btn" id="overviewMoreBtn" onclick="toggleOverview()">더보기</button>
+      <div class="hero-overview-wrap" id="overviewWrap">
+        <p class="hero-overview" id="overview"><span id="overviewText">줄거리 정보 불러오는 중…</span><button type="button" class="overview-less-btn" id="overviewLessBtn" onclick="toggleOverview()">&nbsp;접기 ▴</button></p>
+        <button type="button" class="overview-more-btn" id="overviewMoreBtn" onclick="toggleOverview()">더보기 ▾</button>
+      </div>
 
       <!-- 감정 표현 4버튼 -->
       <div class="feeling-btns">
@@ -2901,7 +2918,7 @@ async function loadTmdb(){
     const rawDbOverview=(worksData?.overview||'').trim();
     const dbOverview=rawDbOverview==='__NONE__'?'':rawDbOverview;
     const finalOverview=dbOverview||det.overview||'';
-    document.getElementById('overview').textContent=finalOverview||'줄거리 정보가 없습니다.';
+    document.getElementById('overviewText').textContent=finalOverview||'줄거리 정보가 없습니다.';
     checkOverviewOverflow();
 
     // SEO + wish + rank row
@@ -3211,27 +3228,27 @@ function openPlayer2(id,title){
 function closePlayer2(){document.getElementById('ytFrame2').src='';document.getElementById('ytModal2').classList.remove('show');}
 
 /* == 줄거리 더보기/접기 == */
-// 줄거리가 실제로 잘려있을 때만(scrollHeight > clientHeight) 버튼을 보여줌
+// 줄거리가 실제로 잘려있을 때만(scrollHeight > clientHeight) "더보기" 오버레이 버튼을 보여줌
 // PC 3줄 / 모바일 2줄 기준은 CSS(line-clamp)가 담당, 여기선 잘림 여부만 판단
 function checkOverviewOverflow(){
   const el=document.getElementById('overview');
-  const btn=document.getElementById('overviewMoreBtn');
-  if(!el||!btn)return;
+  const moreBtn=document.getElementById('overviewMoreBtn');
+  if(!el||!moreBtn)return;
   el.classList.remove('expanded');
-  btn.textContent='더보기';
-  // 펼침 상태를 되돌린 뒤, 다음 프레임에서 실제 잘림 여부 측정(레이아웃 반영 대기)
+  // 접힌 상태로 되돌린 뒤, 다음 프레임에서 실제 잘림 여부 측정(레이아웃 반영 대기)
   requestAnimationFrame(()=>{
     const isClamped=el.scrollHeight>el.clientHeight+1;
-    btn.classList.toggle('show',isClamped);
+    moreBtn.classList.toggle('show',isClamped);
   });
 }
 function toggleOverview(){
   const el=document.getElementById('overview');
-  const btn=document.getElementById('overviewMoreBtn');
-  if(!el||!btn)return;
+  const moreBtn=document.getElementById('overviewMoreBtn');
+  if(!el||!moreBtn)return;
   const willExpand=!el.classList.contains('expanded');
   el.classList.toggle('expanded',willExpand);
-  btn.textContent=willExpand?'접기':'더보기';
+  // 펼쳐지면 오버레이 "더보기"는 숨김 — 접기 버튼은 CSS(.expanded .overview-less-btn)가 자동 노출
+  moreBtn.classList.toggle('show',!willExpand);
 }
 // 화면 폭이 바뀌면(PC↔모바일 회전 등) line-clamp 기준 줄 수가 달라지므로 재판정
 let _ovResizeT=null;
