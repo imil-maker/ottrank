@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-26 rev.3 — admin_keywords.html (korean_confirmed 판정 버튼 2개(한국인/외국출생) 신규) -->
+<!-- 2026-07-27 rev.1 — admin_keywords.html (OTT 수집 탭에 "특정 작품만 지금 재수집" 검색 UI 신규 — 제목/tmdb_id 검색 후 개별 작품 즉시 재수집) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -361,6 +361,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       검색페이지의 "OTT별" 필터가 이 데이터를 바로 조회해서 즉시 응답할 수 있게 하는 용도예요.<br>
       한 번도 수집 안 했거나 <span style="color:var(--gold)">15일</span> 지난 작품만 대상이며, 한 번에 최대 30개씩 처리합니다.
     </div>
+
+    <!-- [2026-07-27 신규] 특정 작품만 지금 즉시 OTT 재수집 — 15일 주기 기다릴 필요 없이,
+         신작처럼 최근 데이터가 바뀐 작품 하나만 골라서 바로 반영할 때 사용 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px">
+      <h3 style="margin-bottom:6px;font-size:15px">🔍 특정 작품만 지금 재수집</h3>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        15일 주기 상관없이 이 작품 하나만 지금 바로 다시 확인해서 반영해요. 작품 제목 또는 tmdb_id로 검색하세요.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="form-input" id="ocSearchInput" type="text" placeholder="작품 제목 또는 tmdb_id (예: 사랑이 온다, 310326)" style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')searchOttWork()">
+        <button class="btn-crawl" onclick="searchOttWork()" style="padding:10px 20px;font-size:13px">🔍 검색</button>
+      </div>
+      <div id="ocSearchEmpty" style="color:var(--muted);font-size:13px;padding:10px 0;display:none">검색 결과가 없어요</div>
+      <div id="ocSearchList" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <!-- 구분선 -->
+    <div style="border-top:1px solid var(--border);margin:0 0 20px"></div>
 
     <!-- 상태 카드 -->
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
@@ -3429,6 +3447,74 @@ async function saveKeywordItem(btn) {
    서버 배치로 옮겨 work_ott 테이블에 미리 채워둠)
    /admin/works/collect-ott 를 remaining이 0이 될 때까지 반복 호출
 ══════════════════════════════════════════════════════ */
+
+// [2026-07-27 신규] 특정 작품 하나만 지금 즉시 재수집 — 검색은 키워드 탭(④)과 동일한
+// /admin/works/keywords를 재사용(숫자만 입력하면 tmdb_id 완전일치, 아니면 제목 LIKE 검색).
+const OC_OTT_LABELS = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', wavve:'웨이브', watcha:'왓챠', coupang:'쿠팡플레이' };
+
+async function searchOttWork() {
+  const q = document.getElementById('ocSearchInput').value.trim();
+  const listEl  = document.getElementById('ocSearchList');
+  const emptyEl = document.getElementById('ocSearchEmpty');
+  if (!q) { showToast('⚠️ 작품 제목 또는 tmdb_id를 입력해주세요'); return; }
+
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0">검색 중...</div>';
+  emptyEl.style.display = 'none';
+
+  try {
+    const res  = await fetch(`${API}/admin/works/keywords?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    if (!data.works || !data.works.length) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    listEl.innerHTML = data.works.map(w => `
+      <div id="ocRow-${w.tmdb_id}" style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--bg3);border-radius:8px">
+        <div style="flex:1;font-size:13px">🎬 ${(w.title_ko || w.title_en || '(제목없음)').replace(/</g,'&lt;')} <span style="color:var(--muted);font-family:var(--mono)">(${w.tmdb_id})</span>
+          <div id="ocResult-${w.tmdb_id}" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+        </div>
+        <button class="btn-secondary" id="ocBtn-${w.tmdb_id}" onclick="recollectOttWork(${w.tmdb_id}, this)" style="padding:6px 12px;font-size:12px;white-space:nowrap">🔄 지금 재수집</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0">검색 실패: ${e.message}</div>`;
+  }
+}
+
+async function recollectOttWork(tmdbId, btn) {
+  btn.disabled = true;
+  btn.textContent = '수집 중...';
+  const resultEl = document.getElementById(`ocResult-${tmdbId}`);
+  try {
+    const res  = await fetch(`${API}/admin/works/recollect-ott`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    const labels = (data.ott_keys || []).map(k => OC_OTT_LABELS[k] || k);
+    if (resultEl) {
+      resultEl.textContent = labels.length ? `✅ ${labels.join(', ')}` : '✅ 확인 완료 — 서비스 중인 OTT 없음';
+      resultEl.style.color = 'var(--green)';
+    }
+    showToast(labels.length ? `✅ 재수집 완료: ${labels.join(', ')}` : '✅ 재수집 완료 (서비스 중인 OTT 없음)');
+  } catch (e) {
+    if (resultEl) { resultEl.textContent = `❌ 실패: ${e.message}`; resultEl.style.color = 'var(--red)'; }
+    showToast(`❌ 재수집 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 지금 재수집';
+  }
+}
+
 let ocRunning        = false;
 let ocStopRequested  = false;
 let ocTotalAttempted = 0;
