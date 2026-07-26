@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.6 — functions/title/[slug].js (인물관계도 버튼 텍스트에 작품명 프리필 추가 — "{작품명} 인물관계도 보기"가 이미지는 숨겨진 채로도 크롤링되도록) */
+/* 2026-07-27 rev.1 — functions/title/[slug].js (줄거리 더보기/접기 구조 변경으로 <p id="overview"> 안에 span/button이 추가되면서 기존 정규식이 매칭 실패하던 문제 수정 — span#overviewText만 정확히 타겟) */
 /* ══════════════════════════════════════════════════════════════
    Cloudflare Pages Function — /title/:slug 요청을 가로채서,
    정적 _title_detail.html을 그대로 가져온 다음 <title>/메타태그/줄거리 부분만
@@ -128,8 +128,11 @@ export async function onRequestGet(context) {
 
           // 화면의 "줄거리 정보 불러오는 중…" 부분도 실제 텍스트로 미리 채움
           // (자바스크립트가 어차피 로드 후 다시 덮어쓰므로 사람 눈엔 순간적으로도 안 보임)
+          // [2026-07-27 수정] 더보기/접기 기능 추가로 <p id="overview"> 안에 <span id="overviewText">와
+          // <button>(접기)이 함께 들어있는 구조로 바뀌어서, p 태그 전체를 대상으로 하던 기존 정규식은
+          // 더 이상 매칭되지 않음(태그 안에 태그가 있으면 [^<]*가 실패). span만 정확히 타겟팅하도록 수정.
           html = html.replace(
-            /(<p class="hero-overview" id="overview">)[^<]*(<\/p>)/,
+            /(<span id="overviewText">)[^<]*(<\/span>)/,
             (_, pre, post) => `${pre}${escText(overview || "줄거리 정보가 없습니다.")}${post}`
           );
 
