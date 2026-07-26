@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.1 — netflix.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
+<!-- 2026-07-26 rev.2 — netflix.html (goWork에서 media_type을 'tv'로 무조건 하드코딩하던 버그 수정 — 영화 클릭 시에도 "TV로 확정됨"이 넘어가서 작품페이지가 제목/포스터를 못 채우던 문제. 카테고리명 추정 대신 "모르면 모른다고 넘김"으로 수정) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -489,12 +489,19 @@ const PLATFORM = 'netflix';
 const PLATFORM_LABEL = '넷플릭스'; // ItemList JSON-LD의 name에 사용
 
 /* ── 작품 상세 페이지 이동 ── */
+// [2026-07-26 수정] type을 무조건 'tv'로 넘기던 걸 제거함. 이 페이지(rankings/platform API)는
+// 애초에 media_type을 안 내려줘서 실제로는 영화인지 TV인지 알 수 없는데, 예전엔 그냥 'tv'로
+// 우겨서 넘겼음 — 그러면 목적지 페이지(작품 상세페이지)가 "이미 확정된 타입"으로 그대로 믿어버려서
+// TV 쪽만 조회하다가(실제론 영화라 없으니) 제목/포스터를 끝내 못 채우는 버그로 이어짐.
+// 카테고리명("영화"가 들어있는지)으로 추정하는 방법도 검토했지만, 영화/TV가 섞인 통합
+// 카테고리가 있어서 그 방법도 오작동할 수 있음 → 아예 모른다고(null) 넘기는 게 가장 안전함.
+// 목적지 페이지는 타입 정보가 없으면 movie/tv 둘 다 확인해서 스스로 판단하는 로직이 이미 있음.
 function goWork(tmdbId, title) {
   if (!tmdbId) return;
   const y   = new Date().getFullYear();
   const url = `/title/1-${y}${tmdbId}`;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id: tmdbId, type: 'tv', title: title || '', platform: PLATFORM
+    tmdb_id: tmdbId, type: null, title: title || '', platform: PLATFORM
   }));
   location.href = url;
 }
