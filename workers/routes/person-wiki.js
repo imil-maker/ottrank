@@ -1,4 +1,4 @@
-// 2026-07-25 rev.1 — person-wiki.js (조회 응답에 auto_filmography_text 추가 — 봇용 필모문장, person.html에서 약력 100자 미만일 때 이어붙이는 용도)
+// 2026-07-26 rev.2 — person-wiki.js (응답에 korean_confirmed 필드 추가 — 국적별 약력/필모문장 분기 노출용)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -115,7 +115,7 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     // [2026-07-22 rev.4 추가] poster_badge — 관리자가 수동 지정한 포스터 배지(추모 국화 등).
     // TMDB에 사망일자가 없어도 관리자가 판단해서 배지를 붙일 수 있게 하는 용도.
     const person = await env.DB.prepare(
-      `SELECT birthday, gender, place_of_birth, like_count, poster_badge FROM persons WHERE tmdb_id = ?`
+      `SELECT birthday, gender, place_of_birth, like_count, poster_badge, korean_confirmed FROM persons WHERE tmdb_id = ?`
     )
       .bind(tmdbPersonId)
       .first();
@@ -140,8 +140,17 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     // DB엔 아직 등록 안 된 경우)은 0으로 내려서, 프론트가 항상 숫자 다루듯 처리할 수 있게 함.
     const likeCount = person && person.like_count != null ? person.like_count : 0;
 
+    // [2026-07-26 신규] korean_confirmed — 필모문장(auto_filmography_text) 노출 여부/방식을
+    // 프론트(person.html)와 SSR([id].js)에서 국적별로 분기하는 데 사용. persons 행 자체가
+    // 없으면(TMDB에만 있고 우리 DB 미등록) null로 내려서 "미확인"과 동일하게 처리되게 함.
+    const koreanConfirmed = person && typeof person.korean_confirmed !== "undefined"
+      ? person.korean_confirmed
+      : null;
+
     // row/person이 둘 다 없어도(캐시·수동값 없음) 정상 응답 — ok:true, data:null, manual:null
-    return new Response(JSON.stringify({ ok: true, data, manual, like_count: likeCount }), {
+    return new Response(JSON.stringify({
+      ok: true, data, manual, like_count: likeCount, korean_confirmed: koreanConfirmed,
+    }), {
       status: 200,
       headers,
     });
