@@ -1,4 +1,4 @@
-<!-- 2026-07-27 rev.3 — _title_detail.html (관련이미지 클릭 시 새 탭 이동 대신 화면 안 라이트박스 팝업으로 표시 — 배경/이미지/✕ 클릭 시 닫힘, 좌우 화살표+키보드로 다음/이전 이미지 넘기기 추가) -->
+<!-- 2026-07-27 rev.4 — _title_detail.html (관련이미지 라이트박스에 모바일 스와이프(좌우 50px 이상) 넘기기 추가 — 탭은 닫기, 스와이프는 넘기기로 구분 처리) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -1396,7 +1396,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   padding:40px 70px;cursor:pointer;
 }
 .img-lightbox.show{display:flex}
-.img-lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.img-lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);touch-action:pan-y}
 .lightbox-close{
   position:fixed;top:16px;right:20px;width:40px;height:40px;border-radius:50%;
   background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.18);color:#fff;
@@ -1776,7 +1776,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 
 <!-- [2026-07-27 신규] 관련이미지 라이트박스 — 배경/이미지 클릭 시 닫힘(onclick=closeImgLightbox),
      화살표는 stopPropagation으로 닫힘 동작에서 제외되어 넘기기만 함 -->
-<div class="img-lightbox" id="imgLightbox" onclick="closeImgLightbox()">
+<div class="img-lightbox" id="imgLightbox" onclick="handleLightboxBgClick()">
   <button type="button" class="lightbox-close" onclick="closeImgLightbox()">✕</button>
   <button type="button" class="lightbox-arrow lightbox-arrow-left" id="lightboxPrev" onclick="lightboxNav(event,-1)">‹</button>
   <img id="lightboxImg" src="" alt="작품 이미지">
@@ -2561,7 +2561,30 @@ function updateLightboxImage(){
   document.getElementById('lightboxPrev').style.display=showArrows?'':'none';
   document.getElementById('lightboxNext').style.display=showArrows?'':'none';
 }
-// [2026-07-27 신규] 키보드도 지원 — ESC로 닫기, 좌우 방향키로 이미지 넘기기(팝업 열려있을 때만)
+// [2026-07-27 신규] 모바일 스와이프로 이미지 넘기기
+// 스와이프(50px 이상 이동)와 탭(닫기)을 구분해야 하므로, 스와이프가 감지되면
+// lightboxSwiping 플래그를 세워서 뒤이어 발생하는 클릭(닫기 동작)을 한 번 무시시킴
+let lightboxSwiping=false,lightboxTouchX=0;
+const lightboxEl=document.getElementById('imgLightbox');
+if(lightboxEl){
+  lightboxEl.addEventListener('touchstart',(e)=>{
+    lightboxTouchX=e.touches[0].clientX;
+  },{passive:true});
+  lightboxEl.addEventListener('touchend',(e)=>{
+    const endX=(e.changedTouches&&e.changedTouches[0])?e.changedTouches[0].clientX:lightboxTouchX;
+    const deltaX=endX-lightboxTouchX;
+    if(Math.abs(deltaX)>50){
+      lightboxSwiping=true;
+      lightboxNav(e,deltaX<0?1:-1); // 왼쪽으로 밀면 다음 이미지, 오른쪽으로 밀면 이전 이미지
+      setTimeout(()=>{lightboxSwiping=false;},300); // 클릭 이벤트가 안 따라올 경우 대비한 안전장치
+    }
+  });
+}
+// 배경/이미지 클릭 시 닫기 — 방금 스와이프였으면 닫지 않고 넘기기만 함
+function handleLightboxBgClick(){
+  if(lightboxSwiping){lightboxSwiping=false;return;}
+  closeImgLightbox();
+}
 document.addEventListener('keydown',(e)=>{
   const lb=document.getElementById('imgLightbox');
   if(!lb||!lb.classList.contains('show'))return;
