@@ -1,4 +1,4 @@
-// 2026-07-26 rev.6 — admin.js (필모채우기: 외국인 대상에 korean_confirmed NULL도 포함)
+// 2026-07-26 rev.7 — admin.js (필모채우기: nationality 고정값 → values[0/1/null] 배열 방식, 국가명은 사람별 개별판단)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5342,8 +5342,12 @@ export async function handleAdmin(path, request, env, url, headers) {
   // 외국인도 한국인으로 오탐되는 구멍이 있었음(J.B. Rogers 등 실사례 확인).
   // korean_confirmed는 그 구멍을 메꾼 새 컬럼(관리자와 함께 데이터 검증 후 채움) —
   // 1=확정 한국인, 0=확정 외국인, NULL=미검토(대상에서 자동 제외됨).
-  // nationality 파라미터를 필수로 받아 "korean"/"foreign" 둘 중 하나로만 동작(전체 없음) —
-  // 한국인/외국인 문장 형식(국가명 유무)이 서로 달라서 섞어 돌리면 안 되기 때문.
+  // [2026-07-26 재수정] "korean"/"foreign" 고정 매핑 대신 body.values 배열로 받도록 변경 —
+  // 프론트에서 [1] / [0] / [0, null] / [1, 0, null] 등 원하는 조합을 자유롭게 넘길 수 있고,
+  // 조합이 바뀔 때마다 이 백엔드를 다시 고칠 필요가 없게 하기 위함(관리자 요청).
+  // values 배열의 각 값: 0(확정 외국인) / 1(확정 한국인) / null(미검토) — JSON에서 null 그대로 전달.
+  // "대한민국의" 국가명 표기는 배치 단위가 아니라 사람마다 실제 korean_confirmed 값을 보고
+  // 개별 판단(아래 루프 안) — 여러 값을 섞어 돌려도 사람별로 정확하게 표기되도록.
   if (path === "/admin/persons/backfill-filmography" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -5352,30 +5356,30 @@ export async function handleAdmin(path, request, env, url, headers) {
       const body  = await request.json().catch(() => ({}));
       const limit = Math.min(parseInt(body.limit) || 30, 50);
 
-      // nationality: "korean" | "foreign" — 둘 중 하나 필수
-      if (body.nationality !== "korean" && body.nationality !== "foreign") {
+      // values: [0, 1, null] 중 1개 이상 필수. 예: [1] → 한국인만, [0, null] → 외국인+미검토
+      const values = Array.isArray(body.values) ? body.values : null;
+      if (!values || values.length === 0 || values.some(v => v !== 0 && v !== 1 && v !== null)) {
         return new Response(JSON.stringify({
-          ok: false, message: "nationality 값은 'korean' 또는 'foreign'이어야 합니다."
+          ok: false, message: "values는 0/1/null로 이루어진 배열이어야 합니다. 예: [1] 또는 [0, null]"
         }), { status: 400, headers });
       }
-      // [2026-07-26 추가] foreign 대상에는 korean_confirmed=0뿐 아니라 NULL(미검토)도 포함.
-      // 미검토자를 마냥 방치하기보다, 문장 형식이 동일한 외국인 취급(국가명 없음)으로 일단
-      // 채워두고 SEO 효과를 먼저 얻자는 관리자 판단. 나중에 korean_confirmed가 채워지면
-      // (예: 한글이름 재채우기 배치 등) 그때 한국인 판정으로 바뀌어도 문장은 재생성 대상.
-      const isKorean = body.nationality === "korean";
-      const nationalityCond = isKorean
-        ? "AND p.korean_confirmed = 1"
-        : "AND (p.korean_confirmed = 0 OR p.korean_confirmed IS NULL)";
+      const orParts = [];
+      const bindVals = [];
+      for (const v of values) {
+        if (v === null) { orParts.push("p.korean_confirmed IS NULL"); }
+        else { orParts.push("p.korean_confirmed = ?"); bindVals.push(v); }
+      }
+      const nationalityCond = `AND (${orParts.join(" OR ")})`;
 
       const { results: targets } = await env.DB.prepare(`
-        SELECT p.tmdb_id, p.name, p.name_ko, p.birthday, p.place_of_birth
+        SELECT p.tmdb_id, p.name, p.name_ko, p.birthday, p.place_of_birth, p.korean_confirmed
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
         WHERE (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
           ${nationalityCond}
         ORDER BY p.popularity DESC
         LIMIT ?
-      `).bind(limit).all();
+      `).bind(...bindVals, limit).all();
 
       if (!targets.length) {
         return new Response(JSON.stringify({
@@ -5479,7 +5483,7 @@ export async function handleAdmin(path, request, env, url, headers) {
                 : "";
               const fullText = `${fullList.join(", ")} 등${josa} ${verb}`;
               const jobParticle = hasBatchim(jobLabel) ? "으로" : "로"; // 예: 감독→으로, 배우/작가/제작자→로
-              const nationText = isKorean ? "대한민국의 " : ""; // 한국인만 국가명 표기
+              const nationText = row.korean_confirmed === 1 ? "대한민국의 " : ""; // 이 사람 개별 값 기준
 
               sentence = `${displayName}${metaText}는 ${nationText}${jobLabel}${jobParticle}, ${repText}${fullText}.`;
             }
@@ -5504,7 +5508,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
         WHERE (w.auto_filmography_text IS NULL OR w.auto_filmography_text = '')
           ${nationalityCond}
-      `).first();
+      `).bind(...bindVals).first();
 
       return new Response(JSON.stringify({
         ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
