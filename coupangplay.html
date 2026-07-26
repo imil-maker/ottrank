@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-23 rev.1 — coupangplay.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
+<!-- 2026-07-26 rev.2 — coupangplay.html (goWork에서 media_type을 'tv'로 무조건 하드코딩하던 버그 수정 — 영화 클릭 시에도 "TV로 확정됨"이 넘어가서 작품페이지가 제목/포스터를 못 채우던 문제. netflix.html과 동일한 수정) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -478,12 +478,16 @@ const TMDB_IMG = 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-17] TMDB
 const PLATFORM = 'coupang';
 
 /* ── 작품 상세 페이지 이동 ── */
+// [2026-07-26 수정] type을 무조건 'tv'로 넘기던 걸 제거함. 이유는 netflix.html과 동일 —
+// 이 페이지도 영화/TV 카테고리가 섞여있는데, 실제 타입과 상관없이 'tv'로 우겨서 넘기면
+// 목적지 페이지가 그걸 "확정된 값"으로 믿어버려서 영화를 클릭해도 제목/포스터를 못 채움.
+// 모른다고(null) 넘기면 목적지 페이지가 movie/tv 둘 다 확인해서 스스로 판단함.
 function goWork(tmdbId, title) {
   if (!tmdbId) return;
   const y   = new Date().getFullYear();
   const url = `/title/1-${y}${tmdbId}`;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
-    tmdb_id: tmdbId, type: 'tv', title: title || '', platform: PLATFORM
+    tmdb_id: tmdbId, type: null, title: title || '', platform: PLATFORM
   }));
   location.href = url;
 }
