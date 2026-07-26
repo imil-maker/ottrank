@@ -1,4 +1,4 @@
-// 2026-07-27 rev.5 — admin.js (나무위키 생년 검증을 문자열 비교 대신 숫자 변환 비교로 수정 — 표기 형태 차이로 인한 오판 방지)
+// 2026-07-27 rev.6 — admin.js (MBTI 확정/미확정 리스트 조회 엔드포인트 신규 — 50명씩 페이지네이션, admin_keywords.html 서브탭용)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -82,6 +82,8 @@
    GET    /admin/persons/ai-pending-list      ← 미확정(uncertain/필모부족) 인물 목록, 20명씩(2026-07-24 신설)
    POST   /admin/persons/mbti-auto-step        ← "MBTI 수집" 1명 처리(위키확인→나무위키→AI웹서치 순)(2026-07-27 신설)
    POST   /admin/persons/mbti-set              ← MBTI 개별 수정/삭제(빈 값 저장 시 삭제)(2026-07-27 신설)
+   GET    /admin/persons/mbti-confirmed-list    ← MBTI 확정 리스트, 50명씩(2026-07-27 신설)
+   GET    /admin/persons/mbti-pending-list      ← MBTI 미확정 리스트, 50명씩(2026-07-27 신설)
    POST   /admin/persons/cleanup-cite-tags    ← 저장된 AI 프로필에서 &lt;cite&gt; 태그 정리, 20개씩 반복(2026-07-24 신설)
    POST   /admin/persons/wiki-recheck-step    ← 위키 미확인(wiki_unmatched) 1명 재검색, 찾으면 AI 조사(2026-07-24 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
@@ -4885,6 +4887,70 @@ export async function handleAdmin(path, request, env, url, headers) {
       ).bind(mbtiRaw || null, tmdbId).run();
 
       return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/mbti-confirmed-list ────────────────────
+  // [2026-07-27 신규] "MBTI 수집" 탭의 "확정 리스트" 서브탭 — mbti가 채워진 사람들을
+  // 50명씩 최신순으로. ai-confirmed-list(20개씩)와 같은 패턴이나 개수만 50개로 다르게.
+  if (path === "/admin/persons/mbti-confirmed-list" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page  = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
+      const limit = 50;
+      const offset = (page - 1) * limit;
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti, mbti_checked_at
+        FROM persons
+        WHERE mbti IS NOT NULL
+        ORDER BY mbti_checked_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      const totalRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti IS NOT NULL`
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/mbti-pending-list ──────────────────────
+  // [2026-07-27 신규] "MBTI 수집" 탭의 "미확정 리스트" 서브탭 — 체크는 했지만(mbti_checked_at
+  // 있음) 못 찾은 사람들(mbti IS NULL)을 50명씩 최신순으로.
+  if (path === "/admin/persons/mbti-pending-list" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page  = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
+      const limit = 50;
+      const offset = (page - 1) * limit;
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti_checked_at
+        FROM persons
+        WHERE mbti_checked_at IS NOT NULL AND mbti IS NULL
+        ORDER BY mbti_checked_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      const totalRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti_checked_at IS NOT NULL AND mbti IS NULL`
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
