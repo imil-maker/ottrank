@@ -1,4 +1,4 @@
-// 2026-07-25 rev.6 — track.js (제외 vid 목록 관리 엔드포인트 신규 + 실시간 순위 집계에서 제외 vid도 함께 뺌)
+// 2026-07-26 rev.1 — track.js (봇 이름까지 판별해서 blob5에 기록 — 네이버/구글 등 어느 봇인지 관리자 화면에서 구분 가능하게)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
@@ -41,12 +41,41 @@ const PAGE_META = {
 };
 const ALLOWED_TYPES = [...ID_REQUIRED_TYPES, ...Object.keys(PAGE_META)];
 
-// [2026-07-23 추가] 검색엔진 크롤러(봇) 판별 — User-Agent에 알려진 봇 이름이 들어있는지만 확인.
-// 완벽하게 모든 봇을 잡아내진 못하지만(신원을 숨기는 악성 봇 등), 사이트맵을 순회하는
-// 구글/네이버/빙 등 "정상적으로 신원을 밝히는" 크롤러는 대부분 여기 걸림.
-const BOT_UA_PATTERN = /bot|crawl|spider|slurp|yeti|daumoa|naver|yandex|baidu|duckduckbot|ahrefsbot|semrushbot|mj12bot|petalbot|bytespider|facebookexternalhit|preview/i;
+// [2026-07-23 추가, 2026-07-26 확장] 검색엔진 크롤러(봇) 판별 — User-Agent에 알려진 봇 이름이
+// 들어있는지 확인. 완벽하게 모든 봇을 잡아내진 못하지만(신원을 숨기는 악성 봇 등), 사이트맵을
+// 순회하는 구글/네이버/빙 등 "정상적으로 신원을 밝히는" 크롤러는 대부분 여기 걸림.
+// [2026-07-26] 기존엔 "봇이다/아니다"만 구분했는데, 어느 봇인지(네이버/구글 등)까지 화면에서
+// 구분하고 싶다는 요청으로 이름까지 반환하도록 확장. 구체적인 이름을 먼저 확인하고, 어디에도
+// 안 걸리면 마지막에 일반 패턴(bot|crawl|spider|slurp)으로 "기타 크롤러"까지만 잡음.
+const NAMED_BOT_PATTERNS = [
+  { name: "Googlebot",      re: /googlebot/i },
+  { name: "네이버(Yeti)",    re: /yeti/i },
+  { name: "네이버",          re: /naver/i },
+  { name: "다음",            re: /daumoa/i },
+  { name: "Bing",            re: /bingbot/i },
+  { name: "Yandex",          re: /yandex/i },
+  { name: "Baidu",           re: /baidu/i },
+  { name: "DuckDuckGo",      re: /duckduckbot/i },
+  { name: "Ahrefs",          re: /ahrefsbot/i },
+  { name: "Semrush",         re: /semrushbot/i },
+  { name: "MJ12bot",         re: /mj12bot/i },
+  { name: "Petalbot",        re: /petalbot/i },
+  { name: "Bytespider",      re: /bytespider/i },
+  { name: "Facebook",        re: /facebookexternalhit/i },
+  { name: "미리보기봇",       re: /preview/i },
+  { name: "기타 크롤러",      re: /bot|crawl|spider|slurp/i }, // 위 어디에도 안 걸린 나머지
+];
+// 봇 이름까지 알아냄 — 못 찾으면 빈 문자열(=봇 아님)
+function _detectBotName(ua) {
+  if (!ua) return "";
+  for (const p of NAMED_BOT_PATTERNS) {
+    if (p.re.test(ua)) return p.name;
+  }
+  return "";
+}
+// 기존 boolean 판별 — 이름 판별 결과가 있으면 봇으로 취급(기존 호출부 그대로 재사용 가능)
 function _isBotUserAgent(ua) {
-  return BOT_UA_PATTERN.test(ua || "");
+  return !!_detectBotName(ua);
 }
 
 // [2026-07-22 추가] "실시간 순위"용 기간 계산. Analytics Engine의 timestamp는 UTC로 저장돼 있음.
@@ -92,7 +121,9 @@ export async function handleTrack(path, request, env, url, headers) {
       const vid = typeof body.vid === "string" ? body.vid.slice(0, 64) : "";
       // [2026-07-23 추가] 봇 여부 — 요청 헤더의 User-Agent로 판별. 목록에서 지우지 않고
       // "봇이었다"는 표시만 남기기 위한 용도(관리자 요청사항).
-      const isBot = _isBotUserAgent(request.headers.get("User-Agent"));
+      // [2026-07-26 추가] 어느 봇인지(네이버/구글 등) 이름도 함께 기록.
+      const botName = _detectBotName(request.headers.get("User-Agent"));
+      const isBot = !!botName;
 
       // 화이트리스트 검증 — 정해진 종류만 허용. work/person은 숫자 id까지 있어야 하고,
       // 그 외(메인/OTT/커뮤니티)는 type만 맞으면 id 없이도 통과.
@@ -109,7 +140,8 @@ export async function handleTrack(path, request, env, url, headers) {
           // blobs: 문자열 필드 — blob1=종류, blob2=작품/인물 ID(문자열, 페이지 종류는 빈 문자열),
           // blob3=익명 방문자 ID(vid, 2026-07-23 추가, 없으면 빈 문자열),
           // blob4=봇 여부('1'=봇, ''=일반, 2026-07-23 추가)
-          blobs: [type, id != null ? String(id) : "", vid, isBot ? "1" : ""],
+          // blob5=봇 이름('네이버(Yeti)' 등, 봇 아니면 빈 문자열, 2026-07-26 추가)
+          blobs: [type, id != null ? String(id) : "", vid, isBot ? "1" : "", botName],
           // doubles: 숫자 필드 — 조회 1회당 1로 고정(나중에 count/sum 집계용)
           doubles: [1],
           // indexes: 빠른 필터링용 — 타입별로 묶어서 조회할 때 씀(최대 1개)
@@ -162,7 +194,7 @@ export async function handleTrack(path, request, env, url, headers) {
       // [2026-07-21 수정] 전체 개수(COUNT) 조회는 실패 가능성이 있고 API 호출도 1번 더 필요해서
       // 아예 제거 — 대신 "이번 페이지가 꽉 찼으면 다음 페이지도 있다"는 has_more만 판단.
       // 숫자 페이지 버튼(1,2,3...) 대신 이전/다음 버튼만 쓰는 방식으로 화면도 맞춰 변경함.
-      const sql = `SELECT blob1 AS type, blob2 AS ref_id, blob3 AS vid, blob4 AS is_bot, timestamp FROM ottrank_page_views ${whereSql} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+      const sql = `SELECT blob1 AS type, blob2 AS ref_id, blob3 AS vid, blob4 AS is_bot, blob5 AS bot_name, timestamp FROM ottrank_page_views ${whereSql} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
       const aeRes = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
         {
@@ -211,6 +243,7 @@ export async function handleTrack(path, request, env, url, headers) {
         const id = parseInt(r.ref_id, 10);
         const vid = r.vid || ""; // [2026-07-23 추가] vid 기능 배포 전 기록은 빈 값 — 정상
         const isBot = r.is_bot === "1"; // [2026-07-23 추가] 봇 여부 배포 전 기록은 빈 값 → false로 처리됨(정상)
+        const botName = r.bot_name || ""; // [2026-07-26 추가] 봇 이름 배포 전 기록은 빈 값(정상)
         if (r.type === "work") {
           const w = workMap[id];
           const year = (w && w.release_year) || currentYear;
@@ -222,6 +255,7 @@ export async function handleTrack(path, request, env, url, headers) {
             viewed_at: r.timestamp,
             vid,
             is_bot: isBot,
+            bot_name: botName,
           };
         }
         if (r.type === "person") {
@@ -234,6 +268,7 @@ export async function handleTrack(path, request, env, url, headers) {
             viewed_at: r.timestamp,
             vid,
             is_bot: isBot,
+            bot_name: botName,
           };
         }
         // [2026-07-21 추가] 메인/OTT별/커뮤니티 페이지 — 고정된 이름/링크라 D1 조회 없이 바로 반환.
@@ -247,6 +282,7 @@ export async function handleTrack(path, request, env, url, headers) {
           viewed_at: r.timestamp,
           vid,
           is_bot: isBot,
+          bot_name: botName,
         };
       });
 
