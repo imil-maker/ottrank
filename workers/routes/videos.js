@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.3 — videos.js (_saveCastForWork: 외국 작품은 출연진 상위 10명만 저장하도록 제한 — admin.js와 동일 기준. cast-sync는 원어를 클라이언트 입력 대신 D1에서 직접 조회) */
+/* 2026-07-26 rev.5 — videos.js (봇 판별 목록에 daumoa 추가 — track.js와 목록 일치시킴, 다음 검색봇 누락됐던 것 수정) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
@@ -79,6 +79,17 @@ async function _saveCastForWork(tmdbId, mediaType, env, originalLanguage) {
       return; // 성공했으면 다른 media_type은 시도할 필요 없음
     } catch (e) { /* 다음 media_type으로 계속 시도 — 둘 다 실패하면 조용히 포기 */ }
   }
+}
+
+// [2026-07-26 신규] 봇 판별 — track.js의 _isBotUserAgent와 동일한 패턴을 재사용(중복 정의).
+// 목적: 봇(특히 자바스크립트까지 실행하는 크롤러)이 우리 사이트에 없는 TMDB ID를 계속
+// 방문하면서 /works/register를 자동 호출해 저품질 작품이 우리 DB에 계속 새로 등록되는 걸
+// 막기 위함(2026-07-26 대량 데이터 정리 작업 직후 발견된 문제).
+// ⚠️ track.js와 다른 파일에 따로 정의돼 있어 나중에 목록이 어긋날 위험 있음 — 봇 이름을
+// 새로 추가/변경할 일이 생기면 track.js와 이 파일 둘 다 같이 확인할 것.
+function _isBotUserAgent(ua) {
+  if (!ua) return false;
+  return /bot|crawl|spider|slurp|yeti|daumoa|naver|yandex|baidu|duckduckbot|ahrefsbot|semrushbot|mj12bot|petalbot|bytespider|facebookexternalhit|preview/i.test(ua);
 }
 
 export async function handleVideos(path, request, env, ctx, url, headers) {
@@ -526,6 +537,15 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   // 인증 없음 (공개 API, 조건부 업데이트로 안전)
   if (path === "/works/register" && request.method === "POST") {
     try {
+      // [2026-07-26 신규] 봇이 보낸 요청이면 등록 자체를 건너뜀. 자바스크립트까지 실행하는
+      // 크롤러가 우리 사이트에 없는 TMDB ID를 계속 방문하면서 저품질 작품을 자동 등록시키는
+      // 걸 막기 위함 — 실제 사람 방문자가 나중에 같은 작품을 보면 그때 정상 등록됨(서비스
+      // 영향 없음). 응답은 정상 ok:true로 돌려줘서 클라이언트 쪽 에러 처리에 영향 없게 함.
+      const ua = request.headers.get("user-agent") || "";
+      if (_isBotUserAgent(ua)) {
+        return new Response(JSON.stringify({ ok: true, skipped: "bot" }), { headers });
+      }
+
       const body = await request.json();
       const {
         tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
