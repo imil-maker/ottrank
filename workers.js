@@ -49,7 +49,8 @@ function et(r,s,t){if(!s.length)return r.slice(0,t).map((c,m)=>({...c,rank:m+1})
           JOIN ott_categories oc
             ON r.platform = oc.platform AND r.category_slot = oc.category_slot
           LEFT JOIN boxoffice_stats bs
-            ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id AND r.date = bs.date
+            ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id
+            AND bs.date = (SELECT MAX(b2.date) FROM boxoffice_stats b2 WHERE b2.tmdb_id = r.tmdb_id)
           WHERE r.platform = ?
             AND oc.platform_section IS NOT NULL
             AND oc.is_active = 1
