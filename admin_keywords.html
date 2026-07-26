@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.3 — admin_keywords.html (MBTI 수집 안내 문구를 배우 한정 표현에서 korean_confirmed 전체 대상으로 수정) -->
+<!-- 2026-07-27 rev.4 — admin_keywords.html (MBTI 탭을 서브탭 3개로 재구성 — 수집/확정 리스트(50개씩)/미확정 리스트(50개씩), 인물페이지 링크 + 인라인 수정 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -460,6 +460,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   <!-- ══ MBTI 수집 섹션 ══ -->
   <div class="wrap" id="mbtiWrap" style="display:none">
 
+    <!-- 서브탭 -->
+    <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:20px;width:fit-content">
+      <button id="subTabMbtiCollect" onclick="switchMbtiSubTab('collect')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:rgba(168,85,247,.2);color:#c4b5fd;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+        수집
+      </button>
+      <button id="subTabMbtiConfirmed" onclick="switchMbtiSubTab('confirmed')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+        확정 리스트
+      </button>
+      <button id="subTabMbtiPending" onclick="switchMbtiSubTab('pending')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+        미확정 리스트
+      </button>
+    </div>
+
+    <!-- ══ 서브탭 ①: 수집 ══ -->
+    <div id="mbtiCollectPanel">
+
     <!-- 안내 메시지 -->
     <div style="background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
       💡 한국인으로 확인된 인물(korean_confirmed=1) 전체의 MBTI를 자동으로 찾아 저장합니다.
@@ -521,10 +540,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="mbtiSearchEmpty" style="color:var(--muted);font-size:13px;padding:10px 0;display:none">검색 결과가 없어요</div>
     <div id="mbtiSearchList" style="display:flex;flex-direction:column;gap:6px"></div>
 
+    </div>
+
+    <!-- ══ 서브탭 ②: 확정 리스트 ══ -->
+    <div id="mbtiConfirmedPanel" style="display:none">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        MBTI가 채워진 인물 목록이에요(최근 확인 순). 인물페이지 링크로 바로 가거나, 여기서 값을 바로 수정할 수 있어요.
+      </div>
+      <div id="mbtiConfirmedList"></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+        <button class="btn-secondary" onclick="mcfPrev()" style="padding:7px 14px;font-size:13px">‹ 이전</button>
+        <span id="mbtiConfirmedPageInfo" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+        <button class="btn-secondary" onclick="mcfNext()" style="padding:7px 14px;font-size:13px">다음 ›</button>
+      </div>
+    </div>
+
+    <!-- ══ 서브탭 ③: 미확정 리스트 ══ -->
+    <div id="mbtiPendingPanel" style="display:none">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        확인은 했지만(위키 미매칭 또는 AI도 못 찾음) MBTI를 못 찾은 인물 목록이에요. 인물페이지 링크로 바로 가거나, 알고 있는 값이 있으면 여기서 바로 입력할 수 있어요.
+      </div>
+      <div id="mbtiPendingList"></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+        <button class="btn-secondary" onclick="mpdPrev()" style="padding:7px 14px;font-size:13px">‹ 이전</button>
+        <span id="mbtiPendingPageInfo" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+        <button class="btn-secondary" onclick="mpdNext()" style="padding:7px 14px;font-size:13px">다음 ›</button>
+      </div>
+    </div>
+
   </div>
 
   <!-- ══ 검색어 로그 섹션 ══ -->
   <div class="wrap" id="searchLogWrap" style="display:none">
+
 
 
     <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
@@ -4044,6 +4092,147 @@ async function deleteMbtiPerson(tmdbId, btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = '삭제';
+  }
+}
+
+// [2026-07-27 신규] MBTI 탭 서브탭 전환 — 인물매칭 탭의 switchPersonMatchSubTab과 동일 패턴
+function switchMbtiSubTab(sub){
+  const panels = { collect: 'mbtiCollectPanel', confirmed: 'mbtiConfirmedPanel', pending: 'mbtiPendingPanel' };
+  const tabs   = { collect: 'subTabMbtiCollect', confirmed: 'subTabMbtiConfirmed', pending: 'subTabMbtiPending' };
+  Object.entries(panels).forEach(([key, id]) => {
+    document.getElementById(id).style.display = (key === sub) ? 'block' : 'none';
+  });
+  Object.entries(tabs).forEach(([key, id]) => {
+    const on = key === sub;
+    document.getElementById(id).style.background = on ? 'rgba(168,85,247,.2)' : 'transparent';
+    document.getElementById(id).style.color       = on ? '#c4b5fd' : 'var(--muted2)';
+    document.getElementById(id).style.fontWeight  = on ? '600' : 'normal';
+  });
+  if (sub === 'confirmed') loadMbtiConfirmedList(1);
+  if (sub === 'pending') loadMbtiPendingList(1);
+}
+
+// ── 확정 리스트 ──
+let mcfPage = 1, mcfTotal = 0;
+
+async function loadMbtiConfirmedList(page){
+  mcfPage = page;
+  const wrap = document.getElementById('mbtiConfirmedList');
+  wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>';
+  try {
+    const res = await fetch(`${API}/admin/persons/mbti-confirmed-list?page=${page}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">불러오기 실패</div>`; return; }
+    mcfTotal = data.total || 0;
+
+    if (!data.items.length) {
+      wrap.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">아직 확정된 MBTI가 없어요</div>';
+    } else {
+      wrap.innerHTML = data.items.map(p => `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+          <span style="flex:1;font-size:14px;color:var(--text)">${(p.display_name || '').replace(/</g,'&lt;')}</span>
+          <input class="form-input" id="mcfInput-${p.tmdb_id}" type="text" value="${p.mbti || ''}" maxlength="4"
+            style="width:80px;padding:6px 8px;font-size:12px;font-family:var(--mono);text-transform:uppercase">
+          <button class="btn-secondary" onclick="saveMcfMbti(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px">저장</button>
+          <a href="/person/${p.tmdb_id}" target="_blank" style="font-size:12px;color:#7ec8e3;text-decoration:none;white-space:nowrap">🔗 페이지</a>
+        </div>
+      `).join('');
+    }
+    const totalPages = Math.max(1, Math.ceil(mcfTotal / 50));
+    document.getElementById('mbtiConfirmedPageInfo').textContent = `${page} / ${totalPages} 페이지 (총 ${mcfTotal.toLocaleString()}명)`;
+  } catch (e) {
+    wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }
+}
+function mcfPrev(){ if (mcfPage > 1) loadMbtiConfirmedList(mcfPage - 1); }
+function mcfNext(){ if (mcfPage * 50 < mcfTotal) loadMbtiConfirmedList(mcfPage + 1); }
+
+async function saveMcfMbti(tmdbId, btn){
+  const input = document.getElementById(`mcfInput-${tmdbId}`);
+  const mbti  = input.value.trim().toUpperCase();
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/persons/mbti-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, mbti }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+    input.value = data.mbti || '';
+    showToast(`✅ 저장됨${data.mbti ? `: ${data.mbti}` : ''}`);
+    // 빈 값으로 저장(삭제)하면 확정 리스트에서 빠져야 하니 새로고침
+    if (!data.mbti) loadMbtiConfirmedList(mcfPage);
+  } catch (e) {
+    showToast(`❌ 저장 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '저장';
+  }
+}
+
+// ── 미확정 리스트 ──
+let mpdPage = 1, mpdTotal = 0;
+
+async function loadMbtiPendingList(page){
+  mpdPage = page;
+  const wrap = document.getElementById('mbtiPendingList');
+  wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>';
+  try {
+    const res = await fetch(`${API}/admin/persons/mbti-pending-list?page=${page}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">불러오기 실패</div>`; return; }
+    mpdTotal = data.total || 0;
+
+    if (!data.items.length) {
+      wrap.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">미확정 인물이 없어요</div>';
+    } else {
+      wrap.innerHTML = data.items.map(p => `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+          <span style="flex:1;font-size:14px;color:var(--text)">${(p.display_name || '').replace(/</g,'&lt;')}</span>
+          <input class="form-input" id="mpdInput-${p.tmdb_id}" type="text" placeholder="예: ENFP" maxlength="4"
+            style="width:80px;padding:6px 8px;font-size:12px;font-family:var(--mono);text-transform:uppercase">
+          <button class="btn-secondary" onclick="saveMpdMbti(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px">저장</button>
+          <a href="/person/${p.tmdb_id}" target="_blank" style="font-size:12px;color:#7ec8e3;text-decoration:none;white-space:nowrap">🔗 페이지</a>
+        </div>
+      `).join('');
+    }
+    const totalPages = Math.max(1, Math.ceil(mpdTotal / 50));
+    document.getElementById('mbtiPendingPageInfo').textContent = `${page} / ${totalPages} 페이지 (총 ${mpdTotal.toLocaleString()}명)`;
+  } catch (e) {
+    wrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">네트워크 오류: ${e.message}</div>`;
+  }
+}
+function mpdPrev(){ if (mpdPage > 1) loadMbtiPendingList(mpdPage - 1); }
+function mpdNext(){ if (mpdPage * 50 < mpdTotal) loadMbtiPendingList(mpdPage + 1); }
+
+async function saveMpdMbti(tmdbId, btn){
+  const input = document.getElementById(`mpdInput-${tmdbId}`);
+  const mbti  = input.value.trim().toUpperCase();
+  if (!mbti) { showToast('⚠️ MBTI를 입력해주세요'); return; }
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/persons/mbti-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, mbti }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast(`✅ 저장됨: ${data.mbti}`);
+    // 값이 채워졌으니 미확정 리스트에서는 빠져야 함 — 새로고침
+    loadMbtiPendingList(mpdPage);
+  } catch (e) {
+    showToast(`❌ 저장 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '저장';
   }
 }
 
