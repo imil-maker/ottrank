@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-25 rev.8 — admin_keywords.html (관계도매칭 리스트에 작품페이지 링크 + 작품 수정모달 바로가기 링크 추가) -->
+<!-- 2026-07-26 rev.1 — admin_keywords.html (페이지 로그 표에 "봇 이름" 컬럼 신규 추가 — 네이버/구글 등 어느 봇인지 구분해서 표시) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -506,14 +506,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <thead>
           <tr>
-            <th style="width:13%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">구분</th>
-            <th style="width:42%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">제목</th>
-            <th style="width:25%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">조회 시각</th>
-            <th style="width:20%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">방문자</th>
+            <th style="width:11%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">구분</th>
+            <th style="width:37%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">제목</th>
+            <th style="width:22%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">조회 시각</th>
+            <th style="width:17%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">방문자</th>
+            <th style="width:13%;background:var(--bg3);text-align:left;padding:12px 16px;font-size:12px;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)">봇 이름</th>
           </tr>
         </thead>
         <tbody id="plTbody">
-          <tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
+          <tr><td colspan="5" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>
         </tbody>
       </table>
 
@@ -1047,7 +1048,7 @@ function togglePlExcludeBot(){
 async function loadPageLogs(page){
   page = page || 1;
   const tbody = document.getElementById('plTbody');
-  tbody.innerHTML = `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중...</td></tr>`;
 
   try{
     const vidQs = plVidFilter ? `&vid=${encodeURIComponent(plVidFilter)}` : '';
@@ -1057,7 +1058,7 @@ async function loadPageLogs(page){
     });
     const json = await res.json();
     if(!json.ok){
-      tbody.innerHTML = `<tr><td colspan="4" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 실패: ${hescSl(json.message || '')}</td></tr>`;
       document.getElementById('plPagination').innerHTML = '';
       return;
     }
@@ -1090,15 +1091,20 @@ async function loadPageLogs(page){
             ? `<span onclick="filterByVid('${item.vid}')" style="cursor:pointer;color:var(--muted2);text-decoration:underline dotted;text-underline-offset:3px" title="이 방문자만 보기">${hescSl(item.vid)}</span>
                <span onclick="event.stopPropagation();excludeVid('${item.vid}')" style="cursor:pointer;color:var(--muted);font-size:11px;margin-left:4px" title="이 방문자를 실시간 순위 집계에서 제외">🚫제외</span>`
             : `<span style="color:var(--muted)">-</span>`
-        }${item.is_bot ? ' <span style="color:var(--muted);font-size:11px" title="검색엔진 크롤러로 추정">🤖봇</span>' : ''}</td>
+        }</td>
+        <td style="padding:12px 16px;font-size:12px;border-bottom:1px solid var(--border);font-family:var(--mono)">${
+          item.bot_name
+            ? `<span style="color:var(--gold)" title="User-Agent 기준 추정치">🤖 ${hescSl(item.bot_name)}</span>`
+            : (item.is_bot ? `<span style="color:var(--muted)">🤖 (이름 미상)</span>` : `<span style="color:var(--muted)">-</span>`)
+        }</td>
       </tr>
     `).join('');
 
-    tbody.innerHTML = rows || `<tr><td colspan="4" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 조회 로그가 없습니다</td></tr>`;
+    tbody.innerHTML = rows || `<tr><td colspan="5" style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px">아직 기록된 조회 로그가 없습니다</td></tr>`;
 
     renderPlPagination(page, !!json.has_more);
   }catch(e){
-    tbody.innerHTML = `<tr><td colspan="4" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="padding:40px 20px;text-align:center;color:var(--accent);font-size:13px">불러오기 중 오류가 발생했습니다: ${hescSl(e.message)}</td></tr>`;
     document.getElementById('plPagination').innerHTML = '';
   }
 }
