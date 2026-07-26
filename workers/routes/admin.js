@@ -1,4 +1,4 @@
-// 2026-07-27 rev.1 — admin.js (특정 작품 하나만 즉시 OTT 재수집하는 POST /admin/works/recollect-ott 신규 — 기존 _recollectOttForWork 함수 재사용, 15일 주기와 무관하게 즉시 반영)
+// 2026-07-27 rev.3 — admin.js (MBTI 수집 대상에서 job='act' 제한 제거 — 위키 이름+생년 확인이 이미 동명이인 방지 역할을 하므로 배우 한정할 필요 없이 korean_confirmed=1 전체로 확대, AI 프롬프트도 배우/감독 등 실제 직업에 맞게 표시)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -80,6 +80,8 @@
    POST   /admin/persons/ai-auto-step         ← "프로필 자동 생성" 1명 처리(선정→필모확인→AI조사→확정저장/미확정대기)(2026-07-24 신설)
    GET    /admin/persons/ai-confirmed-list    ← AI 파이프라인으로 저장된 인물 목록, 20명씩(2026-07-24 신설)
    GET    /admin/persons/ai-pending-list      ← 미확정(uncertain/필모부족) 인물 목록, 20명씩(2026-07-24 신설)
+   POST   /admin/persons/mbti-auto-step        ← "MBTI 수집" 1명 처리(위키확인→나무위키→AI웹서치 순)(2026-07-27 신설)
+   POST   /admin/persons/mbti-set              ← MBTI 개별 수정/삭제(빈 값 저장 시 삭제)(2026-07-27 신설)
    POST   /admin/persons/cleanup-cite-tags    ← 저장된 AI 프로필에서 &lt;cite&gt; 태그 정리, 20개씩 반복(2026-07-24 신설)
    POST   /admin/persons/wiki-recheck-step    ← 위키 미확인(wiki_unmatched) 1명 재검색, 찾으면 AI 조사(2026-07-24 신설)
    GET    /admin/persons/search        ← 이름으로 persons 검색(2026-07-12 신설, 2026-07-20 name_ko/matched 추가)
@@ -4159,7 +4161,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       // 이름만으로는 서로 다른 사람인지 구분이 안 돼서(예: 황정민 배우 2명),
       // 검색 결과 목록에서 바로 구분할 수 있게 화면에 같이 내려줌.
       const { results: items } = await env.DB.prepare(`
-        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday, p.gender, p.place_of_birth,
+        SELECT p.tmdb_id, p.name, p.name_ko, p.job, p.birthday, p.gender, p.place_of_birth, p.mbti,
                CASE WHEN w.tmdb_person_id IS NULL THEN 0 ELSE 1 END AS matched
         FROM persons p
         LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
@@ -4758,6 +4760,131 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/mbti-auto-step ───────────────────────────
+  // [2026-07-27 신규] "MBTI 수집" 탭 — 버튼 한 번에 1명만 처리(다른 auto-step들과 동일 패턴).
+  // 처리 흐름: ① 대상자 선정(korean_confirmed=1 + job='act' + mbti_checked_at 없음)
+  //           ② 무료 위키 사전확인 — 동명이인 방지, 매칭 안 되면 AI 호출 없이 바로 체크 처리
+  //           ③ 나무위키 무료 크롤링 시도 — 찾으면 여기서 끝(AI 비용 0)
+  //           ④ 그래도 못 찾으면 AI 웹서치(최대 3회)로 폴백
+  // 어느 경우든 mbti_checked_at을 남겨 같은 사람이 다시 안 뽑히게 함(AI 호출 자체가 네트워크
+  // 오류로 실패한 경우만 예외 — checked 처리 안 하고 에러 반환해서 재시도 가능하게 함).
+  if (path === "/admin/persons/mbti-auto-step" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const candidate = await env.DB.prepare(`
+        SELECT tmdb_id, name, name_ko, job, birthday, popularity
+        FROM persons
+        WHERE korean_confirmed = 1
+          AND mbti_checked_at IS NULL
+        ORDER BY popularity DESC
+        LIMIT 1
+      `).first();
+
+      if (!candidate) {
+        return new Response(JSON.stringify({ ok: true, done: true }), { headers });
+      }
+
+      const displayName = candidate.name_ko || candidate.name;
+      let birthYear = "";
+      if (candidate.birthday && /^\d{4}/.test(candidate.birthday)) {
+        birthYear = candidate.birthday.slice(0, 4);
+      }
+
+      // ② 무료 위키 사전확인
+      const wikiCheck = await _checkWikiMatch(displayName, birthYear, env);
+      if (!wikiCheck.matched) {
+        await env.DB.prepare(
+          `UPDATE persons SET mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
+        ).bind(candidate.tmdb_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: candidate.tmdb_id, name: displayName },
+          result: "skipped", reason: "wiki_no_match",
+        }), { headers });
+      }
+
+      // ③ 나무위키 무료 크롤링
+      const namuMbti = await _fetchNamuwikiMbti(displayName);
+      if (namuMbti) {
+        await env.DB.prepare(
+          `UPDATE persons SET mbti = ?, mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
+        ).bind(namuMbti, candidate.tmdb_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: candidate.tmdb_id, name: displayName },
+          result: "found", source: "namuwiki", mbti: namuMbti,
+        }), { headers });
+      }
+
+      // ④ AI 웹서치 폴백
+      const aiResult = await _generatePersonMbtiDraft(
+        { name: candidate.name, name_ko: candidate.name_ko, job: candidate.job, birthday: candidate.birthday },
+        env, { wikiConfirmed: true }
+      );
+      if (!aiResult.ok) {
+        // AI 호출 자체가 실패 — checked 처리 안 하고 에러 반환(프론트가 멈추고 재시도 가능)
+        return new Response(JSON.stringify(aiResult), { status: aiResult.status || 500, headers });
+      }
+
+      if (aiResult.match === "confirmed" && aiResult.mbti) {
+        await env.DB.prepare(
+          `UPDATE persons SET mbti = ?, mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
+        ).bind(aiResult.mbti, candidate.tmdb_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: candidate.tmdb_id, name: displayName },
+          result: "found", source: "ai", mbti: aiResult.mbti,
+        }), { headers });
+      }
+
+      await env.DB.prepare(
+        `UPDATE persons SET mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
+      ).bind(candidate.tmdb_id).run();
+      return new Response(JSON.stringify({
+        ok: true, done: false,
+        person: { tmdb_id: candidate.tmdb_id, name: displayName },
+        result: "skipped", reason: "ai_uncertain", detail: aiResult.uncertain_reason || "",
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/mbti-set ──────────────────────────────
+  // [2026-07-27 신규] "개별 검색"에서 MBTI 수동 입력/수정/삭제(빈 문자열로 저장하면 삭제).
+  // 관리자가 직접 넣는 값이므로 위키/나무위키/AI 형식검증과 무관하게 4글자 형식만 확인.
+  if (path === "/admin/persons/mbti-set" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      const mbtiRaw = (body.mbti || "").trim().toUpperCase();
+      if (!tmdbId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+      if (mbtiRaw && !/^[EI][SN][FT][JP]$/.test(mbtiRaw)) {
+        return new Response(JSON.stringify({ ok: false, message: "MBTI는 ENFP처럼 4글자 형식이어야 해요" }), { status: 400, headers });
+      }
+
+      const person = await env.DB.prepare(`SELECT tmdb_id FROM persons WHERE tmdb_id = ?`).bind(tmdbId).first();
+      if (!person) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+
+      await env.DB.prepare(
+        `UPDATE persons SET mbti = ?, mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
+      ).bind(mbtiRaw || null, tmdbId).run();
+
+      return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
@@ -6212,6 +6339,110 @@ async function _checkWikiMatch(displayName, tmdbYear, env) {
     return { matched: false };
   } catch (e) {
     return { matched: false };
+  }
+}
+
+// [2026-07-27 신규] 나무위키에서 MBTI만 무료로 크롤링 — 정식 API가 없어서 페이지 원문(raw HTML)을
+// 그대로 가져온 뒤 태그를 제거해 순수 텍스트로 만들고, "MBTI" 글자 뒤 30자 이내에서 유효한
+// 4글자 유형(EI/SN/FT/JP 조합)을 정규식으로 찾는다. 배우 인물 문서는 보통 인포박스에
+// "MBTI [ESFJ]" 형태로 들어있어 이 방식으로 상당수 커버 가능. 못 찾으면 null(AI 웹서치로 폴백).
+async function _fetchNamuwikiMbti(displayName) {
+  try {
+    const resp = await fetch(`https://namu.wiki/w/${encodeURIComponent(displayName)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; OttrankBot/1.0; +https://ottrank.kr)" },
+    });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ");
+    const m = text.match(/MBTI[^A-Za-z]{0,30}([EI][SN][FT][JP])\b/);
+    return m ? m[1].toUpperCase() : null;
+  } catch (e) {
+    return null; // 크롤링 실패해도 AI 웹서치로 넘어가면 되므로 에러를 던지지 않음
+  }
+}
+
+// [2026-07-27 신규] AI 웹서치로 MBTI 조사 — 나무위키에서 못 찾았을 때만 호출되는 폴백.
+// 비용 절감을 위해 웹서치 최대 3회로 제한, 확신 없으면 절대 추측하지 않도록 강하게 지시.
+async function _generatePersonMbtiDraft(person, env, opts = {}) {
+  if (!env.ANTHROPIC_API_KEY) {
+    return { ok: false, status: 500, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다" };
+  }
+  try {
+    const displayName = person.name_ko || person.name;
+    const jobLabel = person.job === "direct" ? "감독" : "배우";
+    let birthYear = "";
+    if (person.birthday && /^\d{4}/.test(person.birthday)) {
+      birthYear = person.birthday.slice(0, 4);
+    }
+    const identifierText = birthYear ? ` (${birthYear}년생)` : "";
+    const wikiConfirmText = opts.wikiConfirmed
+      ? `\n참고: 위키백과에서 이 조건과 일치하는 문서가 이미 확인됐다. 동명이인 걱정 없이 이 정보를 바탕으로 조사해라.`
+      : "";
+
+    const systemPrompt =
+      "너는 한국 배우의 MBTI(성격유형)를 조사하는 리서처다. web_search로 이 배우가 방송, 인터뷰, " +
+      "SNS 등에서 본인이 직접 밝힌 MBTI를 찾아라. ⚠️ 동명이인 주의: 이름이 같은 다른 사람의 정보를 " +
+      "가져오지 마라. 사용자 메시지에 태어난 연도가 있으면 그 연도와 일치하는 사람인지 확인해라. " +
+      "확신하는지를 \"match\" 필드로 답해라: 본인이 직접 밝힌 MBTI를 명확히 찾았으면 \"confirmed\", " +
+      "찾지 못했거나 확실하지 않으면(추측성 정보, 타인이 추측한 것, 동명이인 가능성 등) " +
+      "\"uncertain\"으로 답해라. 절대 추측하거나 지어내지 마라 — 확인 안 되면 mbti는 빈 문자열로 " +
+      "남겨라. match가 \"uncertain\"이면 왜 못 찾았는지 한 문장(20자 내외)으로 \"uncertain_reason\" " +
+      "필드에 적어라. 검색과 조사는 네 안에서만 하고 최종 답변에는 다른 설명 없이 아래 JSON " +
+      "객체 하나만 출력해라(코드블록 금지, 인용 태그 금지). " +
+      '출력 형식: {"match":"confirmed 또는 uncertain","mbti":"ENFP처럼 4글자 대문자 또는 빈 문자열","uncertain_reason":"..."}';
+
+    const userPrompt = `인물: ${displayName}${identifierText} — ${jobLabel}\n이 ${jobLabel}의 MBTI를 조사해줘.${wikiConfirmText}`;
+
+    const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 500,
+        system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: userPrompt }],
+        // [2026-07-27] 비용 절감 요청 — 프로필 조사(기본 4회)보다 낮은 3회로 제한
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3, cache_control: { type: "ephemeral" } }],
+      }),
+    });
+
+    if (!claudeResp.ok) {
+      const errText = await claudeResp.text().catch(() => "");
+      return { ok: false, status: 502, message: `Claude API 오류 (status ${claudeResp.status})`, detail: errText.slice(0, 300) };
+    }
+
+    const claudeData = await claudeResp.json();
+    const textBlocks = (claudeData.content || []).filter((b) => b.type === "text");
+    let rawText = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
+    rawText = rawText.replace(/<\/?cite[^>]*>/g, "");
+
+    let parsed;
+    try {
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("JSON 형식을 찾을 수 없음");
+      parsed = JSON.parse(_sanitizeJsonString(jsonMatch[0]));
+    } catch (e) {
+      return { ok: false, status: 502, message: "AI 응답 파싱 실패", detail: rawText.slice(0, 300) };
+    }
+
+    const mbti = (parsed.mbti || "").trim().toUpperCase();
+    const isValidMbti = /^[EI][SN][FT][JP]$/.test(mbti);
+
+    return {
+      ok: true,
+      match: parsed.match === "confirmed" && isValidMbti ? "confirmed" : "uncertain",
+      mbti: isValidMbti ? mbti : "",
+      uncertain_reason: parsed.uncertain_reason || (parsed.match === "confirmed" && !isValidMbti ? "AI가 유효하지 않은 형식을 반환함" : ""),
+    };
+  } catch (e) {
+    return { ok: false, status: 500, message: e.message };
   }
 }
 
