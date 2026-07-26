@@ -1,13 +1,17 @@
 function et(r,s,t){if(!s.length)return r.slice(0,t).map((c,m)=>({...c,rank:m+1}));let E=new Set(s.map(c=>c.tmdb_id).filter(Boolean)),e=r.filter(c=>!E.has(c.tmdb_id)),o={};for(let c of s){let m=Math.max(1,parseInt(c.rank)||1);o[m]||(o[m]=[]),o[m].push(c)}let n=[],p=0,_=1;for(;n.length<t;){if(o[_]&&o[_].length){let c=o[_].shift();n.push({...c,rank:n.length+1})}else if(p<e.length)n.push({...e[p],rank:n.length+1}),p++;else{let c=Object.values(o).flat();for(let m of c){if(n.length>=t)break;n.push({...m,rank:n.length+1})}break}_++}return n}async function ct(r,s){if(!s||!s.length)return[];let t=s.map(e=>r.DB.prepare(`
-      SELECT platform, category_slot, rank, title_ko, title_en, tmdb_id,
-             poster_path, genre, tmdb_rating, release_year, memo, date
-      FROM rankings
-      WHERE platform = ? AND category_slot = ?
-        AND date = (
+      SELECT r.platform, r.category_slot, r.rank, r.title_ko, r.title_en, r.tmdb_id,
+             r.poster_path, r.genre, r.tmdb_rating, r.release_year, r.memo, r.date,
+             bs.audi_cnt AS audi_cnt
+      FROM rankings r
+      LEFT JOIN boxoffice_stats bs
+        ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id
+        AND bs.date = (SELECT MAX(b2.date) FROM boxoffice_stats b2 WHERE b2.tmdb_id = r.tmdb_id)
+      WHERE r.platform = ? AND r.category_slot = ?
+        AND r.date = (
           SELECT MAX(date) FROM rankings
           WHERE platform = ? AND category_slot = ? AND date != 'manual'
         )
-      ORDER BY rank ASC
+      ORDER BY r.rank ASC
     `).bind(e.platform,e.category_slot,e.platform,e.category_slot));return(await r.DB.batch(t)).flatMap(e=>e.results||[])}async function _t(r,s,t,E,e){if(r==="/rankings"&&s.method==="GET"){let o=E.searchParams.get("platform"),n=E.searchParams.get("category"),p=E.searchParams.get("date"),_="SELECT * FROM rankings WHERE 1=1",c=[];o&&(_+=" AND platform = ?",c.push(o)),n&&(_+=" AND category = ?",c.push(n)),p?(_+=" AND date = ?",c.push(p)):_+=" AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')",_+=" ORDER BY platform, category, rank";let{results:m}=await t.DB.prepare(_).bind(...c).all();return new Response(JSON.stringify({ok:!0,data:m}),{headers:e})}if(r==="/rankings/main"&&s.method==="GET")try{let o=E.searchParams.get("date")||null,[n,p,_]=await t.DB.batch([t.DB.prepare(`
           SELECT platform, category_slot, display_name, main_section, main_order, main_limit, memo_label
           FROM ott_categories
