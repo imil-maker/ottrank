@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.1 — functions/person/[id].js (D1 bio_summary/auto_filmography_text 프리필 추가 — bio_summary 100자 미만이면 필모문장 이어붙임, 본문/description/JSON-LD 모두 적용) */
+/* 2026-07-26 rev.2 — functions/person/[id].js (korean_confirmed 국적분기 추가 — 한국인은 기존로직 그대로, 외국인/미확인은 위키/TMDB 기본+100자미만시 필모문장 보충) */
 /* functions/person/[id].js - 오뜨랑 인물 상세 페이지 라우팅 + SSR SEO */
 
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -52,21 +52,38 @@ export async function onRequest(context) {
 
         /* [2026-07-25 신규] D1 약력 프리필 — bio_summary(진짜 약력) 100자 이상이면 그것만,
            100자 미만(또는 없음)이면 auto_filmography_text(자동생성 필모문장)를 이어붙임.
-           D1 조회 실패해도 TMDB biography로 그대로 폴백 — 페이지가 깨지는 일은 없음. */
+           D1 조회 실패해도 TMDB biography로 그대로 폴백 — 페이지가 깨지는 일은 없음.
+           [2026-07-26 수정] korean_confirmed로 국적 분기 추가.
+           - 한국인(=1): 기존 로직 그대로(TMDB 약력 사용 안 함 — 한국 배우 TMDB 약력은
+             부실하거나 영어인 경우가 많아서 위키+필모문장만 씀).
+           - 외국인/미확인(0 또는 NULL): 위키 있으면 위키, 없으면 TMDB 약력을 기본으로 삼고,
+             그게 100자 미만으로 부실할 때만 필모문장을 보충으로 붙임(한국인과 동일한
+             "부실할 때만 보충" 규칙, 재료만 다름). TMDB 약력이 이미 충분히 좋으면
+             필모문장 없이 TMDB 약력 그대로 노출됨. */
         if (env.DB) {
           try {
             const wikiRow = await env.DB.prepare(
-              `SELECT bio_summary, auto_filmography_text FROM person_wiki_cache WHERE tmdb_person_id = ?`
+              `SELECT w.bio_summary, w.auto_filmography_text, p.korean_confirmed
+               FROM persons p LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
+               WHERE p.tmdb_id = ?`
             ).bind(personId).first();
 
             if (wikiRow) {
               const manualBio = (wikiRow.bio_summary || '').trim();
               const autoRaw   = (wikiRow.auto_filmography_text || '').trim();
               const autoText  = (autoRaw && autoRaw !== '__NONE__') ? autoRaw : '';
+              const koreanConfirmed = wikiRow.korean_confirmed;
 
-              bioSource = manualBio.length >= 100
-                ? manualBio
-                : [manualBio, autoText].filter(Boolean).join(' ');
+              if (koreanConfirmed === 1) {
+                bioSource = manualBio.length >= 100
+                  ? manualBio
+                  : [manualBio, autoText].filter(Boolean).join(' ');
+              } else {
+                const base = manualBio || data.biography || '';
+                bioSource = base.length < 100
+                  ? [base, autoText].filter(Boolean).join(' ')
+                  : base;
+              }
             }
           } catch (e) {
             bioSource = ''; // 조회 실패 시 아래에서 TMDB biography로 폴백
