@@ -1,4 +1,4 @@
-<!-- 2026-07-26 rev.3 — _title_detail.html (줄거리도 "우리 DB 먼저, 없으면 TMDB" 방식으로 변경 — worksData.overview 우선 사용, 없을 때만 det.overview 폴백) -->
+<!-- 2026-07-26 rev.4 — _title_detail.html ("비슷한 취향의 작품" 카드 클릭 시 media_type 오추측 버그 수정 — 타입 정보 없으면 현재 페이지 타입으로 억지 추측하던 것을, "관련 키워드 작품" 카드와 동일하게 모르면 그냥 넘기도록 통일) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2544,9 +2544,14 @@ async function loadSimilarWorks(){
       const pct=it._pct!=null?it._pct:(it.vote_average?Math.round(it.vote_average*10):null);
       const matchBadge=pct?`<span class="sim-match${pct>=70?' hi':''}">${pct}%</span>`:'';
       const url=`/title/1-${year}${it.id}`;
-      // media_type이 끝내 없으면(레거시 데이터) 현재 페이지 타입으로라도 폴백 — 완전 미상보다는 낫고,
-      // 실제로 pinned/variety 항목은 대부분 현재 작품과 같은 카테고리(예능↔예능 등)라 폴백 적중률이 높음
-      const mt=it.media_type||WORK.type;
+      // [2026-07-26 수정] media_type이 없을 때 "현재 페이지 타입"으로 억지 추측하던 걸 제거함.
+      // 이 카드가 가리키는 작품이 실제로는 영화인데 현재 페이지가 TV라서 'tv'로 잘못 넘어가면,
+      // 목적지 페이지가 그 값을 "이미 확정된 타입"으로 그대로 믿어버려서 TV 쪽만 조회하다가
+      // (실제로는 없으니) 제목/포스터를 끝내 못 채우는 버그로 이어짐 — 특히 media_type이 자주
+      // 비어있는 오래된 외국 작품에서 다발. "관련 키워드 작품" 카드(위쪽)는 이미 이 방식으로
+      // 수정되어 있었는데(2026-07-21) 여기만 빠져있었음. 모르면 그냥 빈 값으로 넘겨서, 목적지
+      // 페이지가 movie/tv 둘 다 확인해 스스로 판단(인기도 비교)하도록 함.
+      const mt=it.media_type||'';
       return `
         <a class="sim-card" href="${url}" onclick="goToTitle(${it.id},'${mt}',${year});return false;">
           <div class="sim-poster">
