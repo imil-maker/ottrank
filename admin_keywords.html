@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.1 — admin_keywords.html (OTT 수집 탭에 "특정 작품만 지금 재수집" 검색 UI 신규 — 제목/tmdb_id 검색 후 개별 작품 즉시 재수집) -->
+<!-- 2026-07-27 rev.3 — admin_keywords.html (MBTI 수집 안내 문구를 배우 한정 표현에서 korean_confirmed 전체 대상으로 수정) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -137,6 +137,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabOtt" onclick="switchPageTab('ott')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎬 OTT 수집
+        </button>
+        <button id="tabMbti" onclick="switchPageTab('mbti')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🧠 MBTI 수집
         </button>
         <button id="tabSearchLog" onclick="switchPageTab('searchLog')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
@@ -453,8 +457,75 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   </div>
 
+  <!-- ══ MBTI 수집 섹션 ══ -->
+  <div class="wrap" id="mbtiWrap" style="display:none">
+
+    <!-- 안내 메시지 -->
+    <div style="background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 한국인으로 확인된 인물(korean_confirmed=1) 전체의 MBTI를 자동으로 찾아 저장합니다.
+      순서: ① 위키백과로 이름+태어난 해 확인(동명이인 방지) → ② 나무위키 무료 크롤링 시도 → ③ 못 찾으면 AI 웹서치(최대 3회)로 폴백.
+      확신 없으면 빈 값으로 남기고 다음 사람으로 넘어가요.
+    </div>
+
+    <!-- 상태 카드 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="mcAttempted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">찾음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="mcFound">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">나무위키에서 찾음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:#c4b5fd" id="mcFoundNamu">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">AI로 찾음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:#c4b5fd" id="mcFoundAi">0</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="mcStartBtn" onclick="startMbtiCollect()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 일괄 수집 시작
+        </button>
+        <button class="btn-secondary" id="mcStopBtn" onclick="stopMbtiCollect()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="mcStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <!-- 최근 배치 로그 -->
+    <div id="mcLogWrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="mcLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+    <!-- 구분선 -->
+    <div style="border-top:1px solid var(--border);margin:28px 0"></div>
+
+    <!-- 개별 검색으로 MBTI 수정/삭제 -->
+    <h3 style="margin-bottom:6px;font-size:15px">🔍 개별 검색으로 MBTI 수정 · 삭제</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+      배우 이름으로 검색해서 MBTI를 직접 입력하거나 수정, 삭제할 수 있어요.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input class="form-input" id="mbtiSearchInput" type="text" placeholder="배우 이름 (예: 박보검)" style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')searchMbtiPerson()">
+      <button class="btn-crawl" onclick="searchMbtiPerson()" style="padding:10px 20px;font-size:13px">🔍 검색</button>
+    </div>
+    <div id="mbtiSearchEmpty" style="color:var(--muted);font-size:13px;padding:10px 0;display:none">검색 결과가 없어요</div>
+    <div id="mbtiSearchList" style="display:flex;flex-direction:column;gap:6px"></div>
+
+  </div>
+
   <!-- ══ 검색어 로그 섹션 ══ -->
   <div class="wrap" id="searchLogWrap" style="display:none">
+
 
     <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
       💡 검색결과 페이지(search-results.html)에 실제로 도착했을 때(Enter/버튼으로 "진짜" 검색했을 때)만 기록됩니다.<br>
@@ -1543,6 +1614,7 @@ const PAGE_TABS = [
   { key: 'keyword',          wrapId: 'keywordWrap',          btnId: 'tabKeyword',          title: '🏷 키워드 수집', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'keywordTranslate', wrapId: 'keywordTranslateWrap', btnId: 'tabKeywordTranslate', title: '🔤 키워드 번역', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'ott',              wrapId: 'ottWrap',              btnId: 'tabOtt',              title: '🎬 OTT 수집',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
+  { key: 'mbti',             wrapId: 'mbtiWrap',             btnId: 'tabMbti',             title: '🧠 MBTI 수집',  onColor: 'rgba(168,85,247,.2)', onText: '#c4b5fd' },
   { key: 'searchLog',        wrapId: 'searchLogWrap',        btnId: 'tabSearchLog',        title: '🔍 검색어 로그', onColor: 'rgba(230,57,70,.2)',  onText: 'var(--accent)' },
   { key: 'pageLog',          wrapId: 'pageLogWrap',          btnId: 'tabPageLog',          title: '📊 페이지 로그', onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
@@ -3781,6 +3853,197 @@ async function applyStuckTypeFix() {
   } finally {
     btn.disabled = false;
     btn.textContent = '✅ 선택 항목 일괄 수정';
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   [2026-07-27 신규] MBTI 수집 — 위키확인→나무위키→AI웹서치 순으로 폴백하는
+   /admin/persons/mbti-auto-step을 done:true 받을 때까지 1명씩 반복 호출
+══════════════════════════════════════════════════════ */
+let mcRunning       = false;
+let mcStopRequested = false;
+let mcTotalAttempted = 0;
+let mcTotalFound     = 0;
+let mcTotalFoundNamu = 0;
+let mcTotalFoundAi   = 0;
+
+function mcLog(msg, isError) {
+  const logWrap = document.getElementById('mcLogWrap');
+  const logEl   = document.getElementById('mcLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function mcUpdateCounters() {
+  document.getElementById('mcAttempted').textContent = mcTotalAttempted;
+  document.getElementById('mcFound').textContent = mcTotalFound;
+  document.getElementById('mcFoundNamu').textContent = mcTotalFoundNamu;
+  document.getElementById('mcFoundAi').textContent = mcTotalFoundAi;
+}
+
+async function startMbtiCollect() {
+  if (mcRunning) return;
+  mcRunning        = true;
+  mcStopRequested  = false;
+  mcTotalAttempted = 0;
+  mcTotalFound     = 0;
+  mcTotalFoundNamu = 0;
+  mcTotalFoundAi   = 0;
+
+  const startBtn   = document.getElementById('mcStartBtn');
+  const stopBtn    = document.getElementById('mcStopBtn');
+  const statusLine = document.getElementById('mcStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '수집 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('mcLog').innerHTML = '';
+  mcUpdateCounters();
+  mcLog('MBTI 일괄 수집 시작');
+
+  try {
+    while (true) {
+      if (mcStopRequested) {
+        mcLog('사용자 요청으로 중단됨');
+        break;
+      }
+
+      let res, data;
+      try {
+        res  = await fetch(`${API}/admin/persons/mbti-auto-step`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+        });
+        data = await res.json();
+      } catch (e) {
+        mcLog(`네트워크 오류: ${e.message}`, true);
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        mcLog(`오류: ${data.message || res.status} — 중단됨`, true);
+        break;
+      }
+
+      if (data.done) {
+        mcLog('✅ 더 이상 처리할 대상이 없어요 — 완료!');
+        statusLine.textContent = '완료!';
+        break;
+      }
+
+      mcTotalAttempted++;
+      const name = data.person?.name || '';
+
+      if (data.result === 'found') {
+        mcTotalFound++;
+        if (data.source === 'namuwiki') { mcTotalFoundNamu++; mcLog(`✅ ${name} — ${data.mbti} (나무위키)`); }
+        else { mcTotalFoundAi++; mcLog(`✅ ${name} — ${data.mbti} (AI 웹서치)`); }
+      } else if (data.reason === 'wiki_no_match') {
+        mcLog(`⏭ ${name} — 위키 매칭 안 됨, 스킵`);
+      } else {
+        mcLog(`⏭ ${name} — 못 찾음 (${data.detail || 'AI 확인 불가'})`);
+      }
+
+      mcUpdateCounters();
+      statusLine.textContent = `${mcTotalAttempted}명 처리함 (찾음 ${mcTotalFound}명)`;
+    }
+  } finally {
+    mcRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 일괄 수집 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopMbtiCollect() {
+  mcStopRequested = true;
+}
+
+// 개별 검색으로 MBTI 수정/삭제 — 검색은 기존 /admin/persons/search 재사용(mbti 필드 포함)
+async function searchMbtiPerson() {
+  const q = document.getElementById('mbtiSearchInput').value.trim();
+  const listEl  = document.getElementById('mbtiSearchList');
+  const emptyEl = document.getElementById('mbtiSearchEmpty');
+  if (!q) { showToast('⚠️ 배우 이름을 입력해주세요'); return; }
+
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0">검색 중...</div>';
+  emptyEl.style.display = 'none';
+
+  try {
+    const res  = await fetch(`${API}/admin/persons/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    if (!data.items || !data.items.length) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    listEl.innerHTML = data.items.map(p => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--bg3);border-radius:8px">
+        <div style="flex:1;font-size:13px">🙂 ${(p.name_ko || p.name || '(이름없음)').replace(/</g,'&lt;')} <span style="color:var(--muted);font-family:var(--mono)">(${p.tmdb_id})</span></div>
+        <input class="form-input" id="mbtiInput-${p.tmdb_id}" type="text" value="${p.mbti || ''}" placeholder="예: ENFP" maxlength="4"
+          style="width:80px;padding:6px 8px;font-size:12px;font-family:var(--mono);text-transform:uppercase">
+        <button class="btn-secondary" onclick="saveMbtiPerson(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px;white-space:nowrap">저장</button>
+        <button class="btn-secondary" onclick="deleteMbtiPerson(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px;white-space:nowrap;color:var(--red)">삭제</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0">검색 실패: ${e.message}</div>`;
+  }
+}
+
+async function saveMbtiPerson(tmdbId, btn) {
+  const input = document.getElementById(`mbtiInput-${tmdbId}`);
+  const mbti  = input.value.trim().toUpperCase();
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/persons/mbti-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, mbti }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+    input.value = data.mbti || '';
+    showToast(`✅ 저장됨${data.mbti ? `: ${data.mbti}` : ''}`);
+  } catch (e) {
+    showToast(`❌ 저장 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '저장';
+  }
+}
+
+async function deleteMbtiPerson(tmdbId, btn) {
+  const input = document.getElementById(`mbtiInput-${tmdbId}`);
+  btn.disabled = true;
+  btn.textContent = '삭제 중...';
+  try {
+    const res  = await fetch(`${API}/admin/persons/mbti-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, mbti: '' }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+    input.value = '';
+    showToast('✅ 삭제됨');
+  } catch (e) {
+    showToast(`❌ 삭제 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '삭제';
   }
 }
 
