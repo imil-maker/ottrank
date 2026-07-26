@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.2 — rankings.js (sitemap 정적 페이지 목록에서 /review, /reactions, /mypage, /my_review 제거 — robots.txt 크롤 차단과 맞춰 콘텐츠 없는 페이지 노출 정리) */
+/* 2026-07-26 rev.3 — rankings.js (/rankings/platform 박스오피스 관객수 조인 수정 — r.date=bs.date 정확 매칭 대신 tmdb_id별 가장 최근 boxoffice_stats 값을 가져오도록 변경, 순위표 날짜와 KOBIS 날짜가 항상 하루 어긋나 관객수가 계속 안 보이던 문제 해결) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -319,7 +319,8 @@ export async function handleRankings(path, request, env, url, headers) {
           JOIN ott_categories oc
             ON r.platform = oc.platform AND r.category_slot = oc.category_slot
           LEFT JOIN boxoffice_stats bs
-            ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id AND r.date = bs.date
+            ON r.platform = 'boxoffice' AND r.tmdb_id = bs.tmdb_id
+            AND bs.date = (SELECT MAX(b2.date) FROM boxoffice_stats b2 WHERE b2.tmdb_id = r.tmdb_id)
           WHERE r.platform = ?
             AND oc.platform_section IS NOT NULL
             AND oc.is_active = 1
