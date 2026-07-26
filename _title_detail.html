@@ -1,4 +1,4 @@
-<!-- 2026-07-26 rev.4 — _title_detail.html ("비슷한 취향의 작품" 카드 클릭 시 media_type 오추측 버그 수정 — 타입 정보 없으면 현재 페이지 타입으로 억지 추측하던 것을, "관련 키워드 작품" 카드와 동일하게 모르면 그냥 넘기도록 통일) -->
+<!-- 2026-07-27 rev.1 — _title_detail.html (모바일 관련영상 1개일 때 꽉 차게 표시 + 줄거리 더보기/접기 버튼 PC 3줄·모바일 2줄 기준 추가) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -130,6 +130,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
 .keyword-results-title{font-size:14px;font-weight:600;margin-bottom:10px;color:var(--text);display:flex;align-items:center;gap:8px}
 .keyword-results-empty{font-size:13px;color:var(--muted);padding:12px 0}
 .hero-overview{font-size:15px;color:rgba(255,255,255,.6);line-height:1.75;max-width:520px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.hero-overview.expanded{-webkit-line-clamp:unset;overflow:visible}
+.overview-more-btn{display:none;background:none;border:none;padding:2px 0 0;margin-top:2px;font-size:13px;font-weight:600;color:rgba(255,255,255,.85);cursor:pointer}
+.overview-more-btn.show{display:inline-block}
 
 /* 감정 표현 4버튼 (히어로 하단) */
 .feeling-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
@@ -794,7 +797,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   /* meta/overview/버튼 — 전체폭 */
   .hero-meta{ gap:6px;flex-wrap:wrap; }
   .hero-meta-item{ font-size:12px; }
-  .hero-overview{ font-size:13px;-webkit-line-clamp:4;max-width:100%; }
+  .hero-overview{ font-size:13px;-webkit-line-clamp:2;max-width:100%; }
   .feeling-btns{ gap:6px; }
   .feeling-btn{ min-width:60px;padding:8px 10px;font-size:12px; }
   .feeling-btn .f-emoji{ font-size:20px; }
@@ -809,6 +812,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
   .uremp-mobile{ display:flex; }
   .r-score{ font-size:13px; }
   .yt-grid{ grid-template-columns:repeat(2,1fr); gap:8px; }
+  .yt-grid.single{ grid-template-columns:1fr; }
   .cast-card{ width:72px; }.cast-photo{ width:72px;height:72px; }
   .gallery-grid{ grid-template-columns:repeat(2,1fr); }
   .sim-card{ width:112px; }.sim-poster{ width:112px; }
@@ -1460,6 +1464,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-si
       <div class="hero-meta" id="metaRow"></div>
 
       <p class="hero-overview" id="overview">줄거리 정보 불러오는 중…</p>
+      <button type="button" class="overview-more-btn" id="overviewMoreBtn" onclick="toggleOverview()">더보기</button>
 
       <!-- 감정 표현 4버튼 -->
       <div class="feeling-btns">
@@ -2897,6 +2902,7 @@ async function loadTmdb(){
     const dbOverview=rawDbOverview==='__NONE__'?'':rawDbOverview;
     const finalOverview=dbOverview||det.overview||'';
     document.getElementById('overview').textContent=finalOverview||'줄거리 정보가 없습니다.';
+    checkOverviewOverflow();
 
     // SEO + wish + rank row
     updateSEO(title,finalOverview,WORK.poster_path,WORK.platform,WORK.rank);
@@ -3180,7 +3186,7 @@ function renderYtPage(page){
       <div class="modal-head"><span class="modal-ttl" id="ytModalTitle2"></span><button class="modal-close" onclick="closePlayer2()">✕</button></div>
       <div class="yt-player-wrap"><iframe id="ytFrame2" src="" allowfullscreen allow="autoplay;encrypted-media"></iframe></div>
     </div>
-    <div class="yt-grid">${slice.map(v=>`
+    <div class="yt-grid${slice.length===1?' single':''}">${slice.map(v=>`
       <div class="yt-card" onclick="openPlayer2('${v.key}','${(v.name||'').replace(/'/g,"\\'")}')">
         <div class="yt-thumb">
           <img src="https://img.youtube.com/vi/${v.key}/mqdefault.jpg" alt="${v.name||''}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
@@ -3203,6 +3209,36 @@ function openPlayer2(id,title){
   document.getElementById('ytModal2').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function closePlayer2(){document.getElementById('ytFrame2').src='';document.getElementById('ytModal2').classList.remove('show');}
+
+/* == 줄거리 더보기/접기 == */
+// 줄거리가 실제로 잘려있을 때만(scrollHeight > clientHeight) 버튼을 보여줌
+// PC 3줄 / 모바일 2줄 기준은 CSS(line-clamp)가 담당, 여기선 잘림 여부만 판단
+function checkOverviewOverflow(){
+  const el=document.getElementById('overview');
+  const btn=document.getElementById('overviewMoreBtn');
+  if(!el||!btn)return;
+  el.classList.remove('expanded');
+  btn.textContent='더보기';
+  // 펼침 상태를 되돌린 뒤, 다음 프레임에서 실제 잘림 여부 측정(레이아웃 반영 대기)
+  requestAnimationFrame(()=>{
+    const isClamped=el.scrollHeight>el.clientHeight+1;
+    btn.classList.toggle('show',isClamped);
+  });
+}
+function toggleOverview(){
+  const el=document.getElementById('overview');
+  const btn=document.getElementById('overviewMoreBtn');
+  if(!el||!btn)return;
+  const willExpand=!el.classList.contains('expanded');
+  el.classList.toggle('expanded',willExpand);
+  btn.textContent=willExpand?'접기':'더보기';
+}
+// 화면 폭이 바뀌면(PC↔모바일 회전 등) line-clamp 기준 줄 수가 달라지므로 재판정
+let _ovResizeT=null;
+window.addEventListener('resize',()=>{
+  clearTimeout(_ovResizeT);
+  _ovResizeT=setTimeout(checkOverviewOverflow,200);
+});
 
 /* == Feeling Buttons == */
 /* == 별점 호버 효과 == */
