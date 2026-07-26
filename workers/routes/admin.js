@@ -1,4 +1,4 @@
-// 2026-07-26 rev.7 — admin.js (필모채우기: nationality 고정값 → values[0/1/null] 배열 방식, 국가명은 사람별 개별판단)
+// 2026-07-26 rev.8 — admin.js (korean_confirmed 판정 버튼(한국인/외국출생) 신규, UPDATE문 별칭 버그 수정)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5341,7 +5341,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         "Gyeongsang", "Gyeongnam", "Gyeongbuk", "경상",
         "Jeju", "제주",
       ];
-      const regionOr = KOREA_REGION_TERMS.map(() => "p.place_of_birth LIKE ?").join(" OR ");
+      const regionOr = KOREA_REGION_TERMS.map(() => "place_of_birth LIKE ?").join(" OR ");
       const regionBinds = KOREA_REGION_TERMS.map(t => `%${t}%`);
 
       const result = await env.DB.prepare(`
@@ -5389,7 +5389,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         "Gyeongsang", "Gyeongnam", "Gyeongbuk", "경상",
         "Jeju", "제주",
       ];
-      const regionOr = KOREA_REGION_TERMS.map(() => "p.place_of_birth LIKE ?").join(" OR ");
+      const regionOr = KOREA_REGION_TERMS.map(() => "place_of_birth LIKE ?").join(" OR ");
       const regionBinds = KOREA_REGION_TERMS.map(t => `%${t}%`);
 
       const result = await env.DB.prepare(`
