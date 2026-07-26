@@ -1,4 +1,4 @@
-// 2026-07-26 rev.5 — admin.js (필모채우기: korean_confirmed 기준으로 대상 변경, 한국인만 "대한민국의" 표기)
+// 2026-07-26 rev.6 — admin.js (필모채우기: 외국인 대상에 korean_confirmed NULL도 포함)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -5358,8 +5358,14 @@ export async function handleAdmin(path, request, env, url, headers) {
           ok: false, message: "nationality 값은 'korean' 또는 'foreign'이어야 합니다."
         }), { status: 400, headers });
       }
+      // [2026-07-26 추가] foreign 대상에는 korean_confirmed=0뿐 아니라 NULL(미검토)도 포함.
+      // 미검토자를 마냥 방치하기보다, 문장 형식이 동일한 외국인 취급(국가명 없음)으로 일단
+      // 채워두고 SEO 효과를 먼저 얻자는 관리자 판단. 나중에 korean_confirmed가 채워지면
+      // (예: 한글이름 재채우기 배치 등) 그때 한국인 판정으로 바뀌어도 문장은 재생성 대상.
       const isKorean = body.nationality === "korean";
-      const nationalityCond = isKorean ? "AND p.korean_confirmed = 1" : "AND p.korean_confirmed = 0";
+      const nationalityCond = isKorean
+        ? "AND p.korean_confirmed = 1"
+        : "AND (p.korean_confirmed = 0 OR p.korean_confirmed IS NULL)";
 
       const { results: targets } = await env.DB.prepare(`
         SELECT p.tmdb_id, p.name, p.name_ko, p.birthday, p.place_of_birth
