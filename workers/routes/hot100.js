@@ -1,4 +1,4 @@
-// 2026-07-26 rev.2 — hot100.js (ott_keys 로고 표시 순서 고정 — 쿠팡플레이를 항상 맨 마지막으로)
+// 2026-07-26 rev.4 — hot100.js (OTT_DISPLAY_ORDER를 사용자 지정 순서 그대로 반영: 넷플릭스,티빙,디즈니+,박스오피스,웨이브,쿠팡플레이)
 // ─────────────────────────────────────────────────────────
 // HOT100 랭킹 점수 계산 라우트
 // RankScore × PlatformWeight + AdminBoost 기반
@@ -931,7 +931,7 @@ export async function getHeroTabs(request, env, headers) {
     // [2026-07-26 추가] 로고 표시 순서 고정 — 원래는 D1에서 나온 순서 그대로라 뒤죽박죽이었음.
     // 쿠팡플레이는 관리자 요청으로 항상 맨 마지막에 오도록 함. 목록에 없는 새 OTT가 나중에
     // 생기면 순서 지정 없이 맨 뒤에 자연스럽게 붙음(대상에서 빠지는 일 없이 안전).
-    const OTT_DISPLAY_ORDER = ["netflix", "tving", "wavve", "disney", "watcha", "coupang"];
+    const OTT_DISPLAY_ORDER = ["netflix", "tving", "disney", "boxoffice", "wavve", "coupang"];
     const _ottRank = (key) => {
       const idx = OTT_DISPLAY_ORDER.indexOf(key);
       return idx === -1 ? OTT_DISPLAY_ORDER.length : idx;
