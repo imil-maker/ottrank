@@ -1,4 +1,4 @@
-<!-- 2026-07-26 rev.2 — _title_detail.html (출연진 로딩을 "우리 DB 먼저, 없으면 TMDB" 방식으로 변경 — GET /works/:id/cast 우선 조회, 없을 때만 TMDB 호출 후 cast-sync로 조용히 저장) -->
+<!-- 2026-07-26 rev.3 — _title_detail.html (줄거리도 "우리 DB 먼저, 없으면 TMDB" 방식으로 변경 — worksData.overview 우선 사용, 없을 때만 det.overview 폴백) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2885,11 +2885,16 @@ async function loadTmdb(){
     WORK.tmdbRating=tmdbRating;
     WORK.tmdbVotes=tmdbVotes;
 
-    // overview
-    document.getElementById('overview').textContent=det.overview||'줄거리 정보가 없습니다.';
+    // overview — [2026-07-26 수정] 우리 DB(worksData.overview)를 먼저 쓰고, 없을 때만 TMDB 값으로
+    // 폴백. '__NONE__'은 admin.js의 backfill-overview 배치가 "TMDB에도 원래 없었다"고 확인해둔
+    // 센티널 값이라 빈 값과 동일하게 취급(화면에 그대로 노출되면 안 됨).
+    const rawDbOverview=(worksData?.overview||'').trim();
+    const dbOverview=rawDbOverview==='__NONE__'?'':rawDbOverview;
+    const finalOverview=dbOverview||det.overview||'';
+    document.getElementById('overview').textContent=finalOverview||'줄거리 정보가 없습니다.';
 
     // SEO + wish + rank row
-    updateSEO(title,det.overview||'',WORK.poster_path,WORK.platform,WORK.rank);
+    updateSEO(title,finalOverview,WORK.poster_path,WORK.platform,WORK.rank);
     initWish(WORK.tmdb_id);initLifeSave(WORK.tmdb_id);
     renderRankRow();
 
