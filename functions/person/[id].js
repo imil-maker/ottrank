@@ -1,4 +1,9 @@
-/* 2026-07-27 rev.3 — functions/person/[id].js (SEO 이름을 name_ko 우선으로 변경 — TMDB 자동탐색 이름보다 우리 DB 값 우선, person.html 화면 이름과 동일한 우선순위로 통일) */
+/* 2026-07-27 rev.4 — functions/person/[id].js (화면 이름 "두 번 뜨는" 깜빡임 수정 —
+   기존엔 seoTitle/설명문 등 <head> 메타태그에만 name을 썼고, 화면에 보이는 personName
+   칸은 그대로 둬서 브라우저 JS가 TMDB 이름을 먼저 그렸다가 나중에 DB이름으로 다시
+   덮어쓰는 게 보였음. bioText와 동일한 방식으로 personName 칸도 서버에서 미리 채우고,
+   window.__PERSON_NAME__으로 클라이언트에도 내려줘서 person.html이 "서버가 이미 정답을
+   줬으면 TMDB 이름으로 다시 안 덮어쓰게" 판단할 수 있게 함) */
 /* functions/person/[id].js - 오뜨랑 인물 상세 페이지 라우팅 + SSR SEO */
 
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -12,6 +17,15 @@ function esc(str) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/* [2026-07-27 신규] <script> 태그 안에 값을 안전하게 심기 위한 JS 문자열 리터럴 이스케이프.
+   JSON.stringify로 따옴표/역슬래시를 안전하게 처리하고, "</script>"로 오인될 수 있는
+   < > 문자는 유니코드 이스케이프로 한 번 더 감싸서 태그가 중간에 끊기지 않게 함. */
+function jsStr(str) {
+  return JSON.stringify(str || '')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e');
 }
 
 export async function onRequest(context) {
@@ -30,6 +44,7 @@ export async function onRequest(context) {
   let seoCanonical = `https://ottrank.kr/person/${personId}`;
   let jsonLd       = '{}';
   let bioSource    = ''; // [2026-07-25 신규] D1 약력(bio_summary/auto_filmography_text) 우선, 없으면 TMDB로 폴백
+  let ssrDisplayName = ''; // [2026-07-27 신규] 화면 personName 칸에 미리 채워넣을 최종 확정 이름(DB name_ko 우선, 없으면 TMDB)
 
   /* ── 3. TMDB Person API 호출 ── */
   if (personId) {
@@ -92,6 +107,8 @@ export async function onRequest(context) {
             bioSource = ''; // 조회 실패 시 아래에서 TMDB biography로 폴백
           }
         }
+        ssrDisplayName = name; // [2026-07-27 신규] 여기까지 오면 name은 최종 확정값(DB name_ko 우선, 없으면 TMDB 자동탐색)
+
         if (!bioSource) bioSource = data.biography || '';
 
         /* 약력 앞 100자 */
@@ -188,7 +205,7 @@ export async function onRequest(context) {
 <meta name="twitter:description" content="${esc(seoDesc)}">
 <meta name="twitter:image" content="${esc(seoOgImage)}">
 <script type="application/ld+json">${jsonLd}</script>
-<script>window.__PERSON_ID__="${personId}";</script>`;
+<script>window.__PERSON_ID__="${personId}";window.__PERSON_NAME__=${jsStr(ssrDisplayName)};</script>`;
 
   /* 기존 id 기반 메타태그 제거 후 교체 */
   html = html
@@ -212,6 +229,18 @@ export async function onRequest(context) {
     html = html.replace(
       /(<div class="bio-text" id="bioText">)[\s\S]*?(<\/div>)/,
       (_, pre, post) => `${pre}${esc(bioSource)}${post}`
+    );
+  }
+
+  /* [2026-07-27 신규] 화면 이름 칸도 bioText와 동일한 방식으로 미리 채움 — 브라우저 JS가
+     TMDB를 먼저 그렸다가 우리 DB이름으로 뒤늦게 덮어쓰며 이름이 "두 번 뜨는" 깜빡임 방지.
+     person.html은 이후 SNS아이콘/영문이름 등을 이 텍스트 뒤에 이어붙이기만 함(값 자체는
+     안 바뀜). ssrDisplayName이 비어있으면(개인정보 조회 실패 등) 기존 placeholder("—")를
+     그대로 두고, 클라이언트가 원래 하던 대로 TMDB 이름으로 채움(안전한 폴백). */
+  if (ssrDisplayName) {
+    html = html.replace(
+      /(<div class="person-name" id="personName">)[\s\S]*?(<\/div>)/,
+      (_, pre, post) => `${pre}${esc(ssrDisplayName)}${post}`
     );
   }
 
