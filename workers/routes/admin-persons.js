@@ -1,4 +1,4 @@
-/* 2026-07-27 rev.7 — admin-persons.js (블로그 검색을 "이름 프로필 MBTI"로 전면 교체 — 관리자 실사용 테스트로 찾은 방식. 제목에 이름+프로필이 둘 다 있는 글만 신뢰, 5개까지 확인해서 다수결, 동점이면 최신글 우선. 나무위키는 근접성 체크 유지) */
+/* 2026-07-27 rev.9 — admin-persons.js (연도 일치 확인을 공백 허용 정규식으로 변경 — 태그 제거 과정에서 숫자 사이에 공백이 껴서 못 찾는 문제 방지) */
 /* ══════════════════════════════════════════════════════════════
    인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
    ─────────────────────────────────────────────────────────────
@@ -154,12 +154,20 @@ async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
     const items = data.items || [];
     if (!items.length) return { mbti: null, reason: "no_results" };
 
-    // 제목에 "이름"+"프로필"이 둘 다 있는 항목만 후보로 모음(postdate: YYYYMMDD 문자열)
+    // 제목에 "이름"+"프로필"이 둘 다 있고, 본문에 태어난 연도까지 같이 언급된 항목만 후보로
+    // 모음(postdate: YYYYMMDD 문자열). [2026-07-27 7차 수정] 동명이인(일반인 등)의 "프로필" 글이
+    // 그냥 이름만 같아서 잘못 채택되는 걸 막기 위해 연도 확인 추가(생년월일 전체 아니라 연도만).
+    // 우리 쪽에 birthYear 정보가 없으면(드묾) 검증 자체가 불가능하므로 그 경우만 조건 생략.
     const candidates = [];
     for (const it of items) {
       const title = stripText(it.title);
       if (!title.includes(displayName) || !title.includes("프로필")) continue;
       const body = stripText(`${it.title} ${it.description}`);
+      // [2026-07-27 8차 수정] 태그 제거 과정에서 <b>가 연도 숫자 중간에 걸쳐있으면
+      // "199 3"처럼 공백이 껴서 그냥 문자열 비교(includes)로는 못 찾는 경우가 있음 —
+      // 연도 숫자 4개 사이에 공백이 있어도 같은 연도로 인식하도록 정규식으로 비교.
+      const birthYearPattern = birthYear ? new RegExp(birthYear.split("").join("\\s*")) : null;
+      if (birthYearPattern && !birthYearPattern.test(body)) continue; // 연도가 같이 언급 안 되면 동명이인 의심, 스킵
       const m = body.match(mbtiRegex);
       if (m) candidates.push({ mbti: m[1].toUpperCase(), postdate: it.postdate || "" });
     }
