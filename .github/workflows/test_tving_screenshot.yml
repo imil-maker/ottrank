@@ -1,5 +1,5 @@
-<!-- 2026-07-27 rev.1 — test_tving_screenshot.yml (티빙 접속 테스트 전용, 수동 실행만) -->
-<!-- 기존 daily_crawl.yml과 완전히 별개 파일. 자동 크론 없음, Actions 탭에서 버튼으로만 실행. -->
+# 2026-07-27 rev.2 — test_tving_screenshot.yml (티빙 접속 테스트 전용, 수동 실행만)
+# 기존 daily_crawl.yml과 완전히 별개 파일. 자동 크론 없음, Actions 탭에서 버튼으로만 실행.
 
 name: TVING 접속 테스트 (스크린샷)
 
