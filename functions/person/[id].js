@@ -1,9 +1,10 @@
-/* 2026-07-27 rev.4 — functions/person/[id].js (화면 이름 "두 번 뜨는" 깜빡임 수정 —
-   기존엔 seoTitle/설명문 등 <head> 메타태그에만 name을 썼고, 화면에 보이는 personName
-   칸은 그대로 둬서 브라우저 JS가 TMDB 이름을 먼저 그렸다가 나중에 DB이름으로 다시
-   덮어쓰는 게 보였음. bioText와 동일한 방식으로 personName 칸도 서버에서 미리 채우고,
-   window.__PERSON_NAME__으로 클라이언트에도 내려줘서 person.html이 "서버가 이미 정답을
-   줬으면 TMDB 이름으로 다시 안 덮어쓰게" 판단할 수 있게 함) */
+/* 2026-07-27 rev.5 — functions/person/[id].js (MBTI SEO 반영 — persons.mbti_naver 조회해서
+   MBTI 확정된 사람만 title/description/keywords에 "MBTI" 단어 추가(실제 값은 절대 안 넣음 —
+   검색결과에서 다 보여주면 클릭 안 하고 넘어가버리니까 단어만 노출, 값은 페이지 안에서만
+   확인 가능). 인스타 계정 있으면 title에 "·인스타"도 추가. 그리고 봇이 "{이름} MBTI"로
+   검색해서 들어왔을 때 실제 페이지 본문에서도 MBTI를 확인할 수 있어야 색인에 유리하므로,
+   personMetaRow(메타 칩 자리)에 MBTI 칩을 서버에서 미리 심어둠 — bioText/personName과
+   동일한 SSR 프리필 패턴) */
 /* functions/person/[id].js - 오뜨랑 인물 상세 페이지 라우팅 + SSR SEO */
 
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -45,12 +46,13 @@ export async function onRequest(context) {
   let jsonLd       = '{}';
   let bioSource    = ''; // [2026-07-25 신규] D1 약력(bio_summary/auto_filmography_text) 우선, 없으면 TMDB로 폴백
   let ssrDisplayName = ''; // [2026-07-27 신규] 화면 personName 칸에 미리 채워넣을 최종 확정 이름(DB name_ko 우선, 없으면 TMDB)
+  let hasMbti      = false; // [2026-07-27 신규] MBTI 확정 여부만 — 실제 타입 값은 SSR에서 절대 안 다룸(person-wiki.js API로만 노출)
 
   /* ── 3. TMDB Person API 호출 ── */
   if (personId) {
     try {
       const res  = await fetch(
-        `${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=combined_credits`
+        `${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=combined_credits,external_ids`
       );
       const data = await res.json();
 
@@ -64,6 +66,11 @@ export async function onRequest(context) {
         /* 대표 직업 (배우/감독) */
         const dept      = data.known_for_department || '';
         const jobLabel  = dept === 'Directing' ? '감독' : '배우';
+
+        /* [2026-07-27 신규] 인스타 계정 여부 — title에 "·인스타" 추가할지 판단에 필요해서
+           앞으로 끌어옴(기존엔 파일 뒷부분 sameAs 만들 때만 썼음). external_ids를
+           append_to_response에 새로 추가해야 값이 채워짐(위 TMDB 호출 부분 참고). */
+        const instaId = data.external_ids?.instagram_id || '';
 
         /* [2026-07-25 신규] D1 약력 프리필 — bio_summary(진짜 약력) 100자 이상이면 그것만,
            100자 미만(또는 없음)이면 auto_filmography_text(자동생성 필모문장)를 이어붙임.
@@ -80,12 +87,18 @@ export async function onRequest(context) {
         if (env.DB) {
           try {
             const wikiRow = await env.DB.prepare(
-              `SELECT w.bio_summary, w.auto_filmography_text, p.korean_confirmed, p.name_ko
+              `SELECT w.bio_summary, w.auto_filmography_text, p.korean_confirmed, p.name_ko, p.mbti_naver
                FROM persons p LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
                WHERE p.tmdb_id = ?`
             ).bind(personId).first();
 
             if (wikiRow && wikiRow.name_ko) name = wikiRow.name_ko; // DB 이름 우선(있을 때만)
+            // [2026-07-27 신규] MBTI 확정 여부만 판단 — person-wiki.js와 동일한 기준
+            // (값 있고, "공개안함" 확정이 아닐 때만 확정으로 취급). 실제 타입 값은 여기서
+            // 변수에도 안 담음 — SSR이 절대 값을 노출하지 않게 하기 위함.
+            if (wikiRow && wikiRow.mbti_naver && wikiRow.mbti_naver !== 'UNDISCLOSED') {
+              hasMbti = true;
+            }
             if (wikiRow) {
               const manualBio = (wikiRow.bio_summary || '').trim();
               const autoRaw   = (wikiRow.auto_filmography_text || '').trim();
@@ -133,13 +146,22 @@ export async function onRequest(context) {
         }
 
         /* title */
-        seoTitle = `${name} 프로필·출연작·필모그래피 | ${jobLabel} 정보 | 오뜨랑`;
+        // [2026-07-27 신규] 인스타 계정 있으면 "·인스타", MBTI 확정이면 "·MBTI" 단어만
+        // 뒤에 덧붙임(핵심 키워드인 프로필·출연작·필모그래피보다 뒤 순서 유지, 실제 값은
+        // 절대 안 넣음 — 검색결과에서 값까지 다 보이면 클릭 없이 넘어가버리기 때문).
+        let titleExtras = '';
+        if (instaId) titleExtras += '·인스타';
+        if (hasMbti) titleExtras += '·MBTI';
+        seoTitle = `${name} 프로필·출연작·필모그래피${titleExtras} | ${jobLabel} 정보 | 오뜨랑`;
 
         /* description */
         const worksSnippet = topWorks.length
           ? `대표작: ${topWorks.join(', ')}. `
           : '';
-        seoDesc = `${name} ${jobLabel} 나이, 출연 드라마·영화, 인스타그램 정보를 오뜨랑에서 확인하세요. ${worksSnippet}${bio ? bio + '...' : ''}`.trim();
+        // [2026-07-27 신규] MBTI 확정이면 "나이" 다음에 "MBTI" 단어만 추가(값 없음).
+        // 인스타는 원래도 "인스타그램 정보를"이 무조건 들어가 있어서 별도 추가 불필요.
+        const mbtiDescWord = hasMbti ? ', MBTI' : '';
+        seoDesc = `${name} ${jobLabel} 나이${mbtiDescWord}, 출연 드라마·영화, 인스타그램 정보를 오뜨랑에서 확인하세요. ${worksSnippet}${bio ? bio + '...' : ''}`.trim();
 
         /* keywords */
         seoKeywords = [
@@ -150,6 +172,7 @@ export async function onRequest(context) {
           `${name} 프로필`,
           `${name} 인스타`,
           `${name} 출연작`,
+          hasMbti ? `${name} MBTI` : '', // [2026-07-27 신규]
           enName,
           `${jobLabel} 필모그래피`,
           'OTT 배우',
@@ -170,8 +193,7 @@ export async function onRequest(context) {
         if (data.place_of_birth) ld.birthPlace   = data.place_of_birth;
         if (enName)            ld.alternateName  = enName;
 
-        /* sameAs — 인스타 링크 */
-        const instaId = data.external_ids?.instagram_id;
+        /* sameAs — 인스타 링크 (instaId는 위에서 이미 계산해둠) */
         if (instaId) ld.sameAs = [`https://www.instagram.com/${instaId}/`];
 
         /* knowsAbout — 대표작 */
@@ -241,6 +263,20 @@ export async function onRequest(context) {
     html = html.replace(
       /(<div class="person-name" id="personName">)[\s\S]*?(<\/div>)/,
       (_, pre, post) => `${pre}${esc(ssrDisplayName)}${post}`
+    );
+  }
+
+  /* [2026-07-27 신규] MBTI 칩 — 값(ENFP 등)은 절대 안 넣고 "MBTI"라는 라벨만 미리 심어둠.
+     JS를 실행 안 하는 봇도 "이 사람 페이지엔 MBTI 정보가 있다"는 걸 본문에서 확인할 수
+     있게 하기 위함(SEO 목적). 실제 값은 페이지가 로드된 뒤 person.html이 person-wiki.js
+     API를 호출해서 받아와야만 채워짐 — 소스 보기만으로는 값을 알 수 없음.
+     person.html의 renderMetaChips()가 TMDB 응답 도착 즉시 personMetaRow를 통째로 다시
+     그리므로, 이 라벨만 있는 칩은 잠깐 보였다가 실제 값이 채워진 칩으로 자연스럽게
+     교체됨(다른 메타 칩들도 원래 이런 단계적 로딩 방식이라 위화감 없음). */
+  if (hasMbti) {
+    html = html.replace(
+      /(<div class="person-meta-row" id="personMetaRow">)[\s\S]*?(<\/div>)/,
+      (_, pre, post) => `${pre}<span class="person-meta-chip mbti-chip"><span class="chip-label">MBTI</span></span>${post}`
     );
   }
 
