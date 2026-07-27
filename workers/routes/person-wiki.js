@@ -1,4 +1,4 @@
-// 2026-07-26 rev.2 — person-wiki.js (응답에 korean_confirmed 필드 추가 — 국적별 약력/필모문장 분기 노출용)
+// 2026-07-27 rev.3 — person-wiki.js (manual 객체에 display_name 추가 — 예명 등 관리자 수동 지정 이름을 TMDB 자동탐색 이름보다 우선 사용)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -114,8 +114,12 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     // [2026-07-22 추가] like_count도 같이 조회 — 인물 좋아요 숫자, 페이지 로드 시 바로 표시.
     // [2026-07-22 rev.4 추가] poster_badge — 관리자가 수동 지정한 포스터 배지(추모 국화 등).
     // TMDB에 사망일자가 없어도 관리자가 판단해서 배지를 붙일 수 있게 하는 용도.
+    // [2026-07-27 추가] display_name — 인물페이지 상단에 크게 뜨는 이름을 관리자가 직접
+    // 지정. 화면 이름이 TMDB also_known_as(한글 이름 자동 탐색)에서 바로 가져오는 구조라,
+    // 본명이 아니라 활동명(예명)으로 알려진 인물(예: 아이유=이지은)은 자동 탐색 결과가
+    // 실제로 통용되는 이름과 다를 수 있음 — 이럴 때만 관리자가 수동으로 덮어씀.
     const person = await env.DB.prepare(
-      `SELECT birthday, gender, place_of_birth, like_count, poster_badge, korean_confirmed FROM persons WHERE tmdb_id = ?`
+      `SELECT birthday, gender, place_of_birth, like_count, poster_badge, korean_confirmed, display_name FROM persons WHERE tmdb_id = ?`
     )
       .bind(tmdbPersonId)
       .first();
@@ -126,12 +130,14 @@ export async function handlePersonWiki(path, request, env, url, headers) {
       const hasGender = !!person.gender;
       const hasPlace = person.place_of_birth && person.place_of_birth !== "";
       const hasBadge = person.poster_badge && person.poster_badge !== "";
-      if (hasBirthday || hasGender || hasPlace || hasBadge) {
+      const hasDisplayName = person.display_name && person.display_name !== "";
+      if (hasBirthday || hasGender || hasPlace || hasBadge || hasDisplayName) {
         manual = {
           birthday: hasBirthday ? person.birthday : null,
           gender: hasGender ? person.gender : null,
           place_of_birth: hasPlace ? person.place_of_birth : null,
           poster_badge: hasBadge ? person.poster_badge : null,
+          display_name: hasDisplayName ? person.display_name : null,
         };
       }
     }
