@@ -1,4 +1,4 @@
-/* 2026-07-27 rev.3 — admin-persons.js (네이버 MBTI 검색 정확도 개선 — ① 뉴스 우선/블로그 폴백 ② "배우" 고정 대신 배우/감독 구분 ③ 결과별로 이름 동시언급 확인 후 채택, AI 45명 vs 네이버 40명 비교 시 14명 불일치 발견에 따른 개선) */
+/* 2026-07-27 rev.5 — admin-persons.js (검색 순서 변경 — 웹문서(나무위키)를 먼저 시도, 값이 하나로 정리돼있어 뉴스보다 안정적) */
 /* ══════════════════════════════════════════════════════════════
    인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
    ─────────────────────────────────────────────────────────────
@@ -87,15 +87,18 @@ async function _checkWikiMatchForMbti(displayName, tmdbYear) {
 // [2026-07-27 2차 수정] 오탐 개선 3가지 반영:
 // ① 뉴스 검색 우선(한 사람만 다루는 경우가 많아 정확도 ↑) → 못 찾으면 블로그로 폴백
 // ② "배우" 고정 대신 job에 맞게 배우/감독 구분해서 검색어에 반영
-// ③ 결과를 전부 합쳐서 검사하지 않고 결과 하나하나마다 "이름이 같이 언급된 항목에서만"
-//    MBTI를 채택 — 여러 인물이 나열된 글에서 다른 사람 MBTI를 잘못 가져오는 것 방지
+// [2026-07-27 3차 수정] 블로그 검색 제거 — "인기 배우 MBTI 총정리"처럼 여러 인물을 한
+// 글에 나열하는 콘텐츠가 많아서, 이름이 같이 있어도 그 사람 MBTI가 아닐 위험이 큼(관리자
+// 판단). 대신 ① 뉴스(한 사람 위주 기사가 많음) ② 웹문서 중 나무위키(인물 인포박스에
+// "가장 최근 갱신된 MBTI" 단일값으로 정리돼있는 경우가 많음) 두 곳만 순서대로 시도.
 async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
   if (!env.NAVER_DATALAB_CLIENT_ID || !env.NAVER_DATALAB_CLIENT_SECRET) {
     return { mbti: null, reason: "no_naver_key" };
   }
-  const query = birthYear
+  const newsQuery = birthYear
     ? `${displayName} ${jobLabel} ${birthYear}년생 MBTI`
     : `${displayName} ${jobLabel} MBTI`;
+  const namuQuery = `${displayName} 나무위키 MBTI`;
 
   const stripText = (raw) => raw
     .replace(/<[^>]+>/g, " ")
@@ -104,17 +107,19 @@ async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 
-  // 뉴스 → 블로그 순서로 시도. 각 결과 항목 안에 "이름"과 "MBTI 유형"이 같이 있을 때만 채택.
+  // [2026-07-27 4차 수정] 순서 변경 — 웹문서(나무위키)를 먼저 시도. 나무위키는 인물 인포박스에
+  // MBTI가 "값 하나"로 정리돼있는 경우가 많아 뉴스보다 더 안정적(정해인처럼 시기마다 다르게
+  // 밝힌 사람도, 나무위키는 "가장 최근 갱신된 값" 하나로 통일해서 적어두는 편).
   const endpoints = [
-    { path: "news", source: "news" },
-    { path: "blog", source: "blog" },
+    { path: "webkr", source: "namuwiki", query: namuQuery },
+    { path: "news", source: "news", query: newsQuery },
   ];
 
   let lastReason = "mbti_not_found_in_results";
   for (const ep of endpoints) {
     try {
       const resp = await fetch(
-        `https://openapi.naver.com/v1/search/${ep.path}.json?query=${encodeURIComponent(query)}&display=10`,
+        `https://openapi.naver.com/v1/search/${ep.path}.json?query=${encodeURIComponent(ep.query)}&display=10`,
         {
           headers: {
             "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
