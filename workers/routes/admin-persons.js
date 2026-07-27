@@ -1,4 +1,4 @@
-/* 2026-07-27 rev.5 — admin-persons.js (검색 순서 변경 — 웹문서(나무위키)를 먼저 시도, 값이 하나로 정리돼있어 뉴스보다 안정적) */
+/* 2026-07-27 rev.7 — admin-persons.js (블로그 검색을 "이름 프로필 MBTI"로 전면 교체 — 관리자 실사용 테스트로 찾은 방식. 제목에 이름+프로필이 둘 다 있는 글만 신뢰, 5개까지 확인해서 다수결, 동점이면 최신글 우선. 나무위키는 근접성 체크 유지) */
 /* ══════════════════════════════════════════════════════════════
    인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
    ─────────────────────────────────────────────────────────────
@@ -84,21 +84,18 @@ async function _checkWikiMatchForMbti(displayName, tmdbYear) {
   }
 }
 
-// [2026-07-27 2차 수정] 오탐 개선 3가지 반영:
-// ① 뉴스 검색 우선(한 사람만 다루는 경우가 많아 정확도 ↑) → 못 찾으면 블로그로 폴백
-// ② "배우" 고정 대신 job에 맞게 배우/감독 구분해서 검색어에 반영
-// [2026-07-27 3차 수정] 블로그 검색 제거 — "인기 배우 MBTI 총정리"처럼 여러 인물을 한
-// 글에 나열하는 콘텐츠가 많아서, 이름이 같이 있어도 그 사람 MBTI가 아닐 위험이 큼(관리자
-// 판단). 대신 ① 뉴스(한 사람 위주 기사가 많음) ② 웹문서 중 나무위키(인물 인포박스에
-// "가장 최근 갱신된 MBTI" 단일값으로 정리돼있는 경우가 많음) 두 곳만 순서대로 시도.
+// [2026-07-27 6차 수정] 블로그 검색 방식 전면 교체 — 관리자가 실사용 테스트로 찾은 핵심:
+// "이름 MBTI"로만 검색하면 글쓴이 본인 MBTI나 "이 영화는 ISFP들이 좋아함" 같은 무관한
+// 문장이 섞여서 오탐이 심함. 반면 "이름 프로필 MBTI"로 검색하면 그 배우 신상정보만 정리한
+// 프로필형 블로그 글로 대부분 연결되고, 이런 글은 다른 사람 MBTI가 섞일 일이 없어 정확함.
+// → 제목에 "이름"과 "프로필"이 둘 다 있는 글만 신뢰하고(본문 근접성 체크 불필요), 5개까지
+// 확인해서 여러 개 나오면 다수결로 채택, 동점이면 최신 글(postdate) 우선.
 async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
   if (!env.NAVER_DATALAB_CLIENT_ID || !env.NAVER_DATALAB_CLIENT_SECRET) {
     return { mbti: null, reason: "no_naver_key" };
   }
-  const newsQuery = birthYear
-    ? `${displayName} ${jobLabel} ${birthYear}년생 MBTI`
-    : `${displayName} ${jobLabel} MBTI`;
   const namuQuery = `${displayName} 나무위키 MBTI`;
+  const profileQuery = `${displayName} 프로필 MBTI`;
 
   const stripText = (raw) => raw
     .replace(/<[^>]+>/g, " ")
@@ -107,43 +104,83 @@ async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 
-  // [2026-07-27 4차 수정] 순서 변경 — 웹문서(나무위키)를 먼저 시도. 나무위키는 인물 인포박스에
-  // MBTI가 "값 하나"로 정리돼있는 경우가 많아 뉴스보다 더 안정적(정해인처럼 시기마다 다르게
-  // 밝힌 사람도, 나무위키는 "가장 최근 갱신된 값" 하나로 통일해서 적어두는 편).
-  const endpoints = [
-    { path: "webkr", source: "namuwiki", query: namuQuery },
-    { path: "news", source: "news", query: newsQuery },
-  ];
+  const mbtiRegex = /MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/i;
 
-  let lastReason = "mbti_not_found_in_results";
-  for (const ep of endpoints) {
-    try {
-      const resp = await fetch(
-        `https://openapi.naver.com/v1/search/${ep.path}.json?query=${encodeURIComponent(ep.query)}&display=10`,
-        {
-          headers: {
-            "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
-            "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
-          },
-        }
-      );
-      if (!resp.ok) { lastReason = `http_${resp.status}`; continue; }
-      const data = await resp.json();
-      const items = data.items || [];
-      if (!items.length) { lastReason = "no_results"; continue; }
-
-      for (const it of items) {
-        const text = stripText(`${it.title} ${it.description}`);
-        if (!text.includes(displayName)) continue; // 이 결과에 이름이 없으면 스킵(다른 사람 글일 가능성)
-        const m = text.match(/MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/i);
-        if (m) return { mbti: m[1].toUpperCase(), reason: `ok_${ep.source}` };
+  // ① 나무위키(웹문서) — 이름 언급 위치 기준 앞뒤 40자 이내에 MBTI가 있을 때만 채택
+  try {
+    const resp = await fetch(
+      `https://openapi.naver.com/v1/search/webkr.json?query=${encodeURIComponent(namuQuery)}&display=10`,
+      {
+        headers: {
+          "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
+          "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
+        },
       }
-      lastReason = "mbti_not_found_in_results";
-    } catch (e) {
-      lastReason = `fetch_error_${e.message}`;
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      for (const it of (data.items || [])) {
+        const text = stripText(`${it.title} ${it.description}`);
+        if (!text.includes(displayName)) continue;
+        const pattern = /MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/gi;
+        let mm;
+        while ((mm = pattern.exec(text)) !== null) {
+          let searchFrom = 0, closeEnough = false;
+          while (true) {
+            const idx = text.indexOf(displayName, searchFrom);
+            if (idx === -1) break;
+            if (Math.abs(idx - mm.index) <= 40) { closeEnough = true; break; }
+            searchFrom = idx + displayName.length;
+          }
+          if (closeEnough) return { mbti: mm[1].toUpperCase(), reason: "ok_namuwiki" };
+        }
+      }
     }
+  } catch (e) { /* 나무위키 실패해도 블로그로 계속 진행 */ }
+
+  // ② 블로그 "이름 프로필 MBTI" — 제목에 이름+프로필이 둘 다 있는 글만 신뢰, 5개까지 확인
+  try {
+    const resp = await fetch(
+      `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(profileQuery)}&display=5`,
+      {
+        headers: {
+          "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
+          "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
+        },
+      }
+    );
+    if (!resp.ok) return { mbti: null, reason: `http_${resp.status}` };
+    const data = await resp.json();
+    const items = data.items || [];
+    if (!items.length) return { mbti: null, reason: "no_results" };
+
+    // 제목에 "이름"+"프로필"이 둘 다 있는 항목만 후보로 모음(postdate: YYYYMMDD 문자열)
+    const candidates = [];
+    for (const it of items) {
+      const title = stripText(it.title);
+      if (!title.includes(displayName) || !title.includes("프로필")) continue;
+      const body = stripText(`${it.title} ${it.description}`);
+      const m = body.match(mbtiRegex);
+      if (m) candidates.push({ mbti: m[1].toUpperCase(), postdate: it.postdate || "" });
+    }
+    if (!candidates.length) return { mbti: null, reason: "profile_title_not_found" };
+
+    // 다수결 — 가장 많이 나온 값. 동점이면 그 값들 중 postdate가 가장 최근인 쪽 채택.
+    const voteCount = {};
+    candidates.forEach((c) => { voteCount[c.mbti] = (voteCount[c.mbti] || 0) + 1; });
+    const maxVotes = Math.max(...Object.values(voteCount));
+    const tied = Object.keys(voteCount).filter((k) => voteCount[k] === maxVotes);
+
+    if (tied.length === 1) {
+      return { mbti: tied[0], reason: "ok_blog_profile" };
+    }
+    // 동점 — 해당 값들 중 가장 최근 postdate를 가진 후보의 값 채택
+    const tiedCandidates = candidates.filter((c) => tied.includes(c.mbti));
+    tiedCandidates.sort((a, b) => (b.postdate || "").localeCompare(a.postdate || ""));
+    return { mbti: tiedCandidates[0].mbti, reason: "ok_blog_profile_tiebreak" };
+  } catch (e) {
+    return { mbti: null, reason: `fetch_error_${e.message}` };
   }
-  return { mbti: null, reason: lastReason };
 }
 
 export async function handleAdminPersons(path, request, env, url, headers) {
