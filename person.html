@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.3 — person.html (라이트박스 이미지 넘길 때 페이드 전환 추가 — 처음 열 때는 바로 표시, 화살표/스와이프/키보드로 넘길 때만 부드럽게 전환) -->
+<!-- 2026-07-27 rev.4 — person.html (라이트박스를 진짜 슬라이딩 방식으로 교체 — 현재+다음(또는 이전) 사진을 트랙에 나란히 놓고 한 번에 밀어서 옆으로 밀려나가는 느낌 구현, 페이드 방식에서 전환) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -345,7 +345,12 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   padding:40px 70px;cursor:pointer;
 }
 .img-lightbox.show{display:flex}
-.img-lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);touch-action:pan-y;transition:opacity .2s ease}
+.lightbox-slide-viewport{
+  position:relative;overflow:hidden;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);
+  width:90vw;height:85vh;max-width:700px;max-height:700px;
+}
+.lightbox-slide-track{display:flex;height:100%}
+.lightbox-slide-img{flex:0 0 100%;width:100%;height:100%;object-fit:contain;touch-action:pan-y}
 .lightbox-close{
   position:fixed;top:16px;right:20px;width:40px;height:40px;border-radius:50%;
   background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.18);color:#fff;
@@ -775,7 +780,11 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   <div class="img-lightbox" id="personImgLightbox" onclick="handlePersonLightboxBgClick()">
     <button type="button" class="lightbox-close" onclick="closePersonLightbox()">✕</button>
     <button type="button" class="lightbox-arrow lightbox-arrow-left" id="personLightboxPrev" onclick="personLightboxNav(event,-1)">‹</button>
-    <img id="personLightboxImg" src="" alt="사진">
+    <div class="lightbox-slide-viewport" id="personSlideViewport">
+      <div class="lightbox-slide-track" id="personSlideTrack">
+        <img class="lightbox-slide-img" src="" alt="사진">
+      </div>
+    </div>
     <button type="button" class="lightbox-arrow lightbox-arrow-right" id="personLightboxNext" onclick="personLightboxNav(event,1)">›</button>
   </div>
 
@@ -1776,40 +1785,66 @@ function handlePersonPhotoClick(){
 function openPersonLightbox(index){
   if(!personGalleryImages.length) return;
   personLightboxIndex = index;
-  updatePersonLightboxImage();
+  showPersonLightboxImage(personGalleryImages[index].file_path); // 처음 열 때는 슬라이딩 없이 바로 표시
   document.getElementById('personImgLightbox').classList.add('show');
   document.body.style.overflow = 'hidden'; // 팝업 열린 동안 뒤 배경 스크롤 방지
+  updatePersonLightboxArrows();
 }
 function closePersonLightbox(){
   document.getElementById('personImgLightbox').classList.remove('show');
-  document.getElementById('personLightboxImg').src = '';
   document.body.style.overflow = '';
 }
-function personLightboxNav(e, dir){
-  e.stopPropagation(); // 화살표 클릭은 팝업이 안 닫히고 이미지만 넘어가야 함
-  const total = personGalleryImages.length;
-  if(!total) return;
-  personLightboxIndex = (personLightboxIndex + dir + total) % total; // 순환
-  updatePersonLightboxImage(true); // 넘길 때만 페이드
+// 트랙을 사진 1장짜리로 되돌림(전환 없이 즉시) — 열 때, 슬라이딩 끝난 뒤 정리할 때 사용
+function showPersonLightboxImage(filePath){
+  const track = document.getElementById('personSlideTrack');
+  track.style.transition = 'none';
+  track.style.transform = 'translateX(0)';
+  track.innerHTML = `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${filePath}" alt="사진">`;
 }
-function updatePersonLightboxImage(withFade){
-  const img = personGalleryImages[personLightboxIndex];
-  if(!img) return;
-  const imgEl = document.getElementById('personLightboxImg');
-  const newSrc = IMG_PROFILE_LARGE + img.file_path;
-  if(withFade){
-    imgEl.style.opacity = '0';
-    setTimeout(() => {
-      imgEl.src = newSrc;
-      imgEl.style.opacity = '1';
-    }, 200); // CSS transition 시간(.2s)과 맞춤
-  } else {
-    imgEl.src = newSrc;
-    imgEl.style.opacity = '1';
-  }
+function updatePersonLightboxArrows(){
   const showArrows = personGalleryImages.length > 1;
   document.getElementById('personLightboxPrev').style.display = showArrows ? '' : 'none';
   document.getElementById('personLightboxNext').style.display = showArrows ? '' : 'none';
+}
+// [2026-07-27 신규] 진짜 슬라이딩 전환 — 현재 사진+다음(또는 이전) 사진을 트랙에 나란히
+// 놓고 한 번에 밀어서, 사진이 옆으로 밀려나가며 다음 사진이 들어오는 느낌을 냄.
+let personSlideAnimating = false; // 애니메이션 도중 중복 클릭/스와이프 방지
+function personLightboxNav(e, dir){
+  e.stopPropagation(); // 화살표 클릭은 팝업이 안 닫히고 이미지만 넘어가야 함
+  if(personSlideAnimating) return;
+  const total = personGalleryImages.length;
+  if(total <= 1) return;
+  personSlideAnimating = true;
+
+  const nextIndex = (personLightboxIndex + dir + total) % total;
+  const currentPath = personGalleryImages[personLightboxIndex].file_path;
+  const nextPath = personGalleryImages[nextIndex].file_path;
+  const track = document.getElementById('personSlideTrack');
+
+  // dir=1(다음): 현재 사진 뒤에 다음 사진을 붙이고, 트랙을 왼쪽으로 밀어서 다음 사진이 들어오게 함
+  // dir=-1(이전): 이전 사진을 현재 사진 앞에 붙이고, 트랙을 처음엔 왼쪽으로 밀어둔 뒤 오른쪽(0)으로 되돌리며 보여줌
+  track.style.transition = 'none';
+  if(dir === 1){
+    track.innerHTML =
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${currentPath}" alt="사진">` +
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${nextPath}" alt="사진">`;
+    track.style.transform = 'translateX(0)';
+  } else {
+    track.innerHTML =
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${nextPath}" alt="사진">` +
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${currentPath}" alt="사진">`;
+    track.style.transform = 'translateX(-100%)';
+  }
+
+  void track.offsetWidth; // 강제 리플로우 — 위에서 transition:none으로 순간이동한 걸 화면에 먼저 반영시킴
+  track.style.transition = 'transform .3s ease';
+  track.style.transform = dir === 1 ? 'translateX(-100%)' : 'translateX(0)';
+
+  setTimeout(() => {
+    personLightboxIndex = nextIndex;
+    showPersonLightboxImage(nextPath); // 트랙을 다시 사진 1장짜리로 정리(전환 없이)
+    personSlideAnimating = false;
+  }, 300); // transition 시간(.3s)과 맞춤
 }
 
 // 모바일 스와이프(좌우 50px 이상)로 넘기기 — 탭은 닫기, 스와이프는 넘기기로 구분
