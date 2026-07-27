@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.6 — admin_keywords.html (나무위키 관련 코드 완전 제거 — 상태카드 4칸→3칸(누적시도/찾음/못찾음), 로그·변수 정리) -->
+<!-- 2026-07-27 rev.7 — admin_keywords.html ("네이버 수집" 서브탭 신규(admin-persons.js 연동) + 확정/미확정 리스트에 AI/네이버 소스 전환 토글 추가) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -466,6 +466,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         style="padding:6px 18px;border-radius:6px;border:none;background:rgba(168,85,247,.2);color:#c4b5fd;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
         수집
       </button>
+      <button id="subTabMbtiNaver" onclick="switchMbtiSubTab('naver')"
+        style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+        네이버 수집
+      </button>
       <button id="subTabMbtiConfirmed" onclick="switchMbtiSubTab('confirmed')"
         style="padding:6px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
         확정 리스트
@@ -538,8 +542,71 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     </div>
 
-    <!-- ══ 서브탭 ②: 확정 리스트 ══ -->
+    <!-- ══ 서브탭 ②: 네이버 수집 ══ -->
+    <div id="mbtiNaverPanel" style="display:none">
+
+    <div style="background:rgba(3,199,90,.08);border:1px solid rgba(3,199,90,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 AI 없이 네이버 검색 결과에서 MBTI 패턴을 그대로 추출하는 방식이에요(위쪽 "수집"과는 완전히 별개 — 결과는 mbti_naver 컬럼에 따로 저장됨).
+      순서: ① 위키백과로 이름+태어난 해 확인(동명이인·성인물 필터) → ② 네이버 검색 결과에서 MBTI 패턴 추출.
+      검색 API는 무료(하루 25,000회)라 비용이 안 들어요.
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">누적 시도</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)" id="mnAttempted">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">찾음</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="mnFound">0</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">못 찾음(스킵)</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--muted)" id="mnSkipped">0</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn-crawl" id="mnStartBtn" onclick="startMbtiNaverCollect()" style="flex:1;padding:13px;font-size:15px">
+          ▶ 일괄 수집 시작
+        </button>
+        <button class="btn-secondary" id="mnStopBtn" onclick="stopMbtiNaverCollect()" style="display:none;padding:13px 20px">
+          ⏸ 중단
+        </button>
+      </div>
+
+      <div id="mnStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+    </div>
+
+    <div id="mnLogWrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted2)">배치 로그</div>
+      <div id="mnLog" style="font-size:12px;font-family:var(--mono);color:var(--muted);line-height:1.9;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px"></div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:28px 0"></div>
+
+    <h3 style="margin-bottom:6px;font-size:15px">🔍 개별 검색으로 MBTI(네이버) 수정 · 삭제</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+      배우 이름으로 검색해서 네이버 결과 MBTI를 직접 입력하거나 수정, 삭제할 수 있어요.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input class="form-input" id="mbtiNaverSearchInput" type="text" placeholder="배우 이름 (예: 박보검)" style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')searchMbtiNaverPerson()">
+      <button class="btn-crawl" onclick="searchMbtiNaverPerson()" style="padding:10px 20px;font-size:13px">🔍 검색</button>
+    </div>
+    <div id="mbtiNaverSearchEmpty" style="color:var(--muted);font-size:13px;padding:10px 0;display:none">검색 결과가 없어요</div>
+    <div id="mbtiNaverSearchList" style="display:flex;flex-direction:column;gap:6px"></div>
+
+    </div>
+
+    <!-- ══ 서브탭 ③: 확정 리스트 ══ -->
     <div id="mbtiConfirmedPanel" style="display:none">
+      <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:14px;width:fit-content">
+        <button id="mcfSrcAi" onclick="setMcfSource('ai')"
+          style="padding:5px 14px;border-radius:6px;border:none;background:rgba(168,85,247,.2);color:#c4b5fd;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">AI</button>
+        <button id="mcfSrcNaver" onclick="setMcfSource('naver')"
+          style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">네이버</button>
+      </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
         MBTI가 채워진 인물 목록이에요(최근 확인 순). 인물페이지 링크로 바로 가거나, 여기서 값을 바로 수정할 수 있어요.
       </div>
@@ -551,10 +618,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
     </div>
 
-    <!-- ══ 서브탭 ③: 미확정 리스트 ══ -->
+    <!-- ══ 서브탭 ④: 미확정 리스트 ══ -->
     <div id="mbtiPendingPanel" style="display:none">
+      <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:14px;width:fit-content">
+        <button id="mpdSrcAi" onclick="setMpdSource('ai')"
+          style="padding:5px 14px;border-radius:6px;border:none;background:rgba(168,85,247,.2);color:#c4b5fd;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">AI</button>
+        <button id="mpdSrcNaver" onclick="setMpdSource('naver')"
+          style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">네이버</button>
+      </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        확인은 했지만(위키 미매칭 또는 AI도 못 찾음) MBTI를 못 찾은 인물 목록이에요. 인물페이지 링크로 바로 가거나, 알고 있는 값이 있으면 여기서 바로 입력할 수 있어요.
+        확인은 했지만(위키 미매칭 또는 못 찾음) MBTI를 못 찾은 인물 목록이에요. 인물페이지 링크로 바로 가거나, 알고 있는 값이 있으면 여기서 바로 입력할 수 있어요.
       </div>
       <div id="mbtiPendingList"></div>
       <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
@@ -4089,10 +4162,191 @@ async function deleteMbtiPerson(tmdbId, btn) {
   }
 }
 
+/* ══════════════════════════════════════════════════════
+   [2026-07-27 신규] MBTI 수집(네이버) — AI 없이 네이버 검색 결과에서 패턴 추출하는
+   완전히 별도 파이프라인(admin-persons.js). /admin/persons/mbti-naver-step을
+   done:true 받을 때까지 1명씩 반복 호출 — startMbtiCollect()와 동일 패턴
+══════════════════════════════════════════════════════ */
+let mnRunning = false, mnStopRequested = false;
+let mnTotalAttempted = 0, mnTotalFound = 0, mnTotalSkipped = 0;
+
+function mnLog(msg, isError) {
+  const logWrap = document.getElementById('mnLogWrap');
+  const logEl   = document.getElementById('mnLog');
+  logWrap.style.display = 'block';
+  const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  const line = document.createElement('div');
+  if (isError) line.style.color = 'var(--red)';
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function mnUpdateCounters() {
+  document.getElementById('mnAttempted').textContent = mnTotalAttempted;
+  document.getElementById('mnFound').textContent = mnTotalFound;
+  document.getElementById('mnSkipped').textContent = mnTotalSkipped;
+}
+
+async function startMbtiNaverCollect() {
+  if (mnRunning) return;
+  mnRunning = true; mnStopRequested = false;
+  mnTotalAttempted = 0; mnTotalFound = 0; mnTotalSkipped = 0;
+
+  const startBtn = document.getElementById('mnStartBtn');
+  const stopBtn  = document.getElementById('mnStopBtn');
+  const statusLine = document.getElementById('mnStatusLine');
+  startBtn.disabled = true;
+  startBtn.textContent = '수집 중...';
+  stopBtn.style.display = 'inline-block';
+  statusLine.style.display = 'block';
+  statusLine.textContent = '시작하는 중...';
+  document.getElementById('mnLog').innerHTML = '';
+  mnUpdateCounters();
+  mnLog('MBTI(네이버) 일괄 수집 시작');
+
+  try {
+    while (true) {
+      if (mnStopRequested) { mnLog('사용자 요청으로 중단됨'); break; }
+
+      let res, data;
+      try {
+        res  = await fetch(`${API}/admin/persons/mbti-naver-step`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+        });
+        data = await res.json();
+      } catch (e) {
+        mnLog(`네트워크 오류: ${e.message}`, true);
+        break;
+      }
+
+      if (!res.ok || !data.ok) {
+        mnLog(`오류: ${data.message || res.status} — 중단됨`, true);
+        break;
+      }
+
+      if (data.done) {
+        mnLog('✅ 더 이상 처리할 대상이 없어요 — 완료!');
+        statusLine.textContent = '완료!';
+        break;
+      }
+
+      mnTotalAttempted++;
+      const name = data.person?.name || '';
+
+      if (data.result === 'found') {
+        mnTotalFound++;
+        mnLog(`✅ ${name} — ${data.mbti}`);
+      } else if (data.reason === 'wiki_no_match') {
+        mnTotalSkipped++;
+        mnLog(`⏭ ${name} — 위키 매칭 안 됨, 스킵`);
+      } else {
+        mnTotalSkipped++;
+        mnLog(`⏭ ${name} — 못 찾음 (${data.reason || '알 수 없음'})`);
+      }
+
+      mnUpdateCounters();
+      statusLine.textContent = `${mnTotalAttempted}명 처리함 (찾음 ${mnTotalFound}명)`;
+    }
+  } finally {
+    mnRunning = false;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ 일괄 수집 시작';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function stopMbtiNaverCollect() {
+  mnStopRequested = true;
+}
+
+// 개별 검색으로 MBTI(네이버) 수정/삭제
+async function searchMbtiNaverPerson() {
+  const q = document.getElementById('mbtiNaverSearchInput').value.trim();
+  const listEl  = document.getElementById('mbtiNaverSearchList');
+  const emptyEl = document.getElementById('mbtiNaverSearchEmpty');
+  if (!q) { showToast('⚠️ 배우 이름을 입력해주세요'); return; }
+
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0">검색 중...</div>';
+  emptyEl.style.display = 'none';
+
+  try {
+    const res  = await fetch(`${API}/admin/persons/mbti-naver-search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    if (!data.items || !data.items.length) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    listEl.innerHTML = data.items.map(p => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--bg3);border-radius:8px">
+        <div style="flex:1;font-size:13px">🙂 ${(p.name_ko || p.name || '(이름없음)').replace(/</g,'&lt;')} <span style="color:var(--muted);font-family:var(--mono)">(${p.tmdb_id})</span></div>
+        <input class="form-input" id="mbtiNaverInput-${p.tmdb_id}" type="text" value="${p.mbti_naver || ''}" placeholder="예: ENFP" maxlength="4"
+          style="width:80px;padding:6px 8px;font-size:12px;font-family:var(--mono);text-transform:uppercase">
+        <button class="btn-secondary" onclick="saveMbtiNaverPerson(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px;white-space:nowrap">저장</button>
+        <button class="btn-secondary" onclick="deleteMbtiNaverPerson(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px;white-space:nowrap;color:var(--red)">삭제</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0">검색 실패: ${e.message}</div>`;
+  }
+}
+
+async function saveMbtiNaverPerson(tmdbId, btn) {
+  const input = document.getElementById(`mbtiNaverInput-${tmdbId}`);
+  const mbti  = input.value.trim().toUpperCase();
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res  = await fetch(`${API}/admin/persons/mbti-naver-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, mbti }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+    input.value = data.mbti || '';
+    showToast(`✅ 저장됨${data.mbti ? `: ${data.mbti}` : ''}`);
+  } catch (e) {
+    showToast(`❌ 저장 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '저장';
+  }
+}
+
+async function deleteMbtiNaverPerson(tmdbId, btn) {
+  const input = document.getElementById(`mbtiNaverInput-${tmdbId}`);
+  btn.disabled = true;
+  btn.textContent = '삭제 중...';
+  try {
+    const res  = await fetch(`${API}/admin/persons/mbti-naver-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, mbti: '' }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+    input.value = '';
+    showToast('✅ 삭제됨');
+  } catch (e) {
+    showToast(`❌ 삭제 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '삭제';
+  }
+}
+
 // [2026-07-27 신규] MBTI 탭 서브탭 전환 — 인물매칭 탭의 switchPersonMatchSubTab과 동일 패턴
 function switchMbtiSubTab(sub){
-  const panels = { collect: 'mbtiCollectPanel', confirmed: 'mbtiConfirmedPanel', pending: 'mbtiPendingPanel' };
-  const tabs   = { collect: 'subTabMbtiCollect', confirmed: 'subTabMbtiConfirmed', pending: 'subTabMbtiPending' };
+  const panels = { collect: 'mbtiCollectPanel', naver: 'mbtiNaverPanel', confirmed: 'mbtiConfirmedPanel', pending: 'mbtiPendingPanel' };
+  const tabs   = { collect: 'subTabMbtiCollect', naver: 'subTabMbtiNaver', confirmed: 'subTabMbtiConfirmed', pending: 'subTabMbtiPending' };
   Object.entries(panels).forEach(([key, id]) => {
     document.getElementById(id).style.display = (key === sub) ? 'block' : 'none';
   });
@@ -4106,15 +4360,26 @@ function switchMbtiSubTab(sub){
   if (sub === 'pending') loadMbtiPendingList(1);
 }
 
-// ── 확정 리스트 ──
-let mcfPage = 1, mcfTotal = 0;
+// ── 확정 리스트 ── (AI / 네이버 소스 전환 가능)
+let mcfPage = 1, mcfTotal = 0, mcfSource = 'ai';
+
+function setMcfSource(src){
+  if (mcfSource === src) return;
+  mcfSource = src;
+  document.getElementById('mcfSrcAi').style.background = src === 'ai' ? 'rgba(168,85,247,.2)' : 'transparent';
+  document.getElementById('mcfSrcAi').style.color = src === 'ai' ? '#c4b5fd' : 'var(--muted2)';
+  document.getElementById('mcfSrcNaver').style.background = src === 'naver' ? 'rgba(168,85,247,.2)' : 'transparent';
+  document.getElementById('mcfSrcNaver').style.color = src === 'naver' ? '#c4b5fd' : 'var(--muted2)';
+  loadMbtiConfirmedList(1);
+}
 
 async function loadMbtiConfirmedList(page){
   mcfPage = page;
   const wrap = document.getElementById('mbtiConfirmedList');
   wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>';
+  const endpoint = mcfSource === 'naver' ? 'mbti-naver-confirmed-list' : 'mbti-confirmed-list';
   try {
-    const res = await fetch(`${API}/admin/persons/mbti-confirmed-list?page=${page}`, {
+    const res = await fetch(`${API}/admin/persons/${endpoint}?page=${page}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
     });
     const data = await res.json();
@@ -4146,10 +4411,11 @@ function mcfNext(){ if (mcfPage * 50 < mcfTotal) loadMbtiConfirmedList(mcfPage +
 async function saveMcfMbti(tmdbId, btn){
   const input = document.getElementById(`mcfInput-${tmdbId}`);
   const mbti  = input.value.trim().toUpperCase();
+  const endpoint = mcfSource === 'naver' ? 'mbti-naver-set' : 'mbti-set';
   btn.disabled = true;
   btn.textContent = '저장 중...';
   try {
-    const res  = await fetch(`${API}/admin/persons/mbti-set`, {
+    const res  = await fetch(`${API}/admin/persons/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
       body: JSON.stringify({ tmdb_id: tmdbId, mbti }),
@@ -4168,15 +4434,26 @@ async function saveMcfMbti(tmdbId, btn){
   }
 }
 
-// ── 미확정 리스트 ──
-let mpdPage = 1, mpdTotal = 0;
+// ── 미확정 리스트 ── (AI / 네이버 소스 전환 가능)
+let mpdPage = 1, mpdTotal = 0, mpdSource = 'ai';
+
+function setMpdSource(src){
+  if (mpdSource === src) return;
+  mpdSource = src;
+  document.getElementById('mpdSrcAi').style.background = src === 'ai' ? 'rgba(168,85,247,.2)' : 'transparent';
+  document.getElementById('mpdSrcAi').style.color = src === 'ai' ? '#c4b5fd' : 'var(--muted2)';
+  document.getElementById('mpdSrcNaver').style.background = src === 'naver' ? 'rgba(168,85,247,.2)' : 'transparent';
+  document.getElementById('mpdSrcNaver').style.color = src === 'naver' ? '#c4b5fd' : 'var(--muted2)';
+  loadMbtiPendingList(1);
+}
 
 async function loadMbtiPendingList(page){
   mpdPage = page;
   const wrap = document.getElementById('mbtiPendingList');
   wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>';
+  const endpoint = mpdSource === 'naver' ? 'mbti-naver-pending-list' : 'mbti-pending-list';
   try {
-    const res = await fetch(`${API}/admin/persons/mbti-pending-list?page=${page}`, {
+    const res = await fetch(`${API}/admin/persons/${endpoint}?page=${page}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
     });
     const data = await res.json();
@@ -4208,11 +4485,12 @@ function mpdNext(){ if (mpdPage * 50 < mpdTotal) loadMbtiPendingList(mpdPage + 1
 async function saveMpdMbti(tmdbId, btn){
   const input = document.getElementById(`mpdInput-${tmdbId}`);
   const mbti  = input.value.trim().toUpperCase();
+  const endpoint = mpdSource === 'naver' ? 'mbti-naver-set' : 'mbti-set';
   if (!mbti) { showToast('⚠️ MBTI를 입력해주세요'); return; }
   btn.disabled = true;
   btn.textContent = '저장 중...';
   try {
-    const res  = await fetch(`${API}/admin/persons/mbti-set`, {
+    const res  = await fetch(`${API}/admin/persons/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
       body: JSON.stringify({ tmdb_id: tmdbId, mbti }),
