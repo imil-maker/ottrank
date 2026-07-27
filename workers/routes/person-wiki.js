@@ -1,4 +1,5 @@
-// 2026-07-27 rev.4 — person-wiki.js (표시이름 소스를 신설 display_name 컬럼에서 기존 name_ko 컬럼으로 변경 — 이미 절반 이상 채워진 값을 재사용, 화면 이름을 DB 우선으로 통일하는 방향)
+// 2026-07-27 rev.5 — person-wiki.js (manual 응답에 mbti 필드 추가 — persons.mbti_naver 조회,
+// "UNDISCLOSED"(공개안함 확정) 값과 빈 값은 화면에 안 보여주기로 해서 여기서 걸러내고 내려줌)
 // workers/routes/person-wiki.js
 // ============================================================
 // [2026-07-19 신규] 인물 위키백과 보강 데이터 — 테스트용 최소 버전
@@ -119,7 +120,7 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     // name_ko를 재사용하는 게 더 효율적(관리자 판단). name_ko가 TMDB 자동탐색 결과와
     // 다를 때만(=관리자가 예명 등으로 의도적으로 다르게 채워둔 경우) 화면 이름을 덮어씀.
     const person = await env.DB.prepare(
-      `SELECT birthday, gender, place_of_birth, like_count, poster_badge, korean_confirmed, name_ko FROM persons WHERE tmdb_id = ?`
+      `SELECT birthday, gender, place_of_birth, like_count, poster_badge, korean_confirmed, name_ko, mbti_naver FROM persons WHERE tmdb_id = ?`
     )
       .bind(tmdbPersonId)
       .first();
@@ -131,13 +132,17 @@ export async function handlePersonWiki(path, request, env, url, headers) {
       const hasPlace = person.place_of_birth && person.place_of_birth !== "";
       const hasBadge = person.poster_badge && person.poster_badge !== "";
       const hasDisplayName = person.name_ko && person.name_ko !== "";
-      if (hasBirthday || hasGender || hasPlace || hasBadge || hasDisplayName) {
+      // [2026-07-27 신규] MBTI — 아직 수집 안 됨(빈 값)이거나 "공개안함"으로 확정된 경우
+      // (UNDISCLOSED)는 화면에 안 보여주기로 함(관리자 판단) — 여기서 걸러내고 내려줌.
+      const hasMbti = person.mbti_naver && person.mbti_naver !== "" && person.mbti_naver !== "UNDISCLOSED";
+      if (hasBirthday || hasGender || hasPlace || hasBadge || hasDisplayName || hasMbti) {
         manual = {
           birthday: hasBirthday ? person.birthday : null,
           gender: hasGender ? person.gender : null,
           place_of_birth: hasPlace ? person.place_of_birth : null,
           poster_badge: hasBadge ? person.poster_badge : null,
           display_name: hasDisplayName ? person.name_ko : null,
+          mbti: hasMbti ? person.mbti_naver : null,
         };
       }
     }
