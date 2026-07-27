@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.4 — person.html (라이트박스를 진짜 슬라이딩 방식으로 교체 — 현재+다음(또는 이전) 사진을 트랙에 나란히 놓고 한 번에 밀어서 옆으로 밀려나가는 느낌 구현, 페이드 방식에서 전환) -->
+<!-- 2026-07-27 rev.5 — person.html (관리자 수동지정 표시이름(display_name) 적용 — 예명으로 알려진 인물의 화면 이름을 TMDB 자동탐색 이름 대신 수동값으로 덮어쓸 수 있게 함) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1284,6 +1284,15 @@ async function loadWikiTest(personId){
                        merged.gender !== tmdbMeta.gender ||
                        merged.place_of_birth !== tmdbMeta.place_of_birth;
       if(changed) renderMetaChips(merged);
+
+      // [2026-07-27 신규] 표시 이름 수동 지정 — 화면 이름은 TMDB also_known_as에서
+      // 자동으로 한글 이름을 찾는 구조라, 본명이 아니라 예명(활동명)으로 알려진 인물은
+      // 이 자동탐색 결과가 실제 통용되는 이름과 다를 수 있음(예: 아이유=이지은).
+      // 관리자가 persons.display_name을 지정해뒀으면 그 값으로 화면 이름을 덮어씀.
+      if(manual.display_name){
+        document.getElementById('personName').textContent = manual.display_name;
+        personDisplayName = manual.display_name;
+      }
     }
     // [2026-07-22 rev.11 신규] 포스터 배지(추모 국화 등) — TMDB 사망일과는 별개로
     // 관리자가 수동 지정한 값도 같이 확인. manual이 없어도(위 if(manual) 밖에서)
