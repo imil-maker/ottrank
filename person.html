@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.5 — person.html (관리자 수동지정 표시이름(display_name) 적용 — 예명으로 알려진 인물의 화면 이름을 TMDB 자동탐색 이름 대신 수동값으로 덮어쓸 수 있게 함) -->
+<!-- 2026-07-27 rev.6 — person.html (표시이름 소스를 name_ko로 변경 + 이름 렌더링을 renderPersonNameEl() 공용함수로 통합해 레이스 컨디션 버그 수정 — loadWikiTest가 await 없이 백그라운드로 돌아서 SNS아이콘 렌더링과 순서가 뒤섞이며 "(IU)"/아이콘이 사라지던 문제) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1047,6 +1047,18 @@ let filmoSortMode = 'ott'; // [2026-07-20 신규] 'ott'(OTT 있는 작품 우선
 let tmdbBioText = '';
 /* [2026-07-20 신규] 모바일 "OO 전체 이력 더보기" 버튼 텍스트용 이름 저장 */
 let personDisplayName = '';
+// [2026-07-27 신규] 이름 옆 영문이름/SNS아이콘/공유버튼 HTML — loadWikiTest가 await 없이
+// 백그라운드로 돌기 때문에(다른 렌더링 안 늦추려고 의도적으로 그렇게 설계됨), 이 값들이
+// 채워지는 시점과 "관리자 수동 이름"이 도착하는 시점 순서가 매번 다를 수 있음. 그래서
+// 이름을 그릴 때마다 항상 이 전역값들을 기준으로 통째로 다시 그리는 renderPersonNameEl()을
+// 공용으로 써서, 어느 쪽이 먼저 끝나든 항상 최종 상태가 올바르게 맞춰지도록 함.
+let personEnNameHtml = '';
+let personSocialRowHtml = '';
+function renderPersonNameEl(){
+  const nameEl = document.getElementById('personName');
+  if(!nameEl) return;
+  nameEl.innerHTML = escHtml(personDisplayName) + personEnNameHtml + personSocialRowHtml;
+}
 
 /* ── 약력 펼치기 ── */
 let bioExpanded = false;
@@ -1285,13 +1297,15 @@ async function loadWikiTest(personId){
                        merged.place_of_birth !== tmdbMeta.place_of_birth;
       if(changed) renderMetaChips(merged);
 
-      // [2026-07-27 신규] 표시 이름 수동 지정 — 화면 이름은 TMDB also_known_as에서
-      // 자동으로 한글 이름을 찾는 구조라, 본명이 아니라 예명(활동명)으로 알려진 인물은
-      // 이 자동탐색 결과가 실제 통용되는 이름과 다를 수 있음(예: 아이유=이지은).
-      // 관리자가 persons.display_name을 지정해뒀으면 그 값으로 화면 이름을 덮어씀.
+      // [2026-07-27 수정] 표시 이름을 DB 우선(name_ko)으로 통일 — 화면 이름이 원래
+      // TMDB also_known_as 자동탐색이었는데, 예명(활동명)으로 알려진 인물(예: 아이유=이지은)은
+      // 자동탐색 결과가 실제 통용되는 이름과 다를 수 있어서 우리 DB의 name_ko가 있으면
+      // 그걸 우선 씀(person-wiki.js가 manual.display_name으로 name_ko 값을 내려줌).
+      // renderPersonNameEl() 공용 함수로 다시 그려야, SNS아이콘/공유버튼 블록이 이 코드보다
+      // 먼저 끝났든 나중에 끝났든 관계없이 항상 최종 상태가 올바르게 유지됨(레이스 컨디션 방지).
       if(manual.display_name){
-        document.getElementById('personName').textContent = manual.display_name;
         personDisplayName = manual.display_name;
+        renderPersonNameEl();
       }
     }
     // [2026-07-22 rev.11 신규] 포스터 배지(추모 국화 등) — TMDB 사망일과는 별개로
@@ -2018,9 +2032,11 @@ async function initPage(){
     // 없이 한글로만 등록된 인물) 작은 줄에 같은 이름이 중복 표시되던 문제 수정
     const enName      = (koName && koName !== data.name) ? data.name : '';
 
-    document.getElementById('personName').textContent   = displayName;
+    document.getElementById('personName').textContent   = displayName; // 임시(아래 renderPersonNameEl이 최종 다시 그림)
     document.getElementById('personNameEn').textContent = enName;
     personDisplayName = displayName; // [2026-07-20 신규]
+    personEnNameHtml = enName
+      ? `<span class="person-name-en-inline">(${escHtml(enName)})</span>` : ''; // [2026-07-27 이동]
     // [2026-07-24 신규] 수상내역 제목에 이름 넣기 — 위키 데이터(loadWikiTest)가 이 코드보다
     // 먼저 실행돼서 그때는 personDisplayName이 비어있었을 경우를 대비한 보정.
     const awardsTitleElNow = document.getElementById('profileAwardsTitle');
@@ -2116,10 +2132,11 @@ async function initPage(){
       </a>`).join('');
     const shareTagHtml = `<button class="share-tag" id="shareBtn"
         onclick="event.stopPropagation();shareProfile()">🔗 공유</button>`;
-    const enNameHtml = enName
-      ? `<span class="person-name-en-inline">(${escHtml(enName)})</span>` : ''; // [2026-07-20 신규]
-    nameEl.innerHTML = nameEl.textContent + enNameHtml
-      + `<span class="person-social-row">${iconsHtml}${shareTagHtml}</span>`;
+    // [2026-07-27 수정] nameEl.innerHTML을 여기서 직접 조립하지 않고 공용 렌더 함수로 위임.
+    // loadWikiTest(관리자 수동 이름)가 await 없이 백그라운드로 돌기 때문에, 이 블록보다
+    // 먼저 끝날 수도 나중에 끝날 수도 있음 — 순서 상관없이 항상 최종 상태가 맞도록 함.
+    personSocialRowHtml = `<span class="person-social-row">${iconsHtml}${shareTagHtml}</span>`;
+    renderPersonNameEl();
 
     /* ⑦ SEO */
     const profileImgUrl = data.profile_path
