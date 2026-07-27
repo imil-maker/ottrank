@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.4 — admin_keywords.html (MBTI 탭을 서브탭 3개로 재구성 — 수집/확정 리스트(50개씩)/미확정 리스트(50개씩), 인물페이지 링크 + 인라인 수정 추가) -->
+<!-- 2026-07-27 rev.5 — admin_keywords.html (MBTI 수집 로그에 나무위키 진단 사유(namu_reason) 표시 추가 — 크롤링 실패 원인 파악용) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -3991,11 +3991,11 @@ async function startMbtiCollect() {
       if (data.result === 'found') {
         mcTotalFound++;
         if (data.source === 'namuwiki') { mcTotalFoundNamu++; mcLog(`✅ ${name} — ${data.mbti} (나무위키)`); }
-        else { mcTotalFoundAi++; mcLog(`✅ ${name} — ${data.mbti} (AI 웹서치)`); }
+        else { mcTotalFoundAi++; mcLog(`✅ ${name} — ${data.mbti} (AI 웹서치, 나무위키: ${data.namu_reason || '-'})`); }
       } else if (data.reason === 'wiki_no_match') {
         mcLog(`⏭ ${name} — 위키 매칭 안 됨, 스킵`);
       } else {
-        mcLog(`⏭ ${name} — 못 찾음 (${data.detail || 'AI 확인 불가'})`);
+        mcLog(`⏭ ${name} — 못 찾음 (${data.detail || 'AI 확인 불가'}) [나무위키: ${data.namu_reason || '-'}]`);
       }
 
       mcUpdateCounters();
