@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-28 rev.1 — person.html (갤러리 사진 원본(w780)을 페이지 전체 로딩이 끝난 뒤 백그라운드로 미리 다운로드해두는 기능 추가 — 라이트박스에서 다음/이전 넘길 때 버벅임 없이 바로 보이게 함) -->
+<!-- 2026-07-28 rev.2 — person.html (메인 이름과 괄호 속 보조 이름이 위키 DB 이름 적용 후 서로 같아지는 경우, 보조 이름을 지워서 중복 표시 방지) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1070,6 +1070,9 @@ let personDisplayName = ssrPersonName; // [2026-07-20 신규, 2026-07-27 수정]
 // 서로 다른 하위 요소로 분리해서, 이름이 다시 그려져도 SNS/공유버튼은 이미 있으면 절대
 // 다시 안 만들고 그대로 둠(내용이 바뀔 일이 없으니 한 번만 만들면 충분).
 let personEnNameHtml = '';
+// [2026-07-28 신규] 위키 DB 이름 적용 시 "메인 이름과 보조 이름이 같아지는지" 비교하기 위해
+// 괄호 안 보조 이름의 순수 텍스트(HTML 태그 없이)도 따로 기억해둠.
+let personEnName = '';
 let personSocialRowHtml = '';
 function renderPersonNameEl(){
   const nameEl = document.getElementById('personName');
@@ -1339,6 +1342,14 @@ async function loadWikiTest(personId){
       // 먼저 끝났든 나중에 끝났든 관계없이 항상 최종 상태가 올바르게 유지됨(레이스 컨디션 방지).
       if(manual.display_name){
         personDisplayName = manual.display_name;
+        // [2026-07-28 신규] DB 이름(메인)과 괄호 속 보조 이름이 같아지면(예: 예명 대신
+        // 본명을 메인으로 바꿨는데 TMDB 보조이름도 마침 그 본명이었던 경우) 같은 이름이
+        // "이지은 (이지은)"처럼 중복 표시되므로, 이땐 보조 이름을 아예 지움.
+        if(personEnName && personEnName === manual.display_name){
+          personEnName = '';
+          personEnNameHtml = '';
+          document.getElementById('personNameEn').textContent = '';
+        }
         renderPersonNameEl();
       }
     }
@@ -2105,6 +2116,7 @@ async function initPage(){
       personDisplayName = displayName; // [2026-07-20 신규]
     }
     document.getElementById('personNameEn').textContent = enName;
+    personEnName = enName; // [2026-07-28 신규] 위키 DB 이름과 비교용 원본 텍스트 보관
     personEnNameHtml = enName
       ? `<span class="person-name-en-inline">(${escHtml(enName)})</span>` : ''; // [2026-07-27 이동]
     // [2026-07-24 신규] 수상내역 제목에 이름 넣기 — 위키 데이터(loadWikiTest)가 이 코드보다
