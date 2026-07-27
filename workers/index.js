@@ -1,4 +1,4 @@
-/* 2026-07-25 rev.3 — index.js (/admin/track/excluded-vids 라우팅 추가) */
+/* 2026-07-27 rev.4 — index.js (/admin/persons/mbti-naver-* 라우팅 추가 — admin-persons.js 신규 파일) */
 /* ══════════════════════════════════════════════════════════════
    오뜨랑 Worker 진입점
    - CORS 처리
@@ -24,6 +24,8 @@
    track.js     : /track/view, /admin/track/logs, /admin/track/rank  (작품/인물 페이지 실시간 조회 이벤트 기록·조회 +
                   기간별 실시간 순위, 2026-07-21 신설, 2026-07-23 순위 라우트 추가)
    relationship.js : /admin/relationship-charts/*  (등장인물 관계도 — 공식 이미지 업로드, 2026-07-25 신설)
+   admin-persons.js : /admin/persons/mbti-naver-*  (네이버 검색 기반 MBTI 수집 — admin.js와 별도,
+                  인물 관련 신규 어드민 기능은 앞으로 여기 모음, 2026-07-27 신설)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -41,6 +43,7 @@ import { handleImageProxy } from "./routes/image-proxy.js";
 import { handlePersonWiki } from "./routes/person-wiki.js";
 import { handleTrack      } from "./routes/track.js";
 import { handleRelationship } from "./routes/relationship.js";
+import { handleAdminPersons } from "./routes/admin-persons.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -156,6 +159,13 @@ export default {
       path.match(/^\/relationship-charts\/\d+$/)
     )) {
       res = await handleRelationship(path, request, env, url, headers);
+    }
+
+    // 3-5. 인물(persons) 관련 신규 어드민 기능 — admin.js와 별도 파일(2026-07-27 신규)
+    //      /admin/persons/mbti-naver-*는 12번 관리자 캐치올(handleAdmin)보다 반드시 앞에
+    //      있어야 함(안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — track.js/relationship.js와 동일 패턴)
+    if (!res && path.startsWith("/admin/persons/mbti-naver")) {
+      res = await handleAdminPersons(path, request, env, url, headers);
     }
 
     // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
