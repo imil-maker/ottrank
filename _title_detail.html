@@ -1,4 +1,4 @@
-<!-- 2026-07-27 rev.5 — _title_detail.html (관련이미지 라이트박스를 진짜 슬라이딩 방식으로 교체 — 현재+다음(이전) 사진을 트랙에 나란히 놓고 한 번에 밀어서 옆으로 밀려나가는 느낌 구현, person.html과 동일한 방식) -->
+<!-- 2026-07-28 rev.1 — _title_detail.html (후기 카드의 개별 공유 버튼(🔗 공유) 삭제 요청에 따라 제거) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -3741,9 +3741,6 @@ function renderComments(){
           <i class="ti ${c.liked?'ti-heart-filled':'ti-heart'}" style="font-size:11px"></i>
           <span id="like_cmt_${c.id}">${c.likes}</span>
         </span>
-        <button class="c-share" onclick="shareComment('${c.id}','${c.user.replace(/'/g,"\\'")}')">
-          🔗 공유
-        </button>
         ${c.emotions.map(e=>`<span class="c-ebadge${['강추해요','추천해요','평범해요','별로예요'].includes(e)?' eval':''}">${ETAG_EMOJI[e]||''}${e}</span>`).join('')}
         ${c.isMe?`<button class="c-delete-btn" onclick="deleteMyReview(${c.id})">삭제</button>`:''}
       </div>
