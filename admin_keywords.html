@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.5 — admin_keywords.html (MBTI 수집 로그에 나무위키 진단 사유(namu_reason) 표시 추가 — 크롤링 실패 원인 파악용) -->
+<!-- 2026-07-27 rev.6 — admin_keywords.html (나무위키 관련 코드 완전 제거 — 상태카드 4칸→3칸(누적시도/찾음/못찾음), 로그·변수 정리) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -482,7 +482,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <!-- 안내 메시지 -->
     <div style="background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
       💡 한국인으로 확인된 인물(korean_confirmed=1) 전체의 MBTI를 자동으로 찾아 저장합니다.
-      순서: ① 위키백과로 이름+태어난 해 확인(동명이인 방지) → ② 나무위키 무료 크롤링 시도 → ③ 못 찾으면 AI 웹서치(최대 3회)로 폴백.
+      순서: ① 위키백과로 이름+태어난 해 확인(동명이인 방지) → ② AI 웹서치(검색 1회, 검색어에 이름+생년+MBTI 포함)로 조사.
       확신 없으면 빈 값으로 남기고 다음 사람으로 넘어가요.
     </div>
 
@@ -498,12 +498,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)" id="mcFound">0</div>
         </div>
         <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">나무위키에서 찾음</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:#c4b5fd" id="mcFoundNamu">0</div>
-        </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">AI로 찾음</div>
-          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:#c4b5fd" id="mcFoundAi">0</div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">못 찾음(스킵)</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--muted)" id="mcSkipped">0</div>
         </div>
       </div>
 
@@ -3905,15 +3901,14 @@ async function applyStuckTypeFix() {
 }
 
 /* ══════════════════════════════════════════════════════
-   [2026-07-27 신규] MBTI 수집 — 위키확인→나무위키→AI웹서치 순으로 폴백하는
+   [2026-07-27 신규] MBTI 수집 — 위키확인→AI웹서치 순으로 처리하는
    /admin/persons/mbti-auto-step을 done:true 받을 때까지 1명씩 반복 호출
 ══════════════════════════════════════════════════════ */
 let mcRunning       = false;
 let mcStopRequested = false;
 let mcTotalAttempted = 0;
 let mcTotalFound     = 0;
-let mcTotalFoundNamu = 0;
-let mcTotalFoundAi   = 0;
+let mcTotalSkipped   = 0;
 
 function mcLog(msg, isError) {
   const logWrap = document.getElementById('mcLogWrap');
@@ -3930,8 +3925,7 @@ function mcLog(msg, isError) {
 function mcUpdateCounters() {
   document.getElementById('mcAttempted').textContent = mcTotalAttempted;
   document.getElementById('mcFound').textContent = mcTotalFound;
-  document.getElementById('mcFoundNamu').textContent = mcTotalFoundNamu;
-  document.getElementById('mcFoundAi').textContent = mcTotalFoundAi;
+  document.getElementById('mcSkipped').textContent = mcTotalSkipped;
 }
 
 async function startMbtiCollect() {
@@ -3940,8 +3934,7 @@ async function startMbtiCollect() {
   mcStopRequested  = false;
   mcTotalAttempted = 0;
   mcTotalFound     = 0;
-  mcTotalFoundNamu = 0;
-  mcTotalFoundAi   = 0;
+  mcTotalSkipped   = 0;
 
   const startBtn   = document.getElementById('mcStartBtn');
   const stopBtn    = document.getElementById('mcStopBtn');
@@ -3990,12 +3983,13 @@ async function startMbtiCollect() {
 
       if (data.result === 'found') {
         mcTotalFound++;
-        if (data.source === 'namuwiki') { mcTotalFoundNamu++; mcLog(`✅ ${name} — ${data.mbti} (나무위키)`); }
-        else { mcTotalFoundAi++; mcLog(`✅ ${name} — ${data.mbti} (AI 웹서치, 나무위키: ${data.namu_reason || '-'})`); }
+        mcLog(`✅ ${name} — ${data.mbti} (AI 웹서치)`);
       } else if (data.reason === 'wiki_no_match') {
+        mcTotalSkipped++;
         mcLog(`⏭ ${name} — 위키 매칭 안 됨, 스킵`);
       } else {
-        mcLog(`⏭ ${name} — 못 찾음 (${data.detail || 'AI 확인 불가'}) [나무위키: ${data.namu_reason || '-'}]`);
+        mcTotalSkipped++;
+        mcLog(`⏭ ${name} — 못 찾음 (${data.detail || 'AI 확인 불가'})`);
       }
 
       mcUpdateCounters();
