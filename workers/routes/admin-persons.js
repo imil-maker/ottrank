@@ -1,0 +1,266 @@
+/* 2026-07-27 rev.1 — admin-persons.js (신규 — 네이버 검색 기반 MBTI 수집. 인물 관련 새 어드민 기능은
+   앞으로 admin.js 대신 이 파일에 모아나가기로 함) */
+/* ══════════════════════════════════════════════════════════════
+   인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
+   ─────────────────────────────────────────────────────────────
+   [2026-07-27 신규] MBTI 수집 2번째 방식(네이버 검색 기반) — 기존 admin.js의
+   AI 웹서치 방식(mbti-auto-step)은 절대 건드리지 않고, 완전히 새로운 파이프라인으로 비교
+   검증해보기 위해 별도 파일/별도 컬럼(persons.mbti_naver)으로 분리함.
+
+   기존 AI 방식과의 차이:
+   - AI(Claude)가 검색결과를 읽고 판단하는 과정 없음 — 네이버 검색 API 결과 텍스트에서
+     "MBTI" 근처의 4글자 유형을 정규식으로 그대로 추출(나무위키 크롤링 때와 같은 원리)
+   - 검색 API 자체가 무료(하루 25,000회 한도) — AI 토큰 비용이 전혀 안 듦
+   - 그만큼 "판단"은 없음 — 검색결과에 나오면 그대로 채택, 없으면 미확정
+
+   흐름: ① 대상자 선정(korean_confirmed=1 + mbti_naver_checked_at 없음)
+        ② 무료 위키 사전확인 — 이름+생년 일치 확인. 이 단계가 동명이인 방지뿐 아니라
+           "위키백과에 문서가 없는 사람(성인물 출연자 등)을 걸러주는 안전장치" 역할도 함
+           (관리자 판단, 매우 중요 — 절대 생략하지 말 것)
+        ③ 위키 매칭 안 되면 AI 방식과 동일하게 스킵(체크만 하고 넘어감)
+        ④ 매칭되면 네이버 검색(블로그) API로 "이름 생년 MBTI" 검색 → 결과 텍스트에서
+           MBTI 패턴 정규식 추출 → 있으면 저장, 없으면 미확정
+   ══════════════════════════════════════════════════════════════ */
+
+import { _checkAuth } from "../utils/authUtils.js";
+
+// [2026-07-27 신규] 무료 위키 사전확인 — admin.js의 _checkWikiMatch와 동일한 로직을
+// 그대로 복제(admin.js는 이번 작업에서 건드리지 않기로 했으므로 import 대신 중복 보유).
+// 이름+생년이 일치하는 한국어 위키백과 문서가 있는지만 확인(무료, 가벼움).
+async function _checkWikiMatchForMbti(displayName, tmdbYear) {
+  const WIKI_UA = { "User-Agent": "OttrankBot/1.0 (https://ottrank.kr; 오뜨랑 인물 위키매칭)" };
+  try {
+    const searchRes = await fetch(
+      `https://ko.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(displayName)}&limit=5&namespace=0&format=json`,
+      { headers: WIKI_UA }
+    );
+    if (!searchRes.ok) return { matched: false };
+    const searchData = await searchRes.json();
+    const titles = searchData[1] || [];
+
+    const disambigTitle = `${displayName} (배우)`;
+    if (!titles.includes(disambigTitle)) {
+      titles.unshift(disambigTitle);
+    }
+
+    const CURRENT_YEAR = new Date().getFullYear();
+    const isPlausibleYear = (y) => { const n = parseInt(y, 10); return n >= 1900 && n <= CURRENT_YEAR; };
+    const extractBirthYear = (text) => {
+      const parenMatch = text.match(/\(([^)]{0,80})\)/);
+      if (parenMatch) {
+        const y = parenMatch[1].match(/(\d{4})년/);
+        if (y && isPlausibleYear(y[1])) return y[1];
+      }
+      const loose = text.match(/(\d{4})년/);
+      if (loose && isPlausibleYear(loose[1])) return loose[1];
+      return null;
+    };
+
+    for (let i = 0; i < titles.length; i++) {
+      const title = titles[i];
+      const extractRes = await fetch(
+        `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json`,
+        { headers: WIKI_UA }
+      );
+      if (!extractRes.ok) continue;
+      const extractData = await extractRes.json();
+      const pages   = (extractData.query && extractData.query.pages) || {};
+      const pageObj = Object.values(pages)[0];
+      const extract = (pageObj && pageObj.extract) || "";
+      const pageMissing = !pageObj || ("missing" in pageObj) || !extract;
+      if (pageMissing) continue;
+
+      const wikiYear = extractBirthYear(extract);
+      const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
+      const isYearConflict = tmdbYear && wikiYear && tmdbYear !== wikiYear;
+      const isDisambigPageExists = title === disambigTitle && !pageMissing;
+      if (isYearConflict) continue;
+      if (isYearMatch || (isDisambigPageExists && !tmdbYear)) {
+        return { matched: true };
+      }
+    }
+    return { matched: false };
+  } catch (e) {
+    return { matched: false };
+  }
+}
+
+// [2026-07-27 신규] 네이버 블로그 검색으로 MBTI 패턴 추출 — AI 없이 순수 정규식 매칭.
+// "이름 생년 MBTI" 검색 후 상위 10개 결과(제목+요약)를 합쳐서 "MBTI" 근처 4글자 유형을 찾는다.
+// 네이버 검색결과는 매칭된 단어에 <b> 태그가 붙어서 오므로 태그 제거 후 검사.
+async function _fetchNaverMbti(displayName, birthYear, env) {
+  if (!env.NAVER_DATALAB_CLIENT_ID || !env.NAVER_DATALAB_CLIENT_SECRET) {
+    return { mbti: null, reason: "no_naver_key" };
+  }
+  try {
+    const query = birthYear ? `${displayName} ${birthYear}년생 MBTI` : `${displayName} MBTI`;
+    const resp = await fetch(
+      `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(query)}&display=10`,
+      {
+        headers: {
+          "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
+          "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
+        },
+      }
+    );
+    if (!resp.ok) return { mbti: null, reason: `http_${resp.status}` };
+    const data = await resp.json();
+    const items = data.items || [];
+    if (!items.length) return { mbti: null, reason: "no_results" };
+
+    // 제목+요약을 전부 이어붙여서 하나의 텍스트로 만들고, HTML 태그/엔티티 제거
+    const combined = items.map((it) => `${it.title} ${it.description}`).join(" ");
+    const text = combined
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
+
+    const m = text.match(/MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/i);
+    if (!m) return { mbti: null, reason: "mbti_not_found_in_results" };
+    return { mbti: m[1].toUpperCase(), reason: "ok" };
+  } catch (e) {
+    return { mbti: null, reason: `fetch_error_${e.message}` };
+  }
+}
+
+export async function handleAdminPersons(path, request, env, url, headers) {
+  // ── POST /admin/persons/mbti-naver-step ────────────────────────
+  // "MBTI 수집(네이버)" 탭 — 버튼 한 번에 1명만 처리. admin.js의 mbti-auto-step과
+  // 동일한 반복 호출 패턴(done:true 받을 때까지 프론트가 계속 호출).
+  if (path === "/admin/persons/mbti-naver-step" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const candidate = await env.DB.prepare(`
+        SELECT tmdb_id, name, name_ko, birthday, popularity
+        FROM persons
+        WHERE korean_confirmed = 1
+          AND mbti_naver_checked_at IS NULL
+        ORDER BY popularity DESC
+        LIMIT 1
+      `).first();
+
+      if (!candidate) {
+        return new Response(JSON.stringify({ ok: true, done: true }), { headers });
+      }
+
+      const displayName = candidate.name_ko || candidate.name;
+      let birthYear = "";
+      if (candidate.birthday && /^\d{4}/.test(candidate.birthday)) {
+        birthYear = candidate.birthday.slice(0, 4);
+      }
+
+      // ② 무료 위키 사전확인 — 동명이인 방지 + 성인물 출연자 등 필터링 역할
+      const wikiCheck = await _checkWikiMatchForMbti(displayName, birthYear);
+      if (!wikiCheck.matched) {
+        await env.DB.prepare(
+          `UPDATE persons SET mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
+        ).bind(candidate.tmdb_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: candidate.tmdb_id, name: displayName },
+          result: "skipped", reason: "wiki_no_match",
+        }), { headers });
+      }
+
+      // ③ 네이버 검색 API로 MBTI 패턴 추출(무료, AI 없음)
+      // 초당 요청 제한(10회) 방어용 짧은 대기
+      await new Promise((r) => setTimeout(r, 300));
+      const naverResult = await _fetchNaverMbti(displayName, birthYear, env);
+
+      if (naverResult.mbti) {
+        await env.DB.prepare(
+          `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
+        ).bind(naverResult.mbti, candidate.tmdb_id).run();
+        return new Response(JSON.stringify({
+          ok: true, done: false,
+          person: { tmdb_id: candidate.tmdb_id, name: displayName },
+          result: "found", mbti: naverResult.mbti,
+        }), { headers });
+      }
+
+      await env.DB.prepare(
+        `UPDATE persons SET mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
+      ).bind(candidate.tmdb_id).run();
+      return new Response(JSON.stringify({
+        ok: true, done: false,
+        person: { tmdb_id: candidate.tmdb_id, name: displayName },
+        result: "skipped", reason: naverResult.reason,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/mbti-naver-search ───────────────────────
+  // 개별 검색(이름/tmdb_id) — admin.js의 /admin/persons/search와 별개(그 파일 안 건드리기 위해
+  // 이 파일 안에서 자체적으로 구현). 결과에 mbti_naver 값도 같이 내려줌.
+  if (path === "/admin/persons/mbti-naver-search" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
+      }
+
+      let items;
+      if (/^\d+$/.test(q)) {
+        const row = await env.DB.prepare(
+          `SELECT tmdb_id, name, name_ko, mbti_naver FROM persons WHERE tmdb_id = ?`
+        ).bind(parseInt(q, 10)).first();
+        items = row ? [row] : [];
+      } else {
+        const { results } = await env.DB.prepare(`
+          SELECT tmdb_id, name, name_ko, mbti_naver FROM persons
+          WHERE name LIKE ? OR name_ko LIKE ?
+          ORDER BY name LIMIT 30
+        `).bind(`%${q}%`, `%${q}%`).all();
+        items = results;
+      }
+
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/mbti-naver-set ─────────────────────────
+  // 개별 수정/삭제(빈 문자열로 저장하면 삭제). admin.js의 mbti-set과 동일한 패턴이나
+  // 대상 컬럼만 mbti_naver.
+  if (path === "/admin/persons/mbti-naver-set" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      const mbtiRaw = (body.mbti || "").trim().toUpperCase();
+      if (!tmdbId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+      if (mbtiRaw && !/^[EI][SN][FT][JP]$/.test(mbtiRaw)) {
+        return new Response(JSON.stringify({ ok: false, message: "MBTI는 ENFP처럼 4글자 형식이어야 해요" }), { status: 400, headers });
+      }
+
+      const person = await env.DB.prepare(`SELECT tmdb_id FROM persons WHERE tmdb_id = ?`).bind(tmdbId).first();
+      if (!person) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+
+      await env.DB.prepare(
+        `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
+      ).bind(mbtiRaw || null, tmdbId).run();
+
+      return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  return null; // 해당하는 라우트 없음 — index.js가 다음 라우트로 넘어감
+}
