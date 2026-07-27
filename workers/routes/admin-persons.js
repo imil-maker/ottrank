@@ -1,5 +1,4 @@
-/* 2026-07-27 rev.1 — admin-persons.js (신규 — 네이버 검색 기반 MBTI 수집. 인물 관련 새 어드민 기능은
-   앞으로 admin.js 대신 이 파일에 모아나가기로 함) */
+/* 2026-07-27 rev.2 — admin-persons.js (네이버 확정/미확정 리스트 조회 엔드포인트 2개 추가 — AI 버전과 동일한 응답 형태로 프론트 재사용 가능하게) */
 /* ══════════════════════════════════════════════════════════════
    인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
    ─────────────────────────────────────────────────────────────
@@ -224,6 +223,69 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       }
 
       return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/mbti-naver-confirmed-list ───────────────
+  // 네이버 방식으로 찾은 확정 리스트, 50명씩. AI 버전(admin.js)과 동일한 응답 형태로
+  // 맞춰서 프론트가 같은 렌더링 코드를 재사용할 수 있게 함(source만 다름).
+  if (path === "/admin/persons/mbti-naver-confirmed-list" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page  = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
+      const limit = 50;
+      const offset = (page - 1) * limit;
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti_naver AS mbti, mbti_naver_checked_at
+        FROM persons
+        WHERE mbti_naver IS NOT NULL
+        ORDER BY mbti_naver_checked_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      const totalRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti_naver IS NOT NULL`
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/mbti-naver-pending-list ──────────────────
+  // 네이버 방식으로 확인은 했지만 못 찾은 리스트, 50명씩.
+  if (path === "/admin/persons/mbti-naver-pending-list" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const page  = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
+      const limit = 50;
+      const offset = (page - 1) * limit;
+
+      const { results: items } = await env.DB.prepare(`
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti_naver_checked_at
+        FROM persons
+        WHERE mbti_naver_checked_at IS NOT NULL AND mbti_naver IS NULL
+        ORDER BY mbti_naver_checked_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+
+      const totalRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti_naver_checked_at IS NOT NULL AND mbti_naver IS NULL`
+      ).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
