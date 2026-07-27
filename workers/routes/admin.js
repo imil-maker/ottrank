@@ -1,4 +1,4 @@
-// 2026-07-27 rev.7 — admin.js (나무위키 크롤링 실패 원인 진단용 — mbti만 반환하던 걸 {mbti,reason}으로 바꿔서 봇차단/생년불일치/MBTI항목없음 등을 mbti-auto-step 응답에 실어 로그로 확인 가능하게)
+// 2026-07-27 rev.11 — admin.js (나무위키 크롤링 코드 완전 제거 — Cloudflare Workers IP가 지속적으로 차단당해 사실상 무의미했음, 위키확인→AI웹서치 2단계로 정리)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -80,7 +80,7 @@
    POST   /admin/persons/ai-auto-step         ← "프로필 자동 생성" 1명 처리(선정→필모확인→AI조사→확정저장/미확정대기)(2026-07-24 신설)
    GET    /admin/persons/ai-confirmed-list    ← AI 파이프라인으로 저장된 인물 목록, 20명씩(2026-07-24 신설)
    GET    /admin/persons/ai-pending-list      ← 미확정(uncertain/필모부족) 인물 목록, 20명씩(2026-07-24 신설)
-   POST   /admin/persons/mbti-auto-step        ← "MBTI 수집" 1명 처리(위키확인→나무위키→AI웹서치 순)(2026-07-27 신설)
+   POST   /admin/persons/mbti-auto-step        ← "MBTI 수집" 1명 처리(위키확인→AI웹서치 순)(2026-07-27 신설)
    POST   /admin/persons/mbti-set              ← MBTI 개별 수정/삭제(빈 값 저장 시 삭제)(2026-07-27 신설)
    GET    /admin/persons/mbti-confirmed-list    ← MBTI 확정 리스트, 50명씩(2026-07-27 신설)
    GET    /admin/persons/mbti-pending-list      ← MBTI 미확정 리스트, 50명씩(2026-07-27 신설)
@@ -4771,8 +4771,10 @@ export async function handleAdmin(path, request, env, url, headers) {
   // [2026-07-27 신규] "MBTI 수집" 탭 — 버튼 한 번에 1명만 처리(다른 auto-step들과 동일 패턴).
   // 처리 흐름: ① 대상자 선정(korean_confirmed=1 + mbti_checked_at 없음, 직업 무관)
   //           ② 무료 위키 사전확인 — 동명이인 방지, 매칭 안 되면 AI 호출 없이 바로 체크 처리
-  //           ③ 나무위키 무료 크롤링 시도 — 찾으면 여기서 끝(AI 비용 0)
-  //           ④ 그래도 못 찾으면 AI 웹서치(최대 3회)로 폴백
+  //           ③ AI 웹서치(1회 제한, 검색어에 이름+생년+MBTI 포함)로 조사
+  // [2026-07-27 수정] 나무위키 무료 크롤링 단계 제거 — Cloudflare Workers IP가 나무위키에서
+  // 지속적으로 http_429(요청 과다) 응답을 받아 사실상 거의 항상 실패했고, 대기시간을 늘려도
+  // 개선되지 않아(IP 대역 자체의 제한으로 추정) 효과 없이 매번 지연만 유발하던 상태였음.
   // 어느 경우든 mbti_checked_at을 남겨 같은 사람이 다시 안 뽑히게 함(AI 호출 자체가 네트워크
   // 오류로 실패한 경우만 예외 — checked 처리 안 하고 에러 반환해서 재시도 가능하게 함).
   if (path === "/admin/persons/mbti-auto-step" && request.method === "POST") {
@@ -4812,20 +4814,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         }), { headers });
       }
 
-      // ③ 나무위키 무료 크롤링
-      const namuResult = await _fetchNamuwikiMbti(displayName, birthYear);
-      if (namuResult.mbti) {
-        await env.DB.prepare(
-          `UPDATE persons SET mbti = ?, mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
-        ).bind(namuResult.mbti, candidate.tmdb_id).run();
-        return new Response(JSON.stringify({
-          ok: true, done: false,
-          person: { tmdb_id: candidate.tmdb_id, name: displayName },
-          result: "found", source: "namuwiki", mbti: namuResult.mbti,
-        }), { headers });
-      }
-
-      // ④ AI 웹서치 폴백
+      // ③ AI 웹서치
       const aiResult = await _generatePersonMbtiDraft(
         { name: candidate.name, name_ko: candidate.name_ko, job: candidate.job, birthday: candidate.birthday },
         env, { wikiConfirmed: true }
@@ -4842,7 +4831,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         return new Response(JSON.stringify({
           ok: true, done: false,
           person: { tmdb_id: candidate.tmdb_id, name: displayName },
-          result: "found", source: "ai", mbti: aiResult.mbti, namu_reason: namuResult.reason,
+          result: "found", source: "ai", mbti: aiResult.mbti,
         }), { headers });
       }
 
@@ -4852,7 +4841,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, done: false,
         person: { tmdb_id: candidate.tmdb_id, name: displayName },
-        result: "skipped", reason: "ai_uncertain", detail: aiResult.uncertain_reason || "", namu_reason: namuResult.reason,
+        result: "skipped", reason: "ai_uncertain", detail: aiResult.uncertain_reason || "",
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
@@ -4861,7 +4850,7 @@ export async function handleAdmin(path, request, env, url, headers) {
 
   // ── POST /admin/persons/mbti-set ──────────────────────────────
   // [2026-07-27 신규] "개별 검색"에서 MBTI 수동 입력/수정/삭제(빈 문자열로 저장하면 삭제).
-  // 관리자가 직접 넣는 값이므로 위키/나무위키/AI 형식검증과 무관하게 4글자 형식만 확인.
+  // 관리자가 직접 넣는 값이므로 위키/AI 형식검증과 무관하게 4글자 형식만 확인.
   if (path === "/admin/persons/mbti-set" && request.method === "POST") {
     if (!_checkAuth(request, env)) {
       return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -6408,51 +6397,10 @@ async function _checkWikiMatch(displayName, tmdbYear, env) {
   }
 }
 
-// [2026-07-27 신규] 나무위키에서 MBTI만 무료로 크롤링 — 정식 API가 없어서 페이지 원문(raw HTML)을
-// 그대로 가져온 뒤 태그를 제거해 순수 텍스트로 만들고, "MBTI" 글자 뒤 30자 이내에서 유효한
-// 4글자 유형(EI/SN/FT/JP 조합)을 정규식으로 찾는다. 배우 인물 문서는 보통 인포박스에
-// "MBTI [ESFJ]" 형태로 들어있어 이 방식으로 상당수 커버 가능. 못 찾으면 null(AI 웹서치로 폴백).
-// [2026-07-27 수정] 동명이인 검증 추가 — namu.wiki/w/이름 이 항상 우리가 찾는 그 사람으로
-// 연결된다는 보장이 없음(흔한 이름이면 더 유명한 동명이인 문서로 갈 수 있음). 페이지 안에서
-// "출생 ... YYYY년"을 찾아 우리가 아는 생년과 일치할 때만 신뢰하고, 생년을 못 찾거나
-// 다르면 null 반환(AI 웹서치로 폴백 — 잘못된 값을 저장하느니 못 찾은 걸로 처리하는 게 안전).
-// [2026-07-27 2차 수정] 실패 이유 진단용 — namuwiki에서 거의 못 찾는 문제 원인 파악을 위해,
-// mbti만 반환하던 걸 { mbti, reason } 형태로 바꿔서 "봇 차단인지/생년 매칭 실패인지/MBTI
-// 항목이 원래 없는지"를 mbti-auto-step 응답에 실어 로그로 확인할 수 있게 함.
-async function _fetchNamuwikiMbti(displayName, birthYear) {
-  try {
-    const resp = await fetch(`https://namu.wiki/w/${encodeURIComponent(displayName)}`, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; OttrankBot/1.0; +https://ottrank.kr)" },
-    });
-    if (!resp.ok) return { mbti: null, reason: `http_${resp.status}` };
-    const html = await resp.text();
-    if (!html || html.length < 500) return { mbti: null, reason: "empty_response" };
-    const text = html
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ");
-
-    // 생년 검증 — "출생" 글자 뒤 40자 이내에서 "YYYY년" 패턴을 찾는다.
-    // 문자열끼리 그대로 비교하면 공백/자릿수 등 사소한 표기 차이로 오판할 수 있어서
-    // 숫자로 변환해서 비교(예: " 1993" vs "1993"도 동일하게 처리됨).
-    // 우리 쪽에 생년 정보가 없으면(드묾) 검증 자체가 불가능하므로 안전하게 null 반환.
-    if (!birthYear) return { mbti: null, reason: "no_birthyear" };
-    const birthMatch = text.match(/출생[^0-9]{0,40}(\d{4})년/);
-    if (!birthMatch) return { mbti: null, reason: "birth_not_found_on_page" };
-    if (parseInt(birthMatch[1], 10) !== parseInt(birthYear, 10)) {
-      return { mbti: null, reason: `birth_mismatch_${birthMatch[1]}` };
-    }
-
-    const m = text.match(/MBTI[^A-Za-z]{0,30}([EI][SN][FT][JP])\b/);
-    if (!m) return { mbti: null, reason: "mbti_field_not_found" };
-    return { mbti: m[1].toUpperCase(), reason: "ok" };
-  } catch (e) {
-    return { mbti: null, reason: `fetch_error_${e.message}` }; // 크롤링 실패해도 AI 웹서치로 넘어가면 되므로 에러를 던지지 않음
-  }
-}
-
-// [2026-07-27 신규] AI 웹서치로 MBTI 조사 — 나무위키에서 못 찾았을 때만 호출되는 폴백.
-// 비용 절감을 위해 웹서치 최대 3회로 제한, 확신 없으면 절대 추측하지 않도록 강하게 지시.
+// [2026-07-27 신규] AI 웹서치로 MBTI 조사 — 검색 1회로 제한, 확신 없으면 절대 추측하지 않도록 강하게 지시.
+// [2026-07-27 수정] 원래는 나무위키 무료 크롤링을 먼저 시도하고 여기는 폴백으로만 썼는데,
+// 나무위키가 Cloudflare Workers IP를 사실상 계속 차단(http_429)해서 거의 항상 실패했고
+// 지연만 유발해 그 단계를 통째로 제거함 — 이제 위키 사전확인 다음 바로 이 함수로 옴.
 async function _generatePersonMbtiDraft(person, env, opts = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     return { ok: false, status: 500, message: "ANTHROPIC_API_KEY가 Workers Secrets에 설정되어 있지 않습니다" };
@@ -6471,8 +6419,12 @@ async function _generatePersonMbtiDraft(person, env, opts = {}) {
 
     const systemPrompt =
       "너는 한국 배우의 MBTI(성격유형)를 조사하는 리서처다. web_search로 이 배우가 방송, 인터뷰, " +
-      "SNS 등에서 본인이 직접 밝힌 MBTI를 찾아라. ⚠️ 동명이인 주의: 이름이 같은 다른 사람의 정보를 " +
-      "가져오지 마라. 사용자 메시지에 태어난 연도가 있으면 그 연도와 일치하는 사람인지 확인해라. " +
+      "SNS 등에서 본인이 직접 밝힌 MBTI를 찾아라. ⚠️ 검색은 딱 1번만 해라 — 검색어에 이름, " +
+      "태어난 연도(사용자 메시지에 있으면), 'MBTI' 이 세 가지를 함께 넣어서 검색해라(예: " +
+      "'홍길동 1990년생 MBTI'). 이렇게 하면 동명이인도 걸러지고 결과도 한 번에 정확히 나온다. " +
+      "그 한 번의 검색 결과에 명확한 답이 없으면 추가로 더 검색하지 말고 바로 uncertain으로 " +
+      "답해라. 동명이인 주의: 이름이 같은 다른 사람의 정보를 가져오지 마라. 사용자 메시지에 " +
+      "태어난 연도가 있으면 그 연도와 일치하는 사람인지 확인해라. " +
       "확신하는지를 \"match\" 필드로 답해라: 본인이 직접 밝힌 MBTI를 명확히 찾았으면 \"confirmed\", " +
       "찾지 못했거나 확실하지 않으면(추측성 정보, 타인이 추측한 것, 동명이인 가능성 등) " +
       "\"uncertain\"으로 답해라. 절대 추측하거나 지어내지 마라 — 확인 안 되면 mbti는 빈 문자열로 " +
@@ -6495,8 +6447,10 @@ async function _generatePersonMbtiDraft(person, env, opts = {}) {
         max_tokens: 500,
         system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: userPrompt }],
-        // [2026-07-27] 비용 절감 요청 — 프로필 조사(기본 4회)보다 낮은 3회로 제한
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3, cache_control: { type: "ephemeral" } }],
+        // [2026-07-27 수정] 비용 절감 요청 — 3회 → 1회로 축소. 프롬프트에서도 "검색 1번만"으로
+        // 명시해서 간단한 검색 한 번으로 끝내도록 유도(MBTI는 프로필처럼 여러 정보를 종합할
+        // 필요 없이 사실 하나만 확인하면 되는 작업이라 1회로도 충분한 경우가 많음).
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1, cache_control: { type: "ephemeral" } }],
       }),
     });
 
