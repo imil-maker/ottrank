@@ -1,4 +1,4 @@
-// 2026-07-27 rev.6 — admin.js (MBTI 확정/미확정 리스트 조회 엔드포인트 신규 — 50명씩 페이지네이션, admin_keywords.html 서브탭용)
+// 2026-07-27 rev.7 — admin.js (나무위키 크롤링 실패 원인 진단용 — mbti만 반환하던 걸 {mbti,reason}으로 바꿔서 봇차단/생년불일치/MBTI항목없음 등을 mbti-auto-step 응답에 실어 로그로 확인 가능하게)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -4813,15 +4813,15 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       // ③ 나무위키 무료 크롤링
-      const namuMbti = await _fetchNamuwikiMbti(displayName, birthYear);
-      if (namuMbti) {
+      const namuResult = await _fetchNamuwikiMbti(displayName, birthYear);
+      if (namuResult.mbti) {
         await env.DB.prepare(
           `UPDATE persons SET mbti = ?, mbti_checked_at = datetime('now') WHERE tmdb_id = ?`
-        ).bind(namuMbti, candidate.tmdb_id).run();
+        ).bind(namuResult.mbti, candidate.tmdb_id).run();
         return new Response(JSON.stringify({
           ok: true, done: false,
           person: { tmdb_id: candidate.tmdb_id, name: displayName },
-          result: "found", source: "namuwiki", mbti: namuMbti,
+          result: "found", source: "namuwiki", mbti: namuResult.mbti,
         }), { headers });
       }
 
@@ -4842,7 +4842,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         return new Response(JSON.stringify({
           ok: true, done: false,
           person: { tmdb_id: candidate.tmdb_id, name: displayName },
-          result: "found", source: "ai", mbti: aiResult.mbti,
+          result: "found", source: "ai", mbti: aiResult.mbti, namu_reason: namuResult.reason,
         }), { headers });
       }
 
@@ -4852,7 +4852,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, done: false,
         person: { tmdb_id: candidate.tmdb_id, name: displayName },
-        result: "skipped", reason: "ai_uncertain", detail: aiResult.uncertain_reason || "",
+        result: "skipped", reason: "ai_uncertain", detail: aiResult.uncertain_reason || "", namu_reason: namuResult.reason,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
@@ -6416,13 +6416,17 @@ async function _checkWikiMatch(displayName, tmdbYear, env) {
 // 연결된다는 보장이 없음(흔한 이름이면 더 유명한 동명이인 문서로 갈 수 있음). 페이지 안에서
 // "출생 ... YYYY년"을 찾아 우리가 아는 생년과 일치할 때만 신뢰하고, 생년을 못 찾거나
 // 다르면 null 반환(AI 웹서치로 폴백 — 잘못된 값을 저장하느니 못 찾은 걸로 처리하는 게 안전).
+// [2026-07-27 2차 수정] 실패 이유 진단용 — namuwiki에서 거의 못 찾는 문제 원인 파악을 위해,
+// mbti만 반환하던 걸 { mbti, reason } 형태로 바꿔서 "봇 차단인지/생년 매칭 실패인지/MBTI
+// 항목이 원래 없는지"를 mbti-auto-step 응답에 실어 로그로 확인할 수 있게 함.
 async function _fetchNamuwikiMbti(displayName, birthYear) {
   try {
     const resp = await fetch(`https://namu.wiki/w/${encodeURIComponent(displayName)}`, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; OttrankBot/1.0; +https://ottrank.kr)" },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) return { mbti: null, reason: `http_${resp.status}` };
     const html = await resp.text();
+    if (!html || html.length < 500) return { mbti: null, reason: "empty_response" };
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -6432,14 +6436,18 @@ async function _fetchNamuwikiMbti(displayName, birthYear) {
     // 문자열끼리 그대로 비교하면 공백/자릿수 등 사소한 표기 차이로 오판할 수 있어서
     // 숫자로 변환해서 비교(예: " 1993" vs "1993"도 동일하게 처리됨).
     // 우리 쪽에 생년 정보가 없으면(드묾) 검증 자체가 불가능하므로 안전하게 null 반환.
-    if (!birthYear) return null;
+    if (!birthYear) return { mbti: null, reason: "no_birthyear" };
     const birthMatch = text.match(/출생[^0-9]{0,40}(\d{4})년/);
-    if (!birthMatch || parseInt(birthMatch[1], 10) !== parseInt(birthYear, 10)) return null;
+    if (!birthMatch) return { mbti: null, reason: "birth_not_found_on_page" };
+    if (parseInt(birthMatch[1], 10) !== parseInt(birthYear, 10)) {
+      return { mbti: null, reason: `birth_mismatch_${birthMatch[1]}` };
+    }
 
     const m = text.match(/MBTI[^A-Za-z]{0,30}([EI][SN][FT][JP])\b/);
-    return m ? m[1].toUpperCase() : null;
+    if (!m) return { mbti: null, reason: "mbti_field_not_found" };
+    return { mbti: m[1].toUpperCase(), reason: "ok" };
   } catch (e) {
-    return null; // 크롤링 실패해도 AI 웹서치로 넘어가면 되므로 에러를 던지지 않음
+    return { mbti: null, reason: `fetch_error_${e.message}` }; // 크롤링 실패해도 AI 웹서치로 넘어가면 되므로 에러를 던지지 않음
   }
 }
 
