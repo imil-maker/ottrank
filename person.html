@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.11 — person.html (MBTI 칩에 연한 흰색 배경 추가해서 다른 칩과 구분되게 함(.mbti-chip 클래스). [id].js가 SSR로 미리 심어두는 "MBTI 라벨만 있는 칩"과 클래스를 통일해서 스타일이 이어지게 함) -->
+<!-- 2026-07-28 rev.1 — person.html (갤러리 사진 원본(w780)을 페이지 전체 로딩이 끝난 뒤 백그라운드로 미리 다운로드해두는 기능 추가 — 라이트박스에서 다음/이전 넘길 때 버벅임 없이 바로 보이게 함) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1827,9 +1827,32 @@ async function loadPhotoGallery(personId, imgBase){
     }).join('');
     document.getElementById('photoGallerySection').style.display = 'block';
     updateScrollArrows('photoGalleryRow'); // [2026-07-11 추가] 콘텐츠 채워진 뒤 화살표 표시여부 갱신
+
+    // [2026-07-28 신규] 라이트박스용 큰 사이즈(w780) 사진들을 미리 백그라운드로
+    // 다운로드해둠 — 사용자가 실제로 클릭/스와이프해서 넘길 때 버벅이지 않게 하기 위함.
+    // 페이지의 다른 콘텐츠(필모그래피 등) 로딩을 방해하면 안 되므로, "페이지 전체가
+    // 다 로딩된 뒤"에 시작하도록 window의 load 이벤트를 기다림. 이미 load가 끝난
+    // 상태(느린 갤러리 API 응답 등)라면 바로 실행.
+    if(document.readyState === 'complete'){
+      preloadGalleryLargeImages();
+    } else {
+      window.addEventListener('load', preloadGalleryLargeImages, { once:true });
+    }
   }catch(e){
     // 갤러리는 부가 기능 — 실패해도 조용히 무시 (메인 페이지 기능에 영향 없음)
   }
+}
+
+// [2026-07-28 신규] personGalleryImages에 담긴 사진들을 화면에 그리지 않고
+// new Image()로 다운로드만 시켜서 브라우저 캐시에 미리 채워둠(브라우저가 자동으로
+// 처리 — 별도로 저장/관리 안 해도 나중에 같은 주소로 <img>가 요청되면 캐시에서 즉시 나옴).
+function preloadGalleryLargeImages(){
+  if(!personGalleryImages || !personGalleryImages.length) return;
+  personGalleryImages.forEach(p => {
+    if(!p || !p.file_path) return;
+    const img = new Image();
+    img.src = `${IMG_PROFILE_LARGE}${p.file_path}`;
+  });
 }
 
 /* [2026-07-27 신규] 메인사진/갤러리 라이트박스 — _title_detail.html 관련이미지 팝업과 동일한 구조.
