@@ -1,4 +1,4 @@
-/* 2026-07-27 rev.2 — admin-persons.js (네이버 확정/미확정 리스트 조회 엔드포인트 2개 추가 — AI 버전과 동일한 응답 형태로 프론트 재사용 가능하게) */
+/* 2026-07-27 rev.3 — admin-persons.js (네이버 MBTI 검색 정확도 개선 — ① 뉴스 우선/블로그 폴백 ② "배우" 고정 대신 배우/감독 구분 ③ 결과별로 이름 동시언급 확인 후 채택, AI 45명 vs 네이버 40명 비교 시 14명 불일치 발견에 따른 개선) */
 /* ══════════════════════════════════════════════════════════════
    인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
    ─────────────────────────────────────────────────────────────
@@ -84,44 +84,61 @@ async function _checkWikiMatchForMbti(displayName, tmdbYear) {
   }
 }
 
-// [2026-07-27 신규] 네이버 블로그 검색으로 MBTI 패턴 추출 — AI 없이 순수 정규식 매칭.
-// "이름 생년 MBTI" 검색 후 상위 10개 결과(제목+요약)를 합쳐서 "MBTI" 근처 4글자 유형을 찾는다.
-// 네이버 검색결과는 매칭된 단어에 <b> 태그가 붙어서 오므로 태그 제거 후 검사.
-async function _fetchNaverMbti(displayName, birthYear, env) {
+// [2026-07-27 2차 수정] 오탐 개선 3가지 반영:
+// ① 뉴스 검색 우선(한 사람만 다루는 경우가 많아 정확도 ↑) → 못 찾으면 블로그로 폴백
+// ② "배우" 고정 대신 job에 맞게 배우/감독 구분해서 검색어에 반영
+// ③ 결과를 전부 합쳐서 검사하지 않고 결과 하나하나마다 "이름이 같이 언급된 항목에서만"
+//    MBTI를 채택 — 여러 인물이 나열된 글에서 다른 사람 MBTI를 잘못 가져오는 것 방지
+async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
   if (!env.NAVER_DATALAB_CLIENT_ID || !env.NAVER_DATALAB_CLIENT_SECRET) {
     return { mbti: null, reason: "no_naver_key" };
   }
-  try {
-    const query = birthYear ? `${displayName} ${birthYear}년생 MBTI` : `${displayName} MBTI`;
-    const resp = await fetch(
-      `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(query)}&display=10`,
-      {
-        headers: {
-          "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
-          "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
-        },
+  const query = birthYear
+    ? `${displayName} ${jobLabel} ${birthYear}년생 MBTI`
+    : `${displayName} ${jobLabel} MBTI`;
+
+  const stripText = (raw) => raw
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+  // 뉴스 → 블로그 순서로 시도. 각 결과 항목 안에 "이름"과 "MBTI 유형"이 같이 있을 때만 채택.
+  const endpoints = [
+    { path: "news", source: "news" },
+    { path: "blog", source: "blog" },
+  ];
+
+  let lastReason = "mbti_not_found_in_results";
+  for (const ep of endpoints) {
+    try {
+      const resp = await fetch(
+        `https://openapi.naver.com/v1/search/${ep.path}.json?query=${encodeURIComponent(query)}&display=10`,
+        {
+          headers: {
+            "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
+            "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
+          },
+        }
+      );
+      if (!resp.ok) { lastReason = `http_${resp.status}`; continue; }
+      const data = await resp.json();
+      const items = data.items || [];
+      if (!items.length) { lastReason = "no_results"; continue; }
+
+      for (const it of items) {
+        const text = stripText(`${it.title} ${it.description}`);
+        if (!text.includes(displayName)) continue; // 이 결과에 이름이 없으면 스킵(다른 사람 글일 가능성)
+        const m = text.match(/MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/i);
+        if (m) return { mbti: m[1].toUpperCase(), reason: `ok_${ep.source}` };
       }
-    );
-    if (!resp.ok) return { mbti: null, reason: `http_${resp.status}` };
-    const data = await resp.json();
-    const items = data.items || [];
-    if (!items.length) return { mbti: null, reason: "no_results" };
-
-    // 제목+요약을 전부 이어붙여서 하나의 텍스트로 만들고, HTML 태그/엔티티 제거
-    const combined = items.map((it) => `${it.title} ${it.description}`).join(" ");
-    const text = combined
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">");
-
-    const m = text.match(/MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/i);
-    if (!m) return { mbti: null, reason: "mbti_not_found_in_results" };
-    return { mbti: m[1].toUpperCase(), reason: "ok" };
-  } catch (e) {
-    return { mbti: null, reason: `fetch_error_${e.message}` };
+      lastReason = "mbti_not_found_in_results";
+    } catch (e) {
+      lastReason = `fetch_error_${e.message}`;
+    }
   }
+  return { mbti: null, reason: lastReason };
 }
 
 export async function handleAdminPersons(path, request, env, url, headers) {
@@ -134,7 +151,7 @@ export async function handleAdminPersons(path, request, env, url, headers) {
     }
     try {
       const candidate = await env.DB.prepare(`
-        SELECT tmdb_id, name, name_ko, birthday, popularity
+        SELECT tmdb_id, name, name_ko, job, birthday, popularity
         FROM persons
         WHERE korean_confirmed = 1
           AND mbti_naver_checked_at IS NULL
@@ -147,6 +164,7 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       }
 
       const displayName = candidate.name_ko || candidate.name;
+      const jobLabel = candidate.job === "direct" ? "감독" : "배우";
       let birthYear = "";
       if (candidate.birthday && /^\d{4}/.test(candidate.birthday)) {
         birthYear = candidate.birthday.slice(0, 4);
@@ -168,7 +186,7 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       // ③ 네이버 검색 API로 MBTI 패턴 추출(무료, AI 없음)
       // 초당 요청 제한(10회) 방어용 짧은 대기
       await new Promise((r) => setTimeout(r, 300));
-      const naverResult = await _fetchNaverMbti(displayName, birthYear, env);
+      const naverResult = await _fetchNaverMbti(displayName, birthYear, jobLabel, env);
 
       if (naverResult.mbti) {
         await env.DB.prepare(
