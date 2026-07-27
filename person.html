@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.10 — person.html (출생지 옆에 MBTI 칩 추가 — 나이/성별/출생지와 같은 스타일(작은 회색 라벨+값). person-wiki.js manual.mbti 사용, 값 없거나 "공개안함"(UNDISCLOSED)이면 백엔드에서 이미 null로 내려주므로 프론트는 값 존재 여부만 확인) -->
+<!-- 2026-07-27 rev.11 — person.html (MBTI 칩에 연한 흰색 배경 추가해서 다른 칩과 구분되게 함(.mbti-chip 클래스). [id].js가 SSR로 미리 심어두는 "MBTI 라벨만 있는 칩"과 클래스를 통일해서 스타일이 이어지게 함) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -403,6 +403,8 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   padding:5px 12px;border-radius:20px;border:.5px solid var(--border);
   background:var(--bg2);font-size:13px;color:var(--muted2);font-family:var(--font-mono)}
 .person-meta-chip .chip-label{color:var(--muted);font-size:12px;margin-right:2px}
+/* [2026-07-27 신규] MBTI 칩 — 다른 칩과 구분되게 연한 흰색 배경 */
+.person-meta-chip.mbti-chip{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:var(--text)}
 
 /* 약력 */
 .bio-section{margin-bottom:0}
@@ -1737,7 +1739,7 @@ function renderMetaChips(meta){
   // [2026-07-27 신규] MBTI — persons.mbti_naver, 없거나 "공개안함" 확정인 경우는
   // person-wiki.js가 애초에 manual.mbti를 null로 내려주므로 여기선 값 존재 여부만 체크.
   if(meta.mbti){
-    chips.push(`<span class="person-meta-chip">
+    chips.push(`<span class="person-meta-chip mbti-chip">
       <span class="chip-label">MBTI</span>${meta.mbti}
     </span>`);
   }
