@@ -1,0 +1,39 @@
+<!-- 2026-07-27 rev.1 — test_tving_screenshot.yml (티빙 접속 테스트 전용, 수동 실행만) -->
+<!-- 기존 daily_crawl.yml과 완전히 별개 파일. 자동 크론 없음, Actions 탭에서 버튼으로만 실행. -->
+
+name: TVING 접속 테스트 (스크린샷)
+
+on:
+  workflow_dispatch:   # Actions 탭에서 수동으로만 실행됨. 자동 스케줄 없음.
+
+jobs:
+  test-tving-access:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Run TVING access test
+        run: python test_tving_screenshot.py
+
+      # 성공/실패 상관없이 스크린샷이 생성됐으면 결과물로 업로드
+      # (Actions 실행 결과 페이지 하단 "Artifacts"에서 다운로드 가능)
+      - name: Upload screenshot as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tving-main-screenshot
+          path: tving_main.png
+          if-no-files-found: warn
