@@ -1,4 +1,9 @@
-// 2026-07-26 rev.1 — track.js (봇 이름까지 판별해서 blob5에 기록 — 네이버/구글 등 어느 봇인지 관리자 화면에서 구분 가능하게)
+// 2026-07-27 rev.2 — track.js (봇 판별에서 "네이버" 일반 패턴 삭제 — User-Agent에 "naver"라는
+// 글자만 있으면 무조건 봇으로 잡던 패턴이라, 네이버 앱 인앱브라우저로 접속한 실제 사람까지
+// 봇으로 잘못 판별되고 있었음. 진짜 네이버 크롤러는 바로 위 "네이버(Yeti)" 패턴이 이미 정확히
+// 잡고 있어서, 이 줄을 지워도 실제 봇을 놓치지 않음. 이 배포 이후에 새로 기록되는 방문부터
+// 정상적으로 "봇 아님" 처리되어 실시간 순위/조회수 집계에 포함됨 — 이미 기록된 과거 데이터는
+// 기록 당시 값이 그대로 남아있어(Analytics Engine 특성상 수정 불가) 소급 반영은 안 됨)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
@@ -50,7 +55,6 @@ const ALLOWED_TYPES = [...ID_REQUIRED_TYPES, ...Object.keys(PAGE_META)];
 const NAMED_BOT_PATTERNS = [
   { name: "Googlebot",      re: /googlebot/i },
   { name: "네이버(Yeti)",    re: /yeti/i },
-  { name: "네이버",          re: /naver/i },
   { name: "다음",            re: /daumoa/i },
   { name: "Bing",            re: /bingbot/i },
   { name: "Yandex",          re: /yandex/i },
