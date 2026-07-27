@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.9 — person.html ("약력 정보가 없습니다." 안내문구 삭제 — 문구가 있으면 마치 페이지 전체에 정보가 없는 것처럼 보인다는 피드백으로, 약력이 없을 때는 문구 대신 그 자리 공간까지 통째로 숨김(display:none) 처리) -->
+<!-- 2026-07-27 rev.10 — person.html (출생지 옆에 MBTI 칩 추가 — 나이/성별/출생지와 같은 스타일(작은 회색 라벨+값). person-wiki.js manual.mbti 사용, 값 없거나 "공개안함"(UNDISCLOSED)이면 백엔드에서 이미 null로 내려주므로 프론트는 값 존재 여부만 확인) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1321,10 +1321,12 @@ async function loadWikiTest(personId){
         deathday: tmdbMeta.deathday, // 사망일은 TMDB 전용 — 수동 보완 대상 아님
         gender: manual.gender || tmdbMeta.gender || null,
         place_of_birth: manual.place_of_birth || tmdbMeta.place_of_birth || '',
+        mbti: manual.mbti || tmdbMeta.mbti || '', // [2026-07-27 신규] TMDB엔 없는 값이라 사실상 항상 manual.mbti
       };
       const changed = merged.birthday !== tmdbMeta.birthday ||
                        merged.gender !== tmdbMeta.gender ||
-                       merged.place_of_birth !== tmdbMeta.place_of_birth;
+                       merged.place_of_birth !== tmdbMeta.place_of_birth ||
+                       merged.mbti !== tmdbMeta.mbti;
       if(changed) renderMetaChips(merged);
 
       // [2026-07-27 수정] 표시 이름을 DB 우선(name_ko)으로 통일 — 화면 이름이 원래
@@ -1684,7 +1686,7 @@ function calcAge(birthday, deathday){
 
 /* [2026-07-20 신규] TMDB 원본 메타값 보관 — 위키 로딩 시점에 persons 테이블
    수동입력값(manual)으로 빈 항목만 보완하기 위해 필요 (아래 loadWikiTest 참고) */
-let tmdbMeta = { birthday: '', deathday: '', gender: null, place_of_birth: '' };
+let tmdbMeta = { birthday: '', deathday: '', gender: null, place_of_birth: '', mbti: '' };
 
 /* [2026-07-22 rev.11 수정] 추모 국화 — 아래 둘 중 하나라도 참이면 노출:
    ① data.deathday(TMDB 사망일자)가 실제 날짜 형식으로 존재
@@ -1730,6 +1732,13 @@ function renderMetaChips(meta){
   if(meta.place_of_birth){
     chips.push(`<span class="person-meta-chip">
       <span class="chip-label">출생지</span>${meta.place_of_birth}
+    </span>`);
+  }
+  // [2026-07-27 신규] MBTI — persons.mbti_naver, 없거나 "공개안함" 확정인 경우는
+  // person-wiki.js가 애초에 manual.mbti를 null로 내려주므로 여기선 값 존재 여부만 체크.
+  if(meta.mbti){
+    chips.push(`<span class="person-meta-chip">
+      <span class="chip-label">MBTI</span>${meta.mbti}
     </span>`);
   }
   document.getElementById('personMetaRow').innerHTML = chips.join('');
@@ -2099,6 +2108,7 @@ async function initPage(){
       deathday: data.deathday || '',
       gender: data.gender || null,
       place_of_birth: data.place_of_birth || '',
+      mbti: '', // [2026-07-27 신규] TMDB엔 없는 값 — 항상 빈 값으로 시작(위키 데이터 도착 시 loadWikiTest가 채움)
     };
     renderMetaChips(tmdbMeta);
     renderMemorialFlower(tmdbMeta.deathday, null); // [2026-07-22 rev.11] 최초엔 TMDB 사망일만 확인, manual 배지는 loadWikiTest에서 도착 시 재평가
