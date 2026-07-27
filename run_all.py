@@ -1,12 +1,15 @@
+# 2026-07-27 rev.1 — run_all.py (티빙/키노라이츠 크롤링 완전 삭제)
 """
 전체 크롤러 실행 v2
 ────────────────────────────────────────────────────────────────
 실행 순서:
   1. sync_works.py — D1 works + ott_categories → 로컬 동기화 (⚠️ 삭제 금지!)
   2. FlixPatrol 4개 OTT 크롤링 (넷플릭스, 디즈니+, 웨이브, 쿠팡플레이)
-  3. 티빙 크롤링 (키노라이츠, 기존 유지)
-  4. 박스오피스 크롤링 (기존 유지)
-  5. export_to_sql.py — 로컬 rankings.db → D1 업로드용 SQL 변환
+  3. 박스오피스 크롤링 (기존 유지)
+  4. export_to_sql.py — 로컬 rankings.db → D1 업로드용 SQL 변환
+
+  ※ 티빙(키노라이츠) 크롤링은 2026-07-27부로 삭제됨.
+    사유: 키노라이츠 데이터가 실제 티빙 순위와 불일치, 대체 소스 없음 → 수동 입력으로 전환.
 
 배치 처리:
   - OTT별 크롤링 결과를 모아서 Claude API 1회 호출
@@ -53,15 +56,6 @@ async def run_netflix_tudum(conn):
         print(f"  [netflix_world] 오류: {e}")
 
 
-async def run_tving(conn):
-    """티빙 크롤링 (키노라이츠, 기존 방식 유지)"""
-    try:
-        from crawlers.tving import run as tving_run
-        await tving_run(conn)
-    except Exception as e:
-        print(f"  [티빙] 오류: {e}")
-
-
 async def run_boxoffice(conn):
     """박스오피스 크롤링 (기존 방식 유지)"""
     try:
@@ -87,12 +81,8 @@ async def main():
         print("\n[2단계] Netflix Tudum 크롤링 시작...")
         await run_netflix_tudum(conn)
 
-        # 3. 티빙 (기존 유지)
-        print("\n[3단계] 티빙 크롤링 시작...")
-        await run_tving(conn)
-
-        # 4. 박스오피스 (기존 유지)
-        print("\n[4단계] 박스오피스 크롤링 시작...")
+        # 3. 박스오피스 (기존 유지)
+        print("\n[3단계] 박스오피스 크롤링 시작...")
         await run_boxoffice(conn)
 
     finally:
