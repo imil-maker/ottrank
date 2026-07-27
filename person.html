@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-27 rev.2 — person.html (메인사진+갤러리 라이트박스 신규 — 작품페이지 관련이미지 팝업과 동일 방식: 배경/이미지/✕ 클릭 시 닫힘, 화살표+스와이프+키보드로 넘기기) -->
+<!-- 2026-07-27 rev.3 — person.html (라이트박스 이미지 넘길 때 페이드 전환 추가 — 처음 열 때는 바로 표시, 화살표/스와이프/키보드로 넘길 때만 부드럽게 전환) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -345,7 +345,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   padding:40px 70px;cursor:pointer;
 }
 .img-lightbox.show{display:flex}
-.img-lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);touch-action:pan-y}
+.img-lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);touch-action:pan-y;transition:opacity .2s ease}
 .lightbox-close{
   position:fixed;top:16px;right:20px;width:40px;height:40px;border-radius:50%;
   background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.18);color:#fff;
@@ -1790,12 +1790,23 @@ function personLightboxNav(e, dir){
   const total = personGalleryImages.length;
   if(!total) return;
   personLightboxIndex = (personLightboxIndex + dir + total) % total; // 순환
-  updatePersonLightboxImage();
+  updatePersonLightboxImage(true); // 넘길 때만 페이드
 }
-function updatePersonLightboxImage(){
+function updatePersonLightboxImage(withFade){
   const img = personGalleryImages[personLightboxIndex];
   if(!img) return;
-  document.getElementById('personLightboxImg').src = IMG_PROFILE_LARGE + img.file_path;
+  const imgEl = document.getElementById('personLightboxImg');
+  const newSrc = IMG_PROFILE_LARGE + img.file_path;
+  if(withFade){
+    imgEl.style.opacity = '0';
+    setTimeout(() => {
+      imgEl.src = newSrc;
+      imgEl.style.opacity = '1';
+    }, 200); // CSS transition 시간(.2s)과 맞춤
+  } else {
+    imgEl.src = newSrc;
+    imgEl.style.opacity = '1';
+  }
   const showArrows = personGalleryImages.length > 1;
   document.getElementById('personLightboxPrev').style.display = showArrows ? '' : 'none';
   document.getElementById('personLightboxNext').style.display = showArrows ? '' : 'none';
