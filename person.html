@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-26 rev.1 — person.html (korean_confirmed 국적분기 추가 — 한국인은 기존로직 그대로, 외국인/미확인은 위키/TMDB 기본+100자미만시 필모문장 보충) -->
+<!-- 2026-07-27 rev.2 — person.html (메인사진+갤러리 라이트박스 신규 — 작품페이지 관련이미지 팝업과 동일 방식: 배경/이미지/✕ 클릭 시 닫힘, 화살표+스와이프+키보드로 넘기기) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -334,6 +334,42 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
   border:1px solid var(--border);cursor:pointer;background:var(--bg3);transition:border-color .15s}
 .photo-gallery-thumb:hover{border-color:var(--info)}
 .photo-gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* [2026-07-27 신규] 메인사진/갤러리 라이트박스 — _title_detail.html 관련이미지 팝업과 동일한 방식.
+   배경/이미지/✕ 클릭 시 닫힘, 화살표는 stopPropagation으로 닫힘 동작에서 제외되어 넘기기만 함.
+   모바일 스와이프(좌우 50px 이상)로도 넘길 수 있음. */
+.person-photo{cursor:pointer}
+.img-lightbox{
+  display:none;position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,0,.92);align-items:center;justify-content:center;
+  padding:40px 70px;cursor:pointer;
+}
+.img-lightbox.show{display:flex}
+.img-lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);touch-action:pan-y}
+.lightbox-close{
+  position:fixed;top:16px;right:20px;width:40px;height:40px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.18);color:#fff;
+  font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);z-index:1001;transition:background .15s;
+}
+.lightbox-close:hover{background:rgba(255,255,255,.18)}
+.lightbox-arrow{
+  position:fixed;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.18);color:#fff;
+  font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);z-index:1001;transition:background .15s;
+}
+.lightbox-arrow:hover{background:rgba(255,255,255,.18)}
+.lightbox-arrow-left{left:20px}
+.lightbox-arrow-right{right:20px}
+@media(max-width:640px){
+  .img-lightbox{padding:20px}
+  .lightbox-close{top:10px;right:12px;width:34px;height:34px;font-size:16px}
+  .lightbox-arrow{width:36px;height:36px;font-size:18px}
+  .lightbox-arrow-left{left:8px}
+  .lightbox-arrow-right{right:8px}
+}
+
 
 /* [2026-07-11 추가] 좌우 스크롤 화살표 — PC 전용(대표작/사진갤러리 공통).
    모바일은 스와이프로 충분히 잘 동작하고 있어서 의도적으로 미적용(하단 미디어쿼리에서 숨김). */
@@ -676,7 +712,7 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
                사진 우측하단에 여백없이 겹쳐서 표시. 반드시 data.deathday(TMDB 사망일자)가
                실제로 있을 때만 노출 — JS renderMemorialFlower()에서 엄격히 체크함. -->
           <div class="person-photo-frame">
-            <div class="person-photo" id="personPhoto">
+            <div class="person-photo" id="personPhoto" onclick="handlePersonPhotoClick()">
               <div class="person-photo-ph" id="personPhotoPh">?</div>
             </div>
             <img class="person-memorial-flower" id="personMemorialFlower"
@@ -733,6 +769,14 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
       <div class="photo-gallery-row" id="photoGalleryRow"></div>
       <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('photoGalleryRow',1)" aria-label="다음 사진">›</button>
     </div>
+  </div>
+
+  <!-- [2026-07-27 신규] 메인사진/갤러리 라이트박스 -->
+  <div class="img-lightbox" id="personImgLightbox" onclick="handlePersonLightboxBgClick()">
+    <button type="button" class="lightbox-close" onclick="closePersonLightbox()">✕</button>
+    <button type="button" class="lightbox-arrow lightbox-arrow-left" id="personLightboxPrev" onclick="personLightboxNav(event,-1)">‹</button>
+    <img id="personLightboxImg" src="" alt="사진">
+    <button type="button" class="lightbox-arrow lightbox-arrow-right" id="personLightboxNext" onclick="personLightboxNav(event,1)">›</button>
   </div>
 
   <!-- [2026-07-19 신규, 2026-07-20 재배치] 전체이력 — PC 전용(왼쪽 컬럼, 사진→갤러리 다음).
@@ -853,6 +897,7 @@ function trackPageView(type, id){
 }
 const IMG        = 'https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-18] 캐싱 프록시로 변경
 const IMG_PROFILE= 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-18] 캐싱 프록시로 변경
+const IMG_PROFILE_LARGE = 'https://poster.ottrank.kr/tmdb-img/w780'; // [2026-07-27 신규] 라이트박스(사진 크게 보기)용 고해상도
 
 /* [2026-07-11 추가] 플랫폼 코드 → 한글 라벨 (랭킹 배지용) */
 const PLATFORM_LABELS = {
@@ -1690,19 +1735,101 @@ async function loadPhotoGallery(personId, imgBase){
     // 중복이라 갤러리 자체를 안 보여줌
     if(profiles.length <= 1) return;
 
+    // [2026-07-27 신규] 라이트박스용 전체 이미지 목록 — 메인사진이 갤러리 목록에 이미
+    // 포함돼 있으면 그대로, 없으면(메인사진과 갤러리가 다른 소스일 수 있어서) 0번에 추가
+    personGalleryImages = personMainPhotoPath && !profiles.some(p => p.file_path === personMainPhotoPath)
+      ? [{ file_path: personMainPhotoPath }, ...profiles]
+      : profiles;
+
     const row = document.getElementById('photoGalleryRow');
     row.classList.toggle('few-items', profiles.length <= 2); // [2026-07-11 추가]
-    row.innerHTML = profiles.map(p => `
-      <div class="photo-gallery-thumb" onclick="document.getElementById('personPhoto').innerHTML='<img src=&quot;${imgBase}${p.file_path}&quot; alt=&quot;사진&quot;>'">
+    row.innerHTML = profiles.map((p, i) => {
+      // 라이트박스 배열에서의 실제 인덱스를 찾음(메인사진이 0번으로 추가됐을 수 있어서 그냥 i가 아님)
+      const galleryIdx = personGalleryImages.findIndex(g => g.file_path === p.file_path);
+      return `
+      <div class="photo-gallery-thumb" onclick="openPersonLightbox(${galleryIdx})">
         <img src="${imgBase}${p.file_path}" alt="사진" loading="lazy">
       </div>
-    `).join('');
+    `;
+    }).join('');
     document.getElementById('photoGallerySection').style.display = 'block';
     updateScrollArrows('photoGalleryRow'); // [2026-07-11 추가] 콘텐츠 채워진 뒤 화살표 표시여부 갱신
   }catch(e){
     // 갤러리는 부가 기능 — 실패해도 조용히 무시 (메인 페이지 기능에 영향 없음)
   }
 }
+
+/* [2026-07-27 신규] 메인사진/갤러리 라이트박스 — _title_detail.html 관련이미지 팝업과 동일한 구조.
+   메인사진 클릭 시엔 아직 갤러리를 못 불러왔을 수도 있어서(비동기), 그때는 메인사진 하나만
+   보여주는 임시 배열로 열고, 화살표는 이미지가 1장뿐이면 자동으로 숨김. */
+let personGalleryImages = [];
+let personMainPhotoPath = '';
+let personLightboxIndex = 0;
+
+function handlePersonPhotoClick(){
+  if(!personGalleryImages.length && personMainPhotoPath){
+    personGalleryImages = [{ file_path: personMainPhotoPath }];
+  }
+  openPersonLightbox(0);
+}
+
+function openPersonLightbox(index){
+  if(!personGalleryImages.length) return;
+  personLightboxIndex = index;
+  updatePersonLightboxImage();
+  document.getElementById('personImgLightbox').classList.add('show');
+  document.body.style.overflow = 'hidden'; // 팝업 열린 동안 뒤 배경 스크롤 방지
+}
+function closePersonLightbox(){
+  document.getElementById('personImgLightbox').classList.remove('show');
+  document.getElementById('personLightboxImg').src = '';
+  document.body.style.overflow = '';
+}
+function personLightboxNav(e, dir){
+  e.stopPropagation(); // 화살표 클릭은 팝업이 안 닫히고 이미지만 넘어가야 함
+  const total = personGalleryImages.length;
+  if(!total) return;
+  personLightboxIndex = (personLightboxIndex + dir + total) % total; // 순환
+  updatePersonLightboxImage();
+}
+function updatePersonLightboxImage(){
+  const img = personGalleryImages[personLightboxIndex];
+  if(!img) return;
+  document.getElementById('personLightboxImg').src = IMG_PROFILE_LARGE + img.file_path;
+  const showArrows = personGalleryImages.length > 1;
+  document.getElementById('personLightboxPrev').style.display = showArrows ? '' : 'none';
+  document.getElementById('personLightboxNext').style.display = showArrows ? '' : 'none';
+}
+
+// 모바일 스와이프(좌우 50px 이상)로 넘기기 — 탭은 닫기, 스와이프는 넘기기로 구분
+let personLightboxSwiping = false, personLightboxTouchX = 0;
+const personLightboxEl = document.getElementById('personImgLightbox');
+if(personLightboxEl){
+  personLightboxEl.addEventListener('touchstart', (e) => {
+    personLightboxTouchX = e.touches[0].clientX;
+  }, { passive: true });
+  personLightboxEl.addEventListener('touchend', (e) => {
+    const endX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : personLightboxTouchX;
+    const deltaX = endX - personLightboxTouchX;
+    if(Math.abs(deltaX) > 50){
+      personLightboxSwiping = true;
+      personLightboxNav(e, deltaX < 0 ? 1 : -1); // 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전
+      setTimeout(() => { personLightboxSwiping = false; }, 300);
+    }
+  });
+}
+function handlePersonLightboxBgClick(){
+  if(personLightboxSwiping){ personLightboxSwiping = false; return; }
+  closePersonLightbox();
+}
+// 키보드 지원 — ESC 닫기, 좌우 방향키 넘기기(팝업 열려있을 때만)
+document.addEventListener('keydown', (e) => {
+  const lb = document.getElementById('personImgLightbox');
+  if(!lb || !lb.classList.contains('show')) return;
+  if(e.key === 'Escape') closePersonLightbox();
+  else if(e.key === 'ArrowLeft') personLightboxNav(e, -1);
+  else if(e.key === 'ArrowRight') personLightboxNav(e, 1);
+});
 
 /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 어드민이 "인물페이지 설정"에서 켜놓은 카테고리
    1개를 노출. 이 배우/인물과 무관하게 방문객 전원에게 보이는 유입 장치라, 사진갤러리와
@@ -1850,6 +1977,7 @@ async function initPage(){
     if(data.profile_path){
       document.getElementById('personPhoto').innerHTML =
         `<img src="${IMG_PROFILE}${data.profile_path}" alt="${displayName}" loading="eager">`;
+      personMainPhotoPath = data.profile_path; // [2026-07-27 신규] 라이트박스용 — 메인사진을 갤러리 0번으로 사용
     } else {
       document.getElementById('personPhotoPh').textContent = (displayName||'?')[0];
     }
