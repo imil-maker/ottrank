@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.2 — functions/person/[id].js (korean_confirmed 국적분기 추가 — 한국인은 기존로직 그대로, 외국인/미확인은 위키/TMDB 기본+100자미만시 필모문장 보충) */
+/* 2026-07-27 rev.3 — functions/person/[id].js (SEO 이름을 name_ko 우선으로 변경 — TMDB 자동탐색 이름보다 우리 DB 값 우선, person.html 화면 이름과 동일한 우선순위로 통일) */
 /* functions/person/[id].js - 오뜨랑 인물 상세 페이지 라우팅 + SSR SEO */
 
 const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
@@ -43,7 +43,7 @@ export async function onRequest(context) {
         /* 한국어 이름 추출 */
         const alsoKnown = data.also_known_as || [];
         const koName    = alsoKnown.find(n => /[가-힣]/.test(n)) || '';
-        const name      = koName || data.name || '';
+        let   name      = koName || data.name || '';
         const enName    = koName ? data.name : '';
 
         /* 대표 직업 (배우/감독) */
@@ -59,15 +59,18 @@ export async function onRequest(context) {
            - 외국인/미확인(0 또는 NULL): 위키 있으면 위키, 없으면 TMDB 약력을 기본으로 삼고,
              그게 100자 미만으로 부실할 때만 필모문장을 보충으로 붙임(한국인과 동일한
              "부실할 때만 보충" 규칙, 재료만 다름). TMDB 약력이 이미 충분히 좋으면
-             필모문장 없이 TMDB 약력 그대로 노출됨. */
+             필모문장 없이 TMDB 약력 그대로 노출됨.
+           [2026-07-27 추가] p.name_ko도 같이 조회 — TMDB 자동탐색 이름보다 우리 DB
+           name_ko를 우선시함(예명으로 알려진 인물 등, 화면 person.html과 동일한 우선순위). */
         if (env.DB) {
           try {
             const wikiRow = await env.DB.prepare(
-              `SELECT w.bio_summary, w.auto_filmography_text, p.korean_confirmed
+              `SELECT w.bio_summary, w.auto_filmography_text, p.korean_confirmed, p.name_ko
                FROM persons p LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
                WHERE p.tmdb_id = ?`
             ).bind(personId).first();
 
+            if (wikiRow && wikiRow.name_ko) name = wikiRow.name_ko; // DB 이름 우선(있을 때만)
             if (wikiRow) {
               const manualBio = (wikiRow.bio_summary || '').trim();
               const autoRaw   = (wikiRow.auto_filmography_text || '').trim();
