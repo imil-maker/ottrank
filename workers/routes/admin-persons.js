@@ -1,4 +1,4 @@
-/* 2026-07-27 rev.9 — admin-persons.js (연도 일치 확인을 공백 허용 정규식으로 변경 — 태그 제거 과정에서 숫자 사이에 공백이 껴서 못 찾는 문제 방지) */
+/* 2026-07-27 rev.10 — admin-persons.js ("공개안함/비공개/모름" 등을 다수결 후보에 정식 포함 — 이런 부정 표현을 만나면 그 즉시 UNDISCLOSED로 확정 판정하고 뒤쪽 상관없는 글자를 계속 찾아 헤매지 않게 함(박찬욱 오탐 사례 수정). 나무위키에서 "공개안함" 발견 시 블로그 단계로 안 넘어가고 바로 미확정 처리) */
 /* ══════════════════════════════════════════════════════════════
    인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
    ─────────────────────────────────────────────────────────────
@@ -104,9 +104,31 @@ async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 
-  const mbtiRegex = /MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/i;
+  // [2026-07-27 9차 수정] "MBTI (공개안함)" 같은 문장을 만나면, 정규식이 그걸 건너뛰고
+  // 텍스트 뒤쪽의 상관없는 4글자를 잘못 주워오는 문제가 실사용 중 확인됨(관리자 발견,
+  // 박찬욱 사례). "MBTI" 등장 지점마다 순서대로 검사해서 ① "공개안함/비공개/모름" 같은
+  // 명시적 부정 표현을 먼저 찾고, 있으면 그 즉시 UNDISCLOSED로 확정 판정(뒤쪽 다른 글자를
+  // 계속 찾아 헤매지 않음) ② 없으면 10자 이내에 유효한 4글자 유형이 있는지 확인.
+  // 둘 다 아니면 이 "MBTI" 등장은 무시하고 다음 등장으로 넘어감(애매한 신호는 집계 안 함).
+  // ⚠️ "공개안함"도 다수결 후보에 정식으로 포함됨 — 실제로 "MBTI 없음"이라고 밝힌 사람에
+  // 대해, 엉뚱한 글자를 억지로 채택하는 것보다 "공개안함"이 다수면 그게 곧 정답임(관리자 판단).
+  const negativePattern = "공개안함|비공개|밝히지\\s*않|알려지지\\s*않|안\\s*밝힘|불명|모름";
+  const extractMbtiSignal = (body) => {
+    const mbtiIdxRe = /MBTI/gi;
+    let idxMatch;
+    while ((idxMatch = mbtiIdxRe.exec(body)) !== null) {
+      const after = body.slice(idxMatch.index + 4, idxMatch.index + 4 + 20);
+      const negMatch = after.match(new RegExp(`^[^A-Za-z가-힣]{0,10}(${negativePattern})`));
+      if (negMatch) return "UNDISCLOSED";
+      const typeMatch = after.match(/^[^A-Za-z]{0,10}([EI][SN][FT][JP])\b/i);
+      if (typeMatch) return typeMatch[1].toUpperCase();
+    }
+    return null;
+  };
 
-  // ① 나무위키(웹문서) — 이름 언급 위치 기준 앞뒤 40자 이내에 MBTI가 있을 때만 채택
+  // ① 나무위키(웹문서) — 이름 언급 위치 기준 앞뒤 40자 이내에 MBTI 신호가 있을 때만 채택.
+  // 나무위키가 "공개안함"이라고 명시했으면 그 자체를 확정 답으로 보고 블로그 단계로 안 넘어감
+  // (제일 신뢰도 높은 출처가 이미 "정보 없음"을 확인해준 것이므로).
   try {
     const resp = await fetch(
       `https://openapi.naver.com/v1/search/webkr.json?query=${encodeURIComponent(namuQuery)}&display=10`,
@@ -122,17 +144,15 @@ async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
       for (const it of (data.items || [])) {
         const text = stripText(`${it.title} ${it.description}`);
         if (!text.includes(displayName)) continue;
-        const pattern = /MBTI[^A-Za-z]{0,15}([EI][SN][FT][JP])\b/gi;
-        let mm;
-        while ((mm = pattern.exec(text)) !== null) {
-          let searchFrom = 0, closeEnough = false;
-          while (true) {
-            const idx = text.indexOf(displayName, searchFrom);
-            if (idx === -1) break;
-            if (Math.abs(idx - mm.index) <= 40) { closeEnough = true; break; }
-            searchFrom = idx + displayName.length;
+        const nameIdx = text.indexOf(displayName);
+        const signal = extractMbtiSignal(text);
+        if (signal) {
+          // 신호가 이름 근처(40자 이내)에서 나온 게 맞는지 재확인
+          const mbtiWordIdx = text.indexOf("MBTI");
+          if (mbtiWordIdx !== -1 && Math.abs(mbtiWordIdx - nameIdx) <= 40) {
+            if (signal === "UNDISCLOSED") return { mbti: null, reason: "namuwiki_undisclosed" };
+            return { mbti: signal, reason: "ok_namuwiki" };
           }
-          if (closeEnough) return { mbti: mm[1].toUpperCase(), reason: "ok_namuwiki" };
         }
       }
     }
@@ -155,37 +175,40 @@ async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
     if (!items.length) return { mbti: null, reason: "no_results" };
 
     // 제목에 "이름"+"프로필"이 둘 다 있고, 본문에 태어난 연도까지 같이 언급된 항목만 후보로
-    // 모음(postdate: YYYYMMDD 문자열). [2026-07-27 7차 수정] 동명이인(일반인 등)의 "프로필" 글이
-    // 그냥 이름만 같아서 잘못 채택되는 걸 막기 위해 연도 확인 추가(생년월일 전체 아니라 연도만).
-    // 우리 쪽에 birthYear 정보가 없으면(드묾) 검증 자체가 불가능하므로 그 경우만 조건 생략.
+    // 모음(postdate: YYYYMMDD 문자열). 동명이인(일반인 등)의 "프로필" 글이 그냥 이름만 같아서
+    // 잘못 채택되는 걸 막기 위해 연도 확인(생년월일 전체 아니라 연도만). birthYear 정보가
+    // 없으면(드묾) 검증 자체가 불가능하므로 그 경우만 조건 생략.
     const candidates = [];
     for (const it of items) {
       const title = stripText(it.title);
       if (!title.includes(displayName) || !title.includes("프로필")) continue;
       const body = stripText(`${it.title} ${it.description}`);
-      // [2026-07-27 8차 수정] 태그 제거 과정에서 <b>가 연도 숫자 중간에 걸쳐있으면
-      // "199 3"처럼 공백이 껴서 그냥 문자열 비교(includes)로는 못 찾는 경우가 있음 —
-      // 연도 숫자 4개 사이에 공백이 있어도 같은 연도로 인식하도록 정규식으로 비교.
+      // 태그 제거 과정에서 <b>가 연도 숫자 중간에 걸쳐있으면 "199 3"처럼 공백이 껴서
+      // 그냥 문자열 비교(includes)로는 못 찾는 경우가 있음 — 공백 허용 정규식으로 비교.
       const birthYearPattern = birthYear ? new RegExp(birthYear.split("").join("\\s*")) : null;
       if (birthYearPattern && !birthYearPattern.test(body)) continue; // 연도가 같이 언급 안 되면 동명이인 의심, 스킵
-      const m = body.match(mbtiRegex);
-      if (m) candidates.push({ mbti: m[1].toUpperCase(), postdate: it.postdate || "" });
+      const signal = extractMbtiSignal(body);
+      if (signal) candidates.push({ mbti: signal, postdate: it.postdate || "" });
     }
     if (!candidates.length) return { mbti: null, reason: "profile_title_not_found" };
 
-    // 다수결 — 가장 많이 나온 값. 동점이면 그 값들 중 postdate가 가장 최근인 쪽 채택.
+    // 다수결 — 가장 많이 나온 값(UNDISCLOSED 포함). 동점이면 postdate가 가장 최근인 쪽 채택.
     const voteCount = {};
     candidates.forEach((c) => { voteCount[c.mbti] = (voteCount[c.mbti] || 0) + 1; });
     const maxVotes = Math.max(...Object.values(voteCount));
     const tied = Object.keys(voteCount).filter((k) => voteCount[k] === maxVotes);
 
+    let winner;
     if (tied.length === 1) {
-      return { mbti: tied[0], reason: "ok_blog_profile" };
+      winner = tied[0];
+    } else {
+      const tiedCandidates = candidates.filter((c) => tied.includes(c.mbti));
+      tiedCandidates.sort((a, b) => (b.postdate || "").localeCompare(a.postdate || ""));
+      winner = tiedCandidates[0].mbti;
     }
-    // 동점 — 해당 값들 중 가장 최근 postdate를 가진 후보의 값 채택
-    const tiedCandidates = candidates.filter((c) => tied.includes(c.mbti));
-    tiedCandidates.sort((a, b) => (b.postdate || "").localeCompare(a.postdate || ""));
-    return { mbti: tiedCandidates[0].mbti, reason: "ok_blog_profile_tiebreak" };
+
+    if (winner === "UNDISCLOSED") return { mbti: null, reason: "blog_profile_undisclosed_majority" };
+    return { mbti: winner, reason: tied.length === 1 ? "ok_blog_profile" : "ok_blog_profile_tiebreak" };
   } catch (e) {
     return { mbti: null, reason: `fetch_error_${e.message}` };
   }
