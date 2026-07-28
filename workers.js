@@ -129,6 +129,7 @@ function at(n,s,t){if(!s.length)return n.slice(0,t).map((c,p)=>({...c,rank:p+1})
         WHERE tmdb_id = ?
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
           AND NOT (platform = 'netflix' AND category_slot = 'category10')
+          AND NOT (platform = 'tving' AND category_slot = 'category01' AND rank > 20)
         GROUP BY platform
         ORDER BY rank ASC
       `).bind(o).all();return new Response(JSON.stringify({ok:!0,data:r}),{headers:e})}catch(r){return new Response(JSON.stringify({ok:!1,message:r.message}),{status:500,headers:e})}}if(n==="/rankings/platforms-batch"&&s.method==="GET"){let o=(E.searchParams.get("tmdb_ids")||"").trim();if(!o)return new Response(JSON.stringify({ok:!1,message:"tmdb_ids required"}),{status:400,headers:e});let r=[...new Set(o.split(",").map(m=>parseInt(m.trim())).filter(m=>Number.isInteger(m)&&m>0))].slice(0,50);if(!r.length)return new Response(JSON.stringify({ok:!1,message:"\uC720\uD6A8\uD55C tmdb_ids\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"}),{status:400,headers:e});try{let m=r.map(()=>"?").join(","),{results:_}=await t.DB.prepare(`
@@ -137,6 +138,7 @@ function at(n,s,t){if(!s.length)return n.slice(0,t).map((c,p)=>({...c,rank:p+1})
         WHERE tmdb_id IN (${m})
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
           AND NOT (platform = 'netflix' AND category_slot = 'category10')
+          AND NOT (platform = 'tving' AND category_slot = 'category01' AND rank > 20)
         GROUP BY tmdb_id, platform
         ORDER BY tmdb_id, rank ASC
       `).bind(...r).all(),c={};for(let p of _)c[p.tmdb_id]||(c[p.tmdb_id]=[]),c[p.tmdb_id].push({platform:p.platform,rank:p.rank});return new Response(JSON.stringify({ok:!0,data:c}),{headers:e})}catch(m){return new Response(JSON.stringify({ok:!1,message:m.message}),{status:500,headers:e})}}if(n==="/rankings/person-widget"&&s.method==="GET")try{let o=await t.DB.prepare(`
