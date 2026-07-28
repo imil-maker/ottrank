@@ -1,4 +1,4 @@
-<!-- 2026-07-28 rev.1 — admin.html (순위 저장 시 플랫폼 limit 넘는 항목은 순위 없이 전송, 랭킹 표 작품 제목에 사이트 작품페이지 링크 추가) -->
+<!-- 2026-07-28 rev.2 — admin.html (순위 없음 처리 전부 되돌림, 랭킹 표 작품 제목에 사이트 작품페이지 링크는 유지) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -1152,9 +1152,6 @@ let userSearchTimer = null;
 // platform__category_slot → display_name 매핑 캐시
 // 랭킹 관리 그룹 헤더에 프론트 표시명을 같이 보여주기 위해 사용
 let categoryDisplayMap = {};
-// platform__category_slot → platform_limit 매핑 캐시 (2026-07-28 추가)
-// 순위 저장 시 limit 넘는 위치를 "순위 없음"으로 보내기 위해 사용
-let categoryLimitMap = {};
 
 // ════════════════════════════════════════════════════
 // 로그인
@@ -1174,10 +1171,8 @@ function login() {
     .then(r => r.json())
     .then(json => {
       categoryDisplayMap = {};
-      categoryLimitMap   = {};
       (json.data || []).forEach(c => {
         categoryDisplayMap[`${c.platform}__${c.category_slot}`] = c.display_name || '';
-        categoryLimitMap[`${c.platform}__${c.category_slot}`]   = c.platform_limit || 20;
       });
     })
     .catch(() => {});
@@ -2354,7 +2349,7 @@ function renderTable() {
   if (rankingMode === 'manual' || curFilter === 'no_tmdb' || curFilter === 'new_match') {
     tbody.innerHTML = rows.map((r, idx) => `
       <tr>
-        <td><span class="rank-num">${r.rank ?? '—'}</span></td>
+        <td><span class="rank-num">${r.rank}</span></td>
         <td>${r.poster_path
           ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
           : `<div class="poster-ph">🎬</div>`}</td>
@@ -2401,8 +2396,7 @@ function renderTable() {
     const [platform, slot] = key.split('__');
 
     // rank 기준 오름차순 정렬 (API 응답 순서에 의존하지 않음)
-    // [2026-07-28 수정] rank가 null(순위 없음)인 항목은 맨 뒤로 정렬
-    items.sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+    items.sort((a, b) => (a.rank || 0) - (b.rank || 0));
     // 그룹 컨테이너
     const groupEl = document.createElement('div');
     groupEl.className = 'category-group';
@@ -2446,7 +2440,7 @@ function renderTable() {
 
       tr.innerHTML = `
         <td style="width:30px"><span class="drag-handle">⠿</span></td>
-        <td><span class="rank-num">${r.rank ?? '—'}</span></td>
+        <td><span class="rank-num">${r.rank}</span></td>
         <td>${r.poster_path
           ? `<img class="poster-thumb" src="${IMG+r.poster_path}" alt="" loading="lazy">`
           : `<div class="poster-ph">🎬</div>`}</td>
@@ -2533,11 +2527,9 @@ async function saveReorder(slot, platform) {
   const date     = groupEl.dataset.date;
   const dragBody = groupEl.querySelector(`#dragBody-${groupId}`);
 
-  // [2026-07-28 추가] 플랫폼 limit(기본 20) 넘는 위치는 순위 번호 없이(null) 전송
-  const limit = categoryLimitMap[`${platform}__${slot}`] || 20;
   const items = [...dragBody.querySelectorAll('.drag-row')].map((tr, i) => ({
     id:   parseInt(tr.dataset.id),
-    rank: (i + 1) <= limit ? (i + 1) : null,
+    rank: i + 1,
   }));
 
   btn.disabled    = true;
@@ -2663,8 +2655,7 @@ async function addRankingItem() {
     });
     const json = await res.json();
     if (json.ok) {
-      const rankLabel = json.rank ? `${json.rank}위` : '순위 없음';
-      showToast(`✅ "${json.title_ko || title_ko}" 추가 완료! (${platform} · ${slot} · ${rankLabel})`, 'ok');
+      showToast(`✅ "${json.title_ko || title_ko}" 추가 완료! (${platform} · ${slot} · ${json.rank}위)`, 'ok');
       closeModal();
       loadData();
     } else {
@@ -2684,7 +2675,6 @@ function _esc(str) {
 }
 
 // [2026-07-28 추가] 랭킹 표의 작품 제목 → 우리 사이트 작품페이지 링크
-// works 관리 탭과 동일한 슬러그 규칙(/title/{시즌}-{연도}{tmdb_id}) 사용
 function _ottTitleUrl(r) {
   if (!r.tmdb_id) return null;
   const year = r.release_year || new Date().getFullYear();
