@@ -1,4 +1,4 @@
-// 2026-07-27 rev.14 — admin.js (MBTI 판정 조건 대폭 단순화 — "공식/그럴듯한 출처" 등 조건 다 제거, 검색결과에 MBTI 나오면 그대로 사용. 출처 여러개로 갈리면 포기 말고 최신/다수쪽으로 하나 골라 답하도록 지시)
+// 2026-07-28 rev.1 — admin.js (랭킹 추가/reorder 시 플랫폼 limit 넘으면 순위 번호 없이(NULL) 저장하도록 수정 — 티빙 수동관리용)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -394,7 +394,17 @@ export async function handleAdmin(path, request, env, url, headers) {
         finalRank = (lastRow?.max_rank || 0) + 1;
       }
 
-      // ④ rankings INSERT (음수 임시 삽입 → 양수 확정, UNIQUE 충돌 방지)
+      // ③-1 [2026-07-28 추가] 플랫폼 limit(기본 20) 넘으면 순위 번호 없이(NULL) 등록
+      // → rank가 NULL이면 "등록만 되고 순위 아님" 상태. 순위 기록(히스토리) 등에서 자동 제외됨.
+      const catRow = await env.DB.prepare(
+        "SELECT platform_limit FROM ott_categories WHERE platform = ? AND category_slot = ?"
+      ).bind(platform, category_slot).first();
+      const platformLimit = catRow?.platform_limit || 20;
+      const rankToStore    = finalRank > platformLimit ? null : finalRank;
+
+      // ④ rankings INSERT
+      // rank가 있으면 기존처럼 음수 임시 삽입 → 양수 확정(UNIQUE 충돌 방지)
+      // rank가 NULL이면 충돌 위험이 없어 바로 NULL로 저장
       await env.DB.prepare(`
         INSERT INTO rankings
           (platform, category_slot, category, date, rank, tmdb_id,
@@ -403,15 +413,17 @@ export async function handleAdmin(path, request, env, url, headers) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         platform, category_slot, category_slot, date,
-        -(finalRank), parseInt(tmdb_id),
+        rankToStore === null ? null : -(rankToStore), parseInt(tmdb_id),
         finalTitleKo || "", finalTitleEn || "", finalPoster,
         finalYear, finalGenre, finalRating,
         is_manual ? 1 : 0, category_slot
       ).run();
 
-      await env.DB.prepare(
-        "UPDATE rankings SET rank = ? WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?"
-      ).bind(finalRank, platform, category_slot, date, -(finalRank)).run();
+      if (rankToStore !== null) {
+        await env.DB.prepare(
+          "UPDATE rankings SET rank = ? WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?"
+        ).bind(rankToStore, platform, category_slot, date, -(rankToStore)).run();
+      }
 
       // ⑤ title_map upsert
       if (finalTitleEn && finalTitleKo) {
@@ -428,10 +440,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       await env.DB.prepare(
         "INSERT INTO admin_logs (action, platform, category_slot, target_id, after_value) VALUES ('ranking_add', ?, ?, ?, ?)"
       ).bind(platform, category_slot, String(tmdb_id),
-        JSON.stringify({ rank: finalRank, title_ko: finalTitleKo, date })).run();
+        JSON.stringify({ rank: rankToStore, title_ko: finalTitleKo, date })).run();
 
       return new Response(JSON.stringify({
-        ok: true, rank: finalRank,
+        ok: true, rank: rankToStore,
         poster_path: finalPoster, title_ko: finalTitleKo, title_en: finalTitleEn,
       }), { headers });
 
@@ -1592,12 +1604,21 @@ export async function handleAdmin(path, request, env, url, headers) {
       // 두 단계를 하나의 batch()로 합치면 D1이 전체를 하나의 트랜잭션으로 실행하기 때문에,
       // 중간에 어느 한 문장이라도 실패하면 전체가 롤백되어 "마이너스에 갇히는" 상태 자체가
       // 구조적으로 불가능해짐 — 순위 오염 없이 항상 저장 전 상태 그대로 남거나, 전부 성공한다.
+      // [2026-07-28 추가] item.rank가 null이면 "순위 밖" — 번호 없이 NULL로 저장.
+      // NULL은 UNIQUE 제약과 충돌하지 않으므로 음수 피신 없이 바로 처리 가능.
+      const rankedItems = items.filter(item => item.rank !== null && item.rank !== undefined);
+      const nullItems    = items.filter(item => item.rank === null || item.rank === undefined);
+
       const stmts = [
-        ...items.map(item =>
+        ...rankedItems.map(item =>
           env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
             .bind(-parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
         ),
-        ...items.map(item =>
+        ...nullItems.map(item =>
+          env.DB.prepare("UPDATE rankings SET rank = NULL WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
+            .bind(parseInt(item.id), date, platform, category_slot)
+        ),
+        ...rankedItems.map(item =>
           env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
             .bind(parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
         ),
