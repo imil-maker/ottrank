@@ -1,5 +1,4 @@
-/* 2026-07-28 rev.3 — rankings.js (/rankings/platforms/:tmdb_id, /rankings/platforms-batch —
-   티빙 category01 수동랭킹은 20위 넘으면 응답에서 제외. 넷플릭스 category10 제외 패턴과 동일 방식) */
+/* 2026-07-28 rev.4 — rankings.js (/rankings/history — rank<=10 제한 추가, 티빙 등 순위 상한 없던 플랫폼도 진짜 TOP10만 카운트되게 수정) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -561,6 +560,7 @@ export async function handleRankings(path, request, env, url, headers) {
         AND date < 'manual'
         AND date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-29 days')
         AND NOT (platform = 'netflix' AND category_slot = 'category10')
+        AND rank <= 10
       ORDER BY date ASC, platform ASC
     `).bind(tmdb_id).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
