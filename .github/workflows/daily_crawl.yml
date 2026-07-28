@@ -70,6 +70,17 @@ jobs:
           python upload_to_d1.py
           echo "=== D1 업로드 완료 ==="
 
+      # ── 6-2. 티빙 날짜 자동 채움 (2026-07-28 신규) ───────────
+      # 티빙 category01은 크롤링이 아니라 관리자가 "순위 저장"을 눌러야 그날 날짜로
+      # 기록됨. 깜빡하고 안 누른 날은 오늘 날짜 데이터가 없는 상태 → N일간 TOP10
+      # 히스토리가 하루 끊김. 이 스텝은 크론이 돌 때마다(하루 여러 번) 항상 실행되며,
+      # 오늘 데이터 있으면 API가 아무것도 안 하므로 몇 번 호출돼도 안전함.
+      - name: Tving 날짜 자동 채움
+        run: |
+          curl -s -X POST "https://ottrank-api.tdidream.workers.dev/admin/rankings/tving-autofill" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}"
+          echo ""
+
       # ── 7. rankings.db 커밋 ──────────────────────────────────
       - name: Commit rankings.db
         run: |
