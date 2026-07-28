@@ -1,4 +1,6 @@
-// 2026-07-28 rev.3 — admin.js (날짜 갱신 위치 수정: "수정" 모달(/admin/fix)에서 되돌리고, "순위 저장"(/admin/rankings/reorder)에서 오늘 날짜(KST)+is_manual=1로 갱신하도록 변경)
+// 2026-07-28 rev.4 — admin.js (POST /admin/rankings/tving-autofill 신규 — 티빙 category01이
+// 오늘 날짜로 저장 안 됐으면 가장 최근 날짜 데이터를 오늘 날짜로 복사. daily_crawl.yml에서
+// 크론 돌 때마다 호출해서, 관리자가 "순위 저장"을 깜빡해도 N일간 TOP10 히스토리가 끊기지 않게 함)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -1615,6 +1617,87 @@ export async function handleAdmin(path, request, env, url, headers) {
         "INSERT INTO admin_logs (action, platform, category_slot, after_value) VALUES ('ranking_reorder', ?, ?, ?)"
       ).bind(platform, category_slot, JSON.stringify(items)).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/rankings/tving-autofill ────────────────────────
+  // [2026-07-28 신규] 티빙 category01은 크롤링이 아니라 관리자가 "순위 저장"을 눌러야만
+  // 그날 날짜로 기록됨. 관리자가 깜빡하고 그날 한 번도 안 누르면 그날 날짜 행이 아예
+  // 없어져서, /rankings/history의 "N일간 TOP10" 카운트가 하루 끊기게 됨.
+  // 이 API는 daily_crawl.yml이 돌 때마다(하루 여러 번) 호출됨 — 오늘 날짜 데이터가
+  // 이미 있으면 아무것도 안 하고 끝나므로 몇 번을 호출해도 안전(중복 걱정 없음).
+  // 없을 때만, 가장 최근 날짜(수동고정 'manual'은 제외)의 데이터를 오늘 날짜로 그대로
+  // 복사해서 "오늘도 그 순위 그대로였다"는 기록을 남김.
+  if (path === "/admin/rankings/tving-autofill" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const PLATFORM = "tving";
+      const SLOT     = "category01";
+      const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      // ① 오늘 날짜로 이미 저장돼 있으면 → 아무것도 안 함
+      const existing = await env.DB.prepare(
+        "SELECT COUNT(*) AS cnt FROM rankings WHERE platform = ? AND category_slot = ? AND date = ?"
+      ).bind(PLATFORM, SLOT, todayKST).first();
+
+      if (existing?.cnt > 0) {
+        return new Response(JSON.stringify({
+          ok: true, filled: false, message: "오늘 날짜 데이터 이미 있음"
+        }), { headers });
+      }
+
+      // ② 복사할 가장 최근 날짜 찾기 (수동고정 'manual' 행 제외 — date < 'manual' 문자열
+      //    비교가 인덱스를 타는 기존 프로젝트 관례를 그대로 따름)
+      const latest = await env.DB.prepare(
+        "SELECT MAX(date) AS d FROM rankings WHERE platform = ? AND category_slot = ? AND date < 'manual'"
+      ).bind(PLATFORM, SLOT).first();
+
+      if (!latest?.d) {
+        return new Response(JSON.stringify({
+          ok: true, filled: false, message: "복사할 이전 날짜 데이터 없음"
+        }), { headers });
+      }
+
+      // ③ 최근 날짜의 전체 행을 오늘 날짜로 복사
+      const { results: rows } = await env.DB.prepare(`
+        SELECT rank, tmdb_id, title_ko, title_en, poster_path, release_year,
+               genre, tmdb_rating, source_name, memo, season, is_manual
+        FROM rankings
+        WHERE platform = ? AND category_slot = ? AND date = ?
+      `).bind(PLATFORM, SLOT, latest.d).all();
+
+      if (!rows.length) {
+        return new Response(JSON.stringify({
+          ok: true, filled: false, message: "복사할 행이 없음"
+        }), { headers });
+      }
+
+      const stmts = rows.map(r =>
+        env.DB.prepare(`
+          INSERT INTO rankings
+            (platform, category_slot, category, date, rank, tmdb_id,
+             title_ko, title_en, poster_path, release_year, genre, tmdb_rating,
+             is_manual, source_name, memo, season)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          PLATFORM, SLOT, SLOT, todayKST, r.rank, r.tmdb_id,
+          r.title_ko, r.title_en, r.poster_path, r.release_year, r.genre, r.tmdb_rating,
+          r.is_manual, r.source_name, r.memo, r.season
+        )
+      );
+      await env.DB.batch(stmts);
+
+      await env.DB.prepare(
+        "INSERT INTO admin_logs (action, platform, category_slot, after_value) VALUES ('tving_autofill', ?, ?, ?)"
+      ).bind(PLATFORM, SLOT, JSON.stringify({ copiedFrom: latest.d, to: todayKST, count: rows.length })).run();
+
+      return new Response(JSON.stringify({
+        ok: true, filled: true, copiedFrom: latest.d, date: todayKST, count: rows.length
+      }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
