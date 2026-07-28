@@ -1,4 +1,4 @@
-// 2026-07-28 rev.2 — admin.js (순위 없음(NULL rank) 처리 전부 되돌림 — SQLITE_CONSTRAINT_NOTNULL 에러 원인. 대신 /admin/fix 저장 시 date를 오늘 날짜(KST)로 갱신하도록 변경)
+// 2026-07-28 rev.3 — admin.js (날짜 갱신 위치 수정: "수정" 모달(/admin/fix)에서 되돌리고, "순위 저장"(/admin/rankings/reorder)에서 오늘 날짜(KST)+is_manual=1로 갱신하도록 변경)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -523,10 +523,6 @@ export async function handleAdmin(path, request, env, url, headers) {
       // 시즌 포스터가 프론트에서 전송된 경우 최우선 적용 (TMDB 기본 포스터 덮어쓰기)
       if (frontPosterPath) finalPoster = frontPosterPath;
 
-      // [2026-07-28 추가] 저장 시점의 오늘 날짜(KST)로 갱신 — 티빙처럼 크롤링 없이
-      // 수동으로만 관리하는 플랫폼은, "수정" 저장을 누른 날짜가 곧 그날의 기록이 됨
-      const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
       // ① rankings 업데이트 (season 컬럼 포함 — undefined면 기존값 유지)
       const seasonBind = season !== undefined
         ? (season !== null ? parseInt(season) : null)
@@ -539,7 +535,6 @@ export async function handleAdmin(path, request, env, url, headers) {
             title_en    = COALESCE(?, title_en),
             poster_path = COALESCE(?, poster_path),
             season      = ${seasonBind !== undefined ? '?' : 'season'},
-            date        = ?,
             is_manual   = 1
         WHERE id = ?
       `).bind(
@@ -547,7 +542,6 @@ export async function handleAdmin(path, request, env, url, headers) {
           tmdb_id ? parseInt(tmdb_id) : null,
           finalTitleKo, finalTitleEn, finalPoster,
           ...(seasonBind !== undefined ? [seasonBind] : []),
-          todayKST,
           parseInt(id),
         ]
       ).run();
@@ -1590,6 +1584,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       if (!date || !platform || !category_slot || !Array.isArray(items)) {
         return new Response(JSON.stringify({ ok: false, message: "date, platform, category_slot, items required" }), { status: 400, headers });
       }
+      const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
       // [2026-07-17 수정] 기존엔 "①전부 마이너스로 피신 → ②원래 순위로 복귀"를 완전히 별개인
       // batch() 두 번으로 나눠서 실행했음. 문제는 이 둘이 서로 다른 트랜잭션이라, ①은 성공하고
       // ②만 실패하는 경우(예: 클라이언트가 보낸 items에 실제 행 개수와 안 맞는 rank가 섞여
@@ -1606,6 +1601,13 @@ export async function handleAdmin(path, request, env, url, headers) {
         ...items.map(item =>
           env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
             .bind(parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
+        ),
+        // [2026-07-28 추가] 순위 저장 시점의 오늘 날짜(KST)로 갱신 + 수동 표시.
+        // 크롤링 없이 수동으로만 관리하는 플랫폼(티빙)이, "순위 저장"을 누른 날짜가
+        // 곧 그날의 기록이 되도록 함.
+        ...items.map(item =>
+          env.DB.prepare("UPDATE rankings SET date = ?, is_manual = 1 WHERE id = ? AND platform = ? AND category_slot = ?")
+            .bind(todayKST, parseInt(item.id), platform, category_slot)
         ),
       ];
       await env.DB.batch(stmts);
