@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-26 rev.2 — admin_videos.html (sitemap 캐시 즉시비우기 버튼 신규 — 모든 탭 상단에 항상 표시) -->
+<!-- 2026-07-28 rev.3 — admin_videos.html (상단 링크 정리: 키워드 링크 추가, 어드민 텍스트 변경, 캐시비우기 버튼 관련영상 섹션 하단으로 이동) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -305,11 +305,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           🔞 성인물 정리
         </button>
       </div>
-      <button onclick="clearSitemapCache()" id="sitemapCacheBtn"
-        style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans);white-space:nowrap;margin-right:10px">
-        🗺 sitemap 캐시 비우기
-      </button>
-      <a class="back-btn" href="/admin.html">← 어드민으로</a>
+      <a href="/admin_keywords.html" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--gold);font-size:12px;cursor:pointer;font-family:var(--sans);white-space:nowrap;margin-right:10px;text-decoration:none;display:inline-block">
+        키워드
+      </a>
+      <a class="back-btn" href="/admin.html" style="color:var(--gold)">← 어드민</a>
     </div>
   </div>
 
@@ -351,6 +350,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
 
       <div id="vcStatusLine" style="margin-top:14px;font-size:13px;color:var(--muted2);font-family:var(--mono);display:none"></div>
+
+      <div style="margin-top:18px;text-align:right">
+        <button onclick="clearSitemapCache()" id="sitemapCacheBtn"
+          style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans);white-space:nowrap">
+          🗺 sitemap 캐시 비우기
+        </button>
+      </div>
     </div>
 
     <!-- 관련영상 채우기 배치 로그 -->
