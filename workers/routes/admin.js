@@ -1,4 +1,4 @@
-// 2026-07-28 rev.1 — admin.js (랭킹 추가/reorder 시 플랫폼 limit 넘으면 순위 번호 없이(NULL) 저장하도록 수정 — 티빙 수동관리용)
+// 2026-07-28 rev.2 — admin.js (순위 없음(NULL rank) 처리 전부 되돌림 — SQLITE_CONSTRAINT_NOTNULL 에러 원인. 대신 /admin/fix 저장 시 date를 오늘 날짜(KST)로 갱신하도록 변경)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -394,17 +394,7 @@ export async function handleAdmin(path, request, env, url, headers) {
         finalRank = (lastRow?.max_rank || 0) + 1;
       }
 
-      // ③-1 [2026-07-28 추가] 플랫폼 limit(기본 20) 넘으면 순위 번호 없이(NULL) 등록
-      // → rank가 NULL이면 "등록만 되고 순위 아님" 상태. 순위 기록(히스토리) 등에서 자동 제외됨.
-      const catRow = await env.DB.prepare(
-        "SELECT platform_limit FROM ott_categories WHERE platform = ? AND category_slot = ?"
-      ).bind(platform, category_slot).first();
-      const platformLimit = catRow?.platform_limit || 20;
-      const rankToStore    = finalRank > platformLimit ? null : finalRank;
-
-      // ④ rankings INSERT
-      // rank가 있으면 기존처럼 음수 임시 삽입 → 양수 확정(UNIQUE 충돌 방지)
-      // rank가 NULL이면 충돌 위험이 없어 바로 NULL로 저장
+      // ④ rankings INSERT (음수 임시 삽입 → 양수 확정, UNIQUE 충돌 방지)
       await env.DB.prepare(`
         INSERT INTO rankings
           (platform, category_slot, category, date, rank, tmdb_id,
@@ -413,17 +403,15 @@ export async function handleAdmin(path, request, env, url, headers) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         platform, category_slot, category_slot, date,
-        rankToStore === null ? null : -(rankToStore), parseInt(tmdb_id),
+        -(finalRank), parseInt(tmdb_id),
         finalTitleKo || "", finalTitleEn || "", finalPoster,
         finalYear, finalGenre, finalRating,
         is_manual ? 1 : 0, category_slot
       ).run();
 
-      if (rankToStore !== null) {
-        await env.DB.prepare(
-          "UPDATE rankings SET rank = ? WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?"
-        ).bind(rankToStore, platform, category_slot, date, -(rankToStore)).run();
-      }
+      await env.DB.prepare(
+        "UPDATE rankings SET rank = ? WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?"
+      ).bind(finalRank, platform, category_slot, date, -(finalRank)).run();
 
       // ⑤ title_map upsert
       if (finalTitleEn && finalTitleKo) {
@@ -440,10 +428,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       await env.DB.prepare(
         "INSERT INTO admin_logs (action, platform, category_slot, target_id, after_value) VALUES ('ranking_add', ?, ?, ?, ?)"
       ).bind(platform, category_slot, String(tmdb_id),
-        JSON.stringify({ rank: rankToStore, title_ko: finalTitleKo, date })).run();
+        JSON.stringify({ rank: finalRank, title_ko: finalTitleKo, date })).run();
 
       return new Response(JSON.stringify({
-        ok: true, rank: rankToStore,
+        ok: true, rank: finalRank,
         poster_path: finalPoster, title_ko: finalTitleKo, title_en: finalTitleEn,
       }), { headers });
 
@@ -535,6 +523,10 @@ export async function handleAdmin(path, request, env, url, headers) {
       // 시즌 포스터가 프론트에서 전송된 경우 최우선 적용 (TMDB 기본 포스터 덮어쓰기)
       if (frontPosterPath) finalPoster = frontPosterPath;
 
+      // [2026-07-28 추가] 저장 시점의 오늘 날짜(KST)로 갱신 — 티빙처럼 크롤링 없이
+      // 수동으로만 관리하는 플랫폼은, "수정" 저장을 누른 날짜가 곧 그날의 기록이 됨
+      const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
       // ① rankings 업데이트 (season 컬럼 포함 — undefined면 기존값 유지)
       const seasonBind = season !== undefined
         ? (season !== null ? parseInt(season) : null)
@@ -547,6 +539,7 @@ export async function handleAdmin(path, request, env, url, headers) {
             title_en    = COALESCE(?, title_en),
             poster_path = COALESCE(?, poster_path),
             season      = ${seasonBind !== undefined ? '?' : 'season'},
+            date        = ?,
             is_manual   = 1
         WHERE id = ?
       `).bind(
@@ -554,6 +547,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           tmdb_id ? parseInt(tmdb_id) : null,
           finalTitleKo, finalTitleEn, finalPoster,
           ...(seasonBind !== undefined ? [seasonBind] : []),
+          todayKST,
           parseInt(id),
         ]
       ).run();
@@ -1604,21 +1598,12 @@ export async function handleAdmin(path, request, env, url, headers) {
       // 두 단계를 하나의 batch()로 합치면 D1이 전체를 하나의 트랜잭션으로 실행하기 때문에,
       // 중간에 어느 한 문장이라도 실패하면 전체가 롤백되어 "마이너스에 갇히는" 상태 자체가
       // 구조적으로 불가능해짐 — 순위 오염 없이 항상 저장 전 상태 그대로 남거나, 전부 성공한다.
-      // [2026-07-28 추가] item.rank가 null이면 "순위 밖" — 번호 없이 NULL로 저장.
-      // NULL은 UNIQUE 제약과 충돌하지 않으므로 음수 피신 없이 바로 처리 가능.
-      const rankedItems = items.filter(item => item.rank !== null && item.rank !== undefined);
-      const nullItems    = items.filter(item => item.rank === null || item.rank === undefined);
-
       const stmts = [
-        ...rankedItems.map(item =>
+        ...items.map(item =>
           env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
             .bind(-parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
         ),
-        ...nullItems.map(item =>
-          env.DB.prepare("UPDATE rankings SET rank = NULL WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
-            .bind(parseInt(item.id), date, platform, category_slot)
-        ),
-        ...rankedItems.map(item =>
+        ...items.map(item =>
           env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
             .bind(parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
         ),
