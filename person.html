@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-28 rev.2 — person.html (메인 이름과 괄호 속 보조 이름이 위키 DB 이름 적용 후 서로 같아지는 경우, 보조 이름을 지워서 중복 표시 방지) -->
+<!-- 2026-07-28 rev.3 — person.html (대표작 "2년 이상+평가 5개 이하" 저인지도 제외 필터 제거 — 국내 옛날 드라마가 TMDB 해외 평가수 적어서 대표작에서 부당하게 다 걸러지던 문제) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2461,9 +2461,13 @@ async function initPage(){
         return ageYears >= 2 && voteCount <= 5;
       };
 
+      // [2026-07-28 수정] isLowProfile(2년 이상+vote_count 5 이하 제외) 필터 제거.
+      // 국내 옛날 드라마는 국내에선 인기 있었어도 TMDB(해외 사이트) 평가 참여자가
+      // 원래 적어서, 이 필터가 "진짜 저인지도 작품"뿐 아니라 "국내 유명작인데 TMDB
+      // 평가만 적은 옛날 드라마"까지 거의 다 걸러버리는 부작용이 있었음(하희라 배우
+      // 사례 — 27편 중 대표작 후보가 1편만 남음).
       const knownFor = [...allCredits]
         .filter(it => it.poster_path)
-        .filter(it => !isLowProfile(it))
         .sort((a,b) => {
           const ta = castTier(a), tb = castTier(b);
           if(ta !== tb) return ta - tb; // 주연 그룹 우선
