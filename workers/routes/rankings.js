@@ -1,4 +1,5 @@
-/* 2026-07-28 rev.2 — rankings.js (순위 기록 조회의 rank IS NOT NULL 조건 되돌림 — 순위없음 처리 방식 자체를 폐기함) */
+/* 2026-07-28 rev.3 — rankings.js (/rankings/platforms/:tmdb_id, /rankings/platforms-batch —
+   티빙 category01 수동랭킹은 20위 넘으면 응답에서 제외. 넷플릭스 category10 제외 패턴과 동일 방식) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -580,6 +581,7 @@ export async function handleRankings(path, request, env, url, headers) {
         WHERE tmdb_id = ?
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
           AND NOT (platform = 'netflix' AND category_slot = 'category10')
+          AND NOT (platform = 'tving' AND category_slot = 'category01' AND rank > 20)
         GROUP BY platform
         ORDER BY rank ASC
       `).bind(tmdb_id).all();
@@ -622,6 +624,7 @@ export async function handleRankings(path, request, env, url, headers) {
         WHERE tmdb_id IN (${placeholders})
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
           AND NOT (platform = 'netflix' AND category_slot = 'category10')
+          AND NOT (platform = 'tving' AND category_slot = 'category01' AND rank > 20)
         GROUP BY tmdb_id, platform
         ORDER BY tmdb_id, rank ASC
       `).bind(...tmdbIds).all();
