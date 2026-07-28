@@ -1,4 +1,5 @@
 """
+2026-07-28 rev.1 — upload_to_d1.py (티빙 자동 업로드/날짜고정 제외, 수동 관리로 전환)
 rankings.db → Cloudflare D1 직접 업로드 v2
 ────────────────────────────────────────────────────────────────
 wrangler-action 대신 D1 REST API를 직접 호출하여 안정성 향상
@@ -106,6 +107,7 @@ def _get_pinned_from_d1() -> dict:
                    genre, overview, release_year, tmdb_rating, is_manual
             FROM rankings
             WHERE is_manual = 2
+            AND platform != 'tving'
             ORDER BY platform, category_slot, rank
         """)
         rows = data["result"][0].get("results", [])
@@ -190,6 +192,7 @@ def _copy_pinned_to_today(pinned: dict) -> int:
 def upload_rankings(conn: sqlite3.Connection) -> int:
     """rankings 오늘 날짜 데이터 D1 업로드
     ⚠️ is_active=0 인 카테고리는 업로드 제외
+    ⚠️ [2026-07-28 추가] 티빙(tving)은 자동 업로드 대상에서 완전 제외 — 수동 관리 전환
     ⚠️ is_manual=2 (날짜고정) 작품 보호 로직:
        1. 같은 platform + tmdb_id 로 is_manual=2 있으면 작품 자체 skip
        2. is_manual=2 없는 빈 rank 자리에 순서대로 배치
@@ -235,6 +238,7 @@ def upload_rankings(conn: sqlite3.Connection) -> int:
             ON r.tmdb_id = w.tmdb_id
         WHERE r.date = ?
         AND (oc.is_active IS NULL OR oc.is_active = 1)
+        AND r.platform != 'tving'
         ORDER BY r.platform, r.category_slot, r.rank
     """, (TODAY,)).fetchall()
 
