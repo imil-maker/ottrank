@@ -1,4 +1,4 @@
-/* 2026-07-26 rev.4 — rankings.js (_fetchFallbackForMissing 보충쿼리에 boxoffice_stats 조인 추가 — 박스오피스는 매일 "오늘자 정확매칭"이 아니라 이 보충경로로 채워지고 있었는데, 이 경로가 애초부터 audi_cnt를 아예 조회하지 않고 있어서 rev.3 수정과 무관하게 계속 관객수가 안 보였던 근본 원인 수정) */
+/* 2026-07-28 rev.1 — rankings.js (순위 기록(history) 조회 시 rank IS NOT NULL 조건 추가 — 티빙 20위 밖 등록 작품은 순위 기록에서 제외) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -560,6 +560,7 @@ export async function handleRankings(path, request, env, url, headers) {
         AND date < 'manual'
         AND date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-29 days')
         AND NOT (platform = 'netflix' AND category_slot = 'category10')
+        AND rank IS NOT NULL
       ORDER BY date ASC, platform ASC
     `).bind(tmdb_id).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
