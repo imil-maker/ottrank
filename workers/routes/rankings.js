@@ -1,4 +1,4 @@
-/* 2026-07-28 rev.1 — rankings.js (순위 기록(history) 조회 시 rank IS NOT NULL 조건 추가 — 티빙 20위 밖 등록 작품은 순위 기록에서 제외) */
+/* 2026-07-28 rev.2 — rankings.js (순위 기록 조회의 rank IS NOT NULL 조건 되돌림 — 순위없음 처리 방식 자체를 폐기함) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
    GET  /rankings
@@ -560,7 +560,6 @@ export async function handleRankings(path, request, env, url, headers) {
         AND date < 'manual'
         AND date >= date((SELECT value FROM app_settings WHERE key = 'latest_ranking_date'), '-29 days')
         AND NOT (platform = 'netflix' AND category_slot = 'category10')
-        AND rank IS NOT NULL
       ORDER BY date ASC, platform ASC
     `).bind(tmdb_id).all();
     return new Response(JSON.stringify({ ok: true, data: results }), { headers });
