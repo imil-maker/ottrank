@@ -1,3 +1,5 @@
+# 2026-07-29 rev.5 — daily_crawl.yml (playwright 명령어를 찾지 못하던 문제 수정 — pip install/
+#   playwright install 둘 다 `python -m` 형식으로 변경해 PATH 문제 자체를 회피)
 # 2026-07-29 rev.4 — daily_crawl.yml (actions/setup-python 자동설치가 서비스 계정 권한 문제로
 #   실패하던 것 수정 — 컴퓨터에 직접 설치한 파이썬 3.11.9를 그대로 사용하도록 변경)
 # 2026-07-29 rev.3 — daily_crawl.yml (셀프호스팅 윈도우 러너로 전환 — runs-on: self-hosted,
@@ -38,8 +40,8 @@ jobs:
       # ── 3. 의존성 설치 ───────────────────────────────────────
       - name: Install dependencies
         run: |
-          pip install playwright requests anthropic beautifulsoup4
-          playwright install chromium
+          python -m pip install playwright requests anthropic beautifulsoup4
+          python -m playwright install chromium
 
       # ── 4. D1 → 로컬 동기화 (⚠️ 절대 삭제 금지!) ───────────
       # Admin 수동 저장 데이터 + ott_categories 슬롯 설정 로컬 반영
