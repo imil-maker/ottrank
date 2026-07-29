@@ -1,604 +1,2531 @@
-/* 2026-07-29 rev.1 — admin-persons.js (대표작 수동 지정 기능 신규: featured-works API 3종 추가 —
-   조회/작품검색(DB우선+TMDB보완)/저장(최대5개 교체), person_featured_works 테이블 사용) */
-/* 2026-07-27 rev.10 — admin-persons.js ("공개안함/비공개/모름" 등을 다수결 후보에 정식 포함 — 이런 부정 표현을 만나면 그 즉시 UNDISCLOSED로 확정 판정하고 뒤쪽 상관없는 글자를 계속 찾아 헤매지 않게 함(박찬욱 오탐 사례 수정). 나무위키에서 "공개안함" 발견 시 블로그 단계로 안 넘어가고 바로 미확정 처리) */
-/* ══════════════════════════════════════════════════════════════
-   인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
-   ─────────────────────────────────────────────────────────────
-   [2026-07-27 신규] MBTI 수집 2번째 방식(네이버 검색 기반) — 기존 admin.js의
-   AI 웹서치 방식(mbti-auto-step)은 절대 건드리지 않고, 완전히 새로운 파이프라인으로 비교
-   검증해보기 위해 별도 파일/별도 컬럼(persons.mbti_naver)으로 분리함.
+<!DOCTYPE html>
+<!-- 2026-07-28 rev.5 — person.html (대표작: 예능 본인출연 판단 기준을 "Self와 완전일치"에서 "Self로 시작"으로 완화 — "Self - Guest"처럼 뒤에 텍스트가 더 붙은 경우를 못 걸러서 예능이 최상위 등급에 남던 문제 수정, 사미자 "아는 형님" 사례) -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="seoTitle">배우·감독 정보 | 필모그래피·출연작 | 오뜨랑</title>
+<meta id="seoDesc" name="description" content="배우·감독 상세 정보와 출연작·필모그래피를 오뜨랑에서 확인하세요. K-드라마·영화 배우 정보와 OTT 출연작을 한눈에 모아봅니다.">
+<meta id="seoKw" name="keywords" content="배우 정보, 감독 정보, 출연작, 필모그래피, 나이, K드라마 배우, 한국 배우, 드라마 출연작, 영화 출연작, OTT 배우">
+<meta name="robots" content="index, follow">
+<link id="seoCanonical" rel="canonical" href="https://ottrank.kr/person">
+<link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48x48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/img/favicon-96x96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+<link rel="manifest" href="/img/site.webmanifest">
+<meta name="theme-color" content="#0c0c10">
+<meta property="og:type" content="profile">
+<meta property="og:site_name" content="오뜨랑">
+<meta id="seoOgTitle" property="og:title" content="배우·감독 정보 | 출연작·필모그래피 | 오뜨랑">
+<meta id="seoOgDesc" property="og:description" content="배우·감독 상세 정보와 출연작·필모그래피를 오뜨랑에서 확인하세요.">
+<meta id="seoOgImg" property="og:image" content="https://ottrank.kr/img/og-image.png">
+<meta id="seoOgUrl" property="og:url" content="https://ottrank.kr/person">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<meta id="seoTwTitle" name="twitter:title" content="배우·감독 정보 | 출연작·필모그래피 | 오뜨랑">
+<meta id="seoTwDesc" name="twitter:description" content="배우·감독 상세 정보와 출연작·필모그래피를 오뜨랑에서 확인하세요.">
+<meta id="seoTwImg" name="twitter:image" content="https://ottrank.kr/img/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+/* ── 디자인 토큰 (_title_detail.html 동일) ── */
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;
+  --info:#378ADD;--info-bg:rgba(55,138,221,.12);--info-border:rgba(55,138,221,.35);
+  --font-sans:'Noto Sans KR',sans-serif;
+  --font-mono:'DM Mono',monospace;
+  --font-disp:'Bebas Neue',sans-serif;
+  --r:10px;--r-lg:14px;
+  --content-w:900px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+#ottrang-header{position:sticky;top:0;z-index:200}
 
-   기존 AI 방식과의 차이:
-   - AI(Claude)가 검색결과를 읽고 판단하는 과정 없음 — 네이버 검색 API 결과 텍스트에서
-     "MBTI" 근처의 4글자 유형을 정규식으로 그대로 추출(나무위키 크롤링 때와 같은 원리)
-   - 검색 API 자체가 무료(하루 25,000회 한도) — AI 토큰 비용이 전혀 안 듦
-   - 그만큼 "판단"은 없음 — 검색결과에 나오면 그대로 채택, 없으면 미확정
+/* ── 페이지 래퍼 ── */
+.page-wrap{max-width:900px;margin:0 auto;padding:24px 20px 80px}
+/* [2026-07-19 신규] 레이아웃 테스트 모드일 때만 폭 확장 — 일반 방문자는 900px 그대로 */
+body.layout-test .page-wrap{max-width:1200px}
+/* [2026-07-20 수정] 헤더(스티키)와 본문 사이 간격 25px로 (!important로 확실히 적용) */
+@media(min-width:641px){
+  body.layout-test .page-wrap{padding-top:25px !important}
+}
 
-   흐름: ① 대상자 선정(korean_confirmed=1 + mbti_naver_checked_at 없음)
-        ② 무료 위키 사전확인 — 이름+생년 일치 확인. 이 단계가 동명이인 방지뿐 아니라
-           "위키백과에 문서가 없는 사람(성인물 출연자 등)을 걸러주는 안전장치" 역할도 함
-           (관리자 판단, 매우 중요 — 절대 생략하지 말 것)
-        ③ 위키 매칭 안 되면 AI 방식과 동일하게 스킵(체크만 하고 넘어감)
-        ④ 매칭되면 네이버 검색(블로그) API로 "이름 생년 MBTI" 검색 → 결과 텍스트에서
-           MBTI 패턴 정규식 추출 → 있으면 저장, 없으면 미확정
-   ══════════════════════════════════════════════════════════════ */
+/* [2026-07-19 신규] 2단 레이아웃 뼈대
+   ⚠️ body에 layout-test 클래스가 항상 붙어있어서(2026-07-20부터 전체 적용) 모든 방문자에게 보임.
+   PC(641px 이상): 왼쪽 380px 고정 + 오른쪽 나머지.
+   모바일(640px 이하): 그리드 해제하고 기존처럼 세로로 그대로 쌓임(순서 안 바뀜) */
+@media(min-width:641px){
+  body.layout-test .person-layout{
+    display:grid;
+    grid-template-columns:220px 1fr;
+    column-gap:30px;
+    align-items:start;
+  }
+  /* [2026-07-19 신규] 그리드 아이템 기본값(min-width:auto)이 가로 스크롤 카드행의
+     콘텐츠 폭만큼 컬럼 자체를 밀어내는 CSS 함정 방지 — 이전에 대표작 카드에서
+     겪었던 flex min-width 버그와 같은 종류. 이걸 안 넣으면 전체 폭이 1200px을
+     넘어 화면 밖까지 늘어남 */
+  body.layout-test .person-col-left,
+  body.layout-test .person-col-right{
+    min-width:0;
+  }
+  /* [2026-07-19 신규] 필모그래피를 1줄에 정확히 5개로 고정 (기존 auto-fill 대신) */
+  body.layout-test .works-grid{
+    grid-template-columns:repeat(5, 1fr);
+  }
+  /* [2026-07-19 신규] 대표작도 필모그래피와 완전히 같은 5열 그리드로 통일
+     (기존 가로스크롤 flex+고정120px 대신 — 카드 크기를 정확히 똑같이 맞추기 위함) */
+  body.layout-test .known-for-row{
+    display:grid;
+    grid-template-columns:repeat(5, 1fr);
+    gap:16px;
+    overflow-x:visible;
+  }
+  body.layout-test .known-for-row .work-card{
+    flex:none;
+    width:auto;
+  }
+}
+/* [2026-07-19 신규] 더보기 버튼 — 오른쪽 컬럼이 넓어지면서 버튼이 과하게 길어보여서
+   원래 크기(내용만큼)로 줄이고, 눈에 띄게 골드색으로.
+   [2026-07-20 수정] PC 전용이었던 걸 모바일에도 동일하게 적용 */
+body.layout-test .load-more-btn{
+  display:block; width:fit-content; margin:20px auto 0; padding:10px 32px;
+  border-color:var(--gold); color:var(--gold);
+}
+body.layout-test .load-more-btn:hover{
+  background:rgba(240,180,41,.1); border-color:var(--gold); color:var(--gold);
+}
+body.layout-test .person-col-left > *{ margin-bottom:24px }
+body.layout-test .person-col-left > *:last-child{ margin-bottom:0 }
+/* [2026-07-20 신규] 모바일 — 사진(왼쪽컬럼)과 이름(오른쪽컬럼) 사이 간격이 너무 넓어서 축소.
+   .person-hero 기본 margin-bottom(32px)이 실제 원인이라 이것도 같이 줄임 */
+@media(max-width:640px){
+  body.layout-test .person-col-left > *{ margin-bottom:8px }
+  body.layout-test .person-hero{ margin-bottom:8px }
+}
 
-import { _checkAuth } from "../utils/authUtils.js";
+/* [2026-07-19 신규] 왼쪽 컬럼(380px)은 폭이 좁아서, 사진이 가로로 배치되는
+   기존 PC 스타일 대신 세로로 확실히 쌓이게 강제함 (기존 모바일 스타일과 동일 패턴 재사용,
+   "혹시 wrap될 수도"에 기대지 않고 명시적으로 고정) */
+body.layout-test .person-hero{ flex-direction:column; gap:16px; align-items:center }
+body.layout-test .person-photo-wrap{ width:200px }
+body.layout-test .person-photo{ width:200px }
+/* [2026-07-20 수정] back-btn이 다시 정상 흐름으로 복귀해서, mobile-photo-row를
+   별도 flex로 만들 필요 없어짐 (person-hero의 flex-direction:column이 back-btn/사진을
+   그대로 세로로 쌓아줌) — 기본값(display:contents) 유지
 
-// [2026-07-27 신규] 무료 위키 사전확인 — admin.js의 _checkWikiMatch와 동일한 로직을
-// 그대로 복제(admin.js는 이번 작업에서 건드리지 않기로 했으므로 import 대신 중복 보유).
-// 이름+생년이 일치하는 한국어 위키백과 문서가 있는지만 확인(무료, 가벼움).
-async function _checkWikiMatchForMbti(displayName, tmdbYear) {
-  const WIKI_UA = { "User-Agent": "OttrankBot/1.0 (https://ottrank.kr; 오뜨랑 인물 위키매칭)" };
-  try {
-    const searchRes = await fetch(
-      `https://ko.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(displayName)}&limit=5&namespace=0&format=json`,
-      { headers: WIKI_UA }
-    );
-    if (!searchRes.ok) return { matched: false };
-    const searchData = await searchRes.json();
-    const titles = searchData[1] || [];
+/* [2026-07-19 신규] person-info(이름/SNS/공유/메타/약력)는 JS가 오른쪽 컬럼
+   맨 위로 옮김 — 왼쪽의 좁은 가운데정렬 스타일이 아니라, 넓은 오른쪽 컬럼에
+   맞는 왼쪽정렬 + 아래쪽 구분선으로 표시 */
+body.layout-test .person-info{
+  width:100%; text-align:left; margin-bottom:28px;
+  padding-bottom:24px; border-bottom:.5px solid var(--border);
+}
+body.layout-test .person-meta-row{ justify-content:flex-start }
+/* [2026-07-22 수정] 모바일에서는 이름+인스타+공유 줄을 가운데 정렬 —
+   메타 정보 줄(생년월일/나이/성별/출생지)도 같이 가운데 정렬되어야 하는데,
+   위 133번 줄의 flex-start 규칙이 특정도가 더 높아서(body.layout-test 포함)
+   기존 모바일 center 규칙(548번 줄)을 항상 이기고 있었음 — 여기서 같은
+   특정도로 다시 덮어써서 실제로 모바일에서 가운데 정렬되게 함. */
+@media(max-width:640px){
+  body.layout-test .person-info{ text-align:center }
+  body.layout-test .person-meta-row{ justify-content:center }
+}
 
-    const disambigTitle = `${displayName} (배우)`;
-    if (!titles.includes(disambigTitle)) {
-      titles.unshift(disambigTitle);
+/* [2026-07-22 신규] 인물 좋아요 — 사진 바로 밑, 박스 형태로 복원(포스터 위 오버레이는
+   숫자가 잘 안 보여서 폐기 — 사진 innerHTML이 갤러리 클릭 시 통째로 교체되는 구조라
+   포스터 안에 두면 사라지는 버그 위험도 있었음, 사진 밖 별도 요소가 더 안전함).
+   사진 폭(200px/모바일 160px)에 맞춰 같이 줄어들도록 width:100% */
+.person-like-btn{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  width:100%; margin-top:10px; padding:10px 0;
+  border:none; border-radius:var(--r-lg);
+  background:#15803d; cursor:pointer; position:relative; overflow:visible;
+  font-family:var(--font-mono); font-size:15px; font-weight:700; color:#fff;
+  transition:background .15s;
+}
+.person-like-btn:hover{background:#178f45}
+.person-like-btn.liked{background:#136b34}
+.person-like-btn:disabled{cursor:default}
+.person-like-btn .like-heart{font-size:22px; line-height:1; transition:transform .15s}
+.person-like-btn.liked .like-heart{transform:scale(1.15)}
+.person-like-btn .like-label{font-size:14px; color:#fff; font-family:var(--font-sans)}
+.person-like-btn .like-count{font-size:14px; color:#fff}
+
+/* 클릭 시 튀어 오르는 하트 파티클 — JS가 개수만큼 span을 만들어서 넣고,
+   애니메이션 끝나면 그 span들만 지움(버튼 자체 DOM은 안 건드림).
+   [2026-07-22 추가] 타입 2종을 하트마다 랜덤으로 섞음 — 입체감을 주기 위함
+   ① like-float: 위로 두둥실 떠오르며 사라짐 (기존)
+   ② like-zoom : 작게 시작해서 화면 쪽으로 커지며 다가오다가 사라짐 (신규) */
+.like-burst{position:absolute; left:50%; top:0; width:0; height:0; pointer-events:none}
+.like-burst-particle{
+  position:absolute; left:0; top:0; font-size:16px;
+  will-change:transform, opacity;
+}
+.like-burst-particle.like-float{ animation:likeFloat 3s ease-out forwards; }
+.like-burst-particle.like-zoom{  animation:likeZoom 3s ease-out forwards; }
+@keyframes likeFloat{
+  0%{  transform:translate(-50%,0) scale(.6); opacity:0; }
+  10%{ opacity:1; }
+  70%{ opacity:1; }
+  100%{transform:translate(var(--dx),var(--dy)) scale(1); opacity:0; }
+}
+/* 화면 쪽으로 다가오는 느낌 — 이동은 float보다 훨씬 적게(살짝만 흔들리듯) 하고,
+   대신 scale을 크게 키워서 "가까워진다"는 착시를 줌. 커지면서 흐려지다 사라짐. */
+@keyframes likeZoom{
+  0%{  transform:translate(-50%,0) scale(.3); opacity:0; }
+  10%{ opacity:1; }
+  55%{ opacity:1; }
+  100%{transform:translate(var(--dxZoom),var(--dyZoom)) scale(2.6); opacity:0; }
+}
+
+/* ── 뒤로가기 ── */
+/* [2026-07-11 6차 수정] back-btn이 person-hero 안(mobile-photo-row 안)으로 이동했지만,
+   버튼 자체 크기는 원래(내용물 크기만큼만) 그대로 유지 — "혼자 한 줄 차지"는
+   버튼이 아니라 바로 아래 보이지 않는 .hero-line-break 요소가 담당함.
+   ⚠️ 이전 시도(flex-basis:100%를 버튼 자체에 줌)는 버튼의 테두리 상자 자체가
+   화면 전체 폭으로 늘어나버리는 버그였음 — 폐기. */
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;
+  text-decoration:none;padding:7px 14px;border:1px solid var(--border);
+  border-radius:7px;transition:all .15s;font-family:var(--font-mono);cursor:pointer;background:transparent;
+  margin-bottom:24px}
+/* [2026-07-11 6차 수정] 보이지 않는 줄바꿈 전용 요소 — 폭 100%를 혼자 차지해서
+   그 다음에 오는 person-photo-wrap을 다음 줄로 밀어냄. 높이 0이라 화면에 아무
+   영향 없음. 모바일에서는 back-btn이 absolute라 필요 없으므로 미디어쿼리에서 숨김. */
+.hero-line-break{flex-basis:100%;height:0;overflow:hidden}
+/* [2026-07-11 7차 수정] row-gap을 0으로 껐으니, back-btn 자체의 margin-bottom:24px가
+   버튼 줄과 사진 줄 사이의 유일한 세로 간격원. 원래(수정 전) 있던 24px 그대로 복원. */
+.back-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg3)}
+
+/* ── 히어로 영역 ── */
+/* ⚠️ 2026-07-11 7차 수정: gap:32px가 가로/세로 모두에 적용되면서, hero-line-break가
+   만드는 줄바꿈 지점마다(버튼줄→break줄, break줄→사진줄) 세로 간격이 두 번 겹쳐서
+   64px(원래 의도 32px의 2배)로 벌어지는 버그 발생. row-gap(세로)은 0으로 끄고,
+   column-gap(가로, 사진-정보 사이 간격)만 32px 유지. 세로 간격은 아래 back-btn의
+   margin-bottom으로 한 번만 명시적으로 줌. */
+.person-hero{display:flex;flex-wrap:wrap;gap:0 32px;margin-bottom:32px;align-items:flex-start}
+/* [2026-07-11 5차 수정] mobile-photo-row: PC에서는 display:contents로 완전히
+   투명해져서(자기 자신은 레이아웃에 관여 안 함) back-btn/person-photo-wrap이
+   person-hero의 직속 flex 아이템처럼 동작 — 기존 PC 모습 그대로 유지됨.
+   모바일에서만 실제 flex row로 바뀜(아래 미디어쿼리). */
+.mobile-photo-row{display:contents}
+.person-photo-wrap{flex-shrink:0;width:200px}
+/* [2026-07-22 rev.10 신규] 프레임은 사진 크기에만 딱 맞는 래퍼 — 좋아요 버튼은 이
+   프레임 바깥(person-photo-wrap 안, 프레임 다음)에 있으므로 영향 없음. 국화 배지가
+   이 프레임 기준으로 절대위치 잡히므로 항상 "사진의" 우측하단에 고정됨. */
+.person-photo-frame{position:relative;width:100%}
+.person-photo{width:200px;aspect-ratio:2/3;border-radius:var(--r-lg);overflow:hidden;
+  border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 64px rgba(0,0,0,.6);
+  background:var(--bg3);position:relative}
+.person-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.person-photo-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  font-size:56px;font-weight:700;color:var(--info);font-family:var(--font-mono)}
+/* [2026-07-22 rev.10 신규] 추모 국화 배지 — 사진 우측하단에 여백 없이 겹쳐서 표시.
+   PC/모바일 동일하게 80px 폭으로 우선 확인 후 조정 예정(사용자 요청).
+   pointer-events:none — 사진 위 클릭/호버 동작을 막지 않기 위함. */
+.person-memorial-flower{
+  position:absolute; right:0; bottom:0;
+  width:80px; height:auto;
+  pointer-events:none;
+  z-index:2;
+}
+
+/* [2026-07-11 재수정] SNS 아이콘 — 박스/배경/패딩으로 만들었던 버전은 관리자님
+   피드백으로 폐기. 원래 인스타 아이콘(.person-insta-icon)이 박스 없이 이미지
+   자체가 꽉 차게 나오던 방식이 더 낫다는 판단 → 그 스타일을 여러 개(인스타/트위터/
+   틱톡)에도 동일하게 적용하도록 일반화. */
+.person-social-row{display:inline-flex;align-items:center;gap:8px;margin-left:10px;
+  vertical-align:middle;position:relative;top:-3px}
+.person-social-icon{display:inline-flex;align-items:center;opacity:.75;
+  transition:opacity .15s;text-decoration:none}
+.person-social-icon:hover{opacity:1}
+.person-social-icon img{width:48px;height:48px;border-radius:12px;display:block}
+
+/* [2026-07-11 재수정] 공유 버튼 — my_review.html의 "공유하기" 태그(.share-tag)를
+   그대로 참조. 정체를 알 수 없는 아이콘 하나만 덩그러니 있던 버전은 폐기하고,
+   무엇을 하는 버튼인지 텍스트로 바로 보이게 함. SNS 아이콘과 같은 줄에 배치. */
+.share-tag{
+  font-size:12px;padding:5px 12px;border-radius:14px;
+  background:rgba(240,180,41,.18);color:var(--gold);border:.5px solid rgba(240,180,41,.4);
+  cursor:pointer;font-family:var(--font-sans);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s;
+}
+.share-tag:hover{background:rgba(240,180,41,.28)}
+
+/* [2026-07-11 추가] 토스트 알림 — my_review.html과 동일한 스타일/동작 재사용 */
+.toast{position:fixed;top:150px;left:50%;transform:translateX(-50%);
+  background:rgba(30,30,40,.95);color:#fff;font-size:14px;padding:12px 24px;
+  border-radius:22px;z-index:9999;opacity:0;pointer-events:none;
+  transition:opacity .25s;font-family:var(--font-mono);word-break:keep-all}
+.toast.show{opacity:1}
+
+/* [2026-07-11 추가] 랭킹 배지 — 필모그래피 카드에 지금 랭킹에 있으면 표시 */
+/* [2026-07-20 수정] left:6px 고정 대신 가운데 정렬로 변경 */
+.work-rank-badge{display:none;align-items:center;gap:3px;position:absolute;
+  bottom:6px;left:50%;transform:translateX(-50%);background:rgba(230,57,70,.92);color:#fff;
+  font-size:10px;font-weight:700;font-family:var(--font-mono);
+  padding:3px 7px;border-radius:5px;backdrop-filter:blur(4px);
+  box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap}
+
+/* [2026-07-11 추가] 대표작(인기순) 섹션 — 가로 스크롤 */
+.known-for-section{margin-top:8px}
+.known-for-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.known-for-row::-webkit-scrollbar{display:none}
+
+/* [2026-07-11 추가] 오늘의 랭킹 위젯 — 방문객 전원에게 노출되는 유입 장치.
+   포스터 카드는 대표작(.known-for-row .work-card)과 완전히 동일한 크기를 쓰려고
+   새 CSS를 만들지 않고 .known-for-row 클래스를 그대로 재사용함(아래 rankingWidgetRow).
+   헤더(OTT 네임태그 + 제목)는 netflix.html의 .sec-num/.sec-title 패턴을 재현. */
+.ranking-widget-section{margin:32px 0;padding:18px 18px 20px;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg)}
+.ranking-widget-hd{display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  flex-wrap:wrap;text-decoration:none;cursor:pointer}
+.ranking-widget-hd .sec-num{font-family:var(--font-mono);font-size:12px;font-weight:700;
+  padding:3px 10px;border-radius:4px;letter-spacing:1px;white-space:nowrap}
+.ranking-widget-title-row{display:flex;align-items:baseline;gap:10px}
+.ranking-widget-hd .sec-title{font-size:17px;font-weight:700;color:var(--text);transition:color .15s}
+.ranking-widget-hd .sec-count{font-family:var(--disp);font-size:17px;letter-spacing:1px;color:var(--muted)}
+.ranking-widget-hd:hover .sec-title{color:var(--info)}
+/* [2026-07-11 추가] 랭킹 위젯 전용 행 — .known-for-row(대표작과 공유)에서 분리해서
+   대표작 카드 크기에 영향 안 주고 이 위젯만 사진갤러리(90px)와 동일 사이즈로 줄임 */
+.ranking-widget-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.ranking-widget-row::-webkit-scrollbar{display:none}
+.ranking-widget-row.few-items{justify-content:center}
+.ranking-widget-row .work-card{flex:0 0 90px;min-width:0}
+.ranking-widget-rank{position:absolute;top:6px;left:6px;
+  background:rgba(230,57,70,.92);color:#fff;font-family:var(--font-mono);
+  font-size:11px;font-weight:700;min-width:20px;height:20px;padding:0 2px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;backdrop-filter:blur(4px);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+/* ⚠️ 2026-07-11 4차 수정: 얇게 만든 스크롤바(6px)도 여전히 못생기고 UX를 해친다는
+   피드백 — 스크롤바 자체를 완전히 숨기고, 대신 좌우 화살표 버튼(PC 전용)으로 조작.
+   scrollbar-width:none(파이어폭스), -ms-overflow-style:none(구형 엣지),
+   ::-webkit-scrollbar{display:none}(크롬/사파리) 3종 다 처리해야 브라우저별로
+   안 남는 데 없이 확실히 숨겨짐. */
+.known-for-row .work-card{flex:0 0 120px;min-width:0}
+/* ⚠️ 2026-07-11 수정: min-width:0이 빠져있었음 — flex 아이템은 기본적으로
+   min-width:auto라서, 배역명처럼 white-space:nowrap인 긴 텍스트가 있으면
+   flex-shrink:0과 맞물려 카드 자체가 텍스트 길이만큼 억지로 커지는 버그 발생
+   ("Kim Young-ho / John Kim"처럼 긴 배역명 카드만 유독 커지던 원인).
+   min-width:0으로 자동 최소크기 계산을 꺼야 text-overflow:ellipsis가 정상 작동함. */
+/* [2026-07-11 추가] 아이템 2개 이하면 왼쪽에 몰려있지 않게 가운데 정렬 */
+.known-for-row.few-items{justify-content:center}
+
+/* [2026-07-11 추가] 사진 갤러리 */
+.photo-gallery-section{margin-top:24px}
+.photo-gallery-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.photo-gallery-row::-webkit-scrollbar{display:none}
+/* [2026-07-11 추가] 아이템 2개 이하면 왼쪽에 몰려있지 않게 가운데 정렬 */
+.photo-gallery-row.few-items{justify-content:center}
+.photo-gallery-thumb{flex:0 0 90px;aspect-ratio:2/3;border-radius:8px;overflow:hidden;
+  border:1px solid var(--border);cursor:pointer;background:var(--bg3);transition:border-color .15s}
+.photo-gallery-thumb:hover{border-color:var(--info)}
+.photo-gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* [2026-07-27 신규] 메인사진/갤러리 라이트박스 — _title_detail.html 관련이미지 팝업과 동일한 방식.
+   배경/이미지/✕ 클릭 시 닫힘, 화살표는 stopPropagation으로 닫힘 동작에서 제외되어 넘기기만 함.
+   모바일 스와이프(좌우 50px 이상)로도 넘길 수 있음. */
+.person-photo{cursor:pointer}
+.img-lightbox{
+  display:none;position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,0,.92);align-items:center;justify-content:center;
+  padding:40px 70px;cursor:pointer;
+}
+.img-lightbox.show{display:flex}
+.lightbox-slide-viewport{
+  position:relative;overflow:hidden;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);
+  width:90vw;height:85vh;max-width:700px;max-height:700px;
+}
+.lightbox-slide-track{display:flex;height:100%}
+.lightbox-slide-img{flex:0 0 100%;width:100%;height:100%;object-fit:contain;touch-action:pan-y}
+.lightbox-close{
+  position:fixed;top:16px;right:20px;width:40px;height:40px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.18);color:#fff;
+  font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);z-index:1001;transition:background .15s;
+}
+.lightbox-close:hover{background:rgba(255,255,255,.18)}
+.lightbox-arrow{
+  position:fixed;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.18);color:#fff;
+  font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);z-index:1001;transition:background .15s;
+}
+.lightbox-arrow:hover{background:rgba(255,255,255,.18)}
+.lightbox-arrow-left{left:20px}
+.lightbox-arrow-right{right:20px}
+@media(max-width:640px){
+  .img-lightbox{padding:20px}
+  .lightbox-close{top:10px;right:12px;width:34px;height:34px;font-size:16px}
+  .lightbox-arrow{width:36px;height:36px;font-size:18px}
+  .lightbox-arrow-left{left:8px}
+  .lightbox-arrow-right{right:8px}
+}
+
+
+/* [2026-07-11 추가] 좌우 스크롤 화살표 — PC 전용(대표작/사진갤러리 공통).
+   모바일은 스와이프로 충분히 잘 동작하고 있어서 의도적으로 미적용(하단 미디어쿼리에서 숨김). */
+.scroll-row-wrap{position:relative}
+.scroll-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);
+  width:34px;height:34px;border-radius:50%;
+  background:rgba(20,20,28,.8);border:1px solid var(--border2);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:20px;line-height:1;cursor:pointer;z-index:3;
+  opacity:0;transition:opacity .2s;user-select:none;
+}
+.scroll-row-wrap:hover .scroll-arrow{opacity:.9}
+.scroll-arrow:hover{background:rgba(30,30,42,.95)}
+.scroll-arrow-left{left:-14px}
+.scroll-arrow-right{right:-14px}
+.scroll-arrow.hidden{display:none} /* 스크롤 끝(또는 스크롤 필요 없음)에 도달하면 자동으로 숨김 */
+
+/* ── 인물 정보 ── */
+.person-info{flex:1;min-width:0;margin-top:20px}
+.person-name{font-size:34px;font-weight:900;line-height:1.1;letter-spacing:-.5px;margin-bottom:4px}
+.person-name-en{display:none} /* [2026-07-20 수정] 이름 옆 괄호 표기 방식으로 변경, 기존 별도줄은 숨김 */
+.person-name-en-inline{font-size:16px;color:var(--muted);font-weight:400;margin-left:6px} /* [2026-07-20 신규] */
+.person-meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+.person-meta-chip{display:inline-flex;align-items:center;gap:5px;
+  padding:5px 12px;border-radius:20px;border:.5px solid var(--border);
+  background:var(--bg2);font-size:13px;color:var(--muted2);font-family:var(--font-mono)}
+.person-meta-chip .chip-label{color:var(--muted);font-size:12px;margin-right:2px}
+/* [2026-07-27 신규] MBTI 칩 — 다른 칩과 구분되게 연한 흰색 배경 */
+.person-meta-chip.mbti-chip{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:var(--text)}
+
+/* 약력 */
+.bio-section{margin-bottom:0}
+
+/* [2026-07-19 신규] 위키백과 보강 데이터 — 테스트 전용 섹션
+   위키 데이터가 있는 배우만 JS에서 display:block으로 켜짐(2026-07-20부터 전체 적용). */
+.wiki-test-section{
+  display:none; margin:16px 0 24px; padding:16px;
+  background:var(--bg); border:.5px solid rgba(255,255,255,0.05); border-radius:var(--r);
+}
+.wiki-test-summary{ font-size:14px; line-height:1.6; color:var(--muted); margin-bottom:14px; }
+.wiki-test-meta{ display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:var(--muted); margin-bottom:14px; }
+
+/* [2026-07-19 신규] 데뷔작/학력 — 오른쪽 프로필(person-info) 안, 메타칩과 약력 사이에 표시 */
+.profile-debut-edu{
+  display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:var(--muted);
+  margin:12px 0; padding:10px 0;
+  border-top:.5px solid var(--border); border-bottom:.5px solid var(--border);
+}
+.profile-debut-edu b{ color:var(--text); font-weight:600; margin-right:4px; }
+
+/* [2026-07-19 신규] 수상내역 — 약력 바로 아래. 윗줄만 유지(약력과 구분),
+   아랫줄은 뺌 — person-info 전체의 아래쪽 줄이 대표작 앞 구분선 역할을 이미 하고 있어서
+   바로 밑에 또 줄이 있으면 줄 2개가 겹쳐 보임 */
+.profile-awards{
+  font-size:13px; color:var(--muted2); line-height:1.7;
+  margin-top:12px; padding-top:10px;
+  border-top:.5px solid var(--border);
+}
+.profile-awards-text{
+  white-space:pre-line; /* [2026-07-20 신규] 입력창에서 엔터로 나눈 줄이 화면에도 줄바꿈되게 */
+}
+/* [2026-07-20 신규] 수상내역 "더보기" — 약력(bio-toggle)과 동일 스타일 재사용.
+   모바일은 2줄, PC는 4줄 넘을 때 등장(JS가 계산해서 버튼 표시 여부만 토글) */
+.profile-awards-toggle{
+  display:none; margin-top:6px; background:none; border:none; color:var(--info);
+  font-size:13px; cursor:pointer; font-family:var(--font-mono); padding:0;
+}
+.profile-awards-toggle:hover{text-decoration:underline}
+@media(max-width:640px){
+  .profile-awards-text{
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; transition:all .3s;
+  }
+  .profile-awards-text.expanded{ -webkit-line-clamp:unset; overflow:visible; }
+}
+@media(min-width:641px){
+  /* [2026-07-20 수정] PC도 4줄 넘으면 잘리게 — 예전엔 항상 전체 노출이었음 */
+  .profile-awards-text{
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical;
+    overflow:hidden; transition:all .3s;
+  }
+  .profile-awards-text.expanded{ -webkit-line-clamp:unset; overflow:visible; }
+}
+.wiki-test-meta b{ color:var(--text); font-weight:600; }
+.wiki-test-awards{ font-size:13px; color:var(--muted2); margin-bottom:14px; line-height:1.6; }
+/* [2026-07-20 수정] 검색엔진용 데이터라 사람 눈에 안 띄게 — 글자 연한 회색톤 */
+.wiki-career-preview{ font-size:13px; line-height:1.7; color:var(--muted); white-space:pre-line; }
+.wiki-career-preview.collapsed{
+  max-height:calc(1.7em * 4); overflow:hidden;
+}
+/* [2026-07-19 신규] 펼친 상태도 무한정 안 늘어나고 박스 안에서만 스크롤 (페이지 길이 유지) */
+.wiki-career-preview.expanded{
+  max-height:calc(1.7em * 12); overflow-y:auto; padding-right:8px;
+}
+.wiki-career-toggle{
+  margin-top:8px; background:none; border:none; color:var(--muted);
+  font-size:12px; cursor:pointer; padding:0;
+}
+.wiki-test-source{ margin-top:14px; font-size:11px; color:var(--muted); }
+#wikiSource{ display:none; } /* [2026-07-20 신규] PC는 "전체 이력 더보기" 눌러야 출처도 같이 보이게 */
+
+/* [2026-07-19 신규] 전체이력 — 모바일 전용 UI (랭킹위젯~필모그래피 사이).
+   PC의 wikiTestSection과 데이터는 같지만 화면에 따라 하나만 보임 */
+.wiki-career-mobile-section{ margin:20px 0; text-align:center; }
+/* [2026-07-20 수정] 검색엔진용이라 눈에 안 띄게 — 얇고 진한 회색톤 버튼, 가운데 정렬, 글자 1px 키움 */
+.wiki-career-mobile-toggle{
+  display:inline-block; width:auto; margin:0 auto; padding:6px 12px; text-align:center;
+  background:transparent; border:.5px solid rgba(255,255,255,0.08); border-radius:6px;
+  color:var(--muted); font-size:12px; font-family:var(--font-sans); cursor:pointer;
+}
+.wiki-career-mobile-box{
+  margin-top:10px; padding:14px; background:var(--bg);
+  border:.5px solid rgba(255,255,255,0.05); border-radius:var(--r);
+}
+.wiki-career-mobile-text{
+  font-size:13px; line-height:1.7; color:var(--muted); white-space:pre-line;
+  max-height:calc(1.7em * 5); overflow-y:auto; padding-right:6px; /* 5줄 정도만, 그 안에서 스크롤 */
+}
+
+/* [2026-07-20 신규] 스크롤바를 얇고 눈에 안 띄게 (Chrome/Safari + Firefox 둘 다 대응) */
+.wiki-career-preview.expanded,
+.wiki-career-mobile-text{
+  scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.12) transparent;
+}
+.wiki-career-preview.expanded::-webkit-scrollbar,
+.wiki-career-mobile-text::-webkit-scrollbar{ width:5px; }
+.wiki-career-preview.expanded::-webkit-scrollbar-track,
+.wiki-career-mobile-text::-webkit-scrollbar-track{ background:transparent; }
+.wiki-career-preview.expanded::-webkit-scrollbar-thumb,
+.wiki-career-mobile-text::-webkit-scrollbar-thumb{
+  background:rgba(255,255,255,0.12); border-radius:10px;
+}
+
+/* [2026-07-19 신규] PC/모바일 중 하나만 보이게 — 화면 폭 641px 기준으로 서로 반대로 숨김 */
+@media(min-width:641px){
+  .wiki-career-mobile-section{ display:none !important; }
+}
+@media(max-width:640px){
+  #wikiTestSection{ display:none !important; }
+}
+.wiki-test-source a{ color:var(--muted); }
+.bio-text{font-size:14px;color:var(--muted2);line-height:1.8;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+  transition:all .3s}
+.bio-text.expanded{-webkit-line-clamp:unset;overflow:visible}
+.bio-toggle{margin-top:8px;background:none;border:none;color:var(--info);
+  font-size:13px;cursor:pointer;font-family:var(--font-mono);padding:0;
+  display:none} /* JS로 필요시 표시 */
+.bio-toggle:hover{text-decoration:underline}
+
+/* [2026-07-22 신규] 프로필(약력) 수정하기 버튼 — 더보기 옆에 나란히, 더보기와 달리
+   항상 보임(더보기가 없으면 이 버튼만 그 자리에 남음). 더보기 버튼과 같은 링크 스타일. */
+.profile-edit-btn{margin-top:8px;margin-left:10px;background:none;border:none;color:var(--info);
+  font-size:13px;cursor:pointer;font-family:var(--font-mono);padding:0}
+.profile-edit-btn:hover{text-decoration:underline}
+
+/* [2026-07-22 신규] 프로필 수정 모달 — 화면 전체를 덮는 오버레이 + 가운데 작은 박스 */
+.pe-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.pe-modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:24px;width:100%;max-width:480px}
+.pe-modal h3{font-size:16px;margin-bottom:6px}
+.pe-modal .pe-sub{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+.pe-modal textarea{width:100%;min-height:160px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;padding:12px;color:var(--text);font-size:14px;line-height:1.6;
+  font-family:var(--font-sans);resize:vertical}
+.pe-modal .pe-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.pe-modal button{padding:9px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;
+  cursor:pointer;font-family:var(--font-sans)}
+.pe-cancel-btn{background:var(--bg3);color:var(--muted2)}
+.pe-submit-btn{background:var(--info);color:#fff}
+.pe-submit-btn:disabled{opacity:.5;cursor:default}
+
+/* ── 필모그래피 ── */
+.filmography-section{margin-top:32px}
+.section-title{font-size:17px;font-weight:700;margin-bottom:16px;
+  display:flex;align-items:center;gap:10px}
+.section-title small{font-size:13px;color:var(--muted);font-weight:400;font-family:var(--font-mono)}
+/* [2026-07-20 신규] 필모그래피 정렬 토글 버튼 */
+.filmo-sort-toggle{
+  margin-left:auto; padding:5px 12px; font-size:12px; font-weight:500;
+  background:transparent; border:.5px solid var(--border); border-radius:20px;
+  color:var(--muted); cursor:pointer; font-family:var(--font-sans);
+}
+.filmo-sort-toggle:hover{background:var(--bg3); color:var(--text); border-color:var(--border2)}
+
+/* 탭 */
+.tab-row{display:flex;gap:6px;margin-bottom:20px}
+.tab-btn{padding:7px 18px;border-radius:20px;border:.5px solid var(--border);
+  font-size:14px;color:var(--muted);cursor:pointer;font-family:var(--font-mono);
+  background:transparent;transition:all .15s}
+.tab-btn.on{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.tab-btn:hover:not(.on){color:var(--muted2);border-color:var(--border)}
+
+/* 작품 그리드 */
+.works-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:16px}
+.work-card{cursor:pointer;text-decoration:none;display:block;transition:transform .2s ease;min-width:0}
+/* ⚠️ 2026-07-11 수정: min-width:0 추가 — CSS Grid 아이템도 flex와 동일하게
+   기본 min-width:auto라서, 긴 배역명이 나오면 known-for-row와 같은 이유로
+   그리드 트랙(카드)이 억지로 커질 수 있는 잠재 버그가 있어 예방 차원에서 수정 */
+.work-card:hover{transform:translateY(-4px)}
+.work-poster{width:100%;aspect-ratio:2/3;border-radius:var(--r);overflow:hidden;
+  background:var(--bg3);border:.5px solid var(--border);position:relative;margin-bottom:8px}
+.work-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;
+  justify-content:center;font-size:28px}
+/* [2026-07-20 신규] 연도(왼쪽)/평점(오른쪽) — 제목 밑, 배역 위 줄 */
+.work-year-rating-row{display:flex;justify-content:space-between;align-items:center;
+  font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:2px}
+.work-rating{color:var(--gold)}
+/* [2026-07-20 신규] OTT 로고 — 우리 DB에 있는 작품만 표시 (검색결과 페이지와 동일 스타일) */
+.work-ott-badges{position:absolute;top:6px;left:6px;right:6px;
+  display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px}
+/* [2026-07-20 수정] .work-poster img{width:100%;height:100%} 규칙이 이 로고
+   이미지에도 적용돼서 커지던 문제 — 선택자를 더 구체적으로 만들어 우선순위 확보 */
+.work-poster .ott-logo{width:20px;height:20px;border-radius:50%;object-fit:cover;
+  flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.work-poster .ott-logo-ph{width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  font-size:10px;color:#fff;font-weight:700;display:flex;
+  align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.work-title{font-size:13px;font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.work-role{font-size:12px;color:var(--muted);font-family:var(--font-mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work-type-dot{display:inline-block;width:5px;height:5px;border-radius:50%;
+  margin-right:4px;vertical-align:middle}
+.work-type-dot.tv{background:var(--info)}
+.work-type-dot.movie{background:var(--gold)}
+
+/* 더보기 버튼 */
+.load-more-btn{display:block;width:100%;margin-top:20px;padding:12px;
+  border-radius:var(--r);border:.5px solid var(--border);
+  background:transparent;color:var(--muted2);font-size:14px;
+  cursor:pointer;font-family:var(--font-sans);transition:all .15s;text-align:center}
+.load-more-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+
+/* ── 로딩 ── */
+.page-loading{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:80px;gap:16px}
+.page-loading p{font-size:14px;color:var(--muted);font-family:var(--font-mono)}
+.spin{width:28px;height:28px;border:2.5px solid var(--border2);border-top-color:var(--info);
+  border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── 반응형 ── */
+.hero-wrap{position:relative}
+
+@media(max-width:640px){
+  .person-hero{flex-direction:column;gap:20px;align-items:center}
+  .person-photo-wrap{width:160px}
+  .person-photo{width:160px}
+  .person-info{width:100%;text-align:center}
+  .person-name{font-size:26px}
+  .person-meta-row{justify-content:center}
+  .works-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
+  /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 모바일은 OTT 태그(1줄) / 제목+카운트(2줄)로 분리 */
+  .ranking-widget-title-row{flex-basis:100%;margin-top:4px}
+  /* [2026-07-11 추가] 모바일 전용 — 태그 위아래 여백 축소 */
+  .ranking-widget-hd .sec-num{padding:2px 10px}
+  /* [2026-07-11 추가] 모바일 전용 — 랭킹 위젯 화살표는 PC(호버 시에만 노출)와 달리
+     기본값으로 바로 노출. 스크롤 끝(맨 앞/맨 뒤) 도달 시 자동 숨기는 기존 JS 로직
+     (.hidden 클래스)은 그대로 살아있어서, 처음엔 오른쪽 화살표만 보이고
+     왼쪽은 스크롤해야 나타남 — "더 있다"는 걸 알려주는 효과 */
+  /* [2026-07-20 수정] 원래 랭킹위젯에만 있던 규칙 — 대표작/갤러리는 모바일에
+     호버가 없어서 화살표가 계속 opacity:0으로 안 보이다가, 슬라이딩할 때 터치로
+     우연히 hover 비슷한 상태가 잠깐 걸려야만 보이는 버그였음. 동일하게 적용 */
+  .ranking-widget-section .scroll-arrow,
+  .known-for-section .scroll-arrow,
+  #photoGallerySection .scroll-arrow{opacity:.9}
+
+  /* ⚠️ 2026-07-11 6차 수정(최종): justify-content:center로 화살표+사진을 "하나로 묶어서"
+     가운데 정렬했더니, 화살표까지 같이 오른쪽으로 밀려서 진짜 왼쪽 상단이 아니게 됨.
+     "왼쪽 상단"은 사진 기준이 아니라 화면(컨테이너) 기준 고정 자리를 뜻했음.
+     → 화살표는 position:absolute로 컨테이너 진짜 왼쪽 위 모서리에 고정(사진과 무관).
+     → 사진은 화살표 흐름에서 완전히 분리되어(화살표가 absolute라 flex 정렬에 안 끼임)
+       원래처럼 독립적으로 가운데 정렬됨 — 정렬되면서 생기는 왼쪽 여백에 화살표가
+       자연스럽게 들어가서 겹치지 않음. */
+  .mobile-photo-row{
+    position:relative;display:flex;justify-content:center;width:100%;
+  }
+  .back-btn{
+    position:absolute;top:0;left:0;z-index:5;
+    padding:9px;border-radius:50%;gap:0;margin:0;
+    background:rgba(10,10,14,.55);border-color:rgba(255,255,255,.3);backdrop-filter:blur(2px);
+  }
+  .back-label{display:none}
+  .back-arrow{font-size:16px;line-height:1;color:#fff}
+  .hero-line-break{display:none} /* [2026-07-11 6차 수정] 모바일은 back-btn이 absolute라 줄바꿈 불필요 */
+}
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div id="ottrang-header"></div>
+<script>
+(function(){
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      const el=document.getElementById('ottrang-header');
+      el.innerHTML=h;
+      el.querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function') initHeader();
+    })
+    .catch(()=>{});
+  // [2026-07-18 수정] 원래는 헤더 fetch가 끝나야(.finally) initPage()가 시작되는 구조였음 —
+  // 헤더와 인물 정보는 서로 전혀 무관한 데이터인데도, 헤더 로딩 시간만큼 콘텐츠 시작이
+  // 매번 늦춰지고 있었음(넷플릭스 페이지에서 발견했던 것과 동일한 패턴). initPage() 호출은
+  // 여기서 빼고, 이 함수가 실제로 정의되는 아래쪽 스크립트 블록 끝에서 바로 호출하도록 이동
+  // (index.html/_title_detail.html의 init() 호출 방식과 동일한 패턴).
+})();
+</script>
+
+<!-- 본문 -->
+<div class="page-wrap">
+<div class="person-layout">
+<div class="person-col-left">
+
+  <!-- [2026-07-11 5차 수정] 뒤로가기와 사진을 같은 줄(flex row)에 두는 최종 구조.
+       계산값(calc/transform) 없이 실제 flex 레이아웃으로 처리 — 사진이 가운데
+       정렬되면서 생기는 왼쪽 여백에 화살표가 자연스럽게 들어감. 사진과 안 겹치고,
+       화살표가 별도 줄을 차지하지도 않아서 세로 공간도 그대로 절약됨. -->
+  <div class="hero-wrap">
+    <!-- 로딩 -->
+    <div id="pageLoading" class="page-loading">
+      <div class="spin"></div>
+      <p>인물 정보를 불러오는 중...</p>
+    </div>
+
+    <!-- 인물 히어로 -->
+    <div id="personHero" class="person-hero" style="display:none">
+      <div class="mobile-photo-row">
+        <div class="hero-line-break"></div>
+        <div class="person-photo-wrap">
+          <!-- [2026-07-22 rev.10 신규] 추모 국화 — 사진 프레임(person-photo-frame)을 별도로 둬서
+               #personPhoto(innerHTML이 갤러리 클릭 시 통째로 교체되는 요소) 바깥에 배치.
+               사진 우측하단에 여백없이 겹쳐서 표시. 반드시 data.deathday(TMDB 사망일자)가
+               실제로 있을 때만 노출 — JS renderMemorialFlower()에서 엄격히 체크함. -->
+          <div class="person-photo-frame">
+            <div class="person-photo" id="personPhoto" onclick="handlePersonPhotoClick()">
+              <div class="person-photo-ph" id="personPhotoPh">?</div>
+            </div>
+            <img class="person-memorial-flower" id="personMemorialFlower"
+                 src="/img/memorial-flower.png" alt="고인의 명복을 빕니다"
+                 style="display:none" onerror="this.style.display='none'">
+          </div>
+          <!-- [2026-07-22 신규] 인물 좋아요 — 로그인/횟수 제한 없음, 클릭마다 하트 파티클+사운드,
+               2초간 비활성화 후 다시 누를 수 있음. 초기값은 loadWikiTest()가 like_count로 채움. -->
+          <button class="person-like-btn" id="personLikeBtn" onclick="toggleLike(this)">
+            <span class="like-label">좋아요</span>
+            <span class="like-heart" id="likeHeart">🤍</span>
+            <span class="like-count" id="likeCount" style="display:none">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="person-info">
+        <!-- 이름 + SNS 아이콘/공유버튼 (JS에서 personName 옆에 같이 렌더링) -->
+        <div class="person-name" id="personName">—</div>
+        <div class="person-name-en" id="personNameEn"></div>
+        <div class="person-meta-row" id="personMetaRow"></div>
+        <!-- [2026-07-19 신규] 데뷔작/학력 — 위키 데이터 있을 때만 채워짐 -->
+        <div class="profile-debut-edu" id="profileDebutEdu" style="display:none"></div>
+        <div class="bio-section">
+          <div class="bio-text" id="bioText"></div>
+          <button class="bio-toggle" id="bioToggle" onclick="toggleBio()">더보기 ▾</button>
+          <button class="profile-edit-btn" id="profileEditBtn" onclick="openProfileEditModal()">✏️ 프로필 수정하기</button>
+        </div>
+        <!-- [2026-07-19 신규] 수상내역 — 약력 바로 아래, 대표작(TMDB)보다 먼저 보이는 위치
+             [2026-07-20 신규] 모바일 2줄 초과 시 더보기 버튼용으로 텍스트/버튼 분리 -->
+        <div class="profile-awards" id="profileAwards" style="display:none">
+          <b style="color:var(--text)" id="profileAwardsTitle">🏆 수상내역</b>
+          <div class="profile-awards-text" id="profileAwardsText"></div>
+          <button class="profile-awards-toggle" id="profileAwardsToggle" onclick="toggleAwards()">더보기 ▾</button>
+        </div>
+      </div>
+    </div>
+  </div><!-- /hero-wrap -->
+
+  <!-- ⚠️ 2026-07-11 재수정: 사진 컬럼(200px) 안에 갤러리를 넣었더니 대표작처럼
+       한 줄에 다 보이던 게 좁아져서 스크롤바가 두껍게 생기는 문제 발생 → PC는
+       원래 이 자리(화면 전체 폭, 대표작 섹션과 같은 방식)로 되돌림.
+       photoGalleryAnchor: PC에서 갤러리가 항상 정확히 이 자리로 돌아오게 하는 고정 표식 -->
+  <div id="photoGalleryAnchor" style="display:none"></div>
+
+  <!-- [2026-07-11 추가] 사진 갤러리 — PC/모바일에서 위치가 다름(JS의 relocatePhotoGallery()가
+       화면 크기에 따라 이 요소를 다른 부모로 옮김). PC는 위 photoGalleryAnchor 자리
+       (화면 전체 폭, 대표작처럼 한 줄에 다 보임), 모바일은 메타정보~소개글 사이 -->
+  <div id="photoGallerySection" class="photo-gallery-section" style="display:none">
+    <!-- [2026-07-11 수정] "📷 사진" 제목 삭제 — 제목 때문에 사진이 아래로 밀려서
+         잘 안 보인다는 피드백으로 제거. 사진 자체가 갤러리인 게 바로 보이니 제목 불필요 -->
+    <div class="scroll-row-wrap">
+      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('photoGalleryRow',-1)" aria-label="이전 사진">‹</button>
+      <div class="photo-gallery-row" id="photoGalleryRow"></div>
+      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('photoGalleryRow',1)" aria-label="다음 사진">›</button>
+    </div>
+  </div>
+
+  <!-- [2026-07-27 신규] 메인사진/갤러리 라이트박스 -->
+  <div class="img-lightbox" id="personImgLightbox" onclick="handlePersonLightboxBgClick()">
+    <button type="button" class="lightbox-close" onclick="closePersonLightbox()">✕</button>
+    <button type="button" class="lightbox-arrow lightbox-arrow-left" id="personLightboxPrev" onclick="personLightboxNav(event,-1)">‹</button>
+    <div class="lightbox-slide-viewport" id="personSlideViewport">
+      <div class="lightbox-slide-track" id="personSlideTrack">
+        <img class="lightbox-slide-img" src="" alt="사진">
+      </div>
+    </div>
+    <button type="button" class="lightbox-arrow lightbox-arrow-right" id="personLightboxNext" onclick="personLightboxNav(event,1)">›</button>
+  </div>
+
+  <!-- [2026-07-19 신규, 2026-07-20 재배치] 전체이력 — PC 전용(왼쪽 컬럼, 사진→갤러리 다음).
+       모바일은 별도 위치(랭킹위젯~필모그래피 사이)에 독립된 버튼+박스를 따로 둠
+       (아래 wikiCareerMobileSection 참고).
+       ⚠️ [2026-07-20 재수정] 갤러리보다 앞에 있어서 "사진→전체이력→갤러리" 순으로
+       보이던 버그 — 정적 HTML 작성 순서 문제였음(JS 로직 문제 아님). 갤러리 뒤로 이동. -->
+  <div class="wiki-test-section" id="wikiTestSection">
+    <div class="wiki-career-preview collapsed" id="wikiCareerPreview"></div>
+    <button class="wiki-career-toggle" id="wikiCareerToggle" onclick="toggleWikiCareer()">전체 이력 더보기 ▾</button>
+    <div class="wiki-test-source" id="wikiSource"></div>
+  </div>
+
+  </div><!-- /person-col-left -->
+
+  <div class="person-col-right">
+  <!-- [2026-07-19 신규] 이름/SNS/공유/메타/약력이 여기로 이동해서 들어옴 (JS에서 처리) -->
+  <div id="profileHeaderAnchor"></div>
+
+  <!-- [2026-07-19 이동] 대표작/랭킹위젯 — 왼쪽 컬럼(380px)이 좁아서 포스터가
+       눌려보이는 문제로 오른쪽(넓은 컬럼)으로 이동. 나중에 탭 UI로 재정리 예정,
+       지금은 필모그래피 위에 그대로 쌓는 구조. -->
+  <!-- [2026-07-11 추가] 대표작(인기순 강조) -->
+  <div id="knownForSection" class="known-for-section" style="display:none">
+    <div class="section-title" id="knownForTitle">🌟 대표작</div>
+    <div class="scroll-row-wrap">
+      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('knownForRow',-1)" aria-label="이전 작품">‹</button>
+      <div class="known-for-row" id="knownForRow"></div>
+      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('knownForRow',1)" aria-label="다음 작품">›</button>
+    </div>
+  </div>
+
+  <!-- [2026-07-11 재배치] 오늘의 랭킹 위젯 — 어드민 "인물페이지 설정"에서 켠 카테고리 1개만 노출.
+       관리자가 아무것도 안 켜놨으면(data===null) JS가 이 섹션을 그대로 숨김.
+       ⚠️ 원래 hero-wrap 바로 뒤(프로필-사진갤러리 사이)에 뒀다가, 대표작/필모그래피
+       사이가 맞는 자리라는 피드백으로 이동함(2026-07-11). -->
+  <div id="rankingWidgetSection" class="ranking-widget-section" style="display:none">
+    <a class="ranking-widget-hd" id="rankingWidgetLink" href="#">
+      <span class="sec-num" id="rankingWidgetTag"></span>
+      <span class="ranking-widget-title-row">
+        <span class="sec-title" id="rankingWidgetTitle"></span>
+        <span class="sec-count" id="rankingWidgetCount"></span>
+      </span>
+    </a>
+    <div class="scroll-row-wrap">
+      <button class="scroll-arrow scroll-arrow-left hidden" onclick="scrollRowBy('rankingWidgetRow',-1)" aria-label="이전 작품">‹</button>
+      <div class="ranking-widget-row" id="rankingWidgetRow"></div>
+      <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('rankingWidgetRow',1)" aria-label="다음 작품">›</button>
+    </div>
+  </div>
+
+  <!-- [2026-07-19 신규] 전체이력 — 모바일 전용(PC에서는 CSS로 숨김, 왼쪽 컬럼의 wikiTestSection이 대신 보임).
+       버튼 누르면 5줄 높이 박스가 펼쳐지고 그 안에서만 스크롤 (페이지 길이 안 늘어남) -->
+  <div class="wiki-career-mobile-section" id="wikiCareerMobileSection" style="display:none">
+    <button class="wiki-career-mobile-toggle" id="wikiCareerMobileToggle" onclick="toggleWikiCareerMobile()">
+      전체 이력 더보기 ▾
+    </button>
+    <div class="wiki-career-mobile-box" id="wikiCareerMobileBox" style="display:none">
+      <div class="wiki-career-mobile-text" id="wikiCareerMobileText"></div>
+      <div class="wiki-test-source" id="wikiSourceMobile"></div>
+    </div>
+  </div>
+
+  <!-- 필모그래피 -->
+  <div id="filmographySection" class="filmography-section" style="display:none">
+    <div class="section-title">
+      🎬 필모그래피 <small id="filmCount"></small>
+      <button class="filmo-sort-toggle" id="filmoSortToggle" onclick="toggleFilmoSort()">연도순 보기</button>
+    </div>
+    <div class="tab-row">
+      <button class="tab-btn on" id="tabAll"   onclick="switchTab('all')">전체</button>
+      <button class="tab-btn"   id="tabAct"   onclick="switchTab('act')">출연</button>
+      <button class="tab-btn"   id="tabDirect" onclick="switchTab('direct')">연출</button>
+    </div>
+    <div class="works-grid" id="worksGrid"></div>
+    <button class="load-more-btn" id="loadMoreBtn" onclick="loadMore()" style="display:none">
+      더보기
+    </button>
+  </div>
+  </div><!-- /person-col-right -->
+
+</div><!-- /person-layout -->
+</div><!-- /page-wrap -->
+
+<!-- [2026-07-11 추가] 공유하기 토스트 알림 (my_review.html과 동일 패턴) -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── 상수 ── */
+const TMDB_PROXY = 'https://tmdb-proxy.tdidream.workers.dev/tmdb';
+const OTTRANK_API = 'https://ottrank-api.tdidream.workers.dev'; // [2026-07-11 추가] 랭킹배지 조회용
+
+/* [2026-07-23 신규] 익명 방문자 ID(vid) — 로그인 여부와 무관하게 "같은 브라우저"를 구분하기 위한
+   랜덤값. localStorage에 한 번 만들어두고 계속 재사용. 관리자 페이지 로그에서 "이 사람이 어떤
+   흐름으로 돌아다녔는지" 눈으로 구분하는 용도일 뿐이라, 짧은 랜덤 문자열로도 충분함. */
+function getOttrangVid(){
+  try{
+    let vid = localStorage.getItem('ottrang_vid');
+    if(!vid){
+      vid = Math.random().toString(36).slice(2, 10); // 8자리 랜덤 문자열
+      localStorage.setItem('ottrang_vid', vid);
+    }
+    return vid;
+  }catch(e){ return ''; }
+}
+
+/* [2026-07-21 신규] 실시간 조회 이벤트 전송 — 관리자 화면에서 "지금 인기 작품/인물"을
+   보여주기 위한 신호. 응답을 기다리지 않는 fire-and-forget 방식이라 페이지 로딩 속도에
+   영향 없음. 실패해도 화면엔 영향 없게 조용히 무시. */
+function trackPageView(type, id){
+  try{
+    fetch(`${OTTRANK_API}/track/view`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type, id, vid:getOttrangVid()}),
+    }).catch(()=>{});
+  }catch(e){ /* 조용히 무시 */ }
+}
+const IMG        = 'https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-18] 캐싱 프록시로 변경
+const IMG_PROFILE= 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-18] 캐싱 프록시로 변경
+const IMG_PROFILE_LARGE = 'https://poster.ottrank.kr/tmdb-img/w780'; // [2026-07-27 신규] 라이트박스(사진 크게 보기)용 고해상도
+
+/* [2026-07-11 추가] 플랫폼 코드 → 한글 라벨 (랭킹 배지용) */
+const PLATFORM_LABELS = {
+  netflix:'넷플릭스', tving:'티빙', disney:'디즈니+',
+  wavve:'웨이브', coupang:'쿠팡플레이', boxoffice:'박스오피스',
+};
+
+/* [2026-07-11 추가] 오늘의 랭킹 위젯용 — 플랫폼 페이지 URL(header.html과 동일 경로)·
+   브랜드 색상(header.html의 CC 상수와 동일 hex) */
+const PLATFORM_PAGES = {
+  netflix:'/netflix.html', tving:'/tving.html', disney:'/disneyplus.html',
+  coupang:'/coupangplay.html', wavve:'/wavve.html', boxoffice:'/boxoffice.html',
+};
+const PLATFORM_COLORS = {
+  netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4',
+  coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429',
+};
+
+/* [2026-07-11 추가] 랭킹 배지 캐시 — tmdb_id별로 한 번만 조회 (더보기 클릭마다 중복조회 방지) */
+let rankBadgeCache = {};
+
+/* [2026-07-11 추가] 좌우 화살표 스크롤 (PC 전용, known-for-row/photo-gallery-row 공통)
+   - 클릭 시 컨테이너 폭의 80%만큼 부드럽게 스크롤
+   - 스크롤이 맨 왼쪽/맨 오른쪽 끝에 도달하면(또는 애초에 스크롤할 내용이 없으면)
+     해당 방향 화살표를 자동으로 숨김 — UX 방해 최소화 */
+function scrollRowBy(rowId, dir){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  const amount = Math.round(row.clientWidth * 0.8) * dir;
+  row.scrollBy({ left: amount, behavior: 'smooth' });
+}
+
+function updateScrollArrows(rowId){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  const wrap = row.closest('.scroll-row-wrap');
+  if(!wrap) return;
+  const leftBtn  = wrap.querySelector('.scroll-arrow-left');
+  const rightBtn = wrap.querySelector('.scroll-arrow-right');
+  const maxScroll = row.scrollWidth - row.clientWidth;
+  if(leftBtn)  leftBtn.classList.toggle('hidden', row.scrollLeft <= 4);
+  if(rightBtn) rightBtn.classList.toggle('hidden', row.scrollLeft >= maxScroll - 4);
+}
+
+function setupScrollRow(rowId){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  row.addEventListener('scroll', () => updateScrollArrows(rowId));
+  window.addEventListener('resize', () => updateScrollArrows(rowId));
+}
+
+setupScrollRow('knownForRow');
+setupScrollRow('photoGalleryRow');
+setupScrollRow('rankingWidgetRow');
+
+/* [2026-07-11 추가] 사진 갤러리 위치 — PC/모바일에서 서로 다른 부모 컨테이너에
+   들어가야 해서 CSS만으로는 처리 불가(부모 자체가 다름) → JS로 화면 크기에 따라
+   실제 DOM 위치를 옮김.
+   ⚠️ 2026-07-11 재수정: PC를 사진 컬럼(200px, .person-photo-wrap) 안에 넣었더니
+   대표작처럼 한 줄에 다 보이던 게 좁아져서 스크롤바 생기는 문제 발생 → PC는
+   #photoGalleryAnchor 자리(화면 전체 폭, 대표작 섹션과 같은 방식)로 되돌림.
+   - PC: #photoGalleryAnchor 위치(화면 전체 폭 — 대표작처럼 한 줄에 다 보임)
+   - 모바일: 메타정보(생년월일 등)와 소개글(bio) 사이 */
+const mobileGalleryMQ = window.matchMedia('(max-width:640px)');
+
+function relocatePhotoGallery(){
+  const gallery = document.getElementById('photoGallerySection');
+  if(!gallery) return;
+
+  if(mobileGalleryMQ.matches){
+    const metaRow     = document.getElementById('personMetaRow');
+    const bioSection  = document.querySelector('.bio-section');
+    if(metaRow && bioSection && metaRow.parentNode){
+      metaRow.parentNode.insertBefore(gallery, bioSection);
+    }
+  }else{
+    const anchor = document.getElementById('photoGalleryAnchor');
+    if(anchor && anchor.parentNode){
+      anchor.parentNode.insertBefore(gallery, anchor.nextSibling);
+    }
+  }
+}
+
+relocatePhotoGallery();
+mobileGalleryMQ.addEventListener('change', relocatePhotoGallery);
+
+/* ── URL 파라미터 ── */
+// Pages Function(/person/[id])에서 주입한 __PERSON_ID__ 우선,
+// 없으면 ?id= 쿼리 파라미터 fallback
+const personId = (typeof window.__PERSON_ID__ !== 'undefined' && window.__PERSON_ID__)
+  ? String(window.__PERSON_ID__)
+  : new URLSearchParams(location.search).get('id');
+
+/* [2026-07-27 신규] 서버([id].js)가 이미 조회해서 화면(personName 칸)에 미리 채워둔
+   이름 — TMDB보다 항상 먼저 준비돼있는 값이라, 이게 있으면 아래 TMDB 응답 도착 시
+   "TMDB 이름 → DB 이름"으로 다시 덮어쓰지 않고 그대로 유지해서 이름이 두 번 뜨는
+   깜빡임을 없앰. 없으면(구버전 캐시 등) 기존처럼 TMDB 이름으로 채우는 것으로 폴백. */
+const ssrPersonName = (typeof window.__PERSON_NAME__ !== 'undefined' && window.__PERSON_NAME__)
+  ? String(window.__PERSON_NAME__)
+  : '';
+
+/* [2026-07-20 수정] 테스트 기간 종료 — ?wikitest=1 조건 없이 항상 새 2단 레이아웃 적용 */
+document.body.classList.add('layout-test');
+
+// 이름/SNS/공유/메타/약력(person-info)을 오른쪽 컬럼 맨 위로 이동
+// (내용은 아직 비어있는 상태 — initPage()가 나중에 채워도 이미 옮겨진 자리에 그대로 채워짐)
+{
+  const profileHeaderAnchor = document.getElementById('profileHeaderAnchor');
+  const personInfo = document.querySelector('.person-info');
+  if(profileHeaderAnchor && personInfo){
+    profileHeaderAnchor.parentNode.insertBefore(personInfo, profileHeaderAnchor.nextSibling);
+  }
+}
+
+/* [2026-07-20 신규] OTT 로고 — 검색결과 페이지(search-results.html)와 동일한 상수/함수 재사용 */
+const OTT_META = {
+  netflix: { name:'넷플릭스',   color:'#e50914', file:'netflix' },
+  tving:   { name:'티빙',       color:'#ff153c', file:'tving' },
+  disney:  { name:'디즈니+',   color:'#06b6d4', file:'disneyplus' },
+  wavve:   { name:'웨이브',     color:'#0070f3', file:'wavve' },
+  watcha:  { name:'왓챠',       color:'#ff0558', file:'watcha' },
+  coupang: { name:'쿠팡플레이', color:'#1ac44d', file:'coupangplay' },
+};
+function ottLogoHtml(key){
+  const meta = OTT_META[key];
+  if(!meta) return '';
+  return `<img class="ott-logo" src="/img/${meta.file}-icon.jpg" alt="${meta.name}" title="${meta.name}"
+    onerror="this.outerHTML='<div class=\\'ott-logo-ph\\' style=\\'background:${meta.color}\\' title=\\'${meta.name}\\'>${meta.name[0]}</div>'">`;
+}
+let ottBadgeCache = {}; // tmdb_id -> [ott_key, ...] | null(DB 미등록)
+
+/* ── 필모그래피 상태 ── */
+let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
+let actCredits   = [];   // 출연
+let directCredits= [];   // 연출
+let currentTab   = 'all';
+// [2026-07-20 수정] 고정값 대신 화면 폭 기준으로 모바일(640px 이하) 20개 / PC 30개
+function getPageSize(){ return window.innerWidth <= 640 ? 20 : 30; }
+let shownCount   = 0;
+let filmoSortMode = 'ott'; // [2026-07-20 신규] 'ott'(OTT 있는 작품 우선, 기본값) | 'year'(연도순)
+
+/* [2026-07-19 신규] TMDB 약력(영어인 경우가 많음) — 위키 데이터 로드 시
+   "위키 프로필이 80자 이내면 TMDB 약력과 같이 보여주기" 판단에 사용
+   ([2026-07-20 수정] 40자 → 80자 — 마동석처럼 "본명/영어이름/생년월일" 나열만 길고
+   실제 서술은 짧은 문장이 40자를 넘겨버려서 기준을 완화함) */
+let tmdbBioText = '';
+/* [2026-07-20 신규] 모바일 "OO 전체 이력 더보기" 버튼 텍스트용 이름 저장 */
+let personDisplayName = ssrPersonName; // [2026-07-20 신규, 2026-07-27 수정] 서버가 미리 채워준 이름이 있으면 그걸로 초기화
+// [2026-07-27 신규] 이름 옆 영문이름/SNS아이콘/공유버튼 HTML — loadWikiTest가 await 없이
+// 백그라운드로 돌기 때문에(다른 렌더링 안 늦추려고 의도적으로 그렇게 설계됨), 이 값들이
+// 채워지는 시점과 "관리자 수동 이름"이 도착하는 시점 순서가 매번 다를 수 있음. 그래서
+// 이름을 그릴 때마다 항상 이 전역값들을 기준으로 다시 그리는 renderPersonNameEl()을
+// 공용으로 써서, 어느 쪽이 먼저 끝나든 항상 최종 상태가 올바르게 맞춰지도록 함.
+// [2026-07-27 수정] 예전엔 호출될 때마다 이름칸 전체(이름+영문이름+SNS아이콘+공유버튼)를
+// 통째로 지웠다가 다시 그려서, 위키 응답이 늦게 도착해 이름만 다시 그릴 때도 SNS아이콘/
+// 공유버튼까지 같이 부쉈다가 재조립되며 자리가 흔들리는 부작용이 있었음. SNS아이콘/공유
+// 버튼은 애초에 TMDB(external_ids)에서만 나오는 값이라 이름(DB/위키값)과는 무관한데
+// 하나의 HTML로 묶여있어서 같이 영향을 받은 것 — 이제 "이름 부분"과 "SNS+공유버튼 부분"을
+// 서로 다른 하위 요소로 분리해서, 이름이 다시 그려져도 SNS/공유버튼은 이미 있으면 절대
+// 다시 안 만들고 그대로 둠(내용이 바뀔 일이 없으니 한 번만 만들면 충분).
+let personEnNameHtml = '';
+// [2026-07-28 신규] 위키 DB 이름 적용 시 "메인 이름과 보조 이름이 같아지는지" 비교하기 위해
+// 괄호 안 보조 이름의 순수 텍스트(HTML 태그 없이)도 따로 기억해둠.
+let personEnName = '';
+let personSocialRowHtml = '';
+function renderPersonNameEl(){
+  const nameEl = document.getElementById('personName');
+  if(!nameEl) return;
+
+  // 이름+영문이름 담당 하위 요소 — 없으면(서버가 순수 텍스트만 넣어둔 최초 상태) 새로 만들어서
+  // 기존 텍스트를 대체. 있으면 그 요소 내용만 갱신(SNS/공유버튼 쪽은 건드리지 않음).
+  let nameTextEl = nameEl.querySelector('.person-name-text');
+  if(!nameTextEl){
+    nameEl.innerHTML = '';
+    nameTextEl = document.createElement('span');
+    nameTextEl.className = 'person-name-text';
+    nameEl.appendChild(nameTextEl);
+  }
+  nameTextEl.innerHTML = escHtml(personDisplayName) + personEnNameHtml;
+
+  // SNS아이콘+공유버튼 — 이미 붙어있으면 다시 안 만듦(내용이 바뀌지 않으므로 재생성 불필요).
+  if(personSocialRowHtml && !nameEl.querySelector('.person-social-row')){
+    nameEl.insertAdjacentHTML('beforeend', personSocialRowHtml);
+  }
+}
+
+/* ── 약력 펼치기 ── */
+let bioExpanded = false;
+function toggleBio(){
+  bioExpanded = !bioExpanded;
+  const el = document.getElementById('bioText');
+  const btn= document.getElementById('bioToggle');
+  el.classList.toggle('expanded', bioExpanded);
+  btn.textContent = bioExpanded ? '접기 ▴' : '더보기 ▾';
+}
+
+/* [2026-07-22 신규] 프로필(약력) 수정 제출 — 로그인 필요. 제출해도 화면엔 바로 안 바뀌고
+   관리자 승인 후에만 실제 반영됨(대기 상태로 저장). */
+function openProfileEditModal(){
+  const sid = localStorage.getItem('ottrang_sid');
+  if(!sid){
+    location.href = '/login.html?redirect=' + encodeURIComponent(location.pathname + location.search);
+    return;
+  }
+
+  const currentBio = document.getElementById('bioText')?.textContent || '';
+  const overlay = document.createElement('div');
+  overlay.className = 'pe-overlay';
+  overlay.id = 'peOverlay';
+  overlay.innerHTML = `
+    <div class="pe-modal">
+      <h3>✏️ 프로필 수정 제안</h3>
+      <div class="pe-sub">${escHtml(personDisplayName || '이 인물')}님의 약력을 고쳐서 보내주세요. 검토 후 반영돼요.</div>
+      <textarea id="peTextarea">${escHtml(currentBio)}</textarea>
+      <div class="pe-btns">
+        <button class="pe-cancel-btn" onclick="closeProfileEditModal()">취소</button>
+        <button class="pe-submit-btn" id="peSubmitBtn" onclick="submitProfileEdit()">제출하기</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeProfileEditModal(); });
+  document.body.appendChild(overlay);
+}
+
+function closeProfileEditModal(){
+  document.getElementById('peOverlay')?.remove();
+}
+
+async function submitProfileEdit(){
+  const sid = localStorage.getItem('ottrang_sid');
+  const bio = (document.getElementById('peTextarea')?.value || '').trim();
+  if(!bio){ alert('내용을 입력해주세요.'); return; }
+
+  const btn = document.getElementById('peSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '제출 중...';
+
+  try{
+    const res = await fetch(`${OTTRANK_API}/person-wiki/${personId}/profile-edit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sid },
+      body: JSON.stringify({ bio }),
+    });
+    const json = await res.json();
+    closeProfileEditModal();
+    if(json && json.ok){
+      alert(`보내주신 ${personDisplayName || '이 인물'}님의 프로필이 수정되었습니다. 검토 후 적극 반영됩니다.`);
+    } else {
+      alert(json?.message || '제출에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+  }catch(e){
+    closeProfileEditModal();
+    alert('제출 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
+  }
+}
+
+/* [2026-07-22 신규] 인물 좋아요 — 로그인/횟수 제한 없음. 클릭할 때마다 서버에 +1 요청을
+   보내되, 2초간 버튼을 비활성화해서 연타로 요청이 쏟아지는 걸 자연스럽게 막음
+   (관리자님 결정: "제한 없이, 많이 눌러도 좋다" — 그래도 클릭 한 번에 요청 한 번은 유지). */
+const LIKE_COOLDOWN_MS = 2000;
+const LIKE_EMOJIS = ['💕','💖','💗','❤️','💘','💓'];
+let likeCount = 0;
+let likeBusy  = false; // 쿨다운 중이면 true — 버튼 재클릭 방지
+
+// 사운드는 미리 한 번 만들어두고 재사용(클릭마다 새 Audio 객체를 만들면 첫 재생이
+// 느릴 수 있어서). 파일이 아직 안 올라와 있거나 재생 실패해도 화면 기능엔 영향 없음.
+const likeSound = new Audio('/img/heart-like.mp3');
+likeSound.preload = 'auto';
+
+function initLikeCount(count){
+  likeCount = count || 0;
+  const countEl = document.getElementById('likeCount');
+  if(!countEl) return;
+  if(likeCount > 0){
+    countEl.textContent = likeCount.toLocaleString();
+    countEl.style.display = '';
+  } else {
+    countEl.style.display = 'none';
+  }
+}
+
+// 버튼 안에 하트 이모지 여러 개를 즉석으로 만들어서 위로 퐁퐁 띄우고, 애니메이션이
+// 끝나면 그 요소들만 지움(버튼 자체 구조는 안 건드림). 개수는 일단 PC/모바일 동일하게
+// 시작 — 실제로 보고 나서 모바일만 개수 줄일지 다음에 조정하기로 함.
+function burstHearts(container){
+  const burst = document.createElement('div');
+  burst.className = 'like-burst';
+  const n = 18; // [2026-07-22 수정] 6 → 18 (3배)
+  for(let i=0; i<n; i++){
+    const p = document.createElement('span');
+    // [2026-07-22 추가] 하트마다 랜덤으로 "위로 두둥실" / "커지며 다가오기" 중 하나 선택
+    // — 비율 고정 안 하고 매번 다르게(50:50 랜덤) 섞여서 누를 때마다 느낌이 달라짐
+    const isZoom = Math.random() < 0.5;
+    p.className = 'like-burst-particle ' + (isZoom ? 'like-zoom' : 'like-float');
+    p.textContent = LIKE_EMOJIS[Math.floor(Math.random()*LIKE_EMOJIS.length)];
+    // 부채꼴로 퍼지면서 위로 — 각도를 좌우로 흩뿌리고, 거리도 조금씩 다르게 해서 자연스럽게
+    // [2026-07-22 수정] 퍼지는 거리 5배 확대 (50~80px → 250~400px)
+    const angle = (Math.random()*140 - 70) * (Math.PI/180); // -70~70도
+    const dist  = 250 + Math.random()*150; // px
+    const dx = Math.sin(angle) * dist;
+    const dy = -Math.cos(angle) * dist - 20;
+    p.style.setProperty('--dx', `${dx}px`);
+    p.style.setProperty('--dy', `${dy}px`);
+    // zoom 타입도 float처럼 각도를 기반으로 넓게 흩어지게 함 — 기존엔 -30~30px 정사각형
+    // 범위 안에서만 랜덤이라 다들 중앙 근처에 몰려서(뭉쳐서) 날아오는 것처럼 보였음.
+    // 거리(dist)만 float보다 짧게 줘서 "멀리 안 날아가고 그 자리 근처에서 커진다"는
+    // 느낌은 유지하되, 각도(angleZoom)는 훨씬 넓은 범위(360도 전체)로 흩뿌림.
+    const angleZoom = Math.random() * Math.PI * 2; // 0~360도, 사방으로
+    const distZoom  = 60 + Math.random()*140; // px
+    const dxZoom = Math.cos(angleZoom) * distZoom;
+    const dyZoom = Math.sin(angleZoom) * distZoom;
+    p.style.setProperty('--dxZoom', `${dxZoom}px`);
+    p.style.setProperty('--dyZoom', `${dyZoom}px`);
+    p.style.animationDelay = `${Math.random()*0.4}s`;
+    burst.appendChild(p);
+  }
+  container.appendChild(burst);
+  // [2026-07-22 수정] 애니메이션이 3초짜리로 느려졌으니 제거 타이밍도 그만큼 늦춤.
+  // 버튼 잠금(2초)과는 완전히 별개 타이머라, 다시 눌러도 이전 하트들이 화면에
+  // 남아서 같이 떠 있을 수 있음(의도된 동작 — "1~2개 남아서 둥둥 떠 있어도 됨").
+  setTimeout(()=>burst.remove(), 3300);
+}
+
+function playLikeSound(){
+  try{
+    likeSound.currentTime = 0;
+    likeSound.play().catch(()=>{}); // 자동재생 정책 등으로 실패해도 조용히 무시
+  }catch(e){ /* 무시 */ }
+}
+
+async function toggleLike(btn){
+  if(likeBusy) return; // 쿨다운 중이면 무시
+  likeBusy = true;
+  btn.disabled = true;
+
+  const heartEl = document.getElementById('likeHeart');
+  heartEl.textContent = '❤️';
+  btn.classList.add('liked');
+  burstHearts(btn);
+  playLikeSound();
+
+  // 화면은 즉시 반응(낙관적 업데이트), 서버 응답은 뒤에서 조용히 받아서 정확한 값으로 보정
+  initLikeCount(likeCount + 1);
+
+  fetch(`${OTTRANK_API}/person-wiki/${personId}/like`, { method:'POST' })
+    .then(r => r.ok ? r.json() : null)
+    .then(json => {
+      if(json && json.ok && typeof json.like_count === 'number') initLikeCount(json.like_count);
+    })
+    .catch(()=>{ /* 실패해도 화면엔 이미 반영돼 있어 조용히 무시 */ });
+
+  // 2초 후 원상복귀 — 빈 하트로 돌아가고 다시 누를 수 있게 됨
+  setTimeout(()=>{
+    heartEl.textContent = '🤍';
+    btn.classList.remove('liked');
+    btn.disabled = false;
+    likeBusy = false;
+  }, LIKE_COOLDOWN_MS);
+}
+
+/* [2026-07-20 신규] 수상내역 펼치기 — 약력(toggleBio)과 동일 패턴, 모바일 2줄 기준 */
+let awardsExpanded = false;
+function toggleAwards(){
+  awardsExpanded = !awardsExpanded;
+  const el = document.getElementById('profileAwardsText');
+  const btn= document.getElementById('profileAwardsToggle');
+  el.classList.toggle('expanded', awardsExpanded);
+  btn.textContent = awardsExpanded ? '접기 ▴' : '더보기 ▾';
+}
+
+/* [2026-07-19 신규] 위키 전체이력 펼치기 */
+let wikiCareerExpanded = false;
+function toggleWikiCareer(){
+  wikiCareerExpanded = !wikiCareerExpanded;
+  const el  = document.getElementById('wikiCareerPreview');
+  const btn = document.getElementById('wikiCareerToggle');
+  const src = document.getElementById('wikiSource');
+  el.classList.toggle('collapsed', !wikiCareerExpanded);
+  el.classList.toggle('expanded', wikiCareerExpanded);
+  btn.textContent = wikiCareerExpanded ? '접기 ▴' : '전체 이력 더보기 ▾';
+  src.style.display = wikiCareerExpanded ? 'block' : 'none'; // [2026-07-20 신규]
+}
+
+/* [2026-07-19 신규] 모바일 전용 — 버튼 누르면 박스가 나타나고, 그 안에서만 스크롤 */
+function toggleWikiCareerMobile(){
+  const box = document.getElementById('wikiCareerMobileBox');
+  const btn = document.getElementById('wikiCareerMobileToggle');
+  const show = box.style.display === 'none';
+  box.style.display = show ? 'block' : 'none';
+  btn.textContent = show
+    ? `${personDisplayName} 전체 이력 접기 ▴`
+    : `${personDisplayName} 전체 이력 더보기 ▾`;
+}
+
+/* [2026-07-20 수정] 테스트 기간 종료 — 항상 위키 데이터 조회 시도.
+   캐시에 데이터 없는 배우(대부분)는 아래 "if(!d) return"에서 조용히 종료됨. */
+async function loadWikiTest(personId){
+  try{
+    const res  = await fetch(`${OTTRANK_API}/person-wiki/${personId}`);
+    const json = await res.json();
+    if(!json || !json.ok) return;
+
+    // [2026-07-22 신규] 좋아요 초기값 — 0이면 하트만, 1 이상이면 숫자까지 표시.
+    // data(위키 매칭)나 manual 여부와 무관하게 항상 처리(early return보다 위에 둠).
+    if(typeof json.like_count === 'number') initLikeCount(json.like_count);
+
+    // [2026-07-20 재수정] 생년월일/성별/출생지는 평생 거의 안 바뀌는 정보라,
+    // "한 번 확정하면 계속 쓰는" persons 테이블 수동입력값(manual)을 우선시하고
+    // manual이 없을 때만 TMDB 값을 씀 (기존엔 반대였음 — TMDB 우선이었음).
+    // 위키 매칭 여부(json.data)와 무관하게 항상 처리 — early return 전에 실행.
+    const manual = json.manual;
+    if(manual){
+      const merged = {
+        birthday: manual.birthday || tmdbMeta.birthday || '',
+        deathday: tmdbMeta.deathday, // 사망일은 TMDB 전용 — 수동 보완 대상 아님
+        gender: manual.gender || tmdbMeta.gender || null,
+        place_of_birth: manual.place_of_birth || tmdbMeta.place_of_birth || '',
+        mbti: manual.mbti || tmdbMeta.mbti || '', // [2026-07-27 신규] TMDB엔 없는 값이라 사실상 항상 manual.mbti
+      };
+      const changed = merged.birthday !== tmdbMeta.birthday ||
+                       merged.gender !== tmdbMeta.gender ||
+                       merged.place_of_birth !== tmdbMeta.place_of_birth ||
+                       merged.mbti !== tmdbMeta.mbti;
+      if(changed) renderMetaChips(merged);
+
+      // [2026-07-27 수정] 표시 이름을 DB 우선(name_ko)으로 통일 — 화면 이름이 원래
+      // TMDB also_known_as 자동탐색이었는데, 예명(활동명)으로 알려진 인물(예: 아이유=이지은)은
+      // 자동탐색 결과가 실제 통용되는 이름과 다를 수 있어서 우리 DB의 name_ko가 있으면
+      // 그걸 우선 씀(person-wiki.js가 manual.display_name으로 name_ko 값을 내려줌).
+      // renderPersonNameEl() 공용 함수로 다시 그려야, SNS아이콘/공유버튼 블록이 이 코드보다
+      // 먼저 끝났든 나중에 끝났든 관계없이 항상 최종 상태가 올바르게 유지됨(레이스 컨디션 방지).
+      if(manual.display_name){
+        personDisplayName = manual.display_name;
+        // [2026-07-28 신규] DB 이름(메인)과 괄호 속 보조 이름이 같아지면(예: 예명 대신
+        // 본명을 메인으로 바꿨는데 TMDB 보조이름도 마침 그 본명이었던 경우) 같은 이름이
+        // "이지은 (이지은)"처럼 중복 표시되므로, 이땐 보조 이름을 아예 지움.
+        if(personEnName && personEnName === manual.display_name){
+          personEnName = '';
+          personEnNameHtml = '';
+          document.getElementById('personNameEn').textContent = '';
+        }
+        renderPersonNameEl();
+      }
+    }
+    // [2026-07-22 rev.11 신규] 포스터 배지(추모 국화 등) — TMDB 사망일과는 별개로
+    // 관리자가 수동 지정한 값도 같이 확인. manual이 없어도(위 if(manual) 밖에서)
+    // 항상 재호출해야, "manual 자체가 없는 사람"도 TMDB 사망일 기준 상태가 유지됨.
+    renderMemorialFlower(tmdbMeta.deathday, manual ? manual.poster_badge : null);
+
+
+    const d = json.data;
+    if(!d) return; // 캐시에 데이터 없음 — 조용히 종료
+
+    /* [2026-07-25 신규] 봇용으로 미리 만들어둔 필모그래피 문장 — 약력이 부실할 때
+       화면에도 같이 보여주기로 함(관리자님 결정). '__NONE__'은 채우기 시도했지만
+       필모그래피 자체를 못 찾은 센티널이라 빈 값과 동일하게 처리. */
+    const rawAutoFilmo = (d.auto_filmography_text || '').trim();
+    const autoFilmoText = (rawAutoFilmo && rawAutoFilmo !== '__NONE__') ? rawAutoFilmo : '';
+
+    /* [2026-07-26 신규] 국적 분기 — korean_confirmed=1(한국인)만 기존 로직 그대로 두고,
+       외국인/미확인(0 또는 null)은 별도 분기 추가. 한국인은 TMDB 약력을 아예 안 쓰지만
+       (TMDB 한국어 약력이 부실한 경우가 많아서), 외국인은 반대로 TMDB 약력이 잘 되어있는
+       경우가 많아서 위키 다음으로 우선시하고, 그것도 100자 미만으로 부실할 때만
+       필모문장(SEO용)을 보충으로 붙임 — 한국인과 완전히 같은 "부실할 때만 보충" 규칙. */
+    const koreanConfirmed = json.korean_confirmed;
+
+    if(koreanConfirmed === 1){
+    if(d.bio_summary || autoFilmoText){
+      /* [2026-07-19 신규] 오른쪽 상단 프로필의 "약력" 자리를 위키 요약글로 대체.
+         TMDB 약력은 영어인 경우가 대부분이라, 한국어인 위키 요약글을 우선시함.
+         단, 위키 요약글이 너무 짧으면(80자 미만) 정보가 부족하니 TMDB 약력을 이어붙임.
+         [2026-07-25 수정] 그렇게 만든 텍스트가 여전히 100자 미만이면, 필모그래피
+         문장까지 추가로 이어붙임. 약력이 아예 없으면 필모문장만 단독으로 표시. */
+      const bioEl = document.getElementById('bioText');
+      if(bioEl){
+        let combined = d.bio_summary
+          ? (d.bio_summary.length < 80 && tmdbBioText ? `${d.bio_summary} ${tmdbBioText}` : d.bio_summary)
+          : '';
+        if(combined.length < 100 && autoFilmoText){
+          combined = combined ? `${combined} ${autoFilmoText}` : autoFilmoText;
+        }
+        bioEl.textContent = combined;
+        wikiBioApplied = true; // [2026-07-20 신규] TMDB 약력 폴백이 이걸 덮어쓰지 않게 표시
+        requestAnimationFrame(()=>{
+          const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
+          const toggleBtn = document.getElementById('bioToggle');
+          if(toggleBtn) toggleBtn.style.display = (bioEl.scrollHeight > lineH * 4 + 4) ? 'inline' : 'none';
+        });
+      }
+    }
+    } else {
+      // 외국인/미확인 — 기본 텍스트는 위키 있으면 위키, 없으면 TMDB 약력.
+      // 그 기본 텍스트가 100자 미만으로 부실할 때만 필모문장(SEO용)을 보충으로 붙임.
+      const bioEl = document.getElementById('bioText');
+      if(bioEl){
+        let combined = d.bio_summary || tmdbBioText || '';
+        if(combined.length < 100 && autoFilmoText){
+          combined = combined ? `${combined} ${autoFilmoText}` : autoFilmoText;
+        }
+        if(combined){
+          bioEl.textContent = combined;
+          wikiBioApplied = true;
+          requestAnimationFrame(()=>{
+            const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
+            const toggleBtn = document.getElementById('bioToggle');
+            if(toggleBtn) toggleBtn.style.display = (bioEl.scrollHeight > lineH * 4 + 4) ? 'inline' : 'none';
+          });
+        }
+      }
     }
 
-    const CURRENT_YEAR = new Date().getFullYear();
-    const isPlausibleYear = (y) => { const n = parseInt(y, 10); return n >= 1900 && n <= CURRENT_YEAR; };
-    const extractBirthYear = (text) => {
-      const parenMatch = text.match(/\(([^)]{0,80})\)/);
-      if (parenMatch) {
-        const y = parenMatch[1].match(/(\d{4})년/);
-        if (y && isPlausibleYear(y[1])) return y[1];
+    const metaParts = [];
+    if(d.debut_work) metaParts.push(`<span><b>데뷔작</b> ${d.debut_work}${d.debut_year ? ' ('+d.debut_year+')' : ''}</span>`);
+    if(d.education)  metaParts.push(`<span><b>학력</b> ${d.education}</span>`);
+    if(metaParts.length){
+      const debutEduEl = document.getElementById('profileDebutEdu');
+      debutEduEl.innerHTML = metaParts.join('');
+      debutEduEl.style.display = 'flex';
+    }
+
+    if(d.awards_text){
+      const awardsEl = document.getElementById('profileAwards');
+      const awardsTextEl = document.getElementById('profileAwardsText');
+      awardsTextEl.textContent = d.awards_text;
+      awardsEl.style.display = 'block';
+      // [2026-07-24 신규] SEO 목적 — "OO 수상내역"처럼 인물 이름을 제목에 같이 노출.
+      // loadWikiTest는 TMDB 기본 정보 로딩과 타이밍이 겹칠 수 있어, personDisplayName이
+      // 아직 비어있으면(초기값 '') 기본 제목("🏆 수상내역")을 그대로 둠(안전한 폴백).
+      const awardsTitleEl = document.getElementById('profileAwardsTitle');
+      if(awardsTitleEl && personDisplayName) awardsTitleEl.textContent = `🏆 ${personDisplayName} 수상내역`;
+      // [2026-07-20 수정] 모바일 2줄 / PC 4줄 초과 여부 계산 — CSS 미디어쿼리 기준(640px)과 동일하게 분기
+      requestAnimationFrame(()=>{
+        const lineH = parseFloat(getComputedStyle(awardsTextEl).lineHeight) || 22;
+        const maxLines = window.innerWidth <= 640 ? 2 : 4;
+        const toggleBtn = document.getElementById('profileAwardsToggle');
+        if(toggleBtn) toggleBtn.style.display = (awardsTextEl.scrollHeight > lineH * maxLines + 4) ? 'inline' : 'none';
+      });
+    }
+
+    if(d.career_history){
+      document.getElementById('wikiCareerPreview').textContent = d.career_history;
+      document.getElementById('wikiCareerMobileText').textContent = d.career_history; // [2026-07-19 신규] 모바일용
+    } else {
+      document.getElementById('wikiCareerToggle').style.display = 'none';
+    }
+
+    if(d.source_url){
+      const sourceHtml = `출처: <a href="${d.source_url}" target="_blank" rel="noopener">위키백과</a> (CC BY-SA)`;
+      document.getElementById('wikiSource').innerHTML = sourceHtml;
+      document.getElementById('wikiSourceMobile').innerHTML = sourceHtml; // [2026-07-19 신규] 모바일용
+    }
+
+    document.getElementById('wikiTestSection').style.display = 'block';
+    if(d.career_history){
+      document.getElementById('wikiCareerMobileSection').style.display = 'block'; // [2026-07-19 신규]
+      const mobileToggleBtn = document.getElementById('wikiCareerMobileToggle');
+      if(mobileToggleBtn && personDisplayName){
+        mobileToggleBtn.textContent = `${personDisplayName} 전체 이력 더보기 ▾`; // [2026-07-20 신규]
       }
-      const loose = text.match(/(\d{4})년/);
-      if (loose && isPlausibleYear(loose[1])) return loose[1];
-      return null;
+    }
+  }catch(e){
+    console.log('[wiki-test] load failed:', e.message); // 실패해도 화면엔 영향 없음
+  }
+}
+
+/* ── 탭 전환 ── */
+function switchTab(tab){
+  currentTab = tab;
+  ['all','act','direct'].forEach(t=>{
+    document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))
+      .classList.toggle('on', t===tab);
+  });
+  shownCount = 0;
+  renderWorks();
+}
+
+/* ── 현재 탭 데이터 ── */
+function currentList(){
+  const base = currentTab==='act' ? actCredits
+    : currentTab==='direct' ? directCredits
+    : allCredits;
+  // [2026-07-20 신규] 기본값은 OTT 있는 작품 우선 — 원래 연도순 배열을 안정정렬로
+  // 재배치만 하는 거라, 같은 그룹(OTT 있음/없음) 안에서는 연도순이 그대로 유지됨
+  return filmoSortMode==='ott' ? sortByOtt(base) : base;
+}
+
+/* [2026-07-20 신규] OTT 뱃지 있는 작품을 앞으로 — 안정정렬(stable partition) */
+function sortByOtt(list){
+  const withOtt = [];
+  const withoutOtt = [];
+  list.forEach(item=>{
+    const keys = ottBadgeCache[item.id];
+    (keys && keys.length) ? withOtt.push(item) : withoutOtt.push(item);
+  });
+  return [...withOtt, ...withoutOtt];
+}
+
+/* [2026-07-11 추가] HTML 이스케이프 — 작품 제목/배역명에 특수문자(따옴표, <, > 등)가
+   섞여 있으면 카드 HTML 구조가 깨져서 레이아웃이 이상해질 수 있어 방어적으로 처리.
+   기존엔 data-title 속성만 따옴표 이스케이프하고 있었고, 화면에 실제 보이는
+   텍스트(work-title, work-role, alt)는 그대로 넣고 있었음. */
+function escHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;',
+  }[ch]));
+}
+
+/* ── 작품 카드 HTML ── */
+function workCardHtml(item){
+  const titleRaw = item.title || item.name || '제목 없음';
+  const roleRaw  = item.character || item.job || '';
+  const title    = escHtml(titleRaw);
+  const role     = escHtml(roleRaw);
+  const year     = (item.release_date||item.first_air_date||'').slice(0,4);
+  const rating   = item.vote_average ? item.vote_average.toFixed(1).replace(/\.0$/,'') : ''; // [2026-07-20 신규]
+  // [2026-07-21 수정] media_type을 모를 때 'tv'로 억지로 채우지 않음 — data-type이 빈 값이면
+  // goWork()가 이걸 "확정 안 됨"으로 정확히 넘겨서, 목적지 페이지의 잘못된 확정 방지로 이어짐.
+  const mediaType= item.media_type || '';
+  const badgeMediaType = mediaType || 'tv'; // 배지 DOM id 등 화면 표시용 키는 기존처럼 'tv' 폴백 유지(단순 id 문자열이라 안전)
+  const poster   = item.poster_path
+    ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
+    : `<div class="work-poster-ph">🎬</div>`;
+  // [2026-07-11 추가] 랭킹 배지 placeholder — loadRankBadges()가 데이터 도착 후 채움
+  const badgeId = `rankBadge-${item.id}-${badgeMediaType}`;
+  return `
+    <a class="work-card" data-tmdb="${item.id}" data-type="${mediaType}"
+       data-title="${title}" data-year="${year}" onclick="goWork(this)">
+      <div class="work-poster">
+        ${poster}
+        <div class="work-ott-badges" id="ottBadge-${item.id}-${badgeMediaType}"></div>
+        <span class="work-rank-badge" id="${badgeId}"></span>
+      </div>
+      <div class="work-title">${title}</div>
+      <!-- [2026-07-20 신규] 연도(왼쪽) / 평점(오른쪽) — 포스터 하단 랭킹배지와 겹쳐서 밖으로 뺌 -->
+      <div class="work-year-rating-row">
+        <span>${year||''}</span>
+        ${rating?`<span class="work-rating">★ ${rating}</span>`:''}
+      </div>
+      <div class="work-role">
+        <span class="work-type-dot ${badgeMediaType}"></span>${role}
+      </div>
+    </a>`;
+}
+
+/* ── 작품 렌더 ── */
+function renderWorks(){
+  const list   = currentList();
+  const grid   = document.getElementById('worksGrid');
+  const moreBtn= document.getElementById('loadMoreBtn');
+  const slice  = list.slice(0, shownCount + getPageSize());
+  shownCount   = slice.length;
+  grid.innerHTML = slice.map(workCardHtml).join('');
+  moreBtn.style.display = shownCount < list.length ? 'block' : 'none';
+  loadRankBadges(slice); // [2026-07-11 추가] 화면에 보이는 카드만 배지 조회 (더보기 시 새로 늘어난 만큼만 실제 요청됨 — 캐시 재사용)
+  loadOttBadges(slice); // [2026-07-20 신규]
+}
+
+/* [2026-07-11 추가] 랭킹 배지 로드 — 화면에 보이는 카드들의 tmdb_id를 모아 한 번에 조회
+   /rankings/platforms-batch는 한 번에 최대 50개까지만 받으므로, 이미 캐시된 것은 제외하고
+   요청 — "더보기" 클릭 시에도 새로 추가된 24개 정도만 실제로 네트워크 요청이 나감. */
+async function loadRankBadges(items){
+  const uncachedIds = [...new Set(
+    items.filter(it => !(it.id in rankBadgeCache)).map(it => it.id)
+  )];
+
+  if(uncachedIds.length){
+    try{
+      const res  = await fetch(`${OTTRANK_API}/rankings/platforms-batch?tmdb_ids=${uncachedIds.join(',')}`);
+      const json = await res.json();
+      if(json.ok){
+        uncachedIds.forEach(id => { rankBadgeCache[id] = json.data[id] || null; });
+      }
+    }catch(e){
+      // 배지 조회 실패해도 페이지 본 기능(필모그래피 표시)엔 영향 없게 조용히 무시
+      uncachedIds.forEach(id => { rankBadgeCache[id] = null; });
+    }
+  }
+
+  // 캐시 기준으로 이번에 렌더된 카드들에 배지 적용
+  items.forEach(item => {
+    const badges = rankBadgeCache[item.id];
+    if(!badges || !badges.length) return;
+    const best = badges.reduce((a,b) => a.rank < b.rank ? a : b); // 여러 플랫폼이면 순위 가장 높은 것 하나만
+    const els = document.querySelectorAll(`#rankBadge-${item.id}-${item.media_type||'tv'}`); // [2026-07-20 수정] 같은 작품이 대표작+필모그래피에 중복 id로 나올 때 전부 채우기
+    els.forEach(el => {
+      const label = PLATFORM_LABELS[best.platform] || best.platform;
+      el.textContent = `🔥 ${label} ${best.rank}위`;
+      el.style.display = 'inline-flex';
+    });
+  });
+}
+
+/* [2026-07-20 신규] OTT 배지 로드 — 화면에 보이는 카드들의 tmdb_id를 모아 한 번에 조회.
+   /works/ott-map은 "우리 DB에 있는 작품"만 응답에 포함되므로, DB 미등록 작품은
+   자동으로 배지가 안 뜸(실시간 TMDB 조회 없음 — 검색결과 페이지와 다르게 가볍게 처리). */
+async function loadOttBadges(items){
+  const uncachedIds = [...new Set(
+    items.filter(it => !(it.id in ottBadgeCache)).map(it => it.id)
+  )];
+
+  if(uncachedIds.length){
+    try{
+      const res  = await fetch(`${OTTRANK_API}/works/ott-map?tmdb_ids=${uncachedIds.join(',')}`);
+      const json = await res.json();
+      if(json.ok){
+        uncachedIds.forEach(id => { ottBadgeCache[id] = (json.map && json.map[id]) || null; });
+      }
+    }catch(e){
+      // 실패해도 필모그래피 표시엔 영향 없게 조용히 무시
+      uncachedIds.forEach(id => { ottBadgeCache[id] = null; });
+    }
+  }
+
+  items.forEach(item => {
+    const keys = ottBadgeCache[item.id];
+    if(!keys || !keys.length) return;
+    // [2026-07-20 수정] 같은 작품이 대표작+필모그래피에 중복 id로 나올 때 전부 채우기
+    const els = document.querySelectorAll(`#ottBadge-${item.id}-${item.media_type||'tv'}`);
+    els.forEach(el => { el.innerHTML = keys.map(ottLogoHtml).join(''); });
+  });
+}
+
+/* [2026-07-20 신규] 필모그래피 정렬 토글 — OTT 우선(기본) ↔ 연도순 */
+function toggleFilmoSort(){
+  filmoSortMode = (filmoSortMode==='ott') ? 'year' : 'ott';
+  document.getElementById('filmoSortToggle').textContent =
+    filmoSortMode==='ott' ? '연도순 보기' : 'OTT 우선 보기';
+  shownCount = 0;
+  renderWorks();
+}
+
+/* ── 더보기 ── */
+function loadMore(){
+  renderWorks();
+}
+
+/* ── 작품 상세 이동 ── */
+function goWork(el){
+  const tmdbId= parseInt(el.dataset.tmdb);
+  // [2026-07-21 수정] data-type이 비어있으면(=media_type을 몰랐던 카드) 'tv'로 억지로 채우지 않고
+  // null로 넘김 — 목적지 페이지가 이걸 "확정된 값"으로 착각해서 movie 쪽을 아예 확인 안 하는
+  // 버그(스타트렉 199 사례) 방지.
+  const type  = el.dataset.type || null;
+  const title = el.dataset.title || '';
+  if(!tmdbId) return;
+  // [2026-07-25 수정] 슬러그 규칙을 "오늘 날짜의 현재 연도"라는 눈속임 값 대신, 카드에
+  // 실제로 있는 방영/개봉연도(data-year)를 쓰도록 변경 — 서버가 tmdb_id만으로도 찾아주긴
+  // 하지만(release_year는 동일 tmdb_id로 movie/tv가 충돌할 때만 구분용으로 쓰임), 값 자체가
+  // 사실과 다르면 나중에 링크 규칙이 헷갈리는 원인이 되므로 정확한 값을 우선 사용.
+  // data-year가 없는 극히 일부 카드(랭킹위젯 등 연도 정보를 안 주는 소스)만 현재연도로 폴백.
+  const y    = el.dataset.year || new Date().getFullYear();
+  const slug = `1-${y}${tmdbId}`;
+  // platform을 지정하지 않음 → _title_detail.html의 loadPlatforms()가
+  // 실제 OTT 순위 API를 조회해서 올바른 플랫폼을 표시
+  sessionStorage.setItem('ottrang_work', JSON.stringify({
+    tmdb_id: tmdbId, type, title, platform: ''
+  }));
+  location.href = `/title/${slug}`;
+}
+
+/* ── 날짜 포맷 ── */
+function fmtBirth(dateStr){
+  if(!dateStr) return '';
+  const [y,m,d] = dateStr.split('-');
+  // [2026-07-20 신규] 정확한 월/일을 모를 때는 "00-00"으로 저장하기로 함(관리자 요청) —
+  // 이 경우 특정 날짜(예: 1월 1일)로 오해되지 않게 "YYYY년생"으로만 표시
+  if(m === '00' || d === '00') return `${y}년생`;
+  return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`;
+}
+
+/* ── 나이 계산 ── */
+function calcAge(birthday, deathday){
+  if(!birthday) return '';
+  const [by, bm, bd] = birthday.split('-');
+  const end = deathday ? new Date(deathday) : new Date();
+  // [2026-07-20 신규] 월/일 모르면(00-00) 정확한 생일 기준 계산이 불가능하니
+  // 연도 차이로만 대략 계산(최대 ±1살 오차 있을 수 있음)
+  if(bm === '00' || bd === '00'){
+    const age = end.getFullYear() - parseInt(by, 10);
+    return deathday ? `향년 ${age}세` : `${age}세`;
+  }
+  const birth = new Date(birthday);
+  let age = end.getFullYear() - birth.getFullYear();
+  const m = end.getMonth() - birth.getMonth();
+  if(m < 0 || (m===0 && end.getDate() < birth.getDate())) age--;
+  return deathday ? `향년 ${age}세` : `${age}세`;
+}
+
+/* [2026-07-20 신규] TMDB 원본 메타값 보관 — 위키 로딩 시점에 persons 테이블
+   수동입력값(manual)으로 빈 항목만 보완하기 위해 필요 (아래 loadWikiTest 참고) */
+let tmdbMeta = { birthday: '', deathday: '', gender: null, place_of_birth: '', mbti: '' };
+
+/* [2026-07-22 rev.11 수정] 추모 국화 — 아래 둘 중 하나라도 참이면 노출:
+   ① data.deathday(TMDB 사망일자)가 실제 날짜 형식으로 존재
+   ② 관리자가 어드민 "인물 개별 검색"에서 수동으로 'flower' 배지를 지정(persons.poster_badge)
+      — TMDB에 사망일 정보가 아직 없는 경우를 관리자가 직접 보완하기 위한 용도.
+   두 조건 다 "값이 있는 것처럼 보이는 모든 경우"를 배제하고 정확한 값일 때만 통과시킴.
+   엉뚱한 인물에게 잘못 표시되면 안 되는 민감한 기능이라 이중 체크는 계속 엄격하게 유지. */
+function renderMemorialFlower(deathday, manualBadge){
+  const el = document.getElementById('personMemorialFlower');
+  if(!el) return;
+  const raw = (deathday == null) ? '' : String(deathday).trim();
+  // TMDB deathday는 'YYYY-MM-DD' 형식 — 이 패턴에 맞는 진짜 날짜값일 때만 인정
+  const hasDeathday = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  // 화이트리스트 방식 — 백엔드 ALLOWED_POSTER_BADGES와 동일하게 'flower'만 인정
+  const hasManualFlower = manualBadge === 'flower';
+  el.style.display = (hasDeathday || hasManualFlower) ? 'block' : 'none';
+}
+
+/* [2026-07-20 신규] 영어 약력이 먼저 번쩍이고 한글로 바뀌는 깜빡임 방지용 플래그.
+   loadWikiTest가 bio_summary로 이미 화면을 채웠으면 true — 이후 TMDB 약력 폴백을
+   또 덮어쓰지 않게 막는 용도 (아래 initPage 참고) */
+let wikiBioApplied = false;
+
+/* [2026-07-20 신규] 메타 칩(생년월일/나이/사망일/성별/출생지) 렌더링 —
+   TMDB 값과 persons 테이블 수동입력값(manual)을 합쳐서 넘겨받음.
+   TMDB에 없는 항목만 manual 값으로 채워지는 방식(TMDB 값이 항상 우선). */
+function renderMetaChips(meta){
+  const chips = [];
+  if(meta.birthday){
+    chips.push(`<span class="person-meta-chip">
+      <span class="chip-label">생년월일</span>${fmtBirth(meta.birthday)}
+    </span>`);
+    const age = calcAge(meta.birthday, meta.deathday);
+    if(age) chips.push(`<span class="person-meta-chip">${age}</span>`);
+  }
+  if(meta.deathday){
+    chips.push(`<span class="person-meta-chip">
+      <span class="chip-label">사망일</span>${fmtBirth(meta.deathday)}
+    </span>`);
+  }
+  const genderText = genderLabel(meta.gender);
+  if(genderText) chips.push(`<span class="person-meta-chip">${genderText}</span>`);
+  if(meta.place_of_birth){
+    chips.push(`<span class="person-meta-chip">
+      <span class="chip-label">출생지</span>${meta.place_of_birth}
+    </span>`);
+  }
+  // [2026-07-27 신규] MBTI — persons.mbti_naver, 없거나 "공개안함" 확정인 경우는
+  // person-wiki.js가 애초에 manual.mbti를 null로 내려주므로 여기선 값 존재 여부만 체크.
+  if(meta.mbti){
+    chips.push(`<span class="person-meta-chip mbti-chip">
+      <span class="chip-label">MBTI</span>${meta.mbti}
+    </span>`);
+  }
+  document.getElementById('personMetaRow').innerHTML = chips.join('');
+}
+
+/* ── 성별 ── */
+function genderLabel(g){
+  if(g===1) return '여성';
+  if(g===2) return '남성';
+  return '';
+}
+
+/* ── SEO 업데이트 ── */
+function updateSEO(name, desc, imgUrl, jobLabel, instaId, enName){
+  // title: "임윤아 출연작·필모그래피 | 배우 프로필 | 오뜨랑"
+  // [2026-07-20 신규] 두번째 이름(영문명/본명 등)이 있으면 "이름(두번째이름)" 형태로 병기
+  const job = jobLabel || '배우';
+  const nameLabel = enName ? `${name}(${enName})` : name;
+  const t = `${nameLabel} 필모그래피·출연작 | ${job} 프로필·나이 | 오뜨랑`;
+
+  // keywords: 이름 변형 + 인스타 키워드 포함 (두번째 이름 있으면 그 변형도 함께)
+  const kw = [
+    name,
+    enName || '',
+    `${name} 출연작`,
+    `${name} 드라마`,
+    `${name} 영화`,
+    `${name} 필모그래피`,
+    `${name} 프로필`,
+    `${name} 나이`,
+    `${name} 인스타그램`,
+    `${name} SNS`,
+    enName ? `${enName} 필모그래피` : '',
+    enName ? `${enName} 프로필` : '',
+    instaId ? `${name} 인스타 @${instaId}` : '',
+    `${job} 프로필`,
+    'OTT 배우',
+    '드라마 배우 출연작',
+  ].filter(Boolean).join(', ');
+
+  document.title = t;
+  const _seoTitleEl = document.getElementById('seoTitle');
+  if (_seoTitleEl) _seoTitleEl.textContent = t;
+  document.getElementById('seoDesc')?.setAttribute('content', desc);
+  document.getElementById('seoKw')?.setAttribute('content', kw);
+  document.getElementById('seoOgTitle')?.setAttribute('content', t);
+  document.getElementById('seoOgDesc')?.setAttribute('content', desc);
+  document.getElementById('seoTwTitle')?.setAttribute('content', t);
+  document.getElementById('seoTwDesc')?.setAttribute('content', desc);
+  if(imgUrl){
+    document.getElementById('seoOgImg')?.setAttribute('content', imgUrl);
+  }
+}
+
+/* ── 메인 초기화 ── */
+/* [2026-07-11 추가] 사진 갤러리 로드 — TMDB /person/{id}/images 추가 호출 1개
+   메인 initPage 흐름과 분리된 fire-and-forget 호출이라, 이게 느리거나 실패해도
+   나머지 페이지 렌더링(이름/필모그래피 등)엔 전혀 영향 없음. */
+async function loadPhotoGallery(personId, imgBase){
+  try{
+    const res  = await fetch(`${TMDB_PROXY}/person/${personId}/images`);
+    const data = await res.json();
+    const profiles = (data.profiles || []).slice(0, 10);
+    // [2026-07-11 수정] 사진 1장뿐이면 이미 메인 프로필 사진으로 보이는 것과
+    // 중복이라 갤러리 자체를 안 보여줌
+    if(profiles.length <= 1) return;
+
+    // [2026-07-27 신규] 라이트박스용 전체 이미지 목록 — 메인사진이 갤러리 목록에 이미
+    // 포함돼 있으면 그대로, 없으면(메인사진과 갤러리가 다른 소스일 수 있어서) 0번에 추가
+    personGalleryImages = personMainPhotoPath && !profiles.some(p => p.file_path === personMainPhotoPath)
+      ? [{ file_path: personMainPhotoPath }, ...profiles]
+      : profiles;
+
+    const row = document.getElementById('photoGalleryRow');
+    row.classList.toggle('few-items', profiles.length <= 2); // [2026-07-11 추가]
+    row.innerHTML = profiles.map((p, i) => {
+      // 라이트박스 배열에서의 실제 인덱스를 찾음(메인사진이 0번으로 추가됐을 수 있어서 그냥 i가 아님)
+      const galleryIdx = personGalleryImages.findIndex(g => g.file_path === p.file_path);
+      return `
+      <div class="photo-gallery-thumb" onclick="openPersonLightbox(${galleryIdx})">
+        <img src="${imgBase}${p.file_path}" alt="사진" loading="lazy">
+      </div>
+    `;
+    }).join('');
+    document.getElementById('photoGallerySection').style.display = 'block';
+    updateScrollArrows('photoGalleryRow'); // [2026-07-11 추가] 콘텐츠 채워진 뒤 화살표 표시여부 갱신
+
+    // [2026-07-28 신규] 라이트박스용 큰 사이즈(w780) 사진들을 미리 백그라운드로
+    // 다운로드해둠 — 사용자가 실제로 클릭/스와이프해서 넘길 때 버벅이지 않게 하기 위함.
+    // 페이지의 다른 콘텐츠(필모그래피 등) 로딩을 방해하면 안 되므로, "페이지 전체가
+    // 다 로딩된 뒤"에 시작하도록 window의 load 이벤트를 기다림. 이미 load가 끝난
+    // 상태(느린 갤러리 API 응답 등)라면 바로 실행.
+    if(document.readyState === 'complete'){
+      preloadGalleryLargeImages();
+    } else {
+      window.addEventListener('load', preloadGalleryLargeImages, { once:true });
+    }
+  }catch(e){
+    // 갤러리는 부가 기능 — 실패해도 조용히 무시 (메인 페이지 기능에 영향 없음)
+  }
+}
+
+// [2026-07-28 신규] personGalleryImages에 담긴 사진들을 화면에 그리지 않고
+// new Image()로 다운로드만 시켜서 브라우저 캐시에 미리 채워둠(브라우저가 자동으로
+// 처리 — 별도로 저장/관리 안 해도 나중에 같은 주소로 <img>가 요청되면 캐시에서 즉시 나옴).
+function preloadGalleryLargeImages(){
+  if(!personGalleryImages || !personGalleryImages.length) return;
+  personGalleryImages.forEach(p => {
+    if(!p || !p.file_path) return;
+    const img = new Image();
+    img.src = `${IMG_PROFILE_LARGE}${p.file_path}`;
+  });
+}
+
+/* [2026-07-27 신규] 메인사진/갤러리 라이트박스 — _title_detail.html 관련이미지 팝업과 동일한 구조.
+   메인사진 클릭 시엔 아직 갤러리를 못 불러왔을 수도 있어서(비동기), 그때는 메인사진 하나만
+   보여주는 임시 배열로 열고, 화살표는 이미지가 1장뿐이면 자동으로 숨김. */
+let personGalleryImages = [];
+let personMainPhotoPath = '';
+let personLightboxIndex = 0;
+
+function handlePersonPhotoClick(){
+  if(!personGalleryImages.length && personMainPhotoPath){
+    personGalleryImages = [{ file_path: personMainPhotoPath }];
+  }
+  openPersonLightbox(0);
+}
+
+function openPersonLightbox(index){
+  if(!personGalleryImages.length) return;
+  personLightboxIndex = index;
+  showPersonLightboxImage(personGalleryImages[index].file_path); // 처음 열 때는 슬라이딩 없이 바로 표시
+  document.getElementById('personImgLightbox').classList.add('show');
+  document.body.style.overflow = 'hidden'; // 팝업 열린 동안 뒤 배경 스크롤 방지
+  updatePersonLightboxArrows();
+}
+function closePersonLightbox(){
+  document.getElementById('personImgLightbox').classList.remove('show');
+  document.body.style.overflow = '';
+}
+// 트랙을 사진 1장짜리로 되돌림(전환 없이 즉시) — 열 때, 슬라이딩 끝난 뒤 정리할 때 사용
+function showPersonLightboxImage(filePath){
+  const track = document.getElementById('personSlideTrack');
+  track.style.transition = 'none';
+  track.style.transform = 'translateX(0)';
+  track.innerHTML = `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${filePath}" alt="사진">`;
+}
+function updatePersonLightboxArrows(){
+  const showArrows = personGalleryImages.length > 1;
+  document.getElementById('personLightboxPrev').style.display = showArrows ? '' : 'none';
+  document.getElementById('personLightboxNext').style.display = showArrows ? '' : 'none';
+}
+// [2026-07-27 신규] 진짜 슬라이딩 전환 — 현재 사진+다음(또는 이전) 사진을 트랙에 나란히
+// 놓고 한 번에 밀어서, 사진이 옆으로 밀려나가며 다음 사진이 들어오는 느낌을 냄.
+let personSlideAnimating = false; // 애니메이션 도중 중복 클릭/스와이프 방지
+function personLightboxNav(e, dir){
+  e.stopPropagation(); // 화살표 클릭은 팝업이 안 닫히고 이미지만 넘어가야 함
+  if(personSlideAnimating) return;
+  const total = personGalleryImages.length;
+  if(total <= 1) return;
+  personSlideAnimating = true;
+
+  const nextIndex = (personLightboxIndex + dir + total) % total;
+  const currentPath = personGalleryImages[personLightboxIndex].file_path;
+  const nextPath = personGalleryImages[nextIndex].file_path;
+  const track = document.getElementById('personSlideTrack');
+
+  // dir=1(다음): 현재 사진 뒤에 다음 사진을 붙이고, 트랙을 왼쪽으로 밀어서 다음 사진이 들어오게 함
+  // dir=-1(이전): 이전 사진을 현재 사진 앞에 붙이고, 트랙을 처음엔 왼쪽으로 밀어둔 뒤 오른쪽(0)으로 되돌리며 보여줌
+  track.style.transition = 'none';
+  if(dir === 1){
+    track.innerHTML =
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${currentPath}" alt="사진">` +
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${nextPath}" alt="사진">`;
+    track.style.transform = 'translateX(0)';
+  } else {
+    track.innerHTML =
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${nextPath}" alt="사진">` +
+      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${currentPath}" alt="사진">`;
+    track.style.transform = 'translateX(-100%)';
+  }
+
+  void track.offsetWidth; // 강제 리플로우 — 위에서 transition:none으로 순간이동한 걸 화면에 먼저 반영시킴
+  track.style.transition = 'transform .3s ease';
+  track.style.transform = dir === 1 ? 'translateX(-100%)' : 'translateX(0)';
+
+  setTimeout(() => {
+    personLightboxIndex = nextIndex;
+    showPersonLightboxImage(nextPath); // 트랙을 다시 사진 1장짜리로 정리(전환 없이)
+    personSlideAnimating = false;
+  }, 300); // transition 시간(.3s)과 맞춤
+}
+
+// 모바일 스와이프(좌우 50px 이상)로 넘기기 — 탭은 닫기, 스와이프는 넘기기로 구분
+let personLightboxSwiping = false, personLightboxTouchX = 0;
+const personLightboxEl = document.getElementById('personImgLightbox');
+if(personLightboxEl){
+  personLightboxEl.addEventListener('touchstart', (e) => {
+    personLightboxTouchX = e.touches[0].clientX;
+  }, { passive: true });
+  personLightboxEl.addEventListener('touchend', (e) => {
+    const endX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : personLightboxTouchX;
+    const deltaX = endX - personLightboxTouchX;
+    if(Math.abs(deltaX) > 50){
+      personLightboxSwiping = true;
+      personLightboxNav(e, deltaX < 0 ? 1 : -1); // 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전
+      setTimeout(() => { personLightboxSwiping = false; }, 300);
+    }
+  });
+}
+function handlePersonLightboxBgClick(){
+  if(personLightboxSwiping){ personLightboxSwiping = false; return; }
+  closePersonLightbox();
+}
+// 키보드 지원 — ESC 닫기, 좌우 방향키 넘기기(팝업 열려있을 때만)
+document.addEventListener('keydown', (e) => {
+  const lb = document.getElementById('personImgLightbox');
+  if(!lb || !lb.classList.contains('show')) return;
+  if(e.key === 'Escape') closePersonLightbox();
+  else if(e.key === 'ArrowLeft') personLightboxNav(e, -1);
+  else if(e.key === 'ArrowRight') personLightboxNav(e, 1);
+});
+
+/* [2026-07-11 추가] 오늘의 랭킹 위젯 — 어드민이 "인물페이지 설정"에서 켜놓은 카테고리
+   1개를 노출. 이 배우/인물과 무관하게 방문객 전원에게 보이는 유입 장치라, 사진갤러리와
+   동일하게 initPage 메인 흐름과 분리된 fire-and-forget 호출로 둠 — 느리거나 실패해도
+   필모그래피 등 본 기능엔 전혀 영향 없음. 관리자가 아무것도 안 켜놨으면(data===null)
+   섹션 자체를 계속 숨김 상태로 둠(HTML 기본값 display:none 그대로 유지). */
+async function loadRankingWidget(){
+  try{
+    const res  = await fetch(`${OTTRANK_API}/rankings/person-widget`);
+    const json = await res.json();
+    if(!json.ok || !json.data || !json.data.items || !json.data.items.length) return;
+
+    const { platform, display_name, items } = json.data;
+    const pageUrl = PLATFORM_PAGES[platform] || '/netflix.html';
+    const color   = PLATFORM_COLORS[platform] || '#888';
+    const label   = PLATFORM_LABELS[platform] || platform;
+
+    document.getElementById('rankingWidgetLink').href = pageUrl;
+
+    const tag = document.getElementById('rankingWidgetTag');
+    tag.textContent      = label;
+    tag.style.color      = color;
+    tag.style.background = color + '2e'; // 약 18% 알파 배경
+    tag.style.border     = `1px solid ${color}59`; // 약 35% 알파 보더
+
+    document.getElementById('rankingWidgetTitle').textContent = `🔥 ${display_name}`;
+    document.getElementById('rankingWidgetCount').textContent = `TOP ${items.length}`;
+
+    const row = document.getElementById('rankingWidgetRow');
+    row.classList.toggle('few-items', items.length <= 2);
+    row.innerHTML = items.map(rankingWidgetCardHtml).join('');
+
+    document.getElementById('rankingWidgetSection').style.display = 'block';
+    updateScrollArrows('rankingWidgetRow');
+  }catch(e){
+    // 위젯은 부가 기능 — 실패해도 조용히 무시 (메인 페이지 기능에 영향 없음)
+  }
+}
+
+/* [2026-07-11 추가] 오늘의 랭킹 위젯 카드 — 대표작(workCardHtml)과 같은
+   .work-card/.work-poster 클래스를 재사용해 크기를 동일하게 맞춤.
+   클릭 시 이동은 기존 goWork()를 그대로 재사용(작품 상세페이지, media_type 포함) */
+function rankingWidgetCardHtml(item){
+  const title     = escHtml(item.title_ko || item.title_en || '');
+  // [2026-07-21 수정] media_type 미확정 케이스를 'tv'로 억지로 채우지 않음 —
+  // goWork()가 data-type을 그대로 읽어서 목적지 페이지에 넘기므로, 빈 값이면 정확히 "확정 안 됨"으로 전달됨.
+  const mediaType = item.media_type || '';
+  const poster    = item.poster_path
+    ? `<img src="${IMG}${item.poster_path}" alt="${title}" loading="lazy">`
+    : `<div class="work-poster-ph">🎬</div>`;
+  return `
+    <a class="work-card" data-tmdb="${item.tmdb_id}" data-type="${mediaType}"
+       data-title="${title}" data-year="${item.release_year || ''}" onclick="goWork(this)">
+      <div class="work-poster">
+        ${poster}
+        <span class="ranking-widget-rank">${item.rank}</span>
+      </div>
+      <div class="work-title">${title}</div>
+    </a>`;
+}
+
+/* [2026-07-11 재수정] 공유 버튼 클릭 시 현재 페이지 URL을 클립보드에 복사.
+   my_review.html의 shareCurrentPage()/showToast() 패턴 그대로 재사용 —
+   버튼 자체가 바뀌는(아이콘 스왑) 방식 대신, 화면 중앙 상단에 토스트 메시지로 안내.
+   navigator.clipboard는 HTTPS 환경(오뜨랑은 항상 HTTPS)에서만 동작하므로,
+   혹시 지원 안 되는 구형 브라우저 대비 textarea+execCommand 폴백도 같이 둠. */
+async function shareProfile(){
+  const url = location.href;
+  try{
+    await navigator.clipboard.writeText(url);
+  }catch(e){
+    fallbackCopy(url);
+  }
+  showToast('이 페이지 주소가 복사되었습니다.');
+}
+
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); }catch(e){ /* 복사 실패해도 조용히 무시 */ }
+  document.body.removeChild(ta);
+}
+
+/* [2026-07-11 추가] my_review.html과 동일한 토스트 알림 함수 */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  if(!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+async function initPage(){
+  if(!personId){
+    document.getElementById('pageLoading').innerHTML =
+      `<p>잘못된 접근입니다.</p>`;
+    return;
+  }
+  wikiBioApplied = false; // [2026-07-20 신규] 혹시 모를 재호출 대비 초기화
+
+  try{
+    /* ① TMDB Person + external_ids + combined_credits 한 번에 호출 */
+    const res  = await fetch(
+      `${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=external_ids,combined_credits`
+    );
+    const data = await res.json();
+
+    if(!data || !data.id){
+      document.getElementById('pageLoading').innerHTML =
+        `<p>인물 정보를 찾을 수 없습니다.</p>`;
+      return;
+    }
+
+    // [2026-07-21 신규] 실시간 조회 이벤트 — 진짜 유효한 인물 페이지로 확인된 시점에만 전송
+    trackPageView('person', data.id);
+
+    /* ── 로딩 숨김 / 콘텐츠 표시 ── */
+    document.getElementById('pageLoading').style.display = 'none';
+    document.getElementById('personHero').style.display = 'flex';
+
+    /* ② 이름 */
+    // also_known_as에서 한국어 이름 찾기
+    const alsoKnown = data.also_known_as || [];
+    const koName = alsoKnown.find(n => /[가-힣]/.test(n)) || '';
+    const displayName = koName || data.name || '';
+    // [2026-07-11 추가] koName이 data.name과 완전히 같으면(=TMDB에 애초에 영문 이름
+    // 없이 한글로만 등록된 인물) 작은 줄에 같은 이름이 중복 표시되던 문제 수정
+    const enName      = (koName && koName !== data.name) ? data.name : '';
+
+    // [2026-07-27 수정] 서버(SSR)가 이미 personName 칸에 정확한 이름(DB 우선)을 채워둔
+    // 상태라면(ssrPersonName 있음) 여기서 TMDB 이름으로 다시 덮어쓰지 않음 — 이게 바로
+    // "TMDB 이름이 잠깐 떴다가 DB 이름으로 바뀌는" 깜빡임의 원인이었음. 서버가 못 채운
+    // 경우(구버전 캐시, DB 조회 실패 등)에만 기존처럼 TMDB 이름으로 채움(안전한 폴백).
+    if(!ssrPersonName){
+      document.getElementById('personName').textContent = displayName; // 임시(아래 renderPersonNameEl이 최종 다시 그림)
+      personDisplayName = displayName; // [2026-07-20 신규]
+    }
+    document.getElementById('personNameEn').textContent = enName;
+    personEnName = enName; // [2026-07-28 신규] 위키 DB 이름과 비교용 원본 텍스트 보관
+    personEnNameHtml = enName
+      ? `<span class="person-name-en-inline">(${escHtml(enName)})</span>` : ''; // [2026-07-27 이동]
+    // [2026-07-24 신규] 수상내역 제목에 이름 넣기 — 위키 데이터(loadWikiTest)가 이 코드보다
+    // 먼저 실행돼서 그때는 personDisplayName이 비어있었을 경우를 대비한 보정.
+    const awardsTitleElNow = document.getElementById('profileAwardsTitle');
+    if(awardsTitleElNow && awardsTitleElNow.textContent === '🏆 수상내역') {
+      awardsTitleElNow.textContent = `🏆 ${personDisplayName || displayName} 수상내역`;
+    }
+
+    /* ③ 프로필 사진 */
+    if(data.profile_path){
+      document.getElementById('personPhoto').innerHTML =
+        `<img src="${IMG_PROFILE}${data.profile_path}" alt="${displayName}" loading="eager">`;
+      personMainPhotoPath = data.profile_path; // [2026-07-27 신규] 라이트박스용 — 메인사진을 갤러리 0번으로 사용
+    } else {
+      document.getElementById('personPhotoPh').textContent = (displayName||'?')[0];
+    }
+
+    /* ④ 메타 칩 (생년월일, 나이, 성별, 출생지)
+       [2026-07-20 수정] TMDB에 값이 없는 항목(예: 최정규 감독처럼 TMDB에
+       생년월일 자체가 없는 인물)을 나중에 위키 로딩 시점에 persons 테이블
+       수동입력값(manual)으로 보완할 수 있게, 원본 TMDB 값을 따로 저장해두고
+       칩 렌더링 자체는 재사용 함수(renderMetaChips)로 분리함 */
+    tmdbMeta = {
+      birthday: data.birthday || '',
+      deathday: data.deathday || '',
+      gender: data.gender || null,
+      place_of_birth: data.place_of_birth || '',
+      mbti: '', // [2026-07-27 신규] TMDB엔 없는 값 — 항상 빈 값으로 시작(위키 데이터 도착 시 loadWikiTest가 채움)
+    };
+    renderMetaChips(tmdbMeta);
+    renderMemorialFlower(tmdbMeta.deathday, null); // [2026-07-22 rev.11] 최초엔 TMDB 사망일만 확인, manual 배지는 loadWikiTest에서 도착 시 재평가
+
+    /* [2026-07-11 추가] 사진 갤러리 — 메인 흐름을 안 막게 await 없이 별도 호출 */
+    loadPhotoGallery(personId, IMG_PROFILE);
+
+    /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 이 인물과 무관한 전역 데이터라
+       personId 로딩 성공 여부와 상관없이 독립적으로 호출, await 없이 별도 호출 */
+    loadRankingWidget();
+
+    /* ⑤ 약력 준비 — ko-KR 없으면 영어 fallback. [2026-07-20 수정] 여기서 바로
+       화면에 그리지 않음 — 영어 약력이 먼저 번쩍 보였다가 위키 한글 요약으로
+       바뀌는 깜빡임이 있었음. TMDB 약력은 변수로만 준비해두고(tmdbBioText),
+       실제 화면 표시는 아래에서 위키 로딩까지 기다린 뒤 딱 한 번만 결정함. */
+    let bio = data.biography || '';
+    if(!bio){
+      try{
+        // language 파라미터 없이 재호출 → 영어 약력
+        const enRes  = await fetch(`${TMDB_PROXY}/person/${personId}?language=en-US`);
+        const enData = await enRes.json();
+        bio = enData.biography || '';
+      }catch(e){}
+    }
+    tmdbBioText = bio; // loadWikiTest 안에서 "위키 요약이 짧으면 이어붙이기"용으로 참조
+
+    /* [2026-07-20 수정] 위키백과 보강 데이터 로딩 + 약력 최종 결정은 별도로 병렬
+       처리(await 안 함) — SNS/SEO/필모그래피 등 아래 이어지는 렌더링이 위키 로딩
+       때문에 늦어지지 않게 함. 늦어지는 건 약력 텍스트 하나뿐이고, 나머지는
+       기존과 동일한 속도로 진행됨. 내부에서 bio_summary가 있으면 loadWikiTest가
+       bioEl을 직접 채우고 wikiBioApplied=true로 표시함. */
+    (async () => {
+      await loadWikiTest(personId);
+      if(!wikiBioApplied){
+        // 위키가 약력을 못 채웠을 때만 TMDB 약력(또는 안내문구)으로 폴백
+        const bioEl = document.getElementById('bioText');
+        if(bio){
+          bioEl.textContent = bio;
+          requestAnimationFrame(()=>{
+            const lineH = parseFloat(getComputedStyle(bioEl).lineHeight) || 24;
+            if(bioEl.scrollHeight > lineH * 4 + 4){
+              document.getElementById('bioToggle').style.display = 'inline';
+            }
+          });
+        } else {
+          // [2026-07-27 수정] "약력 정보가 없습니다." 문구를 없애고, 그 자리 공간까지 통째로
+          // 숨김 처리 — 문구가 있으면 마치 페이지 전체에 정보가 없는 것처럼 보인다는 피드백.
+          // 프로필 수정하기 버튼은 그대로 둬서(아래에서 계속 보임) 관리자가 직접 입력할 수 있게 함.
+          bioEl.textContent = '';
+          bioEl.style.display = 'none';
+        }
+      }
+    })();
+
+    /* ⑥ SNS 아이콘 + 공유버튼 — 이름 옆 한 줄에 나란히 표시
+       [2026-07-11 재수정] 공유버튼을 이름 아래 별도 줄에 뒀더니 위치가 어색하다는
+       피드백 → SNS 아이콘과 같은 줄(person-social-row)에 포함시킴. SNS 계정이
+       하나도 없어도 공유버튼은 항상 나와야 하므로, socialLinks가 비어있어도
+       이 블록 자체는 항상 실행되도록 조건을 없앰. */
+    const ext = data.external_ids || {};
+    const socialLinks = [];
+    if(ext.instagram_id) socialLinks.push({ url:`https://www.instagram.com/${ext.instagram_id}/`, label:`Instagram @${ext.instagram_id}`, icon:'/img/instagram.png' });
+    if(ext.twitter_id)   socialLinks.push({ url:`https://x.com/${ext.twitter_id}/`, label:`X(Twitter) @${ext.twitter_id}`, icon:'/img/twitter.png' });
+    if(ext.tiktok_id)    socialLinks.push({ url:`https://www.tiktok.com/@${ext.tiktok_id}`, label:`TikTok @${ext.tiktok_id}`, icon:'/img/tiktok.png' });
+
+    const nameEl = document.getElementById('personName');
+    const iconsHtml = socialLinks.map(s => `<a class="person-social-icon"
+        href="${s.url}" target="_blank" rel="noopener" title="${s.label}"
+        onclick="event.stopPropagation()">
+        <img src="${s.icon}" alt="${s.label}" onerror="this.style.display='none'">
+      </a>`).join('');
+    const shareTagHtml = `<button class="share-tag" id="shareBtn"
+        onclick="event.stopPropagation();shareProfile()">🔗 공유</button>`;
+    // [2026-07-27 수정] nameEl.innerHTML을 여기서 직접 조립하지 않고 공용 렌더 함수로 위임.
+    // loadWikiTest(관리자 수동 이름)가 await 없이 백그라운드로 돌기 때문에, 이 블록보다
+    // 먼저 끝날 수도 나중에 끝날 수도 있음 — 순서 상관없이 항상 최종 상태가 맞도록 함.
+    personSocialRowHtml = `<span class="person-social-row">${iconsHtml}${shareTagHtml}</span>`;
+    renderPersonNameEl();
+
+    /* ⑦ SEO */
+    const profileImgUrl = data.profile_path
+      ? `https://poster.ottrank.kr/tmdb-img/w342${data.profile_path}` : '';
+    const jobLabel = data.known_for_department === 'Directing' ? '감독' : '배우';
+    // [2026-07-20 신규] 두번째 이름(영문명/본명 등)이 있으면 설명에도 "이름(두번째이름)"로 병기
+    const seoNameLabel = enName ? `${displayName}(${enName})` : displayName;
+    const seoDesc = bio
+      ? `${seoNameLabel} - ${bio.slice(0, 110).replace(/\n/g,' ')}...`
+      : `${seoNameLabel} 필모그래피와 프로필을 오뜨랑에서 확인하세요.`;
+    updateSEO(displayName, seoDesc, profileImgUrl, jobLabel, ext.instagram_id, enName);
+
+    /* ⑧ 필모그래피 */
+    const credits = data.combined_credits || {};
+    const cast   = (credits.cast   || []).map(c=>({...c, media_type: c.media_type||'tv',  _kind:'act'}));
+    const crew   = (credits.crew   || []).map(c=>({...c, media_type: c.media_type||'movie',_kind:'direct'}));
+
+    // 중복 제거 (tmdb_id + media_type 기준)
+    const dedup = (arr) => {
+      const seen = new Set();
+      return arr.filter(item=>{
+        const key = `${item.id}_${item.media_type}`;
+        if(seen.has(key)) return false;
+        seen.add(key); return true;
+      });
     };
 
-    for (let i = 0; i < titles.length; i++) {
-      const title = titles[i];
-      const extractRes = await fetch(
-        `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json`,
-        { headers: WIKI_UA }
+    // 최신순 정렬
+    const sortByDate = (arr) => [...arr].sort((a,b)=>{
+      const da = a.release_date||a.first_air_date||'0000';
+      const db = b.release_date||b.first_air_date||'0000';
+      return db.localeCompare(da);
+    });
+
+    actCredits    = sortByDate(dedup(cast));
+    directCredits = sortByDate(dedup(crew.filter(c=>
+      c.job==='Director'||c.job==='Creator'||c.department==='Directing'
+    )));
+    // 전체 = 출연 + 연출 합쳐서 중복 제거 후 정렬
+    allCredits = sortByDate(dedup([...cast, ...crew]));
+
+    const total = allCredits.length;
+    if(total > 0){
+      document.getElementById('filmographySection').style.display = 'block';
+      document.getElementById('filmCount').textContent =
+        `총 ${total}편`;
+      // 탭 카운트 표시
+      document.getElementById('tabAll').textContent    = `전체 (${allCredits.length})`;
+      document.getElementById('tabAct').textContent    = `출연 (${actCredits.length})`;
+      document.getElementById('tabDirect').textContent = `연출 (${directCredits.length})`;
+
+      // [2026-07-20 신규] "OTT 있는 작품 우선" 정렬이 기본값이라, 렌더 전에
+      // 전체 작품의 OTT 여부를 미리 한 번에 조회해둠 (loadOttBadges 재사용 —
+      // 아직 카드가 없어 화면 반영은 안 되지만 ottBadgeCache는 채워짐, 중복요청 없음)
+      await loadOttBadges(allCredits);
+
+      renderWorks();
+
+      // [2026-07-11 추가] 대표작(popularity 기반 + 게스트출연 감점) — 이미 받아온
+      // combined_credits 데이터만 재사용, 추가 API 호출 없음. 포스터 없는 작품은
+      // 그리드 깨지므로 제외.
+      //
+      // ⚠️ 2026-07-11 개선: popularity만 쓰면 "예능 1회 게스트 출연"이 "본인 주연 드라마"보다
+      // 앞에 나오는 문제 발견(예: 배우가 5년 전 예능에 1번 나온 게 popularity가 더 높았음).
+      // 장르(예능/드라마)로 구분하지 않음 — 예능인 본인에게는 예능이 진짜 대표작이기 때문.
+      // 대신 TV 출연작의 episode_count(이 작품에 몇 회 나왔는지)로 "게스트성 출연"인지
+      // 판단: 회차 수가 적을수록 감점 폭을 크게(연속적으로) 적용. 예능 고정 멤버처럼
+      // 회차 수가 많으면 감점 거의 없음 — 장르 상관없이 "비중"만 봄.
+      // episode_count는 지금 이미 호출 중인 combined_credits 응답에 원래 포함된 필드라
+      // 추가 TMDB 호출 없음(트래픽 영향 없음).
+      // ⚠️ 2026-07-11 2차 개선: episode_count만으로는 부족했음 — "런닝맨" 게스트 출연이
+      // episode_count=14로 나와서(여러 해에 걸쳐 여러 번 게스트로 나온 게 누적됨) 기존
+      // 임계값(10회)을 넘어버려 감점이 전혀 안 걸리는 문제 발견.
+      // 더 정확한 신호로 교체: TMDB의 character 필드 — 예능/리얼리티는 배역명 없이
+      // "Self"로 찍히고, 드라마/영화는 실제 배역명이 있음. "회차 수"보다 "진짜 배역이
+      // 있는지"가 대표작 여부를 훨씬 정확하게 구분함. 이것도 추가 호출 없는 기존 데이터.
+      // ⚠️ 2026-07-11 3차 개선: 60회 기준 + 선형 감점으로도 부족했음 — "런닝맨",
+      // "무한도전"처럼 10년~20년 넘게 방영된 장수 예능은, 몇 년에 한 번씩만 게스트로
+      // 나와도 다 합치면 episode_count가 쉽게 14~수십 회까지 쌓임(TMDB가 한 사람의
+      // 여러 해에 걸친 출연을 전부 합쳐서 기록하기 때문). 그 결과 "장수 예능=고정 출연"
+      // 취급을 너무 쉽게 받아버려서, 거의 모든 배우 대표작에 런닝맨/무한도전이 나오는
+      // 문제 발생. 두 가지로 보정:
+      //   1) 임계값 60 → 180으로 상향 (진짜 고정 MC급만 감점 면제)
+      //   2) 감점 곡선을 선형(ep/기준)에서 제곱((ep/기준)²)으로 변경
+      //      → 14회처럼 어중간한 회차는 지금보다 훨씬 세게 깎이고(14/180≈0.08 → 제곱하면
+      //      0.006 수준), 진짜 고정 출연(150회 이상)만 확실히 살아남게 됨
+      // [2026-07-24 신규] 현재 OTT에서 볼 수 없는 작품 감점 — TMDB popularity는 "역대
+      // 얼마나 히트했나"를 전혀 반영 못 해서, 20년 전에 반짝 흥행하고 지금은 어느 OTT에도
+      // 없는 작품이 popularity 하나만으로 최근 대형 히트작(예: 디즈니+ 1위작)을 이기는
+      // 사례가 실제로 확인됨(오늘 발견). 오뜨랑은 "지금 볼 수 있는 것" 위주 서비스이므로,
+      // 지금 어느 OTT에도 없는 작품은 대표작 우선순위에서도 감점하는 게 자연스러움.
+      // ottBadgeCache는 이미 위에서 loadOttBadges(allCredits)로 전부 채워둔 데이터라
+      // 추가 API 호출 없음.
+      const hasCurrentOtt = (it) => {
+        const keys = ottBadgeCache[it.id];
+        return Array.isArray(keys) && keys.length > 0;
+      };
+
+      // [2026-07-24 추가 수정] order 정보가 없는 배역을 무조건 tier 0으로 넣었더니,
+      // 예능/리얼리티 게스트 출연(원래 order 자체가 없는 경우가 많음)까지 주연급으로
+      // 같이 승격되는 부작용이 발견됨(박한별 배우 사례 — 런닝맨/정글의 법칙이 대표작 상단에 뜸).
+      // "본인 출연인지 아닌지"를 따로 추정하는 대신, 그 작품 자체의 실제 출연진 목록을
+      // TMDB에서 다시 조회해서 이 인물의 진짜 캐스팅 순위를 확인 — 예능 게스트라면
+      // 자연스럽게 한참 뒤 순위로 나오고, 킬러들의 쇼핑몰처럼 진짜 주연인데 개인 크레딧에만
+      // order가 안 찍힌 경우는 조회하면 앞쪽 순위로 확인됨. order가 이미 있는 항목은
+      // 이 조회 대상에서 제외(추가 호출 없음).
+      const missingOrderItems = allCredits.filter(
+        it => it._kind === 'act' && typeof it.order !== 'number' && it.poster_path
       );
-      if (!extractRes.ok) continue;
-      const extractData = await extractRes.json();
-      const pages   = (extractData.query && extractData.query.pages) || {};
-      const pageObj = Object.values(pages)[0];
-      const extract = (pageObj && pageObj.extract) || "";
-      const pageMissing = !pageObj || ("missing" in pageObj) || !extract;
-      if (pageMissing) continue;
-
-      const wikiYear = extractBirthYear(extract);
-      const isYearMatch = tmdbYear && wikiYear && tmdbYear === wikiYear;
-      const isYearConflict = tmdbYear && wikiYear && tmdbYear !== wikiYear;
-      const isDisambigPageExists = title === disambigTitle && !pageMissing;
-      if (isYearConflict) continue;
-      if (isYearMatch || (isDisambigPageExists && !tmdbYear)) {
-        return { matched: true };
-      }
-    }
-    return { matched: false };
-  } catch (e) {
-    return { matched: false };
-  }
-}
-
-// [2026-07-27 6차 수정] 블로그 검색 방식 전면 교체 — 관리자가 실사용 테스트로 찾은 핵심:
-// "이름 MBTI"로만 검색하면 글쓴이 본인 MBTI나 "이 영화는 ISFP들이 좋아함" 같은 무관한
-// 문장이 섞여서 오탐이 심함. 반면 "이름 프로필 MBTI"로 검색하면 그 배우 신상정보만 정리한
-// 프로필형 블로그 글로 대부분 연결되고, 이런 글은 다른 사람 MBTI가 섞일 일이 없어 정확함.
-// → 제목에 "이름"과 "프로필"이 둘 다 있는 글만 신뢰하고(본문 근접성 체크 불필요), 5개까지
-// 확인해서 여러 개 나오면 다수결로 채택, 동점이면 최신 글(postdate) 우선.
-async function _fetchNaverMbti(displayName, birthYear, jobLabel, env) {
-  if (!env.NAVER_DATALAB_CLIENT_ID || !env.NAVER_DATALAB_CLIENT_SECRET) {
-    return { mbti: null, reason: "no_naver_key" };
-  }
-  const namuQuery = `${displayName} 나무위키 MBTI`;
-  const profileQuery = `${displayName} 프로필 MBTI`;
-
-  const stripText = (raw) => raw
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
-
-  // [2026-07-27 9차 수정] "MBTI (공개안함)" 같은 문장을 만나면, 정규식이 그걸 건너뛰고
-  // 텍스트 뒤쪽의 상관없는 4글자를 잘못 주워오는 문제가 실사용 중 확인됨(관리자 발견,
-  // 박찬욱 사례). "MBTI" 등장 지점마다 순서대로 검사해서 ① "공개안함/비공개/모름" 같은
-  // 명시적 부정 표현을 먼저 찾고, 있으면 그 즉시 UNDISCLOSED로 확정 판정(뒤쪽 다른 글자를
-  // 계속 찾아 헤매지 않음) ② 없으면 10자 이내에 유효한 4글자 유형이 있는지 확인.
-  // 둘 다 아니면 이 "MBTI" 등장은 무시하고 다음 등장으로 넘어감(애매한 신호는 집계 안 함).
-  // ⚠️ "공개안함"도 다수결 후보에 정식으로 포함됨 — 실제로 "MBTI 없음"이라고 밝힌 사람에
-  // 대해, 엉뚱한 글자를 억지로 채택하는 것보다 "공개안함"이 다수면 그게 곧 정답임(관리자 판단).
-  const negativePattern = "공개안함|비공개|밝히지\\s*않|알려지지\\s*않|안\\s*밝힘|불명|모름";
-  const extractMbtiSignal = (body) => {
-    const mbtiIdxRe = /MBTI/gi;
-    let idxMatch;
-    while ((idxMatch = mbtiIdxRe.exec(body)) !== null) {
-      const after = body.slice(idxMatch.index + 4, idxMatch.index + 4 + 20);
-      const negMatch = after.match(new RegExp(`^[^A-Za-z가-힣]{0,10}(${negativePattern})`));
-      if (negMatch) return "UNDISCLOSED";
-      const typeMatch = after.match(/^[^A-Za-z]{0,10}([EI][SN][FT][JP])\b/i);
-      if (typeMatch) return typeMatch[1].toUpperCase();
-    }
-    return null;
-  };
-
-  // ① 나무위키(웹문서) — 이름 언급 위치 기준 앞뒤 40자 이내에 MBTI 신호가 있을 때만 채택.
-  // 나무위키가 "공개안함"이라고 명시했으면 그 자체를 확정 답으로 보고 블로그 단계로 안 넘어감
-  // (제일 신뢰도 높은 출처가 이미 "정보 없음"을 확인해준 것이므로).
-  try {
-    const resp = await fetch(
-      `https://openapi.naver.com/v1/search/webkr.json?query=${encodeURIComponent(namuQuery)}&display=10`,
-      {
-        headers: {
-          "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
-          "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
-        },
-      }
-    );
-    if (resp.ok) {
-      const data = await resp.json();
-      for (const it of (data.items || [])) {
-        const text = stripText(`${it.title} ${it.description}`);
-        if (!text.includes(displayName)) continue;
-        const nameIdx = text.indexOf(displayName);
-        const signal = extractMbtiSignal(text);
-        if (signal) {
-          // 신호가 이름 근처(40자 이내)에서 나온 게 맞는지 재확인
-          const mbtiWordIdx = text.indexOf("MBTI");
-          if (mbtiWordIdx !== -1 && Math.abs(mbtiWordIdx - nameIdx) <= 40) {
-            if (signal === "UNDISCLOSED") return { mbti: null, reason: "namuwiki_undisclosed" };
-            return { mbti: signal, reason: "ok_namuwiki" };
-          }
-        }
-      }
-    }
-  } catch (e) { /* 나무위키 실패해도 블로그로 계속 진행 */ }
-
-  // ② 블로그 "이름 프로필 MBTI" — 제목에 이름+프로필이 둘 다 있는 글만 신뢰, 5개까지 확인
-  try {
-    const resp = await fetch(
-      `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(profileQuery)}&display=5`,
-      {
-        headers: {
-          "X-Naver-Client-Id": env.NAVER_DATALAB_CLIENT_ID,
-          "X-Naver-Client-Secret": env.NAVER_DATALAB_CLIENT_SECRET,
-        },
-      }
-    );
-    if (!resp.ok) return { mbti: null, reason: `http_${resp.status}` };
-    const data = await resp.json();
-    const items = data.items || [];
-    if (!items.length) return { mbti: null, reason: "no_results" };
-
-    // 제목에 "이름"+"프로필"이 둘 다 있고, 본문에 태어난 연도까지 같이 언급된 항목만 후보로
-    // 모음(postdate: YYYYMMDD 문자열). 동명이인(일반인 등)의 "프로필" 글이 그냥 이름만 같아서
-    // 잘못 채택되는 걸 막기 위해 연도 확인(생년월일 전체 아니라 연도만). birthYear 정보가
-    // 없으면(드묾) 검증 자체가 불가능하므로 그 경우만 조건 생략.
-    const candidates = [];
-    for (const it of items) {
-      const title = stripText(it.title);
-      if (!title.includes(displayName) || !title.includes("프로필")) continue;
-      const body = stripText(`${it.title} ${it.description}`);
-      // 태그 제거 과정에서 <b>가 연도 숫자 중간에 걸쳐있으면 "199 3"처럼 공백이 껴서
-      // 그냥 문자열 비교(includes)로는 못 찾는 경우가 있음 — 공백 허용 정규식으로 비교.
-      const birthYearPattern = birthYear ? new RegExp(birthYear.split("").join("\\s*")) : null;
-      if (birthYearPattern && !birthYearPattern.test(body)) continue; // 연도가 같이 언급 안 되면 동명이인 의심, 스킵
-      const signal = extractMbtiSignal(body);
-      if (signal) candidates.push({ mbti: signal, postdate: it.postdate || "" });
-    }
-    if (!candidates.length) return { mbti: null, reason: "profile_title_not_found" };
-
-    // 다수결 — 가장 많이 나온 값(UNDISCLOSED 포함). 동점이면 postdate가 가장 최근인 쪽 채택.
-    const voteCount = {};
-    candidates.forEach((c) => { voteCount[c.mbti] = (voteCount[c.mbti] || 0) + 1; });
-    const maxVotes = Math.max(...Object.values(voteCount));
-    const tied = Object.keys(voteCount).filter((k) => voteCount[k] === maxVotes);
-
-    let winner;
-    if (tied.length === 1) {
-      winner = tied[0];
-    } else {
-      const tiedCandidates = candidates.filter((c) => tied.includes(c.mbti));
-      tiedCandidates.sort((a, b) => (b.postdate || "").localeCompare(a.postdate || ""));
-      winner = tiedCandidates[0].mbti;
-    }
-
-    if (winner === "UNDISCLOSED") return { mbti: null, reason: "blog_profile_undisclosed_majority" };
-    return { mbti: winner, reason: tied.length === 1 ? "ok_blog_profile" : "ok_blog_profile_tiebreak" };
-  } catch (e) {
-    return { mbti: null, reason: `fetch_error_${e.message}` };
-  }
-}
-
-export async function handleAdminPersons(path, request, env, url, headers) {
-  // ── POST /admin/persons/mbti-naver-step ────────────────────────
-  // "MBTI 수집(네이버)" 탭 — 버튼 한 번에 1명만 처리. admin.js의 mbti-auto-step과
-  // 동일한 반복 호출 패턴(done:true 받을 때까지 프론트가 계속 호출).
-  if (path === "/admin/persons/mbti-naver-step" && request.method === "POST") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const candidate = await env.DB.prepare(`
-        SELECT tmdb_id, name, name_ko, job, birthday, popularity
-        FROM persons
-        WHERE korean_confirmed = 1
-          AND mbti_naver_checked_at IS NULL
-        ORDER BY popularity DESC
-        LIMIT 1
-      `).first();
-
-      if (!candidate) {
-        return new Response(JSON.stringify({ ok: true, done: true }), { headers });
-      }
-
-      const displayName = candidate.name_ko || candidate.name;
-      const jobLabel = candidate.job === "direct" ? "감독" : "배우";
-      let birthYear = "";
-      if (candidate.birthday && /^\d{4}/.test(candidate.birthday)) {
-        birthYear = candidate.birthday.slice(0, 4);
-      }
-
-      // ② 무료 위키 사전확인 — 동명이인 방지 + 성인물 출연자 등 필터링 역할
-      const wikiCheck = await _checkWikiMatchForMbti(displayName, birthYear);
-      if (!wikiCheck.matched) {
-        await env.DB.prepare(
-          `UPDATE persons SET mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
-        ).bind(candidate.tmdb_id).run();
-        return new Response(JSON.stringify({
-          ok: true, done: false,
-          person: { tmdb_id: candidate.tmdb_id, name: displayName },
-          result: "skipped", reason: "wiki_no_match",
-        }), { headers });
-      }
-
-      // ③ 네이버 검색 API로 MBTI 패턴 추출(무료, AI 없음)
-      // 초당 요청 제한(10회) 방어용 짧은 대기
-      await new Promise((r) => setTimeout(r, 300));
-      const naverResult = await _fetchNaverMbti(displayName, birthYear, jobLabel, env);
-
-      if (naverResult.mbti) {
-        await env.DB.prepare(
-          `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
-        ).bind(naverResult.mbti, candidate.tmdb_id).run();
-        return new Response(JSON.stringify({
-          ok: true, done: false,
-          person: { tmdb_id: candidate.tmdb_id, name: displayName },
-          result: "found", mbti: naverResult.mbti,
-        }), { headers });
-      }
-
-      await env.DB.prepare(
-        `UPDATE persons SET mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
-      ).bind(candidate.tmdb_id).run();
-      return new Response(JSON.stringify({
-        ok: true, done: false,
-        person: { tmdb_id: candidate.tmdb_id, name: displayName },
-        result: "skipped", reason: naverResult.reason,
-      }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
-
-  // ── GET /admin/persons/mbti-naver-search ───────────────────────
-  // 개별 검색(이름/tmdb_id) — admin.js의 /admin/persons/search와 별개(그 파일 안 건드리기 위해
-  // 이 파일 안에서 자체적으로 구현). 결과에 mbti_naver 값도 같이 내려줌.
-  if (path === "/admin/persons/mbti-naver-search" && request.method === "GET") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const q = (url.searchParams.get("q") || "").trim();
-      if (!q) {
-        return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
-      }
-
-      let items;
-      if (/^\d+$/.test(q)) {
-        const row = await env.DB.prepare(
-          `SELECT tmdb_id, name, name_ko, mbti_naver FROM persons WHERE tmdb_id = ?`
-        ).bind(parseInt(q, 10)).first();
-        items = row ? [row] : [];
-      } else {
-        const { results } = await env.DB.prepare(`
-          SELECT tmdb_id, name, name_ko, mbti_naver FROM persons
-          WHERE name LIKE ? OR name_ko LIKE ?
-          ORDER BY name LIMIT 30
-        `).bind(`%${q}%`, `%${q}%`).all();
-        items = results;
-      }
-
-      return new Response(JSON.stringify({ ok: true, items }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
-
-  // ── GET /admin/persons/mbti-naver-confirmed-list ───────────────
-  // 네이버 방식으로 찾은 확정 리스트, 50명씩. AI 버전(admin.js)과 동일한 응답 형태로
-  // 맞춰서 프론트가 같은 렌더링 코드를 재사용할 수 있게 함(source만 다름).
-  if (path === "/admin/persons/mbti-naver-confirmed-list" && request.method === "GET") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const page  = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
-      const limit = 50;
-      const offset = (page - 1) * limit;
-
-      const { results: items } = await env.DB.prepare(`
-        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti_naver AS mbti, mbti_naver_checked_at
-        FROM persons
-        WHERE mbti_naver IS NOT NULL
-        ORDER BY mbti_naver_checked_at DESC
-        LIMIT ? OFFSET ?
-      `).bind(limit, offset).all();
-
-      const totalRow = await env.DB.prepare(
-        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti_naver IS NOT NULL`
-      ).first();
-
-      return new Response(JSON.stringify({
-        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
-      }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
-
-  // ── GET /admin/persons/mbti-naver-pending-list ──────────────────
-  // 네이버 방식으로 확인은 했지만 못 찾은 리스트, 50명씩.
-  if (path === "/admin/persons/mbti-naver-pending-list" && request.method === "GET") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const page  = Math.max(1, parseInt(url.searchParams.get("page")) || 1);
-      const limit = 50;
-      const offset = (page - 1) * limit;
-
-      const { results: items } = await env.DB.prepare(`
-        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti_naver_checked_at
-        FROM persons
-        WHERE mbti_naver_checked_at IS NOT NULL AND mbti_naver IS NULL
-        ORDER BY mbti_naver_checked_at DESC
-        LIMIT ? OFFSET ?
-      `).bind(limit, offset).all();
-
-      const totalRow = await env.DB.prepare(
-        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti_naver_checked_at IS NOT NULL AND mbti_naver IS NULL`
-      ).first();
-
-      return new Response(JSON.stringify({
-        ok: true, items, total: totalRow?.cnt || 0, page, pageSize: limit,
-      }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
-
-  // ── POST /admin/persons/mbti-naver-set ─────────────────────────
-  // 개별 수정/삭제(빈 문자열로 저장하면 삭제). admin.js의 mbti-set과 동일한 패턴이나
-  // 대상 컬럼만 mbti_naver.
-  if (path === "/admin/persons/mbti-naver-set" && request.method === "POST") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const body = await request.json().catch(() => ({}));
-      const tmdbId = parseInt(body.tmdb_id);
-      const mbtiRaw = (body.mbti || "").trim().toUpperCase();
-      if (!tmdbId) {
-        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
-      }
-      if (mbtiRaw && !/^[EI][SN][FT][JP]$/.test(mbtiRaw)) {
-        return new Response(JSON.stringify({ ok: false, message: "MBTI는 ENFP처럼 4글자 형식이어야 해요" }), { status: 400, headers });
-      }
-
-      const person = await env.DB.prepare(`SELECT tmdb_id FROM persons WHERE tmdb_id = ?`).bind(tmdbId).first();
-      if (!person) {
-        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
-      }
-
-      await env.DB.prepare(
-        `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
-      ).bind(mbtiRaw || null, tmdbId).run();
-
-      return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // [2026-07-29 신규] 대표작 수동 지정 — person_featured_works 테이블
-  // 인물 1명당 최대 5개까지, 관리자가 지정한 작품을 순서대로 저장.
-  // person.html은 이 목록을 앞쪽에 고정 배치하고, 남은 자리는 기존
-  // 자동 알고리즘(popularity+게스트감점 등)으로 채운다.
-  // ══════════════════════════════════════════════════════════════
-
-  const TMDB_KEY = env.TMDB_API_KEY;
-
-  // TMDB 상세정보 1건 조회(영화/TV 자동 판별용) — 제목/포스터만 필요
-  async function _fetchTmdbWorkDetail(tmdbId, mediaType) {
-    try {
-      const resp = await fetch(
-        `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_KEY}&language=ko-KR`
-      );
-      if (!resp.ok) return null;
-      const d = await resp.json();
-      const title = mediaType === "movie" ? d.title : d.name;
-      if (!title) return null;
-      return { tmdb_id: tmdbId, media_type: mediaType, title, poster_path: d.poster_path || null };
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // ── GET /admin/persons/featured-works ───────────────────────────
-  // 특정 인물의 현재 지정된 대표작 목록(최대 5개, 순서대로) 조회.
-  // DB엔 tmdb_id/media_type/순서만 있으므로, 화면 표시용 제목/포스터는
-  // 그때그때 TMDB에서 가져옴(최대 5건이라 부담 적음).
-  if (path === "/admin/persons/featured-works" && request.method === "GET") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const personId = parseInt(url.searchParams.get("tmdb_person_id"));
-      if (!personId) {
-        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id가 필요해요" }), { status: 400, headers });
-      }
-
-      const { results: rows } = await env.DB.prepare(
-        `SELECT work_tmdb_id, work_media_type, sort_order FROM person_featured_works
-         WHERE tmdb_person_id = ? ORDER BY sort_order ASC`
-      ).bind(personId).all();
-
-      const items = await Promise.all(
-        (rows || []).map(async (r) => {
-          const detail = await _fetchTmdbWorkDetail(r.work_tmdb_id, r.work_media_type);
-          return {
-            sort_order: r.sort_order,
-            tmdb_id: r.work_tmdb_id,
-            media_type: r.work_media_type,
-            title: detail ? detail.title : null,
-            poster_path: detail ? detail.poster_path : null,
-          };
-        })
-      );
-
-      return new Response(JSON.stringify({ ok: true, items }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
-
-  // ── GET /admin/persons/featured-works-work-search ────────────────
-  // 작품 검색: 숫자만 입력하면 tmdb_id로 간주(우리DB 우선 조회 → 없으면
-  // TMDB에서 영화/TV 둘 다 시도), 글자면 제목 검색(우리DB 우선 → 부족하면
-  // TMDB 검색으로 나머지 채움, 최대 8개).
-  if (path === "/admin/persons/featured-works-work-search" && request.method === "GET") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const q = (url.searchParams.get("q") || "").trim();
-      if (!q) {
-        return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
-      }
-
-      // ① 숫자만 입력 — tmdb_id 직접 조회
-      if (/^\d+$/.test(q)) {
-        const tmdbId = parseInt(q, 10);
-        const { results: dbRows } = await env.DB.prepare(
-          `SELECT tmdb_id, media_type, COALESCE(title_ko, title_en) AS title, poster_path
-           FROM works WHERE tmdb_id = ?`
-        ).bind(tmdbId).all();
-
-        const found = new Set((dbRows || []).map((r) => r.media_type));
-        const items = [...(dbRows || [])];
-
-        // 우리DB에 없는 타입(영화/TV)은 TMDB에서 추가로 확인
-        for (const mt of ["movie", "tv"]) {
-          if (found.has(mt)) continue;
-          const detail = await _fetchTmdbWorkDetail(tmdbId, mt);
-          if (detail) items.push(detail);
-        }
-
-        return new Response(JSON.stringify({ ok: true, items }), { headers });
-      }
-
-      // ② 제목 검색 — 우리DB 먼저
-      const { results: dbRows } = await env.DB.prepare(
-        `SELECT tmdb_id, media_type, COALESCE(title_ko, title_en) AS title, poster_path
-         FROM works WHERE title_ko LIKE ? OR title_en LIKE ? LIMIT 8`
-      ).bind(`%${q}%`, `%${q}%`).all();
-
-      const items = [...(dbRows || [])];
-      const seen = new Set(items.map((it) => `${it.tmdb_id}_${it.media_type}`));
-
-      // 부족하면 TMDB 검색(search/multi)으로 나머지 채움
-      if (items.length < 8 && TMDB_KEY) {
+      const orderLookup = {}; // `${id}_${media_type}` -> 실제 조회된 order(또는 배열 순번)
+      // [2026-07-25 신규] "조회는 성공했는데 명단에 없음"을 "조회 자체가 실패함"과 구분해서
+      // 따로 표시. 후자는 정보가 없을 뿐이라 안전하게 tier 1로 두지만, 전자는 이 사람이
+      // 그 작품에 사실상 비중 없는 출연(단역/게스트/오인 크레딧 등)이었을 가능성이 높다는
+      // 더 확실한 신호라서 아래 scoreFor/castTier에서 추가로 불리하게 처리함
+      // (계기: "Min Kim" 배우 프로필에 실제 출연진 명단에도 없는 해외 장수 드라마
+      // "Shortland Street"가 인기도 수치만으로 대표작 상단에 뜨는 문제 발견, 2026-07-25).
+      const notFoundInCast = new Set();
+      await Promise.all(missingOrderItems.map(async (it) => {
         try {
-          const resp = await fetch(
-            `https://api.themoviedb.org/3/search/multi?api_key=${TMDB_KEY}&language=ko-KR&query=${encodeURIComponent(q)}`
-          );
-          if (resp.ok) {
-            const data = await resp.json();
-            for (const it of (data.results || [])) {
-              if (items.length >= 8) break;
-              if (it.media_type !== "movie" && it.media_type !== "tv") continue;
-              const title = it.media_type === "movie" ? it.title : it.name;
-              if (!title) continue;
-              const key = `${it.id}_${it.media_type}`;
-              if (seen.has(key)) continue;
-              seen.add(key);
-              items.push({ tmdb_id: it.id, media_type: it.media_type, title, poster_path: it.poster_path || null });
-            }
-          }
-        } catch (e) { /* TMDB 실패해도 우리DB 결과는 그대로 반환 */ }
-      }
+          const path = it.media_type === 'movie' ? `movie/${it.id}/credits` : `tv/${it.id}/aggregate_credits`;
+          const res = await fetch(`${TMDB_PROXY}/${path}?language=ko-KR`);
+          if(!res.ok) return;
+          const data = await res.json();
+          const castList = data.cast || [];
+          const idx = castList.findIndex(c => c.id === personId);
+          if(idx === -1){ notFoundInCast.add(`${it.id}_${it.media_type}`); return; }
+          const found = castList[idx];
+          orderLookup[`${it.id}_${it.media_type}`] = typeof found.order === 'number' ? found.order : idx;
+        } catch(e) { /* 실패하면 기본값(모름) 유지 — 아래 castTier에서 안전하게 처리 */ }
+      }));
 
-      return new Response(JSON.stringify({ ok: true, items }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
-    }
-  }
+      // [2026-07-28 재수정] "정확히 Self와 완전 일치"만 걸렀더니 "Self - Guest"처럼
+      // 뒤에 텍스트가 더 붙은 경우(사미자 "아는 형님" 사례)를 못 걸러서 예능이 드라마와
+      // 똑같이 최상위 등급에 남는 문제 발견. "Self로 시작하면" 예능으로 판단하도록 완화.
+      const isSelfAppearance = (it) =>
+        it.media_type === 'tv' && (!(it.character||'').trim() || (it.character||'').trim().toLowerCase().startsWith('self'));
 
-  // ── POST /admin/persons/featured-works-set ────────────────────────
-  // 대표작 전체 교체 저장. body: { tmdb_person_id, works: [{tmdb_id, media_type}, ...] }
-  // 최대 5개, 배열 순서 그대로 sort_order 1~N 부여. 기존 지정 전부 삭제 후 재삽입.
-  if (path === "/admin/persons/featured-works-set" && request.method === "POST") {
-    if (!_checkAuth(request, env)) {
-      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
-    }
-    try {
-      const body = await request.json().catch(() => ({}));
-      const personId = parseInt(body.tmdb_person_id);
-      const works = Array.isArray(body.works) ? body.works : [];
-
-      if (!personId) {
-        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id가 필요해요" }), { status: 400, headers });
-      }
-      if (works.length > 5) {
-        return new Response(JSON.stringify({ ok: false, message: "대표작은 최대 5개까지예요" }), { status: 400, headers });
-      }
-      for (const w of works) {
-        if (!w.tmdb_id || (w.media_type !== "movie" && w.media_type !== "tv")) {
-          return new Response(JSON.stringify({ ok: false, message: "작품 정보가 올바르지 않아요" }), { status: 400, headers });
+      const scoreFor = (it) => {
+        const pop = it.popularity || 0;
+        let score;
+        if(isSelfAppearance(it)){
+          // 본인 출연(예능/리얼리티) — 회차 수로 정도만 조절.
+          // 고정 MC급(150회 이상)만 감점 거의 없고, 그 외(장수 예능 게스트 포함)는
+          // 제곱 곡선으로 세게 깎임.
+          const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
+          const ratio = Math.max(0, Math.min(1, ep / 180));
+          const factor = Math.max(0.02, ratio * ratio);
+          score = pop * factor;
+        } else {
+          score = pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
         }
+        // [2026-07-23 신규] 0번(완전 단독 주연) 소폭 보너스 — 그룹을 통째로 올리는 게
+        // 아니라 점수에 1.2배만 얹어서, popularity 격차가 큰 흥행작까지 뒤엎지는 않고
+        // "비슷한 인기라면 완전 주연이 우선"이 되는 수준으로만 보정.
+        if(it._kind === 'act' && it.order === 0) score *= 1.2;
+        // [2026-07-25 수정] 현재 OTT 미제공 감점 40%→60%(0.6배→0.4배)로 강화 — 인기도
+        // 격차가 아주 큰 해외 장수 작품은 비율만 깎아선 안 없어지는 걸 발견해서 더 세게.
+        if(!hasCurrentOtt(it)) score *= 0.4;
+        // [2026-07-25 신규] 그 작품 실제 출연진 명단에서 확인상 못 찾은 항목은 추가 50%
+        // 감점 — OTT 미제공 감점과 곱해지면(둘 다 해당 시 0.4×0.5=20%만 남음) 웬만한
+        // 인기도 격차도 뒤집힘. 명단에 있는데 못 찾은 게 아니라 "정보 자체가 없는"
+        // 경우(orderLookup 조회 실패 등)는 이 감점 대상이 아님 — 진짜 주연인데 데이터만
+        // 부족한 경우(킬러들의 쇼핑몰 사례)까지 억울하게 깎이지 않도록 구분함.
+        if(notFoundInCast.has(`${it.id}_${it.media_type}`)) score *= 0.5;
+        return score;
+      };
+
+      // [2026-07-23 신규] 배우(출연) 대표작 — 주연 여부(order)를 1순위, popularity를
+      // 2순위로 사용. combined_credits 응답에 이미 포함된 cast 크레딧의 order 필드
+      // (0에 가까울수록 주연급 — TMDB 크레딧 표기 순서)로 먼저 "역할 비중" 그룹을
+      // 나누고, 같은 그룹 안에서는 기존 scoreFor(popularity + 게스트감점)로 순위를
+      // 매김. 추가 API 호출 없음(기존 데이터 재사용). 연출(크루) 항목은 order 개념이
+      // 없으므로 그룹 구분 없이 계속 popularity로만 경쟁(기존 방식 그대로 유지).
+      //
+      // ⚠️ TV(특히 여러 시즌 드라마)는 order 값이 비어있거나 부정확한 경우가 있어,
+      // 이런 "정보없음" 케이스는 주연/단역 그 어느 쪽으로도 단정하지 않고 별도 그룹으로
+      // 분류해서 popularity로만 순위를 매김(영화는 order 누락이 거의 없어 이 케이스가
+      // 드묾).
+      // ⚠️ [2026-07-24 버그 수정] 원래 "연출 항목은 별도 그룹 없이 popularity로만 경쟁"할
+      // 의도였는데, 실제로는 return 0을 줘서 주연급(tier 0)과 완전히 같은 최상위 그룹으로
+      // 취급되고 있었음. 그 결과 배우로 등록된 인물의 프로필에 TMDB 데이터 오류로 무관한
+      // 스태프 크레딧(예: 애니메이션 미술팀)이 섞여 들어오면, popularity만 높으면(대형
+      // 해외 프랜차이즈 작품 등) 실제 주연작보다도 앞서 대표작 1위를 차지해버리는 문제가
+      // 있었음(이동욱 배우 사례에서 발견). 이 인물이 "감독"으로 등록된 경우에는 연출
+      // 크레딧이 진짜 본업이므로 그대로 tier 0(최우선)을 주고, "배우"로 등록된 인물의
+      // 크루 크레딧은 대부분 무관한 참여이므로 가장 낮은 tier(2)로 내려서, popularity가
+      // 아무리 높아도 그 배우의 실제 주연/조연 출연작을 절대 못 이기게 함.
+      // ⚠️ [2026-07-24 버그 수정] order 정보가 없는 경우 tier 1(조연급)로 강등시켰는데,
+      // 실제로는 order 자체가 안 넘어오는 TV 작품이 꽤 있고(이번에 발견된 "킬러들의
+      // 쇼핑몰"도 order=undefined) — 이 배우가 실제로는 투톱 주연급인데도 tier가 갈려서
+      // scoreFor(popularity+OTT감점) 비교 기회조차 없이 무조건 밀려나는 문제가 있었음.
+      // order 정보 없음을 tier 0(주연급 후보)에 남겨서 점수 경쟁에는 참여시키되, 진짜
+      // 저인지도 작품은 별도의 isLowProfile 필터(2년 이상+vote_count 5 이하)가 걸러줌.
+      // ⚠️ [2026-07-24 3차 수정] "order 없으면 무조건 tier 0"이 예능 게스트 출연까지
+      // 승격시키는 부작용이 있어, 위에서 미리 조회해둔 orderLookup(그 작품 실제 출연진
+      // 목록에서 확인한 진짜 순위)을 먼저 참고하도록 변경. 그래도 못 찾은 경우(조회
+      // 실패 등)만 안전하게 tier 1(중간)로 처리 — 예전처럼 무조건 조연 취급하되,
+      // 최소한 무조건 tier 0으로 승격되는 일은 없게 함.
+      // [2026-07-25 재수정] "명단에 없음 확인 + OTT 미제공" 둘 다 겹칠 때만 강등하던
+      // 규칙을, "OTT 미제공이면 order 확인 여부와 상관없이 무조건 tier 1단계 강등"으로
+      // 더 단순하고 강하게 변경(0→1, 1→2, 2→2). 계기: 국내 OTT에 전혀 없는 해외
+      // 독립/소규모 작품 위주인 배우의 경우, order가 실제로 확인된 진짜 주연작이어도
+      // "지금 볼 수 없는 작품"이 대표작 최상단을 차지하는 게 서비스 성격(오뜨랑=지금
+      // 볼 수 있는 것 중심)과 안 맞는다는 판단(나카지마 아유무 배우 사례, 2026-07-25).
+      // [2026-07-28 신규] self(예능 본인출연) + 80회 이하 게스트성 출연은 order 값과
+      // 상관없이 무조건 최하위 등급(tier 2)으로 강등. 그동안 scoreFor의 게스트 감점이
+      // 등급(tier)까지는 못 내려서, order가 낮게 찍힌 예능(예: "아는 형님")이 점수
+      // 감점을 받고도 최상위 등급 안에 남아 실제 대표작(드라마)보다 앞서던 문제 수정.
+      // 80회 이상(고정 MC급)은 예외 — 진짜 대표작일 수 있으므로 order 기준 그대로 유지.
+      const castTier = (it) => {
+        let tier;
+        if(isSelfAppearance(it)){
+          const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
+          if(ep <= 80){
+            return 2; // 게스트성 출연 — 무조건 최하위 등급
+          }
+          // 80회 이상 고정 MC급은 아래 일반 로직(order 기반)으로 계속 진행
+        }
+        if(it._kind !== 'act'){
+          tier = jobLabel === '감독' ? 0 : 2;
+        } else {
+          let order = typeof it.order === 'number' ? it.order : null;
+          if(order === null){
+            const resolved = orderLookup[`${it.id}_${it.media_type}`];
+            order = (typeof resolved === 'number') ? resolved : null;
+          }
+          if(order === null) tier = 1;      // 확인 안 됨 — 안전하게 중간 그룹
+          else if(order <= 2) tier = 0;     // 주연급
+          else if(order <= 6) tier = 1;     // 비중 있는 조연
+          else tier = 2;                    // 단역/카메오/예능 게스트 등
+        }
+        if(!hasCurrentOtt(it)) tier = Math.min(tier + 1, 2); // OTT 미제공 → 무조건 1단계 강등
+        return tier;
+      };
+
+      // [2026-07-23 신규] 저인지도 작품 제외 필터 — "공백의 얼굴들" 사례(초저예산
+      // 독립영화라 캐스트가 6명뿐이라 order=0으로 찍혀도 실제 "주연 비중"을 뜻하지
+      // 않는 경우)처럼, order 데이터 자체가 안 미더운 소규모 작품이 order 그룹 우선
+      // 순위 덕에 진짜 잘 알려진 작품(예: 조연으로 나온 대형 상업영화)을 이겨버리는
+      // 문제를 막기 위한 필터.
+      // 기준: 개봉/방영 후 2년이 지났는데도 vote_count(평가 참여자 수)가 5 이하면
+      // "그동안 시간이 지나도 계속 아무도 안 본 작품"으로 보고 대표작 후보에서
+      // 제외(필모그래피 탭에는 그대로 남음). 최신작은 아직 평가가 덜 쌓인 게
+      // 당연하므로 2년 미만이면 vote_count 상관없이 무조건 통과시킴.
+      const isLowProfile = (it) => {
+        const dateStr = it.release_date || it.first_air_date;
+        if(!dateStr) return false; // 날짜 정보 없으면 걸러내지 않음(과잉 필터링 방지)
+        const ageMs = Date.now() - new Date(dateStr).getTime();
+        const ageYears = ageMs / (1000*60*60*24*365);
+        const voteCount = typeof it.vote_count === 'number' ? it.vote_count : 0;
+        return ageYears >= 2 && voteCount <= 5;
+      };
+
+      // [2026-07-28 수정] isLowProfile(2년 이상+vote_count 5 이하 제외) 필터 제거.
+      // 국내 옛날 드라마는 국내에선 인기 있었어도 TMDB(해외 사이트) 평가 참여자가
+      // 원래 적어서, 이 필터가 "진짜 저인지도 작품"뿐 아니라 "국내 유명작인데 TMDB
+      // 평가만 적은 옛날 드라마"까지 거의 다 걸러버리는 부작용이 있었음(하희라 배우
+      // 사례 — 27편 중 대표작 후보가 1편만 남음).
+      const knownFor = [...allCredits]
+        .filter(it => it.poster_path)
+        .sort((a,b) => {
+          const ta = castTier(a), tb = castTier(b);
+          if(ta !== tb) return ta - tb; // 주연 그룹 우선
+          return scoreFor(b) - scoreFor(a); // 같은 그룹 안에서는 popularity(+게스트감점)로 정렬
+        })
+        .slice(0, document.body.classList.contains('layout-test') ? 5 : 6); // [2026-07-19] PC 2단 레이아웃은 5개만
+      if(knownFor.length){
+        document.getElementById('knownForSection').style.display = 'block';
+        // [2026-07-24 신규] SEO 목적 — 구글 등 검색엔진이 "OO 대표작"처럼 인물 이름과
+        // 섹션 제목을 함께 읽을 수 있게, 제목 앞에 인물 이름을 붙임.
+        document.getElementById('knownForTitle').textContent = `🌟 ${displayName} 대표작`;
+        const knownForRow = document.getElementById('knownForRow');
+        knownForRow.classList.toggle('few-items', knownFor.length <= 2); // [2026-07-11 추가]
+        knownForRow.innerHTML = knownFor.map(workCardHtml).join('');
+        loadRankBadges(knownFor); // 대표작 카드도 랭킹배지 대상(캐시 공유라 필모그래피와 겹쳐도 중복요청 안 됨)
+        loadOttBadges(knownFor); // [2026-07-20 신규]
+        updateScrollArrows('knownForRow'); // [2026-07-11 추가] 콘텐츠 채워진 뒤 화살표 표시여부 갱신
       }
-
-      const person = await env.DB.prepare(`SELECT tmdb_id FROM persons WHERE tmdb_id = ?`).bind(personId).first();
-      if (!person) {
-        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
-      }
-
-      const stmts = [
-        env.DB.prepare(`DELETE FROM person_featured_works WHERE tmdb_person_id = ?`).bind(personId),
-      ];
-      works.forEach((w, idx) => {
-        stmts.push(
-          env.DB.prepare(
-            `INSERT INTO person_featured_works (tmdb_person_id, work_tmdb_id, work_media_type, sort_order)
-             VALUES (?, ?, ?, ?)`
-          ).bind(personId, parseInt(w.tmdb_id), w.media_type, idx + 1)
-        );
-      });
-      await env.DB.batch(stmts);
-
-      return new Response(JSON.stringify({ ok: true, tmdb_person_id: personId, count: works.length }), { headers });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
-  }
 
-  return null; // 해당하는 라우트 없음 — index.js가 다음 라우트로 넘어감
+  }catch(e){
+    console.error('[person.html]', e);
+    document.getElementById('pageLoading').innerHTML =
+      `<p>오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>`;
+  }
 }
+
+// [2026-07-18 수정] 예전엔 "헤더 로드 전에 initPage가 호출되지 않도록" 헤더 fetch의
+// .finally()에서만 호출했는데, initPage()는 헤더 DOM을 전혀 안 건드리고 자기 자신의
+// 요소(personHero, personName 등 이 페이지 body에 이미 존재하는 요소)만 사용하기 때문에
+// 헤더를 기다릴 이유가 없었음. 헤더 로딩 시간만큼 인물 정보 조회 시작이 매번 늦춰지고 있던
+// 것을 없애기 위해, 이 함수가 정의되자마자(=페이지 파싱이 여기 도달하자마자) 바로 호출.
+initPage();
+</script>
+
+<!-- 푸터 -->
+<div id="ottrang-footer"></div>
+<script>
+fetch('/footer.html')
+  .then(r=>r.ok?r.text():Promise.reject())
+  .then(h=>{document.getElementById('ottrang-footer').innerHTML=h;})
+  .catch(()=>{});
+</script>
+</body>
+</html>
