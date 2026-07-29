@@ -1,3 +1,5 @@
+# 2026-07-29 rev.10 — daily_crawl.yml (진단 완료 — run_all.py 정상 실행 모드로 복구.
+#   원인(World는 /rankings 엔드포인트 필요)은 flixpatrol_api.py rev.3에서 해결됨)
 # 2026-07-29 rev.9 — daily_crawl.yml (⚠️ 임시 진단용 — "Run crawlers" 단계가 run_all.py
 #   대신 flixpatrol_api.py 진단 모드를 실행하도록 바꿔놓은 상태. 넷플릭스 월드(글로벌)
 #   데이터가 왜 안 나오는지 원인 확인용. 확인 끝나면 rev.8 상태(python run_all.py)로
@@ -76,9 +78,9 @@ jobs:
           KOBIS_API_KEY: ${{ secrets.KOBIS_API_KEY }}
           FLIXPATROL_API_KEY: ${{ secrets.FLIXPATROL_API_KEY }}
         run: |
-          echo "=== [임시 진단 모드] 크롤링 시작 ==="
-          python -m crawlers.flixpatrol_api
-          echo "=== 진단 완료 ==="
+          echo "=== 크롤링 시작 ==="
+          python run_all.py
+          echo "=== 크롤링 완료 ==="
 
       # ── 6. D1 직접 업로드 (wrangler-action 대체) ────────────
       # Python으로 D1 REST API 직접 호출 → 안정성 향상
