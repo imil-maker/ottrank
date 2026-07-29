@@ -1,4 +1,6 @@
-# 2026-07-29 rev.1 — flixpatrol_api.py (FlixPatrol 정식 API 방식 신규 크롤러)
+# 2026-07-29 rev.2 — flixpatrol_api.py (날짜를 "어제 고정"에서 "최근 2일 범위"로 변경 —
+#   범위 안에서 가장 최신 날짜를 자동으로 골라 쓰도록 수정. 콜 수는 그대로(슬롯당 1콜),
+#   실행 시각(새벽/밤, 자동/수동 무관)과 상관없이 항상 그 시점 최신 데이터를 받게 됨)
 #
 # flixpatrol_base.py(Playwright 화면 크롤링)를 대체하는 API 방식 크롤러.
 # 배경: FlixPatrol이 자동화 브라우저(Playwright) 접속을 403으로 차단하기 시작해서
@@ -24,7 +26,8 @@ API_KEY = os.environ.get("FLIXPATROL_API_KEY")
 API_BASE = "https://api.flixpatrol.com/v2"
 
 KST = timezone(timedelta(hours=9))
-YESTERDAY = (datetime.now(KST) - timedelta(days=1)).strftime("%Y-%m-%d")
+TODAY = datetime.now(KST).strftime("%Y-%m-%d")
+TWO_DAYS_AGO = (datetime.now(KST) - timedelta(days=2)).strftime("%Y-%m-%d")
 
 # 2026-07-29 테스트 호출로 실측 확정한 값 (test_flixpatrol_api.py 결과)
 COMPANY_IDS = {
@@ -130,12 +133,12 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
         print(f"  [{platform}][{category_slot}] '{source_name}' API 조회 중 (type={mapping['type']}, country={mapping['country']})")
 
         data = _api_get("/top10s", {
-            "company[eq]":    company_id,
-            "country[eq]":    country_id,
-            "type[eq]":       mapping["type"],
-            "date[type][eq]": 1,          # Day
-            "date[from][eq]": YESTERDAY,
-            "date[to][eq]":   YESTERDAY,
+            "company[eq]":     company_id,
+            "country[eq]":     country_id,
+            "type[eq]":        mapping["type"],
+            "date[type][eq]":  1,             # Day
+            "date[from][gte]": TWO_DAYS_AGO,  # 최근 2일 범위로 요청
+            "date[from][lte]": TODAY,
         })
 
         if not data or not data.get("data"):
@@ -143,6 +146,16 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
             continue
 
         rows = data["data"]
+
+        # 응답에 여러 날짜가 섞여 올 수 있으니, 그 중 가장 최신 날짜만 골라 사용
+        latest_date = max(
+            (r.get("data", {}).get("date", {}).get("from") for r in rows if r.get("data", {}).get("date")),
+            default=None,
+        )
+        if latest_date:
+            rows = [r for r in rows if r.get("data", {}).get("date", {}).get("from") == latest_date]
+            print(f"  [{platform}][{category_slot}] 최신 날짜: {latest_date} ({len(rows)}건)")
+
         # ranking 오름차순 정렬 후 crawl_limit만큼만 사용
         rows.sort(key=lambda r: r.get("data", {}).get("ranking", 9999))
 
