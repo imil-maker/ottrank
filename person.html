@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-07-29 rev.3 — person.html (대표이미지 클릭 시 크게보기 안 되던 버그 수정 — 라이트박스가
+     TMDB 상대경로만 처리하던 걸 personPhotoSrc() 헬퍼로 전체 URL도 같이 처리하도록 수정) -->
 <!-- 2026-07-29 rev.2 — person.html (대표이미지: 관리자가 R2에 업로드한 커스텀 이미지가 있으면
      TMDB 사진 대신 그걸 우선 표시 — /person-custom-profile/:id 공개 API 신규 호출, TMDB 조회와 병렬 실행) -->
 <!-- 2026-07-29 rev.1 — person.html (대표작: 관리자가 지정한 대표작(최대5개)을 앞쪽에 고정 배치, 나머지는 기존 자동 알고리즘으로 채움 — /person-featured-works/:id 공개 API 신규 호출) -->
@@ -912,6 +914,13 @@ function trackPageView(type, id){
 const IMG        = 'https://poster.ottrank.kr/tmdb-img/w500'; // [2026-07-18] 캐싱 프록시로 변경
 const IMG_PROFILE= 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-18] 캐싱 프록시로 변경
 const IMG_PROFILE_LARGE = 'https://poster.ottrank.kr/tmdb-img/w780'; // [2026-07-27 신규] 라이트박스(사진 크게 보기)용 고해상도
+
+// [2026-07-29 신규] 라이트박스용 이미지 주소 조립 — TMDB 상대경로(예: /abc.jpg)는 기존처럼
+// IMG_PROFILE_LARGE를 붙이고, 관리자가 업로드한 대표이미지(전체 URL, https://img.ottrank.kr/...)는
+// 그대로 사용. 두 종류가 personGalleryImages 배열에 섞여 있어도 라이트박스가 문제없이 처리하게 함.
+function personPhotoSrc(filePath){
+  return /^https?:\/\//.test(filePath || '') ? filePath : `${IMG_PROFILE_LARGE}${filePath}`;
+}
 
 /* [2026-07-11 추가] 플랫폼 코드 → 한글 라벨 (랭킹 배지용) */
 const PLATFORM_LABELS = {
@@ -1895,7 +1904,7 @@ function preloadGalleryLargeImages(){
   personGalleryImages.forEach(p => {
     if(!p || !p.file_path) return;
     const img = new Image();
-    img.src = `${IMG_PROFILE_LARGE}${p.file_path}`;
+    img.src = personPhotoSrc(p.file_path);
   });
 }
 
@@ -1930,7 +1939,7 @@ function showPersonLightboxImage(filePath){
   const track = document.getElementById('personSlideTrack');
   track.style.transition = 'none';
   track.style.transform = 'translateX(0)';
-  track.innerHTML = `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${filePath}" alt="사진">`;
+  track.innerHTML = `<img class="lightbox-slide-img" src="${personPhotoSrc(filePath)}" alt="사진">`;
 }
 function updatePersonLightboxArrows(){
   const showArrows = personGalleryImages.length > 1;
@@ -1957,13 +1966,13 @@ function personLightboxNav(e, dir){
   track.style.transition = 'none';
   if(dir === 1){
     track.innerHTML =
-      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${currentPath}" alt="사진">` +
-      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${nextPath}" alt="사진">`;
+      `<img class="lightbox-slide-img" src="${personPhotoSrc(currentPath)}" alt="사진">` +
+      `<img class="lightbox-slide-img" src="${personPhotoSrc(nextPath)}" alt="사진">`;
     track.style.transform = 'translateX(0)';
   } else {
     track.innerHTML =
-      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${nextPath}" alt="사진">` +
-      `<img class="lightbox-slide-img" src="${IMG_PROFILE_LARGE}${currentPath}" alt="사진">`;
+      `<img class="lightbox-slide-img" src="${personPhotoSrc(nextPath)}" alt="사진">` +
+      `<img class="lightbox-slide-img" src="${personPhotoSrc(currentPath)}" alt="사진">`;
     track.style.transform = 'translateX(-100%)';
   }
 
@@ -2166,9 +2175,9 @@ async function initPage(){
     if(customProfilePath){
       document.getElementById('personPhoto').innerHTML =
         `<img src="${customProfilePath}" alt="${displayName}" loading="eager">`;
-      // 갤러리 라이트박스는 TMDB 상대경로(IMG_PROFILE_LARGE 접두사) 기준이라, 커스텀
-      // 이미지(외부 전체 URL)는 갤러리 0번 슬라이드로 안 넣음(경로 형식이 달라 깨짐 방지).
-      // 사진 갤러리 자체(TMDB 사진들)는 아래 loadPhotoGallery로 별도 정상 동작함.
+      // [2026-07-29 수정] personPhotoSrc()가 전체 URL/TMDB 상대경로를 둘 다 처리하도록
+      // 고쳐서, 커스텀 이미지도 클릭하면 정상적으로 크게보기(라이트박스)가 열림.
+      personMainPhotoPath = customProfilePath;
     } else if(data.profile_path){
       document.getElementById('personPhoto').innerHTML =
         `<img src="${IMG_PROFILE}${data.profile_path}" alt="${displayName}" loading="eager">`;
