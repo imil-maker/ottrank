@@ -1,0 +1,28 @@
+# 2026-07-29 rev.1 — test_flixpatrol_api.yml (FlixPatrol API 탐색 테스트 전용, 수동 실행만)
+# 기존 daily_crawl.yml과 완전히 별개 파일. 자동 크론 없음, Actions 탭에서 버튼으로만 실행.
+
+name: FlixPatrol API 테스트
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-flixpatrol-api:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run FlixPatrol API test
+        env:
+          FLIXPATROL_API_KEY: ${{ secrets.FLIXPATROL_API_KEY }}
+        run: python test_flixpatrol_api.py
