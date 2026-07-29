@@ -1,5 +1,8 @@
 """극장 박스오피스 크롤러 - KOBIS(영화진흥위원회) 오픈API 직접 연동
 ────────────────────────────────────────────────────────────────
+2026-07-29 rev.1 — boxoffice.py (KOBIS_URL을 http → https로 변경 —
+  GitHub Actions에서 http(80번 포트) 접속이 타임아웃되던 문제 수정)
+
 2026-07-18 변경사항:
   - Playwright + 무비차트(moviechart.co.kr) 화면 크롤링 제거
   - KOBIS searchDailyBoxOfficeList API 직접 호출로 교체 (브라우저 실행 불필요)
@@ -31,7 +34,7 @@ from db import (
 
 KST = timezone(timedelta(hours=9))
 KOBIS_API_KEY = os.environ.get("KOBIS_API_KEY", "")
-KOBIS_URL = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
+KOBIS_URL = "https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
 
 # 박스오피스 고정 슬롯 설정 (기존과 동일 유지)
 PLATFORM      = "boxoffice"
