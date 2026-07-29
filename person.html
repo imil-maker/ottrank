@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-07-29 rev.2 — person.html (대표이미지: 관리자가 R2에 업로드한 커스텀 이미지가 있으면
+     TMDB 사진 대신 그걸 우선 표시 — /person-custom-profile/:id 공개 API 신규 호출, TMDB 조회와 병렬 실행) -->
 <!-- 2026-07-29 rev.1 — person.html (대표작: 관리자가 지정한 대표작(최대5개)을 앞쪽에 고정 배치, 나머지는 기존 자동 알고리즘으로 채움 — /person-featured-works/:id 공개 API 신규 호출) -->
 <!-- 2026-07-28 rev.5 — person.html (대표작: 예능 본인출연 판단 기준을 "Self와 완전일치"에서 "Self로 시작"으로 완화 — "Self - Guest"처럼 뒤에 텍스트가 더 붙은 경우를 못 걸러서 예능이 최상위 등급에 남던 문제 수정, 사미자 "아는 형님" 사례) -->
 <html lang="ko">
@@ -1602,6 +1604,20 @@ async function loadRankBadges(items){
   });
 }
 
+/* [2026-07-29 신규] 관리자가 지정한 대표이미지(R2 업로드) 조회 — 공개 API, 인증 불필요.
+   custom_profile_path 문자열(전체 URL) 또는 null 반환. 실패해도 조용히 null 반환 —
+   대표사진은 기존처럼 TMDB 사진으로 정상 동작해야 함(이 기능이 필수 경로가 되면 안 됨). */
+async function loadCustomProfileImage(personId){
+  try {
+    const res = await fetch(`${OTTRANK_API}/person-custom-profile/${personId}`);
+    if(!res.ok) return null;
+    const data = await res.json();
+    return (data.ok && data.custom_profile_path) ? data.custom_profile_path : null;
+  } catch(e) {
+    return null;
+  }
+}
+
 /* [2026-07-29 신규] 관리자가 지정한 대표작(최대 5개) 조회 — 공개 API, 인증 불필요.
    tmdb_id + media_type + 순서만 가볍게 받아옴. 포스터/제목 등 나머지 정보는 아래에서
    allCredits(이미 받아온 TMDB combined_credits)에서 그대로 찾아 쓰므로 추가 TMDB 호출 없음.
@@ -2096,10 +2112,12 @@ async function initPage(){
   wikiBioApplied = false; // [2026-07-20 신규] 혹시 모를 재호출 대비 초기화
 
   try{
-    /* ① TMDB Person + external_ids + combined_credits 한 번에 호출 */
-    const res  = await fetch(
-      `${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=external_ids,combined_credits`
-    );
+    /* ① TMDB Person + external_ids + combined_credits 한 번에 호출
+       [2026-07-29 수정] 관리자 지정 대표이미지 조회를 병렬로 같이 실행(추가 대기시간 없음) */
+    const [res, customProfilePath] = await Promise.all([
+      fetch(`${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=external_ids,combined_credits`),
+      loadCustomProfileImage(personId),
+    ]);
     const data = await res.json();
 
     if(!data || !data.id){
@@ -2143,8 +2161,15 @@ async function initPage(){
       awardsTitleElNow.textContent = `🏆 ${personDisplayName || displayName} 수상내역`;
     }
 
-    /* ③ 프로필 사진 */
-    if(data.profile_path){
+    /* ③ 프로필 사진 — [2026-07-29 수정] 관리자가 지정한 대표이미지가 있으면 그걸 우선 사용,
+       없으면 기존처럼 TMDB 사진 사용 */
+    if(customProfilePath){
+      document.getElementById('personPhoto').innerHTML =
+        `<img src="${customProfilePath}" alt="${displayName}" loading="eager">`;
+      // 갤러리 라이트박스는 TMDB 상대경로(IMG_PROFILE_LARGE 접두사) 기준이라, 커스텀
+      // 이미지(외부 전체 URL)는 갤러리 0번 슬라이드로 안 넣음(경로 형식이 달라 깨짐 방지).
+      // 사진 갤러리 자체(TMDB 사진들)는 아래 loadPhotoGallery로 별도 정상 동작함.
+    } else if(data.profile_path){
       document.getElementById('personPhoto').innerHTML =
         `<img src="${IMG_PROFILE}${data.profile_path}" alt="${displayName}" loading="eager">`;
       personMainPhotoPath = data.profile_path; // [2026-07-27 신규] 라이트박스용 — 메인사진을 갤러리 0번으로 사용
@@ -2243,8 +2268,9 @@ async function initPage(){
     renderPersonNameEl();
 
     /* ⑦ SEO */
-    const profileImgUrl = data.profile_path
-      ? `https://poster.ottrank.kr/tmdb-img/w342${data.profile_path}` : '';
+    const profileImgUrl = customProfilePath
+      ? customProfilePath
+      : (data.profile_path ? `https://poster.ottrank.kr/tmdb-img/w342${data.profile_path}` : '');
     const jobLabel = data.known_for_department === 'Directing' ? '감독' : '배우';
     // [2026-07-20 신규] 두번째 이름(영문명/본명 등)이 있으면 설명에도 "이름(두번째이름)"로 병기
     const seoNameLabel = enName ? `${displayName}(${enName})` : displayName;
