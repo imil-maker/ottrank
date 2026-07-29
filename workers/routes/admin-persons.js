@@ -1,3 +1,5 @@
+/* 2026-07-29 rev.3 — admin-persons.js (인물 대표이미지 기능 신규: R2 업로드/조회/삭제 API +
+   공개 조회 API. relationship.js의 IMAGES 바인딩/img.ottrank.kr 패턴 재사용) */
 /* 2026-07-29 rev.2 — admin-persons.js (공개 조회 API 신규: GET /person-featured-works/:id —
    person.html이 인증 없이 호출, 대표작 실제 화면 반영용) */
 /* 2026-07-29 rev.1 — admin-persons.js (대표작 수동 지정 기능 신규: featured-works API 3종 추가 —
@@ -628,4 +630,87 @@ export async function handleAdminPersons(path, request, env, url, headers) {
   }
 
   return null; // 해당하는 라우트 없음 — index.js가 다음 라우트로 넘어감
+}
+
+// ══════════════════════════════════════════════════════════════
+// [2026-07-29 신규] 인물 대표이미지(custom_profile_path) — R2 업로드로 TMDB 사진을
+// 관리자가 올린 이미지로 교체. relationship.js의 R2 업로드 패턴(IMAGES 바인딩,
+// img.ottrank.kr 서빙)을 그대로 재사용. 값이 있으면 person.html이 TMDB 대신 이걸 씀.
+// ══════════════════════════════════════════════════════════════
+
+// ── GET /admin/persons/:tmdb_id/profile-image ────────────────────
+// 현재 지정된 대표이미지 URL 조회(없으면 null). "대표작 매칭" 탭에서 인물 선택 시 같이 조회.
+export async function handleAdminPersonProfileImage(path, request, env, headers) {
+  const m = path.match(/^\/admin\/persons\/(\d+)\/profile-image$/);
+  if (!m) return null;
+  const tmdbId = parseInt(m[1], 10);
+
+  if (!_checkAuth(request, env)) {
+    return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+  }
+
+  if (request.method === "GET") {
+    try {
+      const row = await env.DB.prepare(
+        `SELECT custom_profile_path FROM persons WHERE tmdb_id = ?`
+      ).bind(tmdbId).first();
+      if (!row) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+      return new Response(JSON.stringify({ ok: true, custom_profile_path: row.custom_profile_path || null }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  if (request.method === "PUT") {
+    try {
+      const contentType = request.headers.get("Content-Type") || "image/jpeg";
+      const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+      const key = `profile/${tmdbId}-${Date.now()}.${ext}`;
+
+      const body = await request.arrayBuffer();
+      await env.IMAGES.put(key, body, { httpMetadata: { contentType } });
+
+      const publicUrl = `https://img.ottrank.kr/${key}`;
+      await env.DB.prepare(
+        `UPDATE persons SET custom_profile_path = ? WHERE tmdb_id = ?`
+      ).bind(publicUrl, tmdbId).run();
+
+      return new Response(JSON.stringify({ ok: true, custom_profile_path: publicUrl }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  if (request.method === "DELETE") {
+    try {
+      // R2 파일 자체를 지우진 않음(경로만 알면 되는 단순 구조 — relationship.js처럼
+      // 삭제 시점에 key를 따로 안 들고 있어서, 여기선 DB 값만 비움. 용량 부담 크지 않음).
+      await env.DB.prepare(
+        `UPDATE persons SET custom_profile_path = NULL WHERE tmdb_id = ?`
+      ).bind(tmdbId).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: false, message: "Method not allowed" }), { status: 405, headers });
+}
+
+// ── GET /person-custom-profile/:tmdb_id ───────────────────────────
+// [2026-07-29 신규] 공개(비인증) 조회 — person.html에서 사용. custom_profile_path만 반환.
+export async function handlePersonCustomProfilePublic(path, request, env, headers) {
+  const m = path.match(/^\/person-custom-profile\/(\d+)$/);
+  if (!m || request.method !== "GET") return null;
+  try {
+    const tmdbId = parseInt(m[1], 10);
+    const row = await env.DB.prepare(
+      `SELECT custom_profile_path FROM persons WHERE tmdb_id = ?`
+    ).bind(tmdbId).first();
+    return new Response(JSON.stringify({ ok: true, custom_profile_path: (row && row.custom_profile_path) || null }), { headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+  }
 }
