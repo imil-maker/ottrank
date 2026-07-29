@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-07-29 rev.4 — person.html (대표작 5칸이 지정작만으로 이미 다 찼으면, 무거운 자동계산
+     (order 정보 없는 작품마다 TMDB 실제 출연진 재조회하는 단계 포함)을 통째로 건너뛰도록 최적화 — 로딩 속도 개선) -->
 <!-- 2026-07-29 rev.3 — person.html (대표이미지 클릭 시 크게보기 안 되던 버그 수정 — 라이트박스가
      TMDB 상대경로만 처리하던 걸 personPhotoSrc() 헬퍼로 전체 URL도 같이 처리하도록 수정) -->
 <!-- 2026-07-29 rev.2 — person.html (대표이미지: 관리자가 R2에 업로드한 커스텀 이미지가 있으면
@@ -2337,221 +2339,228 @@ async function initPage(){
 
       renderWorks();
 
-      // [2026-07-11 추가] 대표작(popularity 기반 + 게스트출연 감점) — 이미 받아온
-      // combined_credits 데이터만 재사용, 추가 API 호출 없음. 포스터 없는 작품은
-      // 그리드 깨지므로 제외.
-      //
-      // ⚠️ 2026-07-11 개선: popularity만 쓰면 "예능 1회 게스트 출연"이 "본인 주연 드라마"보다
-      // 앞에 나오는 문제 발견(예: 배우가 5년 전 예능에 1번 나온 게 popularity가 더 높았음).
-      // 장르(예능/드라마)로 구분하지 않음 — 예능인 본인에게는 예능이 진짜 대표작이기 때문.
-      // 대신 TV 출연작의 episode_count(이 작품에 몇 회 나왔는지)로 "게스트성 출연"인지
-      // 판단: 회차 수가 적을수록 감점 폭을 크게(연속적으로) 적용. 예능 고정 멤버처럼
-      // 회차 수가 많으면 감점 거의 없음 — 장르 상관없이 "비중"만 봄.
-      // episode_count는 지금 이미 호출 중인 combined_credits 응답에 원래 포함된 필드라
-      // 추가 TMDB 호출 없음(트래픽 영향 없음).
-      // ⚠️ 2026-07-11 2차 개선: episode_count만으로는 부족했음 — "런닝맨" 게스트 출연이
-      // episode_count=14로 나와서(여러 해에 걸쳐 여러 번 게스트로 나온 게 누적됨) 기존
-      // 임계값(10회)을 넘어버려 감점이 전혀 안 걸리는 문제 발견.
-      // 더 정확한 신호로 교체: TMDB의 character 필드 — 예능/리얼리티는 배역명 없이
-      // "Self"로 찍히고, 드라마/영화는 실제 배역명이 있음. "회차 수"보다 "진짜 배역이
-      // 있는지"가 대표작 여부를 훨씬 정확하게 구분함. 이것도 추가 호출 없는 기존 데이터.
-      // ⚠️ 2026-07-11 3차 개선: 60회 기준 + 선형 감점으로도 부족했음 — "런닝맨",
-      // "무한도전"처럼 10년~20년 넘게 방영된 장수 예능은, 몇 년에 한 번씩만 게스트로
-      // 나와도 다 합치면 episode_count가 쉽게 14~수십 회까지 쌓임(TMDB가 한 사람의
-      // 여러 해에 걸친 출연을 전부 합쳐서 기록하기 때문). 그 결과 "장수 예능=고정 출연"
-      // 취급을 너무 쉽게 받아버려서, 거의 모든 배우 대표작에 런닝맨/무한도전이 나오는
-      // 문제 발생. 두 가지로 보정:
-      //   1) 임계값 60 → 180으로 상향 (진짜 고정 MC급만 감점 면제)
-      //   2) 감점 곡선을 선형(ep/기준)에서 제곱((ep/기준)²)으로 변경
-      //      → 14회처럼 어중간한 회차는 지금보다 훨씬 세게 깎이고(14/180≈0.08 → 제곱하면
-      //      0.006 수준), 진짜 고정 출연(150회 이상)만 확실히 살아남게 됨
-      // [2026-07-24 신규] 현재 OTT에서 볼 수 없는 작품 감점 — TMDB popularity는 "역대
-      // 얼마나 히트했나"를 전혀 반영 못 해서, 20년 전에 반짝 흥행하고 지금은 어느 OTT에도
-      // 없는 작품이 popularity 하나만으로 최근 대형 히트작(예: 디즈니+ 1위작)을 이기는
-      // 사례가 실제로 확인됨(오늘 발견). 오뜨랑은 "지금 볼 수 있는 것" 위주 서비스이므로,
-      // 지금 어느 OTT에도 없는 작품은 대표작 우선순위에서도 감점하는 게 자연스러움.
-      // ottBadgeCache는 이미 위에서 loadOttBadges(allCredits)로 전부 채워둔 데이터라
-      // 추가 API 호출 없음.
-      const hasCurrentOtt = (it) => {
-        const keys = ottBadgeCache[it.id];
-        return Array.isArray(keys) && keys.length > 0;
-      };
-
-      // [2026-07-24 추가 수정] order 정보가 없는 배역을 무조건 tier 0으로 넣었더니,
-      // 예능/리얼리티 게스트 출연(원래 order 자체가 없는 경우가 많음)까지 주연급으로
-      // 같이 승격되는 부작용이 발견됨(박한별 배우 사례 — 런닝맨/정글의 법칙이 대표작 상단에 뜸).
-      // "본인 출연인지 아닌지"를 따로 추정하는 대신, 그 작품 자체의 실제 출연진 목록을
-      // TMDB에서 다시 조회해서 이 인물의 진짜 캐스팅 순위를 확인 — 예능 게스트라면
-      // 자연스럽게 한참 뒤 순위로 나오고, 킬러들의 쇼핑몰처럼 진짜 주연인데 개인 크레딧에만
-      // order가 안 찍힌 경우는 조회하면 앞쪽 순위로 확인됨. order가 이미 있는 항목은
-      // 이 조회 대상에서 제외(추가 호출 없음).
-      const missingOrderItems = allCredits.filter(
-        it => it._kind === 'act' && typeof it.order !== 'number' && it.poster_path
-      );
-      const orderLookup = {}; // `${id}_${media_type}` -> 실제 조회된 order(또는 배열 순번)
-      // [2026-07-25 신규] "조회는 성공했는데 명단에 없음"을 "조회 자체가 실패함"과 구분해서
-      // 따로 표시. 후자는 정보가 없을 뿐이라 안전하게 tier 1로 두지만, 전자는 이 사람이
-      // 그 작품에 사실상 비중 없는 출연(단역/게스트/오인 크레딧 등)이었을 가능성이 높다는
-      // 더 확실한 신호라서 아래 scoreFor/castTier에서 추가로 불리하게 처리함
-      // (계기: "Min Kim" 배우 프로필에 실제 출연진 명단에도 없는 해외 장수 드라마
-      // "Shortland Street"가 인기도 수치만으로 대표작 상단에 뜨는 문제 발견, 2026-07-25).
-      const notFoundInCast = new Set();
-      await Promise.all(missingOrderItems.map(async (it) => {
-        try {
-          const path = it.media_type === 'movie' ? `movie/${it.id}/credits` : `tv/${it.id}/aggregate_credits`;
-          const res = await fetch(`${TMDB_PROXY}/${path}?language=ko-KR`);
-          if(!res.ok) return;
-          const data = await res.json();
-          const castList = data.cast || [];
-          const idx = castList.findIndex(c => c.id === personId);
-          if(idx === -1){ notFoundInCast.add(`${it.id}_${it.media_type}`); return; }
-          const found = castList[idx];
-          orderLookup[`${it.id}_${it.media_type}`] = typeof found.order === 'number' ? found.order : idx;
-        } catch(e) { /* 실패하면 기본값(모름) 유지 — 아래 castTier에서 안전하게 처리 */ }
-      }));
-
-      // [2026-07-28 재수정] "정확히 Self와 완전 일치"만 걸렀더니 "Self - Guest"처럼
-      // 뒤에 텍스트가 더 붙은 경우(사미자 "아는 형님" 사례)를 못 걸러서 예능이 드라마와
-      // 똑같이 최상위 등급에 남는 문제 발견. "Self로 시작하면" 예능으로 판단하도록 완화.
-      const isSelfAppearance = (it) =>
-        it.media_type === 'tv' && (!(it.character||'').trim() || (it.character||'').trim().toLowerCase().startsWith('self'));
-
-      const scoreFor = (it) => {
-        const pop = it.popularity || 0;
-        let score;
-        if(isSelfAppearance(it)){
-          // 본인 출연(예능/리얼리티) — 회차 수로 정도만 조절.
-          // 고정 MC급(150회 이상)만 감점 거의 없고, 그 외(장수 예능 게스트 포함)는
-          // 제곱 곡선으로 세게 깎임.
-          const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
-          const ratio = Math.max(0, Math.min(1, ep / 180));
-          const factor = Math.max(0.02, ratio * ratio);
-          score = pop * factor;
-        } else {
-          score = pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
-        }
-        // [2026-07-23 신규] 0번(완전 단독 주연) 소폭 보너스 — 그룹을 통째로 올리는 게
-        // 아니라 점수에 1.2배만 얹어서, popularity 격차가 큰 흥행작까지 뒤엎지는 않고
-        // "비슷한 인기라면 완전 주연이 우선"이 되는 수준으로만 보정.
-        if(it._kind === 'act' && it.order === 0) score *= 1.2;
-        // [2026-07-25 수정] 현재 OTT 미제공 감점 40%→60%(0.6배→0.4배)로 강화 — 인기도
-        // 격차가 아주 큰 해외 장수 작품은 비율만 깎아선 안 없어지는 걸 발견해서 더 세게.
-        if(!hasCurrentOtt(it)) score *= 0.4;
-        // [2026-07-25 신규] 그 작품 실제 출연진 명단에서 확인상 못 찾은 항목은 추가 50%
-        // 감점 — OTT 미제공 감점과 곱해지면(둘 다 해당 시 0.4×0.5=20%만 남음) 웬만한
-        // 인기도 격차도 뒤집힘. 명단에 있는데 못 찾은 게 아니라 "정보 자체가 없는"
-        // 경우(orderLookup 조회 실패 등)는 이 감점 대상이 아님 — 진짜 주연인데 데이터만
-        // 부족한 경우(킬러들의 쇼핑몰 사례)까지 억울하게 깎이지 않도록 구분함.
-        if(notFoundInCast.has(`${it.id}_${it.media_type}`)) score *= 0.5;
-        return score;
-      };
-
-      // [2026-07-23 신규] 배우(출연) 대표작 — 주연 여부(order)를 1순위, popularity를
-      // 2순위로 사용. combined_credits 응답에 이미 포함된 cast 크레딧의 order 필드
-      // (0에 가까울수록 주연급 — TMDB 크레딧 표기 순서)로 먼저 "역할 비중" 그룹을
-      // 나누고, 같은 그룹 안에서는 기존 scoreFor(popularity + 게스트감점)로 순위를
-      // 매김. 추가 API 호출 없음(기존 데이터 재사용). 연출(크루) 항목은 order 개념이
-      // 없으므로 그룹 구분 없이 계속 popularity로만 경쟁(기존 방식 그대로 유지).
-      //
-      // ⚠️ TV(특히 여러 시즌 드라마)는 order 값이 비어있거나 부정확한 경우가 있어,
-      // 이런 "정보없음" 케이스는 주연/단역 그 어느 쪽으로도 단정하지 않고 별도 그룹으로
-      // 분류해서 popularity로만 순위를 매김(영화는 order 누락이 거의 없어 이 케이스가
-      // 드묾).
-      // ⚠️ [2026-07-24 버그 수정] 원래 "연출 항목은 별도 그룹 없이 popularity로만 경쟁"할
-      // 의도였는데, 실제로는 return 0을 줘서 주연급(tier 0)과 완전히 같은 최상위 그룹으로
-      // 취급되고 있었음. 그 결과 배우로 등록된 인물의 프로필에 TMDB 데이터 오류로 무관한
-      // 스태프 크레딧(예: 애니메이션 미술팀)이 섞여 들어오면, popularity만 높으면(대형
-      // 해외 프랜차이즈 작품 등) 실제 주연작보다도 앞서 대표작 1위를 차지해버리는 문제가
-      // 있었음(이동욱 배우 사례에서 발견). 이 인물이 "감독"으로 등록된 경우에는 연출
-      // 크레딧이 진짜 본업이므로 그대로 tier 0(최우선)을 주고, "배우"로 등록된 인물의
-      // 크루 크레딧은 대부분 무관한 참여이므로 가장 낮은 tier(2)로 내려서, popularity가
-      // 아무리 높아도 그 배우의 실제 주연/조연 출연작을 절대 못 이기게 함.
-      // ⚠️ [2026-07-24 버그 수정] order 정보가 없는 경우 tier 1(조연급)로 강등시켰는데,
-      // 실제로는 order 자체가 안 넘어오는 TV 작품이 꽤 있고(이번에 발견된 "킬러들의
-      // 쇼핑몰"도 order=undefined) — 이 배우가 실제로는 투톱 주연급인데도 tier가 갈려서
-      // scoreFor(popularity+OTT감점) 비교 기회조차 없이 무조건 밀려나는 문제가 있었음.
-      // order 정보 없음을 tier 0(주연급 후보)에 남겨서 점수 경쟁에는 참여시키되, 진짜
-      // 저인지도 작품은 별도의 isLowProfile 필터(2년 이상+vote_count 5 이하)가 걸러줌.
-      // ⚠️ [2026-07-24 3차 수정] "order 없으면 무조건 tier 0"이 예능 게스트 출연까지
-      // 승격시키는 부작용이 있어, 위에서 미리 조회해둔 orderLookup(그 작품 실제 출연진
-      // 목록에서 확인한 진짜 순위)을 먼저 참고하도록 변경. 그래도 못 찾은 경우(조회
-      // 실패 등)만 안전하게 tier 1(중간)로 처리 — 예전처럼 무조건 조연 취급하되,
-      // 최소한 무조건 tier 0으로 승격되는 일은 없게 함.
-      // [2026-07-25 재수정] "명단에 없음 확인 + OTT 미제공" 둘 다 겹칠 때만 강등하던
-      // 규칙을, "OTT 미제공이면 order 확인 여부와 상관없이 무조건 tier 1단계 강등"으로
-      // 더 단순하고 강하게 변경(0→1, 1→2, 2→2). 계기: 국내 OTT에 전혀 없는 해외
-      // 독립/소규모 작품 위주인 배우의 경우, order가 실제로 확인된 진짜 주연작이어도
-      // "지금 볼 수 없는 작품"이 대표작 최상단을 차지하는 게 서비스 성격(오뜨랑=지금
-      // 볼 수 있는 것 중심)과 안 맞는다는 판단(나카지마 아유무 배우 사례, 2026-07-25).
-      // [2026-07-28 신규] self(예능 본인출연) + 80회 이하 게스트성 출연은 order 값과
-      // 상관없이 무조건 최하위 등급(tier 2)으로 강등. 그동안 scoreFor의 게스트 감점이
-      // 등급(tier)까지는 못 내려서, order가 낮게 찍힌 예능(예: "아는 형님")이 점수
-      // 감점을 받고도 최상위 등급 안에 남아 실제 대표작(드라마)보다 앞서던 문제 수정.
-      // 80회 이상(고정 MC급)은 예외 — 진짜 대표작일 수 있으므로 order 기준 그대로 유지.
-      const castTier = (it) => {
-        let tier;
-        if(isSelfAppearance(it)){
-          const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
-          if(ep <= 80){
-            return 2; // 게스트성 출연 — 무조건 최하위 등급
-          }
-          // 80회 이상 고정 MC급은 아래 일반 로직(order 기반)으로 계속 진행
-        }
-        if(it._kind !== 'act'){
-          tier = jobLabel === '감독' ? 0 : 2;
-        } else {
-          let order = typeof it.order === 'number' ? it.order : null;
-          if(order === null){
-            const resolved = orderLookup[`${it.id}_${it.media_type}`];
-            order = (typeof resolved === 'number') ? resolved : null;
-          }
-          if(order === null) tier = 1;      // 확인 안 됨 — 안전하게 중간 그룹
-          else if(order <= 2) tier = 0;     // 주연급
-          else if(order <= 6) tier = 1;     // 비중 있는 조연
-          else tier = 2;                    // 단역/카메오/예능 게스트 등
-        }
-        if(!hasCurrentOtt(it)) tier = Math.min(tier + 1, 2); // OTT 미제공 → 무조건 1단계 강등
-        return tier;
-      };
-
-      // [2026-07-23 신규] 저인지도 작품 제외 필터 — "공백의 얼굴들" 사례(초저예산
-      // 독립영화라 캐스트가 6명뿐이라 order=0으로 찍혀도 실제 "주연 비중"을 뜻하지
-      // 않는 경우)처럼, order 데이터 자체가 안 미더운 소규모 작품이 order 그룹 우선
-      // 순위 덕에 진짜 잘 알려진 작품(예: 조연으로 나온 대형 상업영화)을 이겨버리는
-      // 문제를 막기 위한 필터.
-      // 기준: 개봉/방영 후 2년이 지났는데도 vote_count(평가 참여자 수)가 5 이하면
-      // "그동안 시간이 지나도 계속 아무도 안 본 작품"으로 보고 대표작 후보에서
-      // 제외(필모그래피 탭에는 그대로 남음). 최신작은 아직 평가가 덜 쌓인 게
-      // 당연하므로 2년 미만이면 vote_count 상관없이 무조건 통과시킴.
-      const isLowProfile = (it) => {
-        const dateStr = it.release_date || it.first_air_date;
-        if(!dateStr) return false; // 날짜 정보 없으면 걸러내지 않음(과잉 필터링 방지)
-        const ageMs = Date.now() - new Date(dateStr).getTime();
-        const ageYears = ageMs / (1000*60*60*24*365);
-        const voteCount = typeof it.vote_count === 'number' ? it.vote_count : 0;
-        return ageYears >= 2 && voteCount <= 5;
-      };
-
       const knownForLimit = document.body.classList.contains('layout-test') ? 5 : 6; // [2026-07-19] PC 2단 레이아웃은 5개만
 
-      // [2026-07-29 신규] 정렬된 자동 후보 전체 목록(슬라이스 전) — 지정작을 뺀 나머지를
-      // 채울 때 재사용하기 위해 슬라이스 없이 먼저 구해둠.
-      const autoSorted = [...allCredits]
-        .filter(it => it.poster_path)
-        .sort((a,b) => {
-          const ta = castTier(a), tb = castTier(b);
-          if(ta !== tb) return ta - tb; // 주연 그룹 우선
-          return scoreFor(b) - scoreFor(a); // 같은 그룹 안에서는 popularity(+게스트감점)로 정렬
-        });
-
-      // [2026-07-29 신규] 관리자가 지정한 대표작을 먼저 순서대로 배치. allCredits(이미
-      // 받아온 TMDB 크레딧)에서 tmdb_id+media_type이 일치하는 항목을 찾아서 그대로 씀
-      // (포스터/제목 등 필요한 정보가 이미 다 있음). 못 찾으면(아주 드묾 — 이 사람의
-      // TMDB 크레딧에 없는 작품을 지정한 경우) 조용히 건너뜀.
+      // [2026-07-29 신규] 관리자가 지정한 대표작을 먼저 계산. allCredits(이미 받아온 TMDB
+      // 크레딧)에서 tmdb_id+media_type이 일치하는 항목을 찾아서 그대로 씀(포스터/제목 등
+      // 필요한 정보가 이미 다 있음). 못 찾으면(아주 드묾 — 이 사람의 TMDB 크레딧에 없는
+      // 작품을 지정한 경우) 조용히 건너뜀.
       const pinnedItems = pinnedFeaturedWorks
         .map(p => allCredits.find(it => it.id === p.tmdb_id && it.media_type === p.media_type))
         .filter(Boolean)
         .slice(0, knownForLimit);
+
+      // [2026-07-29 신규] 지정작만으로 이미 5칸이 다 찼으면, 아래 자동 계산 자체를 건너뜀.
+      // 자동 계산은 order 정보가 없는 작품마다 TMDB에 추가로 실제 출연진 목록을 조회하는
+      // 무거운 단계(missingOrderItems)를 포함하고 있어서, 어차피 안 쓰일 결과를 위해
+      // 매번 이 조회를 반복하면 로딩만 느려짐. 5칸 중 일부만 지정됐을 때만 자동 계산 실행.
+      let autoSorted = [];
+      if(pinnedItems.length < knownForLimit){
+        // [2026-07-11 추가] 대표작(popularity 기반 + 게스트출연 감점) — 이미 받아온
+        // combined_credits 데이터만 재사용, 추가 API 호출 없음. 포스터 없는 작품은
+        // 그리드 깨지므로 제외.
+        //
+        // ⚠️ 2026-07-11 개선: popularity만 쓰면 "예능 1회 게스트 출연"이 "본인 주연 드라마"보다
+        // 앞에 나오는 문제 발견(예: 배우가 5년 전 예능에 1번 나온 게 popularity가 더 높았음).
+        // 장르(예능/드라마)로 구분하지 않음 — 예능인 본인에게는 예능이 진짜 대표작이기 때문.
+        // 대신 TV 출연작의 episode_count(이 작품에 몇 회 나왔는지)로 "게스트성 출연"인지
+        // 판단: 회차 수가 적을수록 감점 폭을 크게(연속적으로) 적용. 예능 고정 멤버처럼
+        // 회차 수가 많으면 감점 거의 없음 — 장르 상관없이 "비중"만 봄.
+        // episode_count는 지금 이미 호출 중인 combined_credits 응답에 원래 포함된 필드라
+        // 추가 TMDB 호출 없음(트래픽 영향 없음).
+        // ⚠️ 2026-07-11 2차 개선: episode_count만으로는 부족했음 — "런닝맨" 게스트 출연이
+        // episode_count=14로 나와서(여러 해에 걸쳐 여러 번 게스트로 나온 게 누적됨) 기존
+        // 임계값(10회)을 넘어버려 감점이 전혀 안 걸리는 문제 발견.
+        // 더 정확한 신호로 교체: TMDB의 character 필드 — 예능/리얼리티는 배역명 없이
+        // "Self"로 찍히고, 드라마/영화는 실제 배역명이 있음. "회차 수"보다 "진짜 배역이
+        // 있는지"가 대표작 여부를 훨씬 정확하게 구분함. 이것도 추가 호출 없는 기존 데이터.
+        // ⚠️ 2026-07-11 3차 개선: 60회 기준 + 선형 감점으로도 부족했음 — "런닝맨",
+        // "무한도전"처럼 10년~20년 넘게 방영된 장수 예능은, 몇 년에 한 번씩만 게스트로
+        // 나와도 다 합치면 episode_count가 쉽게 14~수십 회까지 쌓임(TMDB가 한 사람의
+        // 여러 해에 걸친 출연을 전부 합쳐서 기록하기 때문). 그 결과 "장수 예능=고정 출연"
+        // 취급을 너무 쉽게 받아버려서, 거의 모든 배우 대표작에 런닝맨/무한도전이 나오는
+        // 문제 발생. 두 가지로 보정:
+        //   1) 임계값 60 → 180으로 상향 (진짜 고정 MC급만 감점 면제)
+        //   2) 감점 곡선을 선형(ep/기준)에서 제곱((ep/기준)²)으로 변경
+        //      → 14회처럼 어중간한 회차는 지금보다 훨씬 세게 깎이고(14/180≈0.08 → 제곱하면
+        //      0.006 수준), 진짜 고정 출연(150회 이상)만 확실히 살아남게 됨
+        // [2026-07-24 신규] 현재 OTT에서 볼 수 없는 작품 감점 — TMDB popularity는 "역대
+        // 얼마나 히트했나"를 전혀 반영 못 해서, 20년 전에 반짝 흥행하고 지금은 어느 OTT에도
+        // 없는 작품이 popularity 하나만으로 최근 대형 히트작(예: 디즈니+ 1위작)을 이기는
+        // 사례가 실제로 확인됨(오늘 발견). 오뜨랑은 "지금 볼 수 있는 것" 위주 서비스이므로,
+        // 지금 어느 OTT에도 없는 작품은 대표작 우선순위에서도 감점하는 게 자연스러움.
+        // ottBadgeCache는 이미 위에서 loadOttBadges(allCredits)로 전부 채워둔 데이터라
+        // 추가 API 호출 없음.
+        const hasCurrentOtt = (it) => {
+          const keys = ottBadgeCache[it.id];
+          return Array.isArray(keys) && keys.length > 0;
+        };
+
+        // [2026-07-24 추가 수정] order 정보가 없는 배역을 무조건 tier 0으로 넣었더니,
+        // 예능/리얼리티 게스트 출연(원래 order 자체가 없는 경우가 많음)까지 주연급으로
+        // 같이 승격되는 부작용이 발견됨(박한별 배우 사례 — 런닝맨/정글의 법칙이 대표작 상단에 뜸).
+        // "본인 출연인지 아닌지"를 따로 추정하는 대신, 그 작품 자체의 실제 출연진 목록을
+        // TMDB에서 다시 조회해서 이 인물의 진짜 캐스팅 순위를 확인 — 예능 게스트라면
+        // 자연스럽게 한참 뒤 순위로 나오고, 킬러들의 쇼핑몰처럼 진짜 주연인데 개인 크레딧에만
+        // order가 안 찍힌 경우는 조회하면 앞쪽 순위로 확인됨. order가 이미 있는 항목은
+        // 이 조회 대상에서 제외(추가 호출 없음).
+        const missingOrderItems = allCredits.filter(
+          it => it._kind === 'act' && typeof it.order !== 'number' && it.poster_path
+        );
+        const orderLookup = {}; // `${id}_${media_type}` -> 실제 조회된 order(또는 배열 순번)
+        // [2026-07-25 신규] "조회는 성공했는데 명단에 없음"을 "조회 자체가 실패함"과 구분해서
+        // 따로 표시. 후자는 정보가 없을 뿐이라 안전하게 tier 1로 두지만, 전자는 이 사람이
+        // 그 작품에 사실상 비중 없는 출연(단역/게스트/오인 크레딧 등)이었을 가능성이 높다는
+        // 더 확실한 신호라서 아래 scoreFor/castTier에서 추가로 불리하게 처리함
+        // (계기: "Min Kim" 배우 프로필에 실제 출연진 명단에도 없는 해외 장수 드라마
+        // "Shortland Street"가 인기도 수치만으로 대표작 상단에 뜨는 문제 발견, 2026-07-25).
+        const notFoundInCast = new Set();
+        await Promise.all(missingOrderItems.map(async (it) => {
+          try {
+            const path = it.media_type === 'movie' ? `movie/${it.id}/credits` : `tv/${it.id}/aggregate_credits`;
+            const res = await fetch(`${TMDB_PROXY}/${path}?language=ko-KR`);
+            if(!res.ok) return;
+            const data = await res.json();
+            const castList = data.cast || [];
+            const idx = castList.findIndex(c => c.id === personId);
+            if(idx === -1){ notFoundInCast.add(`${it.id}_${it.media_type}`); return; }
+            const found = castList[idx];
+            orderLookup[`${it.id}_${it.media_type}`] = typeof found.order === 'number' ? found.order : idx;
+          } catch(e) { /* 실패하면 기본값(모름) 유지 — 아래 castTier에서 안전하게 처리 */ }
+        }));
+
+        // [2026-07-28 재수정] "정확히 Self와 완전 일치"만 걸렀더니 "Self - Guest"처럼
+        // 뒤에 텍스트가 더 붙은 경우(사미자 "아는 형님" 사례)를 못 걸러서 예능이 드라마와
+        // 똑같이 최상위 등급에 남는 문제 발견. "Self로 시작하면" 예능으로 판단하도록 완화.
+        const isSelfAppearance = (it) =>
+          it.media_type === 'tv' && (!(it.character||'').trim() || (it.character||'').trim().toLowerCase().startsWith('self'));
+
+        const scoreFor = (it) => {
+          const pop = it.popularity || 0;
+          let score;
+          if(isSelfAppearance(it)){
+            // 본인 출연(예능/리얼리티) — 회차 수로 정도만 조절.
+            // 고정 MC급(150회 이상)만 감점 거의 없고, 그 외(장수 예능 게스트 포함)는
+            // 제곱 곡선으로 세게 깎임.
+            const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
+            const ratio = Math.max(0, Math.min(1, ep / 180));
+            const factor = Math.max(0.02, ratio * ratio);
+            score = pop * factor;
+          } else {
+            score = pop; // 실제 배역이 있는 드라마/영화 — 감점 없음
+          }
+          // [2026-07-23 신규] 0번(완전 단독 주연) 소폭 보너스 — 그룹을 통째로 올리는 게
+          // 아니라 점수에 1.2배만 얹어서, popularity 격차가 큰 흥행작까지 뒤엎지는 않고
+          // "비슷한 인기라면 완전 주연이 우선"이 되는 수준으로만 보정.
+          if(it._kind === 'act' && it.order === 0) score *= 1.2;
+          // [2026-07-25 수정] 현재 OTT 미제공 감점 40%→60%(0.6배→0.4배)로 강화 — 인기도
+          // 격차가 아주 큰 해외 장수 작품은 비율만 깎아선 안 없어지는 걸 발견해서 더 세게.
+          if(!hasCurrentOtt(it)) score *= 0.4;
+          // [2026-07-25 신규] 그 작품 실제 출연진 명단에서 확인상 못 찾은 항목은 추가 50%
+          // 감점 — OTT 미제공 감점과 곱해지면(둘 다 해당 시 0.4×0.5=20%만 남음) 웬만한
+          // 인기도 격차도 뒤집힘. 명단에 있는데 못 찾은 게 아니라 "정보 자체가 없는"
+          // 경우(orderLookup 조회 실패 등)는 이 감점 대상이 아님 — 진짜 주연인데 데이터만
+          // 부족한 경우(킬러들의 쇼핑몰 사례)까지 억울하게 깎이지 않도록 구분함.
+          if(notFoundInCast.has(`${it.id}_${it.media_type}`)) score *= 0.5;
+          return score;
+        };
+
+        // [2026-07-23 신규] 배우(출연) 대표작 — 주연 여부(order)를 1순위, popularity를
+        // 2순위로 사용. combined_credits 응답에 이미 포함된 cast 크레딧의 order 필드
+        // (0에 가까울수록 주연급 — TMDB 크레딧 표기 순서)로 먼저 "역할 비중" 그룹을
+        // 나누고, 같은 그룹 안에서는 기존 scoreFor(popularity + 게스트감점)로 순위를
+        // 매김. 추가 API 호출 없음(기존 데이터 재사용). 연출(크루) 항목은 order 개념이
+        // 없으므로 그룹 구분 없이 계속 popularity로만 경쟁(기존 방식 그대로 유지).
+        //
+        // ⚠️ TV(특히 여러 시즌 드라마)는 order 값이 비어있거나 부정확한 경우가 있어,
+        // 이런 "정보없음" 케이스는 주연/단역 그 어느 쪽으로도 단정하지 않고 별도 그룹으로
+        // 분류해서 popularity로만 순위를 매김(영화는 order 누락이 거의 없어 이 케이스가
+        // 드묾).
+        // ⚠️ [2026-07-24 버그 수정] 원래 "연출 항목은 별도 그룹 없이 popularity로만 경쟁"할
+        // 의도였는데, 실제로는 return 0을 줘서 주연급(tier 0)과 완전히 같은 최상위 그룹으로
+        // 취급되고 있었음. 그 결과 배우로 등록된 인물의 프로필에 TMDB 데이터 오류로 무관한
+        // 스태프 크레딧(예: 애니메이션 미술팀)이 섞여 들어오면, popularity만 높으면(대형
+        // 해외 프랜차이즈 작품 등) 실제 주연작보다도 앞서 대표작 1위를 차지해버리는 문제가
+        // 있었음(이동욱 배우 사례에서 발견). 이 인물이 "감독"으로 등록된 경우에는 연출
+        // 크레딧이 진짜 본업이므로 그대로 tier 0(최우선)을 주고, "배우"로 등록된 인물의
+        // 크루 크레딧은 대부분 무관한 참여이므로 가장 낮은 tier(2)로 내려서, popularity가
+        // 아무리 높아도 그 배우의 실제 주연/조연 출연작을 절대 못 이기게 함.
+        // ⚠️ [2026-07-24 버그 수정] order 정보가 없는 경우 tier 1(조연급)로 강등시켰는데,
+        // 실제로는 order 자체가 안 넘어오는 TV 작품이 꽤 있고(이번에 발견된 "킬러들의
+        // 쇼핑몰"도 order=undefined) — 이 배우가 실제로는 투톱 주연급인데도 tier가 갈려서
+        // scoreFor(popularity+OTT감점) 비교 기회조차 없이 무조건 밀려나는 문제가 있었음.
+        // order 정보 없음을 tier 0(주연급 후보)에 남겨서 점수 경쟁에는 참여시키되, 진짜
+        // 저인지도 작품은 별도의 isLowProfile 필터(2년 이상+vote_count 5 이하)가 걸러줌.
+        // ⚠️ [2026-07-24 3차 수정] "order 없으면 무조건 tier 0"이 예능 게스트 출연까지
+        // 승격시키는 부작용이 있어, 위에서 미리 조회해둔 orderLookup(그 작품 실제 출연진
+        // 목록에서 확인한 진짜 순위)을 먼저 참고하도록 변경. 그래도 못 찾은 경우(조회
+        // 실패 등)만 안전하게 tier 1(중간)로 처리 — 예전처럼 무조건 조연 취급하되,
+        // 최소한 무조건 tier 0으로 승격되는 일은 없게 함.
+        // [2026-07-25 재수정] "명단에 없음 확인 + OTT 미제공" 둘 다 겹칠 때만 강등하던
+        // 규칙을, "OTT 미제공이면 order 확인 여부와 상관없이 무조건 tier 1단계 강등"으로
+        // 더 단순하고 강하게 변경(0→1, 1→2, 2→2). 계기: 국내 OTT에 전혀 없는 해외
+        // 독립/소규모 작품 위주인 배우의 경우, order가 실제로 확인된 진짜 주연작이어도
+        // "지금 볼 수 없는 작품"이 대표작 최상단을 차지하는 게 서비스 성격(오뜨랑=지금
+        // 볼 수 있는 것 중심)과 안 맞는다는 판단(나카지마 아유무 배우 사례, 2026-07-25).
+        // [2026-07-28 신규] self(예능 본인출연) + 80회 이하 게스트성 출연은 order 값과
+        // 상관없이 무조건 최하위 등급(tier 2)으로 강등. 그동안 scoreFor의 게스트 감점이
+        // 등급(tier)까지는 못 내려서, order가 낮게 찍힌 예능(예: "아는 형님")이 점수
+        // 감점을 받고도 최상위 등급 안에 남아 실제 대표작(드라마)보다 앞서던 문제 수정.
+        // 80회 이상(고정 MC급)은 예외 — 진짜 대표작일 수 있으므로 order 기준 그대로 유지.
+        const castTier = (it) => {
+          let tier;
+          if(isSelfAppearance(it)){
+            const ep = typeof it.episode_count === 'number' ? it.episode_count : 1;
+            if(ep <= 80){
+              return 2; // 게스트성 출연 — 무조건 최하위 등급
+            }
+            // 80회 이상 고정 MC급은 아래 일반 로직(order 기반)으로 계속 진행
+          }
+          if(it._kind !== 'act'){
+            tier = jobLabel === '감독' ? 0 : 2;
+          } else {
+            let order = typeof it.order === 'number' ? it.order : null;
+            if(order === null){
+              const resolved = orderLookup[`${it.id}_${it.media_type}`];
+              order = (typeof resolved === 'number') ? resolved : null;
+            }
+            if(order === null) tier = 1;      // 확인 안 됨 — 안전하게 중간 그룹
+            else if(order <= 2) tier = 0;     // 주연급
+            else if(order <= 6) tier = 1;     // 비중 있는 조연
+            else tier = 2;                    // 단역/카메오/예능 게스트 등
+          }
+          if(!hasCurrentOtt(it)) tier = Math.min(tier + 1, 2); // OTT 미제공 → 무조건 1단계 강등
+          return tier;
+        };
+
+        // [2026-07-23 신규] 저인지도 작품 제외 필터 — "공백의 얼굴들" 사례(초저예산
+        // 독립영화라 캐스트가 6명뿐이라 order=0으로 찍혀도 실제 "주연 비중"을 뜻하지
+        // 않는 경우)처럼, order 데이터 자체가 안 미더운 소규모 작품이 order 그룹 우선
+        // 순위 덕에 진짜 잘 알려진 작품(예: 조연으로 나온 대형 상업영화)을 이겨버리는
+        // 문제를 막기 위한 필터.
+        // 기준: 개봉/방영 후 2년이 지났는데도 vote_count(평가 참여자 수)가 5 이하면
+        // "그동안 시간이 지나도 계속 아무도 안 본 작품"으로 보고 대표작 후보에서
+        // 제외(필모그래피 탭에는 그대로 남음). 최신작은 아직 평가가 덜 쌓인 게
+        // 당연하므로 2년 미만이면 vote_count 상관없이 무조건 통과시킴.
+        const isLowProfile = (it) => {
+          const dateStr = it.release_date || it.first_air_date;
+          if(!dateStr) return false; // 날짜 정보 없으면 걸러내지 않음(과잉 필터링 방지)
+          const ageMs = Date.now() - new Date(dateStr).getTime();
+          const ageYears = ageMs / (1000*60*60*24*365);
+          const voteCount = typeof it.vote_count === 'number' ? it.vote_count : 0;
+          return ageYears >= 2 && voteCount <= 5;
+        };
+
+        // [2026-07-29 신규] 정렬된 자동 후보 전체 목록(슬라이스 전) — 지정작을 뺀 나머지를
+        // 채울 때 재사용하기 위해 슬라이스 없이 먼저 구해둠.
+        autoSorted = [...allCredits]
+          .filter(it => it.poster_path)
+          .sort((a,b) => {
+            const ta = castTier(a), tb = castTier(b);
+            if(ta !== tb) return ta - tb; // 주연 그룹 우선
+            return scoreFor(b) - scoreFor(a); // 같은 그룹 안에서는 popularity(+게스트감점)로 정렬
+          });
+      }
 
       const pinnedKeys = new Set(pinnedItems.map(it => `${it.id}_${it.media_type}`));
       const knownFor = [...pinnedItems];
