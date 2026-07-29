@@ -185,3 +185,61 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
         print(f"  [{platform}][{category_slot}] 수집: {count}개")
 
     return results
+
+
+# ══════════════════════════════════════════════════════════════
+# 🔍 임시 진단 코드 — World(글로벌) 데이터 안 나오는 문제 확인용
+#    확인 끝나면 이 블록은 삭제 예정. `python crawlers/flixpatrol_api.py`로 직접 실행.
+# ══════════════════════════════════════════════════════════════
+if __name__ == "__main__":
+    import json as _json
+
+    print("=" * 60)
+    print("진단① TOP10s — 국가 필터 없이 넷플릭스+영화 조회 (실제 국가 목록 확인)")
+    print("=" * 60)
+    data1 = _api_get("/top10s", {
+        "company[eq]":     COMPANY_IDS["netflix"],
+        "type[eq]":        TYPE_MOVIES,
+        "date[type][eq]":  1,
+        "date[from][gte]": TWO_DAYS_AGO,
+        "date[from][lte]": TODAY,
+    })
+    if data1 and data1.get("data"):
+        rows = data1["data"]
+        print(f"  결과 {len(rows)}건")
+        countries_seen = set()
+        for r in rows[:30]:
+            rd = r.get("data", {})
+            country_id = rd.get("country", {}).get("data", {}).get("id")
+            countries_seen.add(country_id)
+        print(f"  등장한 country id 목록: {countries_seen}")
+        print(f"  World id({COUNTRY_IDS['World']}) 포함 여부: {COUNTRY_IDS['World'] in countries_seen}")
+    else:
+        print("  결과 없음")
+
+    print("\n" + "=" * 60)
+    print("진단② Rankings 엔드포인트 — 넷플릭스+영화+World, 글로벌 집계 확인")
+    print("=" * 60)
+    data2 = _api_get("/rankings", {
+        "company[eq]":    COMPANY_IDS["netflix"],
+        "country[eq]":    COUNTRY_IDS["World"],
+        "type[eq]":       TYPE_MOVIES,
+        "date[type][eq]": 1,
+        "date[from][gte]": TWO_DAYS_AGO,
+        "date[from][lte]": TODAY,
+    })
+    print(_json.dumps(data2, indent=2, ensure_ascii=False)[:2000] if data2 else "  결과 없음")
+
+    print("\n" + "=" * 60)
+    print("진단③ Rankings 엔드포인트 — country 필터 자체를 빼고 조회 (글로벌 집계가 country 없이 나오는지)")
+    print("=" * 60)
+    data3 = _api_get("/rankings", {
+        "company[eq]":    COMPANY_IDS["netflix"],
+        "type[eq]":       TYPE_MOVIES,
+        "date[type][eq]": 1,
+        "date[from][gte]": TWO_DAYS_AGO,
+        "date[from][lte]": TODAY,
+    })
+    print(_json.dumps(data3, indent=2, ensure_ascii=False)[:2000] if data3 else "  결과 없음")
+
+    print("\n진단 완료")
