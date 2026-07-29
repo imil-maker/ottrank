@@ -1,3 +1,5 @@
+/* 2026-07-29 rev.1 — admin-persons.js (대표작 수동 지정 기능 신규: featured-works API 3종 추가 —
+   조회/작품검색(DB우선+TMDB보완)/저장(최대5개 교체), person_featured_works 테이블 사용) */
 /* 2026-07-27 rev.10 — admin-persons.js ("공개안함/비공개/모름" 등을 다수결 후보에 정식 포함 — 이런 부정 표현을 만나면 그 즉시 UNDISCLOSED로 확정 판정하고 뒤쪽 상관없는 글자를 계속 찾아 헤매지 않게 함(박찬욱 오탐 사례 수정). 나무위키에서 "공개안함" 발견 시 블로그 단계로 안 넘어가고 바로 미확정 처리) */
 /* ══════════════════════════════════════════════════════════════
    인물(persons) 관련 어드민 기능 — admin.js와 별개 파일
@@ -410,6 +412,189 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       ).bind(mbtiRaw || null, tmdbId).run();
 
       return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // [2026-07-29 신규] 대표작 수동 지정 — person_featured_works 테이블
+  // 인물 1명당 최대 5개까지, 관리자가 지정한 작품을 순서대로 저장.
+  // person.html은 이 목록을 앞쪽에 고정 배치하고, 남은 자리는 기존
+  // 자동 알고리즘(popularity+게스트감점 등)으로 채운다.
+  // ══════════════════════════════════════════════════════════════
+
+  const TMDB_KEY = env.TMDB_API_KEY;
+
+  // TMDB 상세정보 1건 조회(영화/TV 자동 판별용) — 제목/포스터만 필요
+  async function _fetchTmdbWorkDetail(tmdbId, mediaType) {
+    try {
+      const resp = await fetch(
+        `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_KEY}&language=ko-KR`
+      );
+      if (!resp.ok) return null;
+      const d = await resp.json();
+      const title = mediaType === "movie" ? d.title : d.name;
+      if (!title) return null;
+      return { tmdb_id: tmdbId, media_type: mediaType, title, poster_path: d.poster_path || null };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ── GET /admin/persons/featured-works ───────────────────────────
+  // 특정 인물의 현재 지정된 대표작 목록(최대 5개, 순서대로) 조회.
+  // DB엔 tmdb_id/media_type/순서만 있으므로, 화면 표시용 제목/포스터는
+  // 그때그때 TMDB에서 가져옴(최대 5건이라 부담 적음).
+  if (path === "/admin/persons/featured-works" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const personId = parseInt(url.searchParams.get("tmdb_person_id"));
+      if (!personId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id가 필요해요" }), { status: 400, headers });
+      }
+
+      const { results: rows } = await env.DB.prepare(
+        `SELECT work_tmdb_id, work_media_type, sort_order FROM person_featured_works
+         WHERE tmdb_person_id = ? ORDER BY sort_order ASC`
+      ).bind(personId).all();
+
+      const items = await Promise.all(
+        (rows || []).map(async (r) => {
+          const detail = await _fetchTmdbWorkDetail(r.work_tmdb_id, r.work_media_type);
+          return {
+            sort_order: r.sort_order,
+            tmdb_id: r.work_tmdb_id,
+            media_type: r.work_media_type,
+            title: detail ? detail.title : null,
+            poster_path: detail ? detail.poster_path : null,
+          };
+        })
+      );
+
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/featured-works-work-search ────────────────
+  // 작품 검색: 숫자만 입력하면 tmdb_id로 간주(우리DB 우선 조회 → 없으면
+  // TMDB에서 영화/TV 둘 다 시도), 글자면 제목 검색(우리DB 우선 → 부족하면
+  // TMDB 검색으로 나머지 채움, 최대 8개).
+  if (path === "/admin/persons/featured-works-work-search" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
+      }
+
+      // ① 숫자만 입력 — tmdb_id 직접 조회
+      if (/^\d+$/.test(q)) {
+        const tmdbId = parseInt(q, 10);
+        const { results: dbRows } = await env.DB.prepare(
+          `SELECT tmdb_id, media_type, COALESCE(title_ko, title_en) AS title, poster_path
+           FROM works WHERE tmdb_id = ?`
+        ).bind(tmdbId).all();
+
+        const found = new Set((dbRows || []).map((r) => r.media_type));
+        const items = [...(dbRows || [])];
+
+        // 우리DB에 없는 타입(영화/TV)은 TMDB에서 추가로 확인
+        for (const mt of ["movie", "tv"]) {
+          if (found.has(mt)) continue;
+          const detail = await _fetchTmdbWorkDetail(tmdbId, mt);
+          if (detail) items.push(detail);
+        }
+
+        return new Response(JSON.stringify({ ok: true, items }), { headers });
+      }
+
+      // ② 제목 검색 — 우리DB 먼저
+      const { results: dbRows } = await env.DB.prepare(
+        `SELECT tmdb_id, media_type, COALESCE(title_ko, title_en) AS title, poster_path
+         FROM works WHERE title_ko LIKE ? OR title_en LIKE ? LIMIT 8`
+      ).bind(`%${q}%`, `%${q}%`).all();
+
+      const items = [...(dbRows || [])];
+      const seen = new Set(items.map((it) => `${it.tmdb_id}_${it.media_type}`));
+
+      // 부족하면 TMDB 검색(search/multi)으로 나머지 채움
+      if (items.length < 8 && TMDB_KEY) {
+        try {
+          const resp = await fetch(
+            `https://api.themoviedb.org/3/search/multi?api_key=${TMDB_KEY}&language=ko-KR&query=${encodeURIComponent(q)}`
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            for (const it of (data.results || [])) {
+              if (items.length >= 8) break;
+              if (it.media_type !== "movie" && it.media_type !== "tv") continue;
+              const title = it.media_type === "movie" ? it.title : it.name;
+              if (!title) continue;
+              const key = `${it.id}_${it.media_type}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              items.push({ tmdb_id: it.id, media_type: it.media_type, title, poster_path: it.poster_path || null });
+            }
+          }
+        } catch (e) { /* TMDB 실패해도 우리DB 결과는 그대로 반환 */ }
+      }
+
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/featured-works-set ────────────────────────
+  // 대표작 전체 교체 저장. body: { tmdb_person_id, works: [{tmdb_id, media_type}, ...] }
+  // 최대 5개, 배열 순서 그대로 sort_order 1~N 부여. 기존 지정 전부 삭제 후 재삽입.
+  if (path === "/admin/persons/featured-works-set" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const personId = parseInt(body.tmdb_person_id);
+      const works = Array.isArray(body.works) ? body.works : [];
+
+      if (!personId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id가 필요해요" }), { status: 400, headers });
+      }
+      if (works.length > 5) {
+        return new Response(JSON.stringify({ ok: false, message: "대표작은 최대 5개까지예요" }), { status: 400, headers });
+      }
+      for (const w of works) {
+        if (!w.tmdb_id || (w.media_type !== "movie" && w.media_type !== "tv")) {
+          return new Response(JSON.stringify({ ok: false, message: "작품 정보가 올바르지 않아요" }), { status: 400, headers });
+        }
+      }
+
+      const person = await env.DB.prepare(`SELECT tmdb_id FROM persons WHERE tmdb_id = ?`).bind(personId).first();
+      if (!person) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+
+      const stmts = [
+        env.DB.prepare(`DELETE FROM person_featured_works WHERE tmdb_person_id = ?`).bind(personId),
+      ];
+      works.forEach((w, idx) => {
+        stmts.push(
+          env.DB.prepare(
+            `INSERT INTO person_featured_works (tmdb_person_id, work_tmdb_id, work_media_type, sort_order)
+             VALUES (?, ?, ?, ?)`
+          ).bind(personId, parseInt(w.tmdb_id), w.media_type, idx + 1)
+        );
+      });
+      await env.DB.batch(stmts);
+
+      return new Response(JSON.stringify({ ok: true, tmdb_person_id: personId, count: works.length }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
