@@ -1,4 +1,5 @@
-# 2026-07-29 rev.3 — test_flixpatrol_api.py (FlixPatrol API 탐색용 1회성 테스트)
+# 2026-07-29 rev.4 — test_flixpatrol_api.py (FlixPatrol API 탐색용 1회성 테스트)
+# rev.4 변경: NameError 수정 — netflix_id를 회사 조회 직후(월드 섹션보다 앞)로 이동
 # rev.3 변경: 넷플릭스 월드(전세계) 카테고리용 country=World ID 조회 단계 추가
 # rev.2 변경: 회사명 검색을 "포함(contains)"에서 "정확히 일치(eq)"로 변경
 #            — "Disney"로 검색 시 월트디즈니 계열 제작사 27개가 잡혀서 엉뚱한 회사가
@@ -64,6 +65,8 @@ for name in ["Netflix", "Disney+", "Wavve", "Coupang Play"]:
                 cid = item.get("data", {}).get("id")
                 cname = item.get("data", {}).get("name")
                 print(f"    (contains 후보) id={cid}  name={cname}")
+
+netflix_id = company_ids.get("Netflix")  # 이후 섹션에서 반복 사용
 
 print("\n" + "=" * 60)
 print("② 국가(Country) ID 조회 — 대한민국")
@@ -140,7 +143,7 @@ print("\n" + "=" * 60)
 print(f"③ TOP10 실제 데이터 조회 — 넷플릭스 남한 영화 ({YESTERDAY})")
 print("=" * 60)
 
-netflix_id = company_ids.get("Netflix")
+netflix_id = company_ids.get("Netflix")  # 이미 위에서 정의됨 (중복 대입, 값 동일)
 if netflix_id and country_id:
     top10_data = call("/top10s", {
         "company[eq]":     netflix_id,
