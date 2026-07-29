@@ -1,4 +1,4 @@
-# 2026-07-27 rev.1 — run_all.py (티빙/키노라이츠 크롤링 완전 삭제)
+# 2026-07-29 rev.2 — run_all.py (FlixPatrol을 Playwright 화면크롤링 → 정식 API 방식으로 교체)
 """
 전체 크롤러 실행 v2
 ────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ from db import init_db, save_rankings_batch
 
 async def run_flixpatrol_platforms(conn):
     """FlixPatrol 4개 OTT 크롤링 + 배치 처리"""
-    from crawlers.flixpatrol_base import crawl_flixpatrol
+    from crawlers.flixpatrol_api import crawl_flixpatrol
 
     platforms = ["netflix", "disney", "wavve", "coupang"]
     all_results = []
