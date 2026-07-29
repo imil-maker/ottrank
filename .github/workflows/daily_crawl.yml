@@ -1,3 +1,6 @@
+# 2026-07-29 rev.11 — daily_crawl.yml (Actions 화면 표시 이름을 "FlixPatrol API"로 변경 —
+#   박스오피스가 별도 워크플로우(boxoffice_crawl.yml, "KOBIS API")로 분리되어서
+#   Actions 탭에서 이 워크플로우가 FlixPatrol 전용임을 명확히 구분하기 위함)
 # 2026-07-29 rev.10 — daily_crawl.yml (진단 완료 — run_all.py 정상 실행 모드로 복구.
 #   원인(World는 /rankings 엔드포인트 필요)은 flixpatrol_api.py rev.3에서 해결됨)
 # 2026-07-29 rev.9 — daily_crawl.yml (⚠️ 임시 진단용 — "Run crawlers" 단계가 run_all.py
@@ -24,7 +27,7 @@
 #   GitHub Actions 클라우드 IP가 FlixPatrol/KOBIS에 막히는 문제 우회 목적)
 # 2026-07-29 rev.2 — daily_crawl.yml (진단 단계가 KOBIS 타임아웃 때문에 전체 실패로 번지던 버그
 #   수정 — curl 명령마다 `|| true` + continue-on-error 추가, 실패해도 이후 크롤링 단계 정상 진행)
-name: OTT Ranking Crawler v2
+name: FlixPatrol API
 
 on:
   schedule:
