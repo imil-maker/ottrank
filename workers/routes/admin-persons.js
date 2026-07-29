@@ -1,3 +1,5 @@
+/* 2026-07-29 rev.2 — admin-persons.js (공개 조회 API 신규: GET /person-featured-works/:id —
+   person.html이 인증 없이 호출, 대표작 실제 화면 반영용) */
 /* 2026-07-29 rev.1 — admin-persons.js (대표작 수동 지정 기능 신규: featured-works API 3종 추가 —
    조회/작품검색(DB우선+TMDB보완)/저장(최대5개 교체), person_featured_works 테이블 사용) */
 /* 2026-07-27 rev.10 — admin-persons.js ("공개안함/비공개/모름" 등을 다수결 후보에 정식 포함 — 이런 부정 표현을 만나면 그 즉시 UNDISCLOSED로 확정 판정하고 뒤쪽 상관없는 글자를 계속 찾아 헤매지 않게 함(박찬욱 오탐 사례 수정). 나무위키에서 "공개안함" 발견 시 블로그 단계로 안 넘어가고 바로 미확정 처리) */
@@ -595,6 +597,31 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       await env.DB.batch(stmts);
 
       return new Response(JSON.stringify({ ok: true, tmdb_person_id: personId, count: works.length }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /person-featured-works/:tmdb_person_id ──────────────────
+  // [2026-07-29 신규] 공개(비인증) 조회 — person.html에서 사용. 인증 없음(비로그인 방문자도
+  // 호출). 가볍게 tmdb_id/media_type/순서만 반환 — 포스터/제목은 person.html이 이미 갖고
+  // 있는 TMDB 크레딧 데이터에서 직접 찾아 쓰므로 여기서 TMDB를 다시 호출하지 않음.
+  const publicMatch = path.match(/^\/person-featured-works\/(\d+)$/);
+  if (publicMatch && request.method === "GET") {
+    try {
+      const personId = parseInt(publicMatch[1], 10);
+      const { results: rows } = await env.DB.prepare(
+        `SELECT work_tmdb_id, work_media_type, sort_order FROM person_featured_works
+         WHERE tmdb_person_id = ? ORDER BY sort_order ASC`
+      ).bind(personId).all();
+
+      const items = (rows || []).map((r) => ({
+        tmdb_id: r.work_tmdb_id,
+        media_type: r.work_media_type,
+        sort_order: r.sort_order,
+      }));
+
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
