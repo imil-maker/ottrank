@@ -1,3 +1,6 @@
+# 2026-07-29 rev.8 — daily_crawl.yml (FLIXPATROL_API_KEY가 "Run crawlers" 단계 env에
+#   빠져있던 문제 수정 — flixpatrol_api.py가 API 키를 못 받아 전부 스킵되던 원인.
+#   Secrets 등록은 되어있었으나 워크플로우 env 목록에 연결이 안 되어 있었음)
 # 2026-07-29 rev.7 — daily_crawl.yml (셀프호스팅 윈도우 러너에서 다시 GitHub 서버(ubuntu-latest)로
 #   되돌림 — FlixPatrol 403이 IP 문제가 아니라 Playwright 자동화 탐지(안티봇) 문제인 것으로
 #   확인됨에 따라, 관리자 컴퓨터를 계속 켜둘 이유가 없어짐. KOBIS https 수정은 그대로 유지되어
@@ -68,6 +71,7 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           KOBIS_API_KEY: ${{ secrets.KOBIS_API_KEY }}
+          FLIXPATROL_API_KEY: ${{ secrets.FLIXPATROL_API_KEY }}
         run: |
           echo "=== 크롤링 시작 ==="
           python run_all.py
