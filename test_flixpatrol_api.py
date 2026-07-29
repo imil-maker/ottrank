@@ -1,4 +1,5 @@
-# 2026-07-29 rev.2 — test_flixpatrol_api.py (FlixPatrol API 탐색용 1회성 테스트)
+# 2026-07-29 rev.3 — test_flixpatrol_api.py (FlixPatrol API 탐색용 1회성 테스트)
+# rev.3 변경: 넷플릭스 월드(전세계) 카테고리용 country=World ID 조회 단계 추가
 # rev.2 변경: 회사명 검색을 "포함(contains)"에서 "정확히 일치(eq)"로 변경
 #            — "Disney"로 검색 시 월트디즈니 계열 제작사 27개가 잡혀서 엉뚱한 회사가
 #              선택되는 문제 발견 → "Disney+"처럼 정확한 이름으로 검색하도록 수정
@@ -92,6 +93,48 @@ else:
             print(f"    (contains 후보) id={cid}  name={cname}  code={ccode}")
             if ccode == "KR":
                 country_id = cid
+
+print("\n" + "=" * 60)
+print("②-2 국가(Country) ID 조회 — World(전세계, 넷플릭스 글로벌용)")
+print("=" * 60)
+
+world_id = None
+data = call("/countries", {"name[eq]": "World"})
+if data and data.get("data"):
+    for item in data["data"]:
+        cid = item.get("data", {}).get("id")
+        cname = item.get("data", {}).get("name")
+        ccode = item.get("data", {}).get("code")
+        print(f"    후보: id={cid}  name={cname}  code={ccode}")
+    if len(data["data"]) >= 1:
+        world_id = data["data"][0]["data"].get("id")
+else:
+    print("    ⚠️ 'World' 정확 검색 결과 없음 — contains로 재시도")
+    data2 = call("/countries", {"name[contains]": "World"})
+    if data2 and data2.get("data"):
+        for item in data2["data"]:
+            cid = item.get("data", {}).get("id")
+            cname = item.get("data", {}).get("name")
+            print(f"    (contains 후보) id={cid}  name={cname}")
+
+if world_id and netflix_id:
+    print("\n" + "=" * 60)
+    print(f"②-3 TOP10 실제 데이터 조회 — 넷플릭스 월드 영화 ({YESTERDAY})")
+    print("=" * 60)
+    world_top10 = call("/top10s", {
+        "company[eq]":     netflix_id,
+        "country[eq]":     world_id,
+        "type[eq]":        2,
+        "date[type][eq]":  1,
+        "date[from][eq]":  YESTERDAY,
+        "date[to][eq]":    YESTERDAY,
+    })
+    if world_top10:
+        rows = world_top10.get("data", [])
+        print(f"    결과 {len(rows)}건")
+        if rows:
+            m = rows[0].get("data", {}).get("movie", {}).get("data", {})
+            print(f"    1위: {m.get('title')}  tmdbId={m.get('tmdbId')}")
 
 print("\n" + "=" * 60)
 print(f"③ TOP10 실제 데이터 조회 — 넷플릭스 남한 영화 ({YESTERDAY})")
