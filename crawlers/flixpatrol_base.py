@@ -1,5 +1,11 @@
 """
-FlixPatrol 공통 크롤링 로직 v3
+FlixPatrol 공통 크롤링 로직 v4
+────────────────────────────────────────────────────────────────
+2026-07-29 rev.1 — flixpatrol_base.py (403 차단 대응: 자동화 탐지(안티봇) 우회 추가 —
+  navigator.webdriver 등 숨기는 stealth 스크립트 주입, --disable-blink-features=
+  AutomationControlled, 실제 해상도 뷰포트, 모든 요청에 브라우저형 헤더 항상 적용
+  (기존 world-URL 한정 로직의 중복조건 오타도 같이 수정). IP 차단이 아니라 Playwright
+  자동화 탐지 문제인 것으로 확인 후 진행)
 ────────────────────────────────────────────────────────────────
 변경사항 (v2 → v3):
   - ott_categories.crawl_url 컬럼 지원 추가
@@ -58,6 +64,23 @@ PLATFORM_URLS = {
     "wavve":      "https://flixpatrol.com/top10/wavve/south-korea/",
     "coupang":    "https://flixpatrol.com/top10/coupang-play/south-korea/",
 }
+
+
+# [2026-07-29 신규] Playwright 자동화 탐지(안티봇) 우회용 — 페이지 로드 전에 주입해서
+# "이 브라우저는 자동화 프로그램이다"라고 알려주는 대표적인 신호들을 감춤.
+# navigator.webdriver=true가 가장 흔한 탐지 신호라 이것만 꺼도 상당수 안티봇을 통과함.
+STEALTH_INIT_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+Object.defineProperty(navigator, 'languages', { get: () => ['ko-KR', 'ko', 'en-US', 'en'] });
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+window.chrome = { runtime: {} };
+const originalQuery = window.navigator.permissions.query;
+window.navigator.permissions.query = (parameters) => (
+  parameters.name === 'notifications'
+    ? Promise.resolve({ state: Notification.permission })
+    : originalQuery(parameters)
+);
+"""
 
 
 def get_category_slots(local_conn, platform: str) -> list[dict]:
@@ -186,13 +209,21 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            args=[
+                "--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage",
+                # [2026-07-29 신규] 크로미움이 "자동화로 제어되고 있다"고 스스로 표시하는
+                # 내부 플래그를 끔 — navigator.webdriver 등 여러 탐지 신호의 근본 원인
+                "--disable-blink-features=AutomationControlled",
+            ]
         )
         context = await browser.new_context(
             user_agent=BROWSER_HEADERS["user_agent"],
             locale=BROWSER_HEADERS["locale"],
             timezone_id=BROWSER_HEADERS["timezone_id"],
+            viewport={"width": 1920, "height": 1080},  # 실제 데스크탑 해상도처럼 보이게
         )
+        # [2026-07-29 신규] 모든 페이지 로드 전에 탐지 우회 스크립트 주입
+        await context.add_init_script(STEALTH_INIT_SCRIPT)
         page = await context.new_page()
 
         try:
@@ -201,11 +232,10 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
                 print(f"  [{platform}] 페이지 로드: {url}")
 
                 try:
-                    # 월드 URL은 추가 헤더로 차단 우회 시도
-                    if "world" in url or "world" in url:
-                        await page.set_extra_http_headers(WORLD_EXTRA_HEADERS)
-                    else:
-                        await page.set_extra_http_headers({})
+                    # [2026-07-29 수정] 기존엔 "world" URL에만 이 헤더를 쓰고 나머지는 헤더를
+                    # 비웠는데(게다가 조건식 자체도 "world" in url 중복 오타), 탐지 우회
+                    # 관점에서는 모든 요청이 실제 브라우저처럼 보이는 게 유리해서 항상 적용.
+                    await page.set_extra_http_headers(WORLD_EXTRA_HEADERS)
 
                     resp = await page.goto(url, wait_until="domcontentloaded", timeout=40000)
                     print(f"  [{platform}] HTTP status: {resp.status}")
