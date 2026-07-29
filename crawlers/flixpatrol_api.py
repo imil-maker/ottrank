@@ -1,3 +1,5 @@
+# 2026-07-29 rev.4 — flixpatrol_api.py (_api_get 실패 시 상태코드만 찍고 응답 본문(에러
+#   메시지)은 출력을 안 하던 문제 수정 — category08 400 에러 원인 파악을 위해 필요)
 # 2026-07-29 rev.3 — flixpatrol_api.py (World/글로벌 데이터는 /top10s가 아니라
 #   /rankings 엔드포인트를 써야 하는 것으로 진단 확인됨 — TOP10s는 개별 국가별 데이터만
 #   제공하고 "World"라는 국가 자체가 존재하지 않음. Rankings는 국가 무관 글로벌 집계
@@ -91,6 +93,7 @@ def _api_get(path, params=None):
         )
         if resp.status_code != 200:
             print(f"  [flixpatrol_api] ⚠️ status={resp.status_code} path={path} params={params}")
+            print(f"  [flixpatrol_api] ⚠️ 응답 본문: {resp.text[:500]}")
             return None
         return resp.json()
     except Exception as e:
