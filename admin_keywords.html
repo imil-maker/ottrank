@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-29 rev.2 — admin_keywords.html (대표작 매칭 탭에 "대표이미지" 섹션 추가 — R2 업로드/삭제) -->
 <!-- 2026-07-29 rev.1 — admin_keywords.html (대표작 매칭 탭 신규: 인물 검색 → 대표작 최대 5개 지정/저장) -->
 <!-- 2026-07-28 rev.9 — admin_keywords.html (상단 링크 정리: 영상 링크 추가, 어드민 텍스트 변경) -->
 <html lang="ko">
@@ -905,9 +906,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
       <div id="fwWorkSearchResultsWrap" style="margin-bottom:20px"></div>
 
-      <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
         <button class="btn-primary" onclick="fwSave()" style="padding:10px 24px;font-size:14px">💾 저장</button>
         <span id="fwSaveStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+      </div>
+
+      <!-- 대표이미지 (2026-07-29 신규) -->
+      <div style="border-top:1px solid var(--border);padding-top:20px">
+        <h3 style="margin-bottom:10px;font-size:15px">🖼 대표이미지</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          기본은 TMDB 사진이에요. 이미지를 올리면 그때부터 이 사진을 우선 보여줘요(TMDB에 사진이
+          없는 사람도 여기서 채울 수 있어요).
+        </div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div id="fwProfileImgPreviewWrap" style="width:90px;height:90px;border-radius:10px;overflow:hidden;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span id="fwProfileImgEmpty" style="font-size:11px;color:var(--muted)">이미지 없음</span>
+            <img id="fwProfileImgPreview" style="display:none;width:100%;height:100%;object-fit:cover">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="padding:8px 16px;white-space:nowrap;font-size:13px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted2);width:fit-content">
+              📁 파일 선택해서 업로드
+              <input type="file" accept="image/*" style="display:none" onchange="fwUploadProfileImage(this)">
+            </label>
+            <button class="btn-secondary" id="fwProfileImgDeleteBtn" onclick="fwDeleteProfileImage()" style="display:none;padding:8px 16px;font-size:13px;color:var(--accent);width:fit-content">🗑 삭제(TMDB 사진으로 되돌리기)</button>
+          </div>
+          <span id="fwProfileImgStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+        </div>
       </div>
     </div>
 
@@ -4808,6 +4832,7 @@ async function fwSelectPerson(tmdbId, name){
   document.getElementById('fwWorkSearchResultsWrap').innerHTML = '';
   document.getElementById('fwSaveStatus').textContent = '';
   document.getElementById('fwSlotsWrap').innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">불러오는 중...</div>`;
+  document.getElementById('fwProfileImgStatus').textContent = '';
 
   try{
     const res  = await fetch(`${API}/admin/persons/featured-works?tmdb_person_id=${tmdbId}`, {
@@ -4819,6 +4844,89 @@ async function fwSelectPerson(tmdbId, name){
     fwRenderSlots();
   }catch(e){
     document.getElementById('fwSlotsWrap').innerHTML = `<div style="color:var(--accent);font-size:13px">불러오기 실패: ${e.message}</div>`;
+  }
+
+  fwLoadProfileImage(tmdbId);
+}
+
+/* ── 대표이미지 (2026-07-29 신규) ── */
+async function fwLoadProfileImage(tmdbId){
+  const previewImg   = document.getElementById('fwProfileImgPreview');
+  const previewEmpty = document.getElementById('fwProfileImgEmpty');
+  const deleteBtn     = document.getElementById('fwProfileImgDeleteBtn');
+  try{
+    const res  = await fetch(`${API}/admin/persons/${tmdbId}/profile-image`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    if(data.custom_profile_path){
+      previewImg.src = data.custom_profile_path;
+      previewImg.style.display = 'block';
+      previewEmpty.style.display = 'none';
+      deleteBtn.style.display = 'inline-block';
+    } else {
+      previewImg.style.display = 'none';
+      previewEmpty.style.display = 'block';
+      deleteBtn.style.display = 'none';
+    }
+  }catch(e){
+    previewImg.style.display = 'none';
+    previewEmpty.style.display = 'block';
+    deleteBtn.style.display = 'none';
+  }
+}
+
+async function fwUploadProfileImage(inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file || !fwSelectedPersonId) return;
+  const statusEl = document.getElementById('fwProfileImgStatus');
+  statusEl.textContent = '업로드 중...';
+  statusEl.style.color = 'var(--muted)';
+  try{
+    const res = await fetch(`${API}/admin/persons/${fwSelectedPersonId}/profile-image`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'image/jpeg',
+        Authorization: `Bearer ${ADMIN_SECRET}`,
+      },
+      body: file,
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    statusEl.textContent = '✅ 업로드 완료';
+    statusEl.style.color = 'var(--green)';
+    showToast('✅ 대표이미지 업로드 완료');
+    fwLoadProfileImage(fwSelectedPersonId);
+  }catch(e){
+    statusEl.textContent = `❌ 업로드 실패: ${e.message}`;
+    statusEl.style.color = 'var(--accent)';
+  }
+  inputEl.value = '';
+}
+
+async function fwDeleteProfileImage(){
+  if(!fwSelectedPersonId) return;
+  if(!confirm('대표이미지를 삭제하고 TMDB 사진으로 되돌릴까요?')) return;
+  const statusEl = document.getElementById('fwProfileImgStatus');
+  statusEl.textContent = '삭제 중...';
+  statusEl.style.color = 'var(--muted)';
+  try{
+    const res = await fetch(`${API}/admin/persons/${fwSelectedPersonId}/profile-image`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    statusEl.textContent = '✅ 삭제 완료';
+    statusEl.style.color = 'var(--green)';
+    showToast('✅ TMDB 사진으로 되돌렸어요');
+    fwLoadProfileImage(fwSelectedPersonId);
+  }catch(e){
+    statusEl.textContent = `❌ 삭제 실패: ${e.message}`;
+    statusEl.style.color = 'var(--accent)';
   }
 }
 
