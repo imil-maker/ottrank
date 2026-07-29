@@ -1,6 +1,8 @@
-# 2026-07-29 rev.8 — daily_crawl.yml (FLIXPATROL_API_KEY가 "Run crawlers" 단계 env에
+# 2026-07-29 rev.8 — daily_crawl.yml (① FLIXPATROL_API_KEY가 "Run crawlers" 단계 env에
 #   빠져있던 문제 수정 — flixpatrol_api.py가 API 키를 못 받아 전부 스킵되던 원인.
-#   Secrets 등록은 되어있었으나 워크플로우 env 목록에 연결이 안 되어 있었음)
+#   ② 스케줄 하루 4번 → 1번(새벽 3시17분만 유지)으로 축소 — 실측상 이 슬롯만 항상
+#   1~2시간 내 안정적으로 실행됨(나머지는 2~4시간 지연). FlixPatrol API 월 1,000콜
+#   한도 안에서 여유있게 운영하기 위한 목적도 겸함(하루 4번 유지 시 월 3,000콜+ 위험))
 # 2026-07-29 rev.7 — daily_crawl.yml (셀프호스팅 윈도우 러너에서 다시 GitHub 서버(ubuntu-latest)로
 #   되돌림 — FlixPatrol 403이 IP 문제가 아니라 Playwright 자동화 탐지(안티봇) 문제인 것으로
 #   확인됨에 따라, 관리자 컴퓨터를 계속 켜둘 이유가 없어짐. KOBIS https 수정은 그대로 유지되어
@@ -20,10 +22,7 @@ name: OTT Ranking Crawler v2
 
 on:
   schedule:
-    - cron: '17 0 * * *'   # 09:17 KST (UTC 00:17)
-    - cron: '17 6 * * *'   # 15:17 KST (UTC 06:17)
-    - cron: '17 12 * * *'  # 21:17 KST (UTC 12:17)
-    - cron: '17 18 * * *'  # 03:17 KST (UTC 18:17)
+    - cron: '17 18 * * *'  # 03:17 KST (UTC 18:17) — 실측상 가장 안정적으로(1~2시간 내) 도는 슬롯
   workflow_dispatch:        # 수동 실행 (Actions 탭에서 버튼으로 실행 가능)
 
 jobs:
