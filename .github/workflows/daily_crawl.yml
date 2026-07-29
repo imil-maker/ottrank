@@ -1,3 +1,5 @@
+# 2026-07-29 rev.6 — daily_crawl.yml (윈도우 콘솔 인코딩(cp949) 때문에 이모지 출력에서
+#   UnicodeEncodeError 나던 문제 수정 — job 전체에 PYTHONIOENCODING: utf-8 추가)
 # 2026-07-29 rev.5 — daily_crawl.yml (playwright 명령어를 찾지 못하던 문제 수정 — pip install/
 #   playwright install 둘 다 `python -m` 형식으로 변경해 PATH 문제 자체를 회피)
 # 2026-07-29 rev.4 — daily_crawl.yml (actions/setup-python 자동설치가 서비스 계정 권한 문제로
@@ -25,6 +27,10 @@ jobs:
         shell: bash
     permissions:
       contents: write
+    env:
+      # [2026-07-29 신규] 셀프호스팅(윈도우) 콘솔 기본 인코딩(cp949)이 ✅/⚠️ 같은 이모지를
+      # 못 읽어서 파이썬이 UnicodeEncodeError로 죽던 문제 수정 — 파이썬 출력을 UTF-8로 고정
+      PYTHONIOENCODING: utf-8
 
     steps:
       # ── 1. 코드 체크아웃 ────────────────────────────────────
