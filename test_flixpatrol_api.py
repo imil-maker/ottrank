@@ -1,4 +1,7 @@
-# 2026-07-29 rev.1 — test_flixpatrol_api.py (FlixPatrol API 탐색용 1회성 테스트)
+# 2026-07-29 rev.2 — test_flixpatrol_api.py (FlixPatrol API 탐색용 1회성 테스트)
+# rev.2 변경: 회사명 검색을 "포함(contains)"에서 "정확히 일치(eq)"로 변경
+#            — "Disney"로 검색 시 월트디즈니 계열 제작사 27개가 잡혀서 엉뚱한 회사가
+#              선택되는 문제 발견 → "Disney+"처럼 정확한 이름으로 검색하도록 수정
 #
 # 목적: 화면 크롤링(Playwright) 없이 FlixPatrol 정식 API로 전환하기 전,
 #       1) 회사(넷플릭스/디즈니/웨이브/쿠팡플레이) ID, 국가(대한민국) ID를 실제로 조회
@@ -40,25 +43,33 @@ print("① 회사(Company) ID 조회 — 넷플릭스/디즈니/웨이브/쿠팡
 print("=" * 60)
 
 company_ids = {}
-for name in ["Netflix", "Disney", "Wavve", "Coupang Play"]:
-    data = call("/companies", {"name[contains]": name})
+for name in ["Netflix", "Disney+", "Wavve", "Coupang Play"]:
+    # 정확히 일치하는 이름만 검색 (Disney처럼 계열사가 많은 경우 오검색 방지)
+    data = call("/companies", {"name[eq]": name})
     if data and data.get("data"):
         for item in data["data"]:
             cid = item.get("data", {}).get("id")
             cname = item.get("data", {}).get("name")
             print(f"    후보: id={cid}  name={cname}")
-        # 첫 번째 후보를 임시 채택 (여러 개면 로그로 비교 후 수동 확정)
-        first = data["data"][0]["data"]
-        company_ids[name] = first.get("id")
+        if len(data["data"]) == 1:
+            company_ids[name] = data["data"][0]["data"].get("id")
+        else:
+            print(f"    ⚠️ '{name}' 정확히 일치하는 게 {len(data['data'])}개 — 수동 확인 필요")
     else:
-        print(f"    ⚠️ '{name}' 검색 결과 없음")
+        print(f"    ⚠️ '{name}' 정확히 일치하는 결과 없음 — eq 대신 contains로 재시도")
+        data2 = call("/companies", {"name[contains]": name})
+        if data2 and data2.get("data"):
+            for item in data2["data"][:10]:
+                cid = item.get("data", {}).get("id")
+                cname = item.get("data", {}).get("name")
+                print(f"    (contains 후보) id={cid}  name={cname}")
 
 print("\n" + "=" * 60)
 print("② 국가(Country) ID 조회 — 대한민국")
 print("=" * 60)
 
 country_id = None
-data = call("/countries", {"name[contains]": "Korea"})
+data = call("/countries", {"name[eq]": "South Korea"})
 if data and data.get("data"):
     for item in data["data"]:
         cid = item.get("data", {}).get("id")
@@ -67,8 +78,20 @@ if data and data.get("data"):
         print(f"    후보: id={cid}  name={cname}  code={ccode}")
         if ccode == "KR":
             country_id = cid
+    if not country_id and data["data"]:
+        # code 필드가 없거나 다르게 와도 일단 첫 후보 사용
+        country_id = data["data"][0]["data"].get("id")
 else:
-    print("    ⚠️ 'Korea' 검색 결과 없음")
+    print("    ⚠️ 'South Korea' 정확 검색 결과 없음 — contains로 재시도")
+    data2 = call("/countries", {"name[contains]": "Korea"})
+    if data2 and data2.get("data"):
+        for item in data2["data"]:
+            cid = item.get("data", {}).get("id")
+            cname = item.get("data", {}).get("name")
+            ccode = item.get("data", {}).get("code")
+            print(f"    (contains 후보) id={cid}  name={cname}  code={ccode}")
+            if ccode == "KR":
+                country_id = cid
 
 print("\n" + "=" * 60)
 print(f"③ TOP10 실제 데이터 조회 — 넷플릭스 남한 영화 ({YESTERDAY})")
