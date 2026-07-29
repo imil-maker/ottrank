@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-29 rev.1 — person.html (대표작: 관리자가 지정한 대표작(최대5개)을 앞쪽에 고정 배치, 나머지는 기존 자동 알고리즘으로 채움 — /person-featured-works/:id 공개 API 신규 호출) -->
 <!-- 2026-07-28 rev.5 — person.html (대표작: 예능 본인출연 판단 기준을 "Self와 완전일치"에서 "Self로 시작"으로 완화 — "Self - Guest"처럼 뒤에 텍스트가 더 붙은 경우를 못 걸러서 예능이 최상위 등급에 남던 문제 수정, 사미자 "아는 형님" 사례) -->
 <html lang="ko">
 <head>
@@ -1601,6 +1602,22 @@ async function loadRankBadges(items){
   });
 }
 
+/* [2026-07-29 신규] 관리자가 지정한 대표작(최대 5개) 조회 — 공개 API, 인증 불필요.
+   tmdb_id + media_type + 순서만 가볍게 받아옴. 포스터/제목 등 나머지 정보는 아래에서
+   allCredits(이미 받아온 TMDB combined_credits)에서 그대로 찾아 쓰므로 추가 TMDB 호출 없음.
+   실패해도(네트워크 오류 등) 조용히 빈 배열 반환 — 대표작 섹션은 기존 자동 알고리즘으로
+   정상 동작해야 함(이 기능이 필수 경로가 되면 안 됨). */
+async function loadPinnedFeaturedWorks(personId){
+  try {
+    const res = await fetch(`${OTTRANK_API}/person-featured-works/${personId}`);
+    if(!res.ok) return [];
+    const data = await res.json();
+    return (data.ok && Array.isArray(data.items)) ? data.items : [];
+  } catch(e) {
+    return [];
+  }
+}
+
 /* [2026-07-20 신규] OTT 배지 로드 — 화면에 보이는 카드들의 tmdb_id를 모아 한 번에 조회.
    /works/ott-map은 "우리 DB에 있는 작품"만 응답에 포함되므로, DB 미등록 작품은
    자동으로 배지가 안 뜸(실시간 TMDB 조회 없음 — 검색결과 페이지와 다르게 가볍게 처리). */
@@ -2280,6 +2297,9 @@ async function initPage(){
       // 아직 카드가 없어 화면 반영은 안 되지만 ottBadgeCache는 채워짐, 중복요청 없음)
       await loadOttBadges(allCredits);
 
+      // [2026-07-29 신규] 관리자가 지정한 대표작 목록 — 아래 knownFor 계산에서 사용
+      const pinnedFeaturedWorks = await loadPinnedFeaturedWorks(personId);
+
       renderWorks();
 
       // [2026-07-11 추가] 대표작(popularity 기반 + 게스트출연 감점) — 이미 받아온
@@ -2477,19 +2497,35 @@ async function initPage(){
         return ageYears >= 2 && voteCount <= 5;
       };
 
-      // [2026-07-28 수정] isLowProfile(2년 이상+vote_count 5 이하 제외) 필터 제거.
-      // 국내 옛날 드라마는 국내에선 인기 있었어도 TMDB(해외 사이트) 평가 참여자가
-      // 원래 적어서, 이 필터가 "진짜 저인지도 작품"뿐 아니라 "국내 유명작인데 TMDB
-      // 평가만 적은 옛날 드라마"까지 거의 다 걸러버리는 부작용이 있었음(하희라 배우
-      // 사례 — 27편 중 대표작 후보가 1편만 남음).
-      const knownFor = [...allCredits]
+      const knownForLimit = document.body.classList.contains('layout-test') ? 5 : 6; // [2026-07-19] PC 2단 레이아웃은 5개만
+
+      // [2026-07-29 신규] 정렬된 자동 후보 전체 목록(슬라이스 전) — 지정작을 뺀 나머지를
+      // 채울 때 재사용하기 위해 슬라이스 없이 먼저 구해둠.
+      const autoSorted = [...allCredits]
         .filter(it => it.poster_path)
         .sort((a,b) => {
           const ta = castTier(a), tb = castTier(b);
           if(ta !== tb) return ta - tb; // 주연 그룹 우선
           return scoreFor(b) - scoreFor(a); // 같은 그룹 안에서는 popularity(+게스트감점)로 정렬
-        })
-        .slice(0, document.body.classList.contains('layout-test') ? 5 : 6); // [2026-07-19] PC 2단 레이아웃은 5개만
+        });
+
+      // [2026-07-29 신규] 관리자가 지정한 대표작을 먼저 순서대로 배치. allCredits(이미
+      // 받아온 TMDB 크레딧)에서 tmdb_id+media_type이 일치하는 항목을 찾아서 그대로 씀
+      // (포스터/제목 등 필요한 정보가 이미 다 있음). 못 찾으면(아주 드묾 — 이 사람의
+      // TMDB 크레딧에 없는 작품을 지정한 경우) 조용히 건너뜀.
+      const pinnedItems = pinnedFeaturedWorks
+        .map(p => allCredits.find(it => it.id === p.tmdb_id && it.media_type === p.media_type))
+        .filter(Boolean)
+        .slice(0, knownForLimit);
+
+      const pinnedKeys = new Set(pinnedItems.map(it => `${it.id}_${it.media_type}`));
+      const knownFor = [...pinnedItems];
+      for(const it of autoSorted){
+        if(knownFor.length >= knownForLimit) break;
+        const key = `${it.id}_${it.media_type}`;
+        if(pinnedKeys.has(key)) continue; // 이미 지정작으로 들어간 작품은 자동 채움에서 제외
+        knownFor.push(it);
+      }
       if(knownFor.length){
         document.getElementById('knownForSection').style.display = 'block';
         // [2026-07-24 신규] SEO 목적 — 구글 등 검색엔진이 "OO 대표작"처럼 인물 이름과
