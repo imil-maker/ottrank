@@ -1,0 +1,75 @@
+# 2026-07-29 rev.1 — boxoffice_crawl.yml (박스오피스 전용 신규 워크플로우)
+# daily_crawl.yml(FlixPatrol)과 완전히 분리 — KOBIS 접속 타임아웃이 잦아
+# 하루 3번(재시도 목적)으로 도는 별도 스케줄이 필요해서 분리함.
+# targetDt는 run_boxoffice.py 내부에서 항상 "어제(KST)" 고정으로 계산하므로,
+# 실행 시각(01:17/10:17/19:17)과 무관하게 매번 같은 날짜를 요청함 —
+# 이른 시간대(01:17)에 KOBIS 데이터가 아직 미확정이면 조용히 스킵되고,
+# 나머지 회차(10:17/19:17)가 자연스럽게 재시도 역할을 함.
+
+name: KOBIS API
+
+on:
+  schedule:
+    - cron: '17 16 * * *'  # 01:17 KST (UTC 16:17, 전날)
+    - cron: '17 1 * * *'   # 10:17 KST (UTC 01:17)
+    - cron: '17 10 * * *'  # 19:17 KST (UTC 10:17)
+  workflow_dispatch:        # 수동 실행 (Actions 탭에서 버튼으로 실행 가능)
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      # D1 → 로컬 동기화 (⚠️ 절대 삭제 금지!) — works/ott_categories 로컬 반영
+      - name: Sync D1 data to local DB
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          echo "=== D1 동기화 시작 ==="
+          python sync_works.py
+          echo "=== D1 동기화 완료 ==="
+
+      - name: Run boxoffice crawler
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KOBIS_API_KEY: ${{ secrets.KOBIS_API_KEY }}
+        run: |
+          echo "=== 박스오피스 크롤링 시작 ==="
+          python run_boxoffice.py
+          echo "=== 박스오피스 크롤링 완료 ==="
+
+      - name: Upload to Cloudflare D1
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          echo "=== D1 업로드 시작 ==="
+          python upload_to_d1.py
+          echo "=== D1 업로드 완료 ==="
+
+      - name: Commit rankings.db
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add rankings.db
+          git diff --staged --quiet || git commit -m "chore: update boxoffice rankings $(date +'%Y-%m-%d')"
+          git push
