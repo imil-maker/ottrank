@@ -1,3 +1,7 @@
+# 2026-07-29 rev.5 — flixpatrol_api.py (Rankings 엔드포인트는 /top10s와 type 번호 체계가
+#   다른 것으로 확인됨 — TOP10s: Movies=2/TVShows=3, Rankings: Movie=1/TVShow=2.
+#   그동안 category07에 type=2를 그대로 보내서 실제로는 TV 데이터가 영화로 잘못
+#   저장되고 있었음(응답의 "Elite Force"가 TV쇼였던 게 증거) — 매핑 테이블로 수정)
 # 2026-07-29 rev.4 — flixpatrol_api.py (_api_get 실패 시 상태코드만 찍고 응답 본문(에러
 #   메시지)은 출력을 안 하던 문제 수정 — category08 400 에러 원인 파악을 위해 필요)
 # 2026-07-29 rev.3 — flixpatrol_api.py (World/글로벌 데이터는 /top10s가 아니라
@@ -45,11 +49,15 @@ COUNTRY_IDS = {
     "World": "cnt_aP0RJTnt9XO4bVmoriU3Ih7q",
 }
 
-# FlixPatrol Type enum (공식 문서 기준)
+# FlixPatrol Type enum (공식 문서 기준, TOP10s용)
 TYPE_OVERALL = 1
 TYPE_MOVIES = 2
 TYPE_TVSHOWS = 3
 TYPE_ENTERTAINMENT = 54
+
+# Rankings 엔드포인트는 TOP10s와 type 번호 체계가 다름 (실측 확인: Movie=1, TVShow=2)
+# TOP10s의 Movies(2)/TVShows(3) 값을 Rankings용 값으로 변환할 때 사용
+_RANKINGS_TYPE_MAP = {TYPE_MOVIES: 1, TYPE_TVSHOWS: 2}
 
 # category_slot → (type, country) 매핑
 # ※ 여기 없는 슬롯(예: netflix category09/10, disney category04)은 수동 관리 슬롯이라 스킵됨
@@ -138,13 +146,16 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
         # TOP10s는 개별 국가 데이터만 제공, World라는 국가 자체가 없음)
         endpoint = "/rankings" if mapping["country"] == "World" else "/top10s"
 
+        # Rankings는 type 번호 체계가 TOP10s와 다름 — 변환 필요 (rev.5 참고)
+        api_type = _RANKINGS_TYPE_MAP.get(mapping["type"], mapping["type"]) if endpoint == "/rankings" else mapping["type"]
+
         print(f"  [{platform}][{category_slot}] '{source_name}' API 조회 중 "
-              f"(type={mapping['type']}, country={mapping['country']}, endpoint={endpoint})")
+              f"(type={mapping['type']}→{api_type}, country={mapping['country']}, endpoint={endpoint})")
 
         data = _api_get(endpoint, {
             "company[eq]":     company_id,
             "country[eq]":     country_id,
-            "type[eq]":        mapping["type"],
+            "type[eq]":        api_type,
             "date[type][eq]":  1,             # Day
             "date[from][gte]": TWO_DAYS_AGO,  # 최근 2일 범위로 요청
             "date[from][lte]": TODAY,
