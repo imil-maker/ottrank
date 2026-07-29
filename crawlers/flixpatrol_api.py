@@ -1,6 +1,7 @@
-# 2026-07-29 rev.2 — flixpatrol_api.py (날짜를 "어제 고정"에서 "최근 2일 범위"로 변경 —
-#   범위 안에서 가장 최신 날짜를 자동으로 골라 쓰도록 수정. 콜 수는 그대로(슬롯당 1콜),
-#   실행 시각(새벽/밤, 자동/수동 무관)과 상관없이 항상 그 시점 최신 데이터를 받게 됨)
+# 2026-07-29 rev.3 — flixpatrol_api.py (World/글로벌 데이터는 /top10s가 아니라
+#   /rankings 엔드포인트를 써야 하는 것으로 진단 확인됨 — TOP10s는 개별 국가별 데이터만
+#   제공하고 "World"라는 국가 자체가 존재하지 않음. Rankings는 국가 무관 글로벌 집계
+#   전용 엔드포인트. country="World"인 슬롯(넷플릭스 category07/08)만 /rankings로 분기)
 #
 # flixpatrol_base.py(Playwright 화면 크롤링)를 대체하는 API 방식 크롤러.
 # 배경: FlixPatrol이 자동화 브라우저(Playwright) 접속을 403으로 차단하기 시작해서
@@ -126,13 +127,18 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
             # 수동 관리 슬롯(예: 역대 순위, HOT100 등) — API 크롤링 대상 아님
             continue
 
-        country_id = COUNTRY_IDS.get(mapping["country"])
+        country_id  = COUNTRY_IDS.get(mapping["country"])
         crawl_limit = slot["crawl_limit"] or 20
         source_name = slot["source_name"]
 
-        print(f"  [{platform}][{category_slot}] '{source_name}' API 조회 중 (type={mapping['type']}, country={mapping['country']})")
+        # World(글로벌)는 /top10s가 아니라 /rankings 엔드포인트 사용 (진단으로 확인됨 —
+        # TOP10s는 개별 국가 데이터만 제공, World라는 국가 자체가 없음)
+        endpoint = "/rankings" if mapping["country"] == "World" else "/top10s"
 
-        data = _api_get("/top10s", {
+        print(f"  [{platform}][{category_slot}] '{source_name}' API 조회 중 "
+              f"(type={mapping['type']}, country={mapping['country']}, endpoint={endpoint})")
+
+        data = _api_get(endpoint, {
             "company[eq]":     company_id,
             "country[eq]":     country_id,
             "type[eq]":        mapping["type"],
@@ -185,61 +191,3 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
         print(f"  [{platform}][{category_slot}] 수집: {count}개")
 
     return results
-
-
-# ══════════════════════════════════════════════════════════════
-# 🔍 임시 진단 코드 — World(글로벌) 데이터 안 나오는 문제 확인용
-#    확인 끝나면 이 블록은 삭제 예정. `python crawlers/flixpatrol_api.py`로 직접 실행.
-# ══════════════════════════════════════════════════════════════
-if __name__ == "__main__":
-    import json as _json
-
-    print("=" * 60)
-    print("진단① TOP10s — 국가 필터 없이 넷플릭스+영화 조회 (실제 국가 목록 확인)")
-    print("=" * 60)
-    data1 = _api_get("/top10s", {
-        "company[eq]":     COMPANY_IDS["netflix"],
-        "type[eq]":        TYPE_MOVIES,
-        "date[type][eq]":  1,
-        "date[from][gte]": TWO_DAYS_AGO,
-        "date[from][lte]": TODAY,
-    })
-    if data1 and data1.get("data"):
-        rows = data1["data"]
-        print(f"  결과 {len(rows)}건")
-        countries_seen = set()
-        for r in rows[:30]:
-            rd = r.get("data", {})
-            country_id = rd.get("country", {}).get("data", {}).get("id")
-            countries_seen.add(country_id)
-        print(f"  등장한 country id 목록: {countries_seen}")
-        print(f"  World id({COUNTRY_IDS['World']}) 포함 여부: {COUNTRY_IDS['World'] in countries_seen}")
-    else:
-        print("  결과 없음")
-
-    print("\n" + "=" * 60)
-    print("진단② Rankings 엔드포인트 — 넷플릭스+영화+World, 글로벌 집계 확인")
-    print("=" * 60)
-    data2 = _api_get("/rankings", {
-        "company[eq]":    COMPANY_IDS["netflix"],
-        "country[eq]":    COUNTRY_IDS["World"],
-        "type[eq]":       TYPE_MOVIES,
-        "date[type][eq]": 1,
-        "date[from][gte]": TWO_DAYS_AGO,
-        "date[from][lte]": TODAY,
-    })
-    print(_json.dumps(data2, indent=2, ensure_ascii=False)[:2000] if data2 else "  결과 없음")
-
-    print("\n" + "=" * 60)
-    print("진단③ Rankings 엔드포인트 — country 필터 자체를 빼고 조회 (글로벌 집계가 country 없이 나오는지)")
-    print("=" * 60)
-    data3 = _api_get("/rankings", {
-        "company[eq]":    COMPANY_IDS["netflix"],
-        "type[eq]":       TYPE_MOVIES,
-        "date[type][eq]": 1,
-        "date[from][gte]": TWO_DAYS_AGO,
-        "date[from][lte]": TODAY,
-    })
-    print(_json.dumps(data3, indent=2, ensure_ascii=False)[:2000] if data3 else "  결과 없음")
-
-    print("\n진단 완료")
