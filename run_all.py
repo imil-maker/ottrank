@@ -1,15 +1,21 @@
-# 2026-07-29 rev.2 — run_all.py (FlixPatrol을 Playwright 화면크롤링 → 정식 API 방식으로 교체)
+# 2026-07-29 rev.3 — run_all.py (netflix_tudum 완전 삭제 — flixpatrol_api.py의
+#   category07/08(월드 넷플릭스)이 이미 API로 같은 데이터를 커버해서 중복이었고,
+#   Playwright 화면크롤링이라 403 에러의 실제 원인이었음. 박스오피스가 2단계로 당겨짐)
 """
 전체 크롤러 실행 v2
 ────────────────────────────────────────────────────────────────
 실행 순서:
   1. sync_works.py — D1 works + ott_categories → 로컬 동기화 (⚠️ 삭제 금지!)
-  2. FlixPatrol 4개 OTT 크롤링 (넷플릭스, 디즈니+, 웨이브, 쿠팡플레이)
+  2. FlixPatrol 4개 OTT 크롤링 — 정식 API 방식 (넷플릭스 남한/월드, 디즈니+, 웨이브, 쿠팡플레이)
   3. 박스오피스 크롤링 (기존 유지)
   4. export_to_sql.py — 로컬 rankings.db → D1 업로드용 SQL 변환
 
   ※ 티빙(키노라이츠) 크롤링은 2026-07-27부로 삭제됨.
     사유: 키노라이츠 데이터가 실제 티빙 순위와 불일치, 대체 소스 없음 → 수동 입력으로 전환.
+  ※ FlixPatrol은 2026-07-29부로 Playwright 화면크롤링 → 정식 API 방식으로 전환됨
+    (403 차단 문제 해결, tmdbId 직접 수신으로 매칭 정확도 향상).
+    이에 따라 넷플릭스 월드 랭킹용 별도 크롤러(netflix_tudum.py)도 함께 삭제됨
+    (flixpatrol_api.py가 category07/08로 동일 데이터 커버).
 
 배치 처리:
   - OTT별 크롤링 결과를 모아서 Claude API 1회 호출
@@ -47,15 +53,6 @@ async def run_flixpatrol_platforms(conn):
     await save_rankings_batch(conn, all_results)
 
 
-async def run_netflix_tudum(conn):
-    """Netflix 전세계 TOP10 크롤링 (FlixPatrol 전세계 랭킹, requests 기반)"""
-    try:
-        from crawlers.netflix_tudum import run as tudum_run
-        await tudum_run(conn, save_rankings_batch)
-    except Exception as e:
-        print(f"  [netflix_world] 오류: {e}")
-
-
 async def run_boxoffice(conn):
     """박스오피스 크롤링 (기존 방식 유지)"""
     try:
@@ -77,12 +74,8 @@ async def main():
         print("\n[1단계] FlixPatrol 크롤링 시작...")
         await run_flixpatrol_platforms(conn)
 
-        # 2. Netflix Tudum 전세계 TOP10 (주간)
-        print("\n[2단계] Netflix Tudum 크롤링 시작...")
-        await run_netflix_tudum(conn)
-
-        # 3. 박스오피스 (기존 유지)
-        print("\n[3단계] 박스오피스 크롤링 시작...")
+        # 2. 박스오피스 (기존 유지)
+        print("\n[2단계] 박스오피스 크롤링 시작...")
         await run_boxoffice(conn)
 
     finally:
