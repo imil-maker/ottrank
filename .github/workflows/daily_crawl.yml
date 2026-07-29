@@ -1,3 +1,7 @@
+# 2026-07-29 rev.7 — daily_crawl.yml (셀프호스팅 윈도우 러너에서 다시 GitHub 서버(ubuntu-latest)로
+#   되돌림 — FlixPatrol 403이 IP 문제가 아니라 Playwright 자동화 탐지(안티봇) 문제인 것으로
+#   확인됨에 따라, 관리자 컴퓨터를 계속 켜둘 이유가 없어짐. KOBIS https 수정은 그대로 유지되어
+#   박스오피스는 계속 정상 동작. FlixPatrol은 별도 우회 작업 필요, 그때까지는 계속 비어있음)
 # 2026-07-29 rev.6 — daily_crawl.yml (윈도우 콘솔 인코딩(cp949) 때문에 이모지 출력에서
 #   UnicodeEncodeError 나던 문제 수정 — job 전체에 PYTHONIOENCODING: utf-8 추가)
 # 2026-07-29 rev.5 — daily_crawl.yml (playwright 명령어를 찾지 못하던 문제 수정 — pip install/
@@ -21,33 +25,27 @@ on:
 
 jobs:
   crawl:
-    runs-on: self-hosted
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      # [2026-07-29 신규] 셀프호스팅(윈도우) 콘솔 기본 인코딩(cp949)이 ✅/⚠️ 같은 이모지를
-      # 못 읽어서 파이썬이 UnicodeEncodeError로 죽던 문제 수정 — 파이썬 출력을 UTF-8로 고정
-      PYTHONIOENCODING: utf-8
 
     steps:
       # ── 1. 코드 체크아웃 ────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Python 확인 (2026-07-29 수정) ─────────────────────
-      # 셀프호스팅(윈도우) 전환 후: actions/setup-python 자동설치가 서비스 계정
-      # 권한 문제로 실패해서, 컴퓨터에 미리 설치해둔 파이썬(3.11.9)을 그대로 사용.
-      - name: Check Python
-        run: python --version
+      # ── 2. Python 설치 ───────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       # ── 3. 의존성 설치 ───────────────────────────────────────
       - name: Install dependencies
         run: |
-          python -m pip install playwright requests anthropic beautifulsoup4
-          python -m playwright install chromium
+          pip install playwright requests anthropic beautifulsoup4
+          playwright install chromium
+          playwright install-deps chromium
 
       # ── 4. D1 → 로컬 동기화 (⚠️ 절대 삭제 금지!) ───────────
       # Admin 수동 저장 데이터 + ott_categories 슬롯 설정 로컬 반영
@@ -60,23 +58,6 @@ jobs:
           echo "=== D1 동기화 시작 ==="
           python sync_works.py
           echo "=== D1 동기화 완료 ==="
-
-      # ── 4-2. 네트워크 진단 (2026-07-29 신규, 임시) ───────────
-      # FlixPatrol 403 / KOBIS 타임아웃 원인 확인용. 이 서버의 실제 IP와,
-      # 두 사이트에 실제로 어떤 응답이 오는지 로그로 남김. 크롤링 자체엔
-      # 영향 없음(조회만 함). 원인 파악되면 이 단계는 지워도 됨.
-      - name: 네트워크 진단 (IP 확인 + FlixPatrol/KOBIS 접속 테스트)
-        continue-on-error: true
-        run: |
-          echo "=== 현재 서버 공인 IP ==="
-          curl -s https://ifconfig.me || true
-          echo ""
-          echo ""
-          echo "=== FlixPatrol 접속 테스트 ==="
-          curl -s -o /dev/null -w "HTTP %{http_code} (%{time_total}초)\n" --max-time 20 https://flixpatrol.com/top10/netflix/south-korea/ || true
-          echo ""
-          echo "=== KOBIS 접속 테스트 ==="
-          curl -s -o /dev/null -w "HTTP %{http_code} (%{time_total}초)\n" --max-time 20 "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json?key=test&targetDt=20260728" || true
 
       # ── 5. 크롤링 실행 ───────────────────────────────────────
       - name: Run crawlers
