@@ -1,4 +1,5 @@
-# 2026-07-29 rev.1 — daily_crawl.yml (네트워크 진단 단계 임시 추가 — FlixPatrol 403/KOBIS 타임아웃 원인 확인용)
+# 2026-07-29 rev.2 — daily_crawl.yml (진단 단계가 KOBIS 타임아웃 때문에 전체 실패로 번지던 버그
+#   수정 — curl 명령마다 `|| true` + continue-on-error 추가, 실패해도 이후 크롤링 단계 정상 진행)
 name: OTT Ranking Crawler v2
 
 on:
@@ -50,16 +51,17 @@ jobs:
       # 두 사이트에 실제로 어떤 응답이 오는지 로그로 남김. 크롤링 자체엔
       # 영향 없음(조회만 함). 원인 파악되면 이 단계는 지워도 됨.
       - name: 네트워크 진단 (IP 확인 + FlixPatrol/KOBIS 접속 테스트)
+        continue-on-error: true
         run: |
           echo "=== 현재 서버 공인 IP ==="
-          curl -s https://ifconfig.me
+          curl -s https://ifconfig.me || true
           echo ""
           echo ""
           echo "=== FlixPatrol 접속 테스트 ==="
-          curl -s -o /dev/null -w "HTTP %{http_code} (%{time_total}초)\n" --max-time 20 https://flixpatrol.com/top10/netflix/south-korea/
+          curl -s -o /dev/null -w "HTTP %{http_code} (%{time_total}초)\n" --max-time 20 https://flixpatrol.com/top10/netflix/south-korea/ || true
           echo ""
           echo "=== KOBIS 접속 테스트 ==="
-          curl -s -o /dev/null -w "HTTP %{http_code} (%{time_total}초)\n" --max-time 20 "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json?key=test&targetDt=20260728"
+          curl -s -o /dev/null -w "HTTP %{http_code} (%{time_total}초)\n" --max-time 20 "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json?key=test&targetDt=20260728" || true
 
       # ── 5. 크롤링 실행 ───────────────────────────────────────
       - name: Run crawlers
