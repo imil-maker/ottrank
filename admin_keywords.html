@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-29 rev.1 — admin_keywords.html (대표작 매칭 탭 신규: 인물 검색 → 대표작 최대 5개 지정/저장) -->
 <!-- 2026-07-28 rev.9 — admin_keywords.html (상단 링크 정리: 영상 링크 추가, 어드민 텍스트 변경) -->
 <html lang="ko">
 <head>
@@ -153,6 +154,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabPersonMatch" onclick="switchPageTab('personMatch')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🎭 인물 매칭
+        </button>
+        <button id="tabFeaturedWorks" onclick="switchPageTab('featuredWorks')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🌟 대표작 매칭
         </button>
         <button id="tabFilmography" onclick="switchPageTab('filmography')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
@@ -862,6 +867,48 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       </div>
       <div id="rcSearchEmpty" style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center;display:none">검색 결과가 없어요</div>
       <div id="rcSearchList"></div>
+    </div>
+
+  </div>
+
+  <!-- ══ 대표작 매칭 탭 (2026-07-29 신규) ══ -->
+  <div class="wrap" id="featuredWorksWrap" style="display:none">
+
+    <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+      💡 인물페이지 대표작 5칸 중 관리자가 직접 고른 작품을 앞쪽에 고정 노출해요. 최대 5개까지 지정
+      가능하고, 지정한 칸이 5개보다 적으면 나머지는 지금처럼 자동으로 채워져요.
+    </div>
+
+    <!-- 인물 검색 -->
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <input type="text" id="fwPersonSearchInput" placeholder="배우/감독 이름 또는 tmdb_id로 검색"
+        style="flex:1;max-width:320px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:var(--sans)"
+        onkeydown="if(event.key==='Enter'){ event.preventDefault(); fwSearchPerson(); }">
+      <button class="btn-primary" onclick="fwSearchPerson()" style="padding:10px 20px;font-size:14px">🔍 검색</button>
+    </div>
+    <div id="fwPersonResultsWrap" style="margin-bottom:20px"></div>
+
+    <!-- 선택된 인물 + 대표작 편집 영역 -->
+    <div id="fwEditWrap" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="font-size:15px;font-weight:600;color:var(--text)" id="fwSelectedPersonName"></div>
+        <span style="font-size:12px;color:var(--muted)">tmdb_id: <span id="fwSelectedPersonId" style="font-family:var(--mono)"></span></span>
+      </div>
+
+      <div id="fwSlotsWrap" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px"></div>
+
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input type="text" id="fwWorkSearchInput" placeholder="작품 제목 또는 tmdb_id로 검색"
+          style="flex:1;max-width:320px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans)"
+          onkeydown="if(event.key==='Enter'){ event.preventDefault(); fwSearchWork(); }">
+        <button class="btn-crawl" onclick="fwSearchWork()" style="padding:10px 20px;font-size:13px">🔍 작품 검색</button>
+      </div>
+      <div id="fwWorkSearchResultsWrap" style="margin-bottom:20px"></div>
+
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn-primary" onclick="fwSave()" style="padding:10px 24px;font-size:14px">💾 저장</button>
+        <span id="fwSaveStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+      </div>
     </div>
 
   </div>
@@ -1743,6 +1790,7 @@ const PAGE_TABS = [
   { key: 'searchLog',        wrapId: 'searchLogWrap',        btnId: 'tabSearchLog',        title: '🔍 검색어 로그', onColor: 'rgba(230,57,70,.2)',  onText: 'var(--accent)' },
   { key: 'pageLog',          wrapId: 'pageLogWrap',          btnId: 'tabPageLog',          title: '📊 페이지 로그', onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
   { key: 'personMatch',      wrapId: 'personMatchWrap',      btnId: 'tabPersonMatch',      title: '🎭 인물 매칭',   onColor: 'rgba(55,138,221,.2)', onText: '#7ec8e3' },
+  { key: 'featuredWorks',    wrapId: 'featuredWorksWrap',    btnId: 'tabFeaturedWorks',    title: '🌟 대표작 매칭', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
   { key: 'filmography',      wrapId: 'filmographyWrap',      btnId: 'tabFilmography',      title: '📝 필모채우기',  onColor: 'rgba(245,166,35,.2)', onText: '#f5a623' },
   { key: 'likeRanking',      wrapId: 'likeRankingWrap',       btnId: 'tabLikeRanking',      title: '👍 인물 좋아요 순위', onColor: 'rgba(240,180,41,.2)', onText: 'var(--gold)' },
   { key: 'profileEdits',     wrapId: 'profileEditsWrap',      btnId: 'tabProfileEdits',     title: '✏️ 프로필 수정요청', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
@@ -4710,6 +4758,184 @@ async function rcDeleteChart(tmdbId, mediaType){
     rcSearch(); // 최신 상태로 다시 검색해서 갱신
   }catch(e){
     showToast(`❌ 삭제 실패: ${e.message}`);
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   [2026-07-29 신규] 대표작 매칭 — 인물 검색 → 대표작 최대 5개 지정/저장
+   서버: admin-persons.js의 featured-works 계열 API 3종
+══════════════════════════════════════════════════════ */
+let fwSelectedPersonId = null;
+let fwItems = []; // [{tmdb_id, media_type, title, poster_path}, ...] 최대 5개, 순서대로
+
+async function fwSearchPerson(){
+  const q = document.getElementById('fwPersonSearchInput').value.trim();
+  const resultsWrap = document.getElementById('fwPersonResultsWrap');
+  document.getElementById('fwEditWrap').style.display = 'none';
+  if(!q){ resultsWrap.innerHTML = ''; return; }
+
+  resultsWrap.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">검색 중...</div>`;
+  try{
+    const res  = await fetch(`${API}/admin/persons/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    if(!data.items.length){
+      resultsWrap.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">검색 결과가 없어요</div>`;
+      return;
+    }
+    resultsWrap.innerHTML = data.items.map(p => `
+      <div onclick="fwSelectPerson(${p.tmdb_id}, '${escapeAttrPm(p.name_ko || p.name).replace(/'/g,"\\'")}')"
+        style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"
+        onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <span style="font-size:14px;font-weight:600;color:var(--text)">
+          ${escapeHtmlPm(p.name_ko || p.name)}${p.name_ko && p.name_ko !== p.name ? ` <span style="font-weight:400;color:var(--muted);font-size:12px">(${escapeHtmlPm(p.name)})</span>` : ''}
+        </span>
+        <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">tmdb_id ${p.tmdb_id}</span>
+      </div>
+    `).join('');
+  }catch(e){
+    resultsWrap.innerHTML = `<div style="padding:16px;color:var(--accent);font-size:13px">검색 실패: ${e.message}</div>`;
+  }
+}
+
+async function fwSelectPerson(tmdbId, name){
+  fwSelectedPersonId = tmdbId;
+  document.getElementById('fwSelectedPersonName').textContent = name;
+  document.getElementById('fwSelectedPersonId').textContent = tmdbId;
+  document.getElementById('fwEditWrap').style.display = 'block';
+  document.getElementById('fwWorkSearchResultsWrap').innerHTML = '';
+  document.getElementById('fwSaveStatus').textContent = '';
+  document.getElementById('fwSlotsWrap').innerHTML = `<div style="padding:16px;color:var(--muted);font-size:13px">불러오는 중...</div>`;
+
+  try{
+    const res  = await fetch(`${API}/admin/persons/featured-works?tmdb_person_id=${tmdbId}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    fwItems = (data.items || []).map(it => ({ tmdb_id: it.tmdb_id, media_type: it.media_type, title: it.title, poster_path: it.poster_path }));
+    fwRenderSlots();
+  }catch(e){
+    document.getElementById('fwSlotsWrap').innerHTML = `<div style="color:var(--accent);font-size:13px">불러오기 실패: ${e.message}</div>`;
+  }
+}
+
+function fwRenderSlots(){
+  const wrap = document.getElementById('fwSlotsWrap');
+  const boxes = [];
+  for(let i = 0; i < 5; i++){
+    const it = fwItems[i];
+    if(it){
+      boxes.push(`
+        <div style="width:110px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:8px;position:relative">
+          <img src="https://poster.ottrank.kr/tmdb-img/w154${it.poster_path||''}" onerror="this.style.visibility='hidden'"
+            style="width:100%;aspect-ratio:2/3;border-radius:6px;object-fit:cover;background:var(--bg3)">
+          <div style="font-size:11px;color:var(--text);margin-top:6px;line-height:1.3;max-height:2.6em;overflow:hidden">${escapeHtmlPm(it.title || '(제목 확인중)')}</div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px">
+            <div style="display:flex;gap:4px">
+              <button onclick="fwMoveWork(${i},-1)" ${i===0?'disabled':''} style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:2px 6px;cursor:pointer">▲</button>
+              <button onclick="fwMoveWork(${i},1)" ${i===fwItems.length-1?'disabled':''} style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:2px 6px;cursor:pointer">▼</button>
+            </div>
+            <button onclick="fwRemoveWork(${i})" style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--accent);font-size:11px;padding:2px 6px;cursor:pointer">✕</button>
+          </div>
+        </div>
+      `);
+    } else {
+      boxes.push(`
+        <div style="width:110px;aspect-ratio:2/3.6;border:1px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">
+          ${i+1}번 빈 자리<br>(자동 채움)
+        </div>
+      `);
+    }
+  }
+  wrap.innerHTML = boxes.join('');
+}
+
+function fwMoveWork(idx, dir){
+  const target = idx + dir;
+  if(target < 0 || target >= fwItems.length) return;
+  [fwItems[idx], fwItems[target]] = [fwItems[target], fwItems[idx]];
+  fwRenderSlots();
+}
+
+function fwRemoveWork(idx){
+  fwItems.splice(idx, 1);
+  fwRenderSlots();
+}
+
+async function fwSearchWork(){
+  const q = document.getElementById('fwWorkSearchInput').value.trim();
+  const resultsWrap = document.getElementById('fwWorkSearchResultsWrap');
+  if(!q){ resultsWrap.innerHTML = ''; return; }
+  if(fwItems.length >= 5){
+    resultsWrap.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px">이미 5개를 모두 지정했어요. 먼저 하나를 빼주세요.</div>`;
+    return;
+  }
+
+  resultsWrap.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px">검색 중...</div>`;
+  try{
+    const res  = await fetch(`${API}/admin/persons/featured-works-work-search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    if(!data.items.length){
+      resultsWrap.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px">검색 결과가 없어요</div>`;
+      return;
+    }
+    resultsWrap.innerHTML = data.items.map(it => `
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--bg3);border-radius:8px;margin-bottom:6px">
+        <img src="https://poster.ottrank.kr/tmdb-img/w92${it.poster_path||''}" onerror="this.style.visibility='hidden'"
+          style="width:34px;height:48px;border-radius:4px;object-fit:cover;background:var(--bg2);flex-shrink:0">
+        <div style="flex:1;min-width:0;font-size:13px;color:var(--text)">
+          ${escapeHtmlPm(it.title || '(제목없음)')}
+          <span style="color:var(--muted);font-size:11px;font-family:var(--mono)"> · ${it.media_type === 'movie' ? '영화' : 'TV'}</span>
+        </div>
+        <button class="btn-secondary" onclick='fwAddWork(${JSON.stringify(it)})' style="padding:6px 14px;white-space:nowrap;font-size:12px">➕ 추가</button>
+      </div>
+    `).join('');
+  }catch(e){
+    resultsWrap.innerHTML = `<div style="padding:12px;color:var(--accent);font-size:13px">검색 실패: ${e.message}</div>`;
+  }
+}
+
+function fwAddWork(item){
+  if(fwItems.length >= 5){ showToast('⚠️ 대표작은 최대 5개까지예요'); return; }
+  if(fwItems.some(it => it.tmdb_id === item.tmdb_id && it.media_type === item.media_type)){
+    showToast('⚠️ 이미 추가된 작품이에요');
+    return;
+  }
+  fwItems.push(item);
+  fwRenderSlots();
+  document.getElementById('fwWorkSearchResultsWrap').innerHTML = '';
+  document.getElementById('fwWorkSearchInput').value = '';
+}
+
+async function fwSave(){
+  if(!fwSelectedPersonId) return;
+  const statusEl = document.getElementById('fwSaveStatus');
+  statusEl.textContent = '저장 중...';
+  statusEl.style.color = 'var(--muted)';
+  try{
+    const res = await fetch(`${API}/admin/persons/featured-works-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({
+        tmdb_person_id: fwSelectedPersonId,
+        works: fwItems.map(it => ({ tmdb_id: it.tmdb_id, media_type: it.media_type })),
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    statusEl.textContent = `✅ 저장 완료 (${data.count}개 지정됨)`;
+    statusEl.style.color = 'var(--green)';
+    showToast('✅ 대표작 저장 완료');
+  }catch(e){
+    statusEl.textContent = `❌ 저장 실패: ${e.message}`;
+    statusEl.style.color = 'var(--accent)';
   }
 }
 </script>
