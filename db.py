@@ -1,5 +1,8 @@
 """
-오뜨랑 DB + TMDB 매칭 모듈 v2
+오뜨랑 DB + TMDB 매칭 모듈 v3
+# 2026-07-29 rev.1 — db.py (FlixPatrol API 크롤러 대응: tmdb_id가 이미 확정된 항목은
+#   제목 매칭/번역 없이 tmdb_id로 직접 상세조회해서 저장. 한글 매칭 실패해도
+#   rank·tmdb_id·media_type은 review_queue로 빠지지 않고 무조건 rankings에 저장됨)
 ────────────────────────────────────────────────────────────────
 매칭 파이프라인 (순서 엄수):
 
@@ -297,6 +300,64 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
     if row and row["tmdb_id"]:
         return dict(row)
 
+    return None
+
+
+
+# ══════════════════════════════════════════════════════════════
+# ②-2 tmdb_id 직접 확정 항목용 (FlixPatrol API 등 — 제목 매칭 불필요)
+# ══════════════════════════════════════════════════════════════
+
+def lookup_works_by_tmdb_id(conn: sqlite3.Connection, tmdb_id: int) -> dict | None:
+    """
+    works 테이블에서 tmdb_id로 직접 조회 (제목 매칭 불필요한 경우용)
+    FlixPatrol API처럼 tmdb_id가 이미 확정되어 들어온 항목에 사용
+    """
+    if not tmdb_id:
+        return None
+    row = conn.execute("""
+        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+        FROM works
+        WHERE tmdb_id = ?
+    """, (tmdb_id,)).fetchone()
+    return dict(row) if row else None
+
+
+# FlixPatrol TOP10 Type enum → TMDB media_type 매핑
+# Movies(2)→movie, TVShows(3)→tv. Overall(1)/Entertainment(54) 등은 섞여있어 확정 불가(None)
+_FLIXPATROL_TYPE_TO_TMDB = {2: "movie", 3: "tv"}
+
+
+def build_tmdb_data_by_id(tmdb_id: int, media_type_hint: str | None = None) -> dict | None:
+    """
+    tmdb_id가 이미 확정된 항목(FlixPatrol API 등) — 제목 검색/번역 없이
+    tmdb_id로 바로 상세정보 조회. 한글 제목 매칭 성공 여부와 무관하게
+    genre/overview/rating/키워드는 항상 확보 가능.
+
+    media_type_hint: "movie"/"tv" 알고 있으면 그걸 먼저 시도(API콜 절감),
+                      모르면(Overall/Entertainment 카테고리 등) 둘 다 시도
+    반환: tmdb_data dict 또는 (둘 다 실패 시) None
+    """
+    order = ([media_type_hint] if media_type_hint else []) + \
+            [mt for mt in ("movie", "tv") if mt != media_type_hint]
+
+    for mt in order:
+        detail = _fetch_detail(tmdb_id, mt)
+        # genre/overview/title_ko 중 하나라도 있으면 유효한 media_type으로 판단
+        if detail and (detail.get("title_ko") or detail.get("genre") or detail.get("overview")):
+            title_en = _fetch_english_title(tmdb_id, mt)
+            keywords = _fetch_keywords(tmdb_id, mt)
+            return {
+                "tmdb_id":      tmdb_id,
+                "title_ko":     detail.get("title_ko") or "",
+                "title_en":     title_en,
+                "poster_path":  detail.get("poster_path") or "",
+                "genre":        detail.get("genre", ""),
+                "overview":     detail.get("overview", ""),
+                "release_year": None,  # 상세조회 응답엔 없음 — 필요시 추후 보강
+                "tmdb_rating":  detail.get("tmdb_rating"),
+                "keywords":     keywords,
+            }
     return None
 
 
@@ -902,6 +963,26 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
     slot     = item["category_slot"]
     rank     = item["rank"]
 
+    # ── ⓪ tmdb_id가 이미 확정된 항목 — 제목 매칭/번역 불필요 (save_rankings_batch와 동일 원칙) ──
+    if item.get("tmdb_id"):
+        tmdb_id    = item["tmdb_id"]
+        media_hint = _FLIXPATROL_TYPE_TO_TMDB.get(item.get("media_type"))
+
+        works_data = lookup_works_by_tmdb_id(conn, tmdb_id)
+        if works_data:
+            print(f"  ✅ [{platform}][{slot}] {rank:2d}. tmdb_id={tmdb_id} → works DB")
+            _save_to_rankings(conn, item, works_data)
+            return
+
+        tmdb_data = build_tmdb_data_by_id(tmdb_id, media_hint)
+        if tmdb_data:
+            insert_work(conn, tmdb_data, match_source="auto_api")
+            _save_to_rankings(conn, item, tmdb_data)
+        else:
+            fallback = {"tmdb_id": tmdb_id, "title_ko": title_en, "title_en": title_en}
+            _save_to_rankings(conn, item, fallback)
+        return
+
     # ── ② works 테이블 우선 조회 ──────────────────────────────
     works_data = lookup_works(conn, title_en)
     if works_data:
@@ -988,6 +1069,43 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
         return
 
     from collections import defaultdict
+
+    # ── ⓪ tmdb_id가 이미 확정된 항목(FlixPatrol API 등) — 제목 매칭/번역 불필요 ──
+    # 한글 제목이 TMDB에 없어도(드묾) rank·tmdb_id·genre·평점 등은 무조건 저장됨.
+    # "제목 매칭 실패 → 검토 큐"이던 기존 규칙이 이 항목들에는 적용되지 않음
+    api_items    = [item for item in items if item.get("tmdb_id")]
+    legacy_items = [item for item in items if not item.get("tmdb_id")]
+
+    for item in api_items:
+        tmdb_id    = item["tmdb_id"]
+        media_hint = _FLIXPATROL_TYPE_TO_TMDB.get(item.get("media_type"))
+
+        # works 테이블에 이미 있으면 재조회 없이 그대로 사용
+        works_data = lookup_works_by_tmdb_id(conn, tmdb_id)
+        if works_data:
+            print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. tmdb_id={tmdb_id} → works DB ('{works_data.get('title_ko') or works_data.get('title_en')}')")
+            _save_to_rankings(conn, item, works_data)
+            continue
+
+        tmdb_data = build_tmdb_data_by_id(tmdb_id, media_hint)
+        if tmdb_data:
+            label = tmdb_data.get("title_ko") or tmdb_data.get("title_en") or item["title_en"]
+            print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. tmdb_id={tmdb_id} → '{label}'"
+                  f"{'' if tmdb_data.get('title_ko') else ' [한글제목 없음, 원제로 대체]'}")
+            insert_work(conn, tmdb_data, match_source="auto_api")
+            _save_to_rankings(conn, item, tmdb_data)
+        else:
+            # TMDB 상세조회 자체가 실패한 극히 드문 경우 — tmdb_id/rank는 그래도 저장
+            fallback = {"tmdb_id": tmdb_id, "title_ko": item["title_en"], "title_en": item["title_en"]}
+            print(f"  ⚠️ [{item['platform']}][{item['category_slot']}] "
+                  f"{item['rank']:2d}. tmdb_id={tmdb_id} 상세조회 실패 — 기본 정보만 저장")
+            _save_to_rankings(conn, item, fallback)
+
+    items = legacy_items
+    if not items:
+        return
 
     # ── ① works 우선 조회 ────────────────────────────────────
     matched_items   = []
