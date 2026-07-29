@@ -1,3 +1,6 @@
+# 2026-07-29 rev.3 — daily_crawl.yml (셀프호스팅 윈도우 러너로 전환 — runs-on: self-hosted,
+#   defaults.run.shell: bash 지정(Git Bash 사용), 우분투 전용 playwright install-deps 삭제.
+#   GitHub Actions 클라우드 IP가 FlixPatrol/KOBIS에 막히는 문제 우회 목적)
 # 2026-07-29 rev.2 — daily_crawl.yml (진단 단계가 KOBIS 타임아웃 때문에 전체 실패로 번지던 버그
 #   수정 — curl 명령마다 `|| true` + continue-on-error 추가, 실패해도 이후 크롤링 단계 정상 진행)
 name: OTT Ranking Crawler v2
@@ -12,7 +15,10 @@ on:
 
 jobs:
   crawl:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: write
 
@@ -32,7 +38,6 @@ jobs:
         run: |
           pip install playwright requests anthropic beautifulsoup4
           playwright install chromium
-          playwright install-deps chromium
 
       # ── 4. D1 → 로컬 동기화 (⚠️ 절대 삭제 금지!) ───────────
       # Admin 수동 저장 데이터 + ott_categories 슬롯 설정 로컬 반영
