@@ -1,3 +1,5 @@
+/* 2026-07-29 rev.5 — index.js (/admin/persons/featured-works* 라우팅 추가 — 대표작 매칭 기능이
+   404 나던 문제 수정, mbti-naver와 동일 파일 admin-persons.js로 위임) */
 /* 2026-07-27 rev.4 — index.js (/admin/persons/mbti-naver-* 라우팅 추가 — admin-persons.js 신규 파일) */
 /* ══════════════════════════════════════════════════════════════
    오뜨랑 Worker 진입점
@@ -162,9 +164,14 @@ export default {
     }
 
     // 3-5. 인물(persons) 관련 신규 어드민 기능 — admin.js와 별도 파일(2026-07-27 신규)
-    //      /admin/persons/mbti-naver-*는 12번 관리자 캐치올(handleAdmin)보다 반드시 앞에
-    //      있어야 함(안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — track.js/relationship.js와 동일 패턴)
-    if (!res && path.startsWith("/admin/persons/mbti-naver")) {
+    //      /admin/persons/mbti-naver-*, /admin/persons/featured-works*는 12번 관리자
+    //      캐치올(handleAdmin)보다 반드시 앞에 있어야 함(안 그러면 handleAdmin으로 잘못
+    //      넘어가서 404가 남 — track.js/relationship.js와 동일 패턴, 2026-07-29 대표작
+    //      매칭 기능 추가하며 동일 문제 재발 확인 후 조건 확장)
+    if (!res && (
+      path.startsWith("/admin/persons/mbti-naver") ||
+      path.startsWith("/admin/persons/featured-works")
+    )) {
       res = await handleAdminPersons(path, request, env, url, headers);
     }
 
