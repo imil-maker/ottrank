@@ -1,3 +1,5 @@
+/* 2026-07-29 rev.6 — index.js (/person-featured-works/:id 공개 조회 라우팅 추가 — person.html
+   대표작 실제 화면 반영용, admin-persons.js로 위임) */
 /* 2026-07-29 rev.5 — index.js (/admin/persons/featured-works* 라우팅 추가 — 대표작 매칭 기능이
    404 나던 문제 수정, mbti-naver와 동일 파일 admin-persons.js로 위임) */
 /* 2026-07-27 rev.4 — index.js (/admin/persons/mbti-naver-* 라우팅 추가 — admin-persons.js 신규 파일) */
@@ -172,6 +174,13 @@ export default {
       path.startsWith("/admin/persons/mbti-naver") ||
       path.startsWith("/admin/persons/featured-works")
     )) {
+      res = await handleAdminPersons(path, request, env, url, headers);
+    }
+
+    // 3-6. 대표작(featured works) 공개 조회 — person.html에서 비로그인 방문자도 호출하는
+    //      공개 API(인증 없음). /admin/으로 시작 안 해서 12번 캐치올과는 원래 안 겹치지만,
+    //      다른 라우트가 먼저 잡아채지 않도록 위와 같은 자리에 명시적으로 둠(2026-07-29 신규)
+    if (!res && path.match(/^\/person-featured-works\/\d+$/)) {
       res = await handleAdminPersons(path, request, env, url, headers);
     }
 
