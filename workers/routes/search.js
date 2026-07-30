@@ -1,4 +1,4 @@
-/* 2026-07-30 rev.2 — search.js (/works/search 응답에 release_date 맵 추가 — 검색결과 페이지 "날짜순" 정렬용) */
+/* 2026-07-30 rev.4 — search.js (시리즈 개봉일 최신순 정렬, "스파이더맨" 검색어에만 한정 테스트) */
 /* ══════════════════════════════════════════════════════════════
    검색 관련 API 라우트
    [2026-07-15 신설] videos.js에 있던 /works/search, /works/exists를
@@ -124,6 +124,9 @@ export async function handleSearch(path, request, env, url, headers) {
   //   ⑧ total(전체 매칭 개수), capped(상한 도달 여부) 응답에 포함
   //   ⑨ [2026-07-30 추가] release_dates(all_ids별 개봉일 맵) 응답에 포함 — 검색결과 페이지
   //      "날짜순" 정렬 버튼용, 추가 쿼리 없이 기존 상세조회 결과 재사용
+  //   ⑩ [2026-07-30 추가, 테스트 단계] 검색어가 "스파이더맨"이고 제목매칭 2개 이상이면 그
+  //      작품들만 개봉일 최신순으로 최상단에 우선 배치 (다른 검색어는 영향 없음, 추후 어드민
+  //      관리 단어 목록으로 확장 예정)
   //
   //   [2026-07-22 전면 개편] 여러 단어 검색 시 키워드/장르가 사실상 반영이 안 되던 문제 수정.
   //   기존엔 "제목/키워드/장르" 중 어느 하나로 통짜 매칭을 먼저 시도하고, 결과가 빈약할 때만
@@ -232,7 +235,32 @@ export async function handleSearch(path, request, env, url, headers) {
       const total = workRows.length;
 
       // ⑦ 정렬: 총점 내림차순 → 한국작품 우선(/search/keyword와 동일 원칙) → 평점 내림차순
+      //
+      //   [2026-07-30 추가, 테스트 단계] "스파이더맨"처럼 제목매칭 작품이 2개 이상이면(=시리즈/
+      //   프랜차이즈 검색) 그 제목매칭 작품들만 개봉일 최신순(내림차순)으로 맨 앞에 먼저 배치.
+      //   (예: 스파이더맨 최신편 → ... → 1편 순으로 먼저 나오고, 그 아래에 키워드/장르로만
+      //   걸린 나머지 작품들이 기존 점수순으로 이어짐)
+      //
+      //   ⚠️ 지금은 검증 단계라 검색어가 정확히 "스파이더맨"일 때만 이 규칙이 동작하도록
+      //   임시로 고정해뒀다 — 그 외 모든 검색어는 이 조건에 안 걸려서 기존 방식(점수순) 그대로
+      //   영향 없음. 나중에 관리자가 어드민 화면에서 이런 "시리즈 정렬 적용 단어"를 직접 등록/
+      //   관리하는 기능으로 교체할 예정 (별도 테이블 + 어드민 UI 필요, 다음 단계에서 진행).
+      const seriesTestWords = ["스파이더맨"]; // TODO: 어드민에서 관리하는 목록으로 교체 예정
+      const seriesMode = seriesTestWords.includes(q.trim()) && titleHit.size >= 2;
       workRows.sort((a, b) => {
+        if (seriesMode) {
+          const aTitle = titleHit.has(a.tmdb_id);
+          const bTitle = titleHit.has(b.tmdb_id);
+          if (aTitle !== bTitle) return aTitle ? -1 : 1; // 제목매칭 작품을 항상 먼저
+          if (aTitle && bTitle) {
+            const da = a.release_date || '';
+            const db = b.release_date || '';
+            if (da && !db) return -1;
+            if (!da && db) return 1;
+            if (da && db && da !== db) return da < db ? 1 : -1; // 최신 개봉일 먼저
+            // 둘 다 없거나 날짜가 같으면 아래 기존 기준으로 폴백
+          }
+        }
         const sa = scoreMap.get(a.tmdb_id) || 0;
         const sb = scoreMap.get(b.tmdb_id) || 0;
         if (sa !== sb) return sb - sa;
