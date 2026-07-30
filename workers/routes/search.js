@@ -1,4 +1,4 @@
-/* 2026-07-22 rev.1 — search.js (검색 결과 정렬 점수제 도입: 제목10/키워드×6/장르×5) */
+/* 2026-07-30 rev.2 — search.js (/works/search 응답에 release_date 맵 추가 — 검색결과 페이지 "날짜순" 정렬용) */
 /* ══════════════════════════════════════════════════════════════
    검색 관련 API 라우트
    [2026-07-15 신설] videos.js에 있던 /works/search, /works/exists를
@@ -122,6 +122,8 @@ export async function handleSearch(path, request, env, url, headers) {
   //   ⑥ 상세조회 단계 진입 후보 상한 100개(D1 바인딩 변수 100개 제한 때문 — §CANDIDATE_CAP 참고)
   //   ⑦ 포스터 없는 작품은 상세조회 단계에서 미리 제외 — has_more/total이 실제 노출 개수와 항상 일치하도록 함
   //   ⑧ total(전체 매칭 개수), capped(상한 도달 여부) 응답에 포함
+  //   ⑨ [2026-07-30 추가] release_dates(all_ids별 개봉일 맵) 응답에 포함 — 검색결과 페이지
+  //      "날짜순" 정렬 버튼용, 추가 쿼리 없이 기존 상세조회 결과 재사용
   //
   //   [2026-07-22 전면 개편] 여러 단어 검색 시 키워드/장르가 사실상 반영이 안 되던 문제 수정.
   //   기존엔 "제목/키워드/장르" 중 어느 하나로 통짜 매칭을 먼저 시도하고, 결과가 빈약할 때만
@@ -217,7 +219,7 @@ export async function handleSearch(path, request, env, url, headers) {
       if (allIds.length) {
         const idPlaceholders = allIds.map(() => "?").join(",");
         const res = await env.DB.prepare(`
-          SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, tmdb_rating, original_language
+          SELECT tmdb_id, title_ko, title_en, poster_path, media_type, release_year, release_date, tmdb_rating, original_language
           FROM works
           WHERE tmdb_id IN (${idPlaceholders})
             AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
@@ -288,10 +290,15 @@ export async function handleSearch(path, request, env, url, headers) {
       // 미리 조회(/works/ott-map)해두는 데 사용.
       // match_types — all_ids 각각의 대표 매칭 카테고리(0=제목/1=키워드/2=장르). 프론트는
       // "정렬 우선순위" 버튼을 눌렀을 때 서버에 다시 안 물어보고 이 값 기준으로 그룹만 재배치한다.
+      // release_dates — [2026-07-30 추가] all_ids 각각의 개봉일/방영일(works.release_date, 이미
+      // 이번 조회에서 같이 가져온 값이라 추가 조회 없음). "날짜순" 정렬 버튼용 — 우리 DB 작품은
+      // 이미 개봉일이 다 채워져 있으므로 별도 API 호출 없이 이 맵만으로 프론트에서 즉시 정렬 가능.
+      // 값이 없으면(구작 중 미확인) null — 프론트에서 맨 뒤로 보낸다.
       return new Response(JSON.stringify({
         ok: true, data, has_more: hasMore, limit, offset, total, capped,
         all_ids: workRows.map(w => w.tmdb_id),
         match_types: Object.fromEntries(categoryMap),
+        release_dates: Object.fromEntries(workRows.map(w => [w.tmdb_id, w.release_date || null])),
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
