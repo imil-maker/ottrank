@@ -1,5 +1,9 @@
 """
 오뜨랑 DB + TMDB 매칭 모듈 v3
+# 2026-07-31 rev.2 — db.py (_search_tmdb_by_title — "TMDB 검색결과 1개면 유사도 검증 없이
+#   무조건 확정"하던 구멍 수정. 웨이브 카테고리04에 전혀 다른 작품(예: "Doctor Who")이
+#   잘못 매칭되던 사고의 원인이었음. 여러 개 결과일 때와 동일하게 _tmdb_title_score >= 80
+#   기준을 1개 결과에도 적용하도록 변경)
 # 2026-07-29 rev.1 — db.py (FlixPatrol API 크롤러 대응: tmdb_id가 이미 확정된 항목은
 #   제목 매칭/번역 없이 tmdb_id로 직접 상세조회해서 저장. 한글 매칭 실패해도
 #   rank·tmdb_id·media_type은 review_queue로 빠지지 않고 무조건 rankings에 저장됨)
@@ -16,7 +20,7 @@
      → "Brave Citizen" → "용감한 시민"
 
   ④ TMDB 한글 검색
-     규칙1: 결과 1개 → 바로 확정
+     규칙1: 결과 1개 → 유사도 점수(_tmdb_title_score) 80점 이상일 때만 확정 [2026-07-31 수정]
      규칙2: 결과 여러개 → 가장 최신 작품 우선
      규칙3: 시즌 포함 "약한영웅 2" → "약한영웅" 으로 재검색
      → 성공: works 테이블 INSERT + rankings 저장
@@ -646,8 +650,19 @@ def _search_tmdb_by_title(query: str, media_type: str, lang: str = "ko-KR", stri
             valid = results
 
         # 결과 1개 → 바로 확정
+        # [2026-07-31 수정] ⚠️ 예전엔 결과가 1개면 유사도 검증을 아예 건너뛰고 무조건 확정했음.
+        # TMDB 검색이 우연히 결과를 1개만 줄 때, 그 1개가 검색어랑 전혀 다른 작품이어도(예:
+        # 웨이브 카테고리에 "Doctor Who"가 잘못 매칭된 사고) 그대로 통과되던 구멍이었음.
+        # 여러 개 결과일 때와 동일한 기준(_tmdb_title_score >= 80, 완전일치/단어경계일치)을
+        # 1개 결과에도 똑같이 적용 — 점수 낮으면 매칭 실패로 처리해서 다음 단계(review_queue
+        # 등)로 넘어가게 함.
         if len(valid) == 1:
-            return _build_result(valid[0], media_type)
+            score = _tmdb_title_score(valid[0], query)
+            if score >= 80:
+                return _build_result(valid[0], media_type)
+            print(f"    [단일결과] '{query}' → 유사도 낮아 저장 안함 "
+                  f"(score={score}, TMDB제목='{_tmdb_get_title(valid[0])}')")
+            return None
 
         # strict 모드 — 결과 여러개일 때 오매칭 방지
         # 단, 제목이 완전 일치하는 결과가 있으면 최신 연도 기준으로 반환
