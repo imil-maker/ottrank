@@ -1,9 +1,6 @@
-// 2026-07-27 rev.2 — track.js (봇 판별에서 "네이버" 일반 패턴 삭제 — User-Agent에 "naver"라는
-// 글자만 있으면 무조건 봇으로 잡던 패턴이라, 네이버 앱 인앱브라우저로 접속한 실제 사람까지
-// 봇으로 잘못 판별되고 있었음. 진짜 네이버 크롤러는 바로 위 "네이버(Yeti)" 패턴이 이미 정확히
-// 잡고 있어서, 이 줄을 지워도 실제 봇을 놓치지 않음. 이 배포 이후에 새로 기록되는 방문부터
-// 정상적으로 "봇 아님" 처리되어 실시간 순위/조회수 집계에 포함됨 — 이미 기록된 과거 데이터는
-// 기록 당시 값이 그대로 남아있어(Analytics Engine 특성상 수정 불가) 소급 반영은 안 됨)
+// 2026-07-30 rev.3 — track.js (GET /admin/track/logs에 ?hideExcludedVids=1 추가 — 순위 집계에서
+// 빼둔 excluded_vids 목록을 페이지 로그 목록에서도 안 보이게 필터링. 기존 excludeBot과 동일한
+// 패턴, 켤 때만 D1을 한 번 더 조회함)
 /* ══════════════════════════════════════════════════════════════
    track.js — 실시간 조회 이벤트 기록 + 조회 (2026-07-21 신설)
    - POST /track/view       : 작품/인물 페이지 + 메인/OTT/커뮤니티 페이지가 열릴 때마다 아주 짧게 신호를 받음
@@ -12,6 +9,8 @@
    - GET  /admin/track/logs : 관리자 전용 — 최근 조회 로그 목록 (Analytics Engine SQL API로 조회, vid·is_bot 포함, 봇도 목록엔 그대로 나옴 — 표시만 해두고 지우진 않음).
        ?vid=<값>을 주면 그 방문자 것만 필터링 + 1페이지 응답에 재방문 여부(visit_info) 같이 내려줌 (2026-07-23 추가)
        ?excludeBot=1을 주면 봇으로 판별된 기록을 아예 빼고 조회(2026-07-23 추가) — vid 필터와 동시 사용 가능
+       ?hideExcludedVids=1을 주면 excluded_vids(D1)에 등록된 방문자 로그도 빼고 조회(2026-07-30 추가)
+         — excludeBot/vid 필터와 동시 사용 가능
    - GET  /admin/track/rank : [2026-07-22 신규] 관리자 전용 — 기간별(어제/오늘/24시간) 조회수 순위.
        작품/인물뿐 아니라 메인/OTT별/커뮤니티 페이지까지 전부 포함해서 종류+ID별로 집계 후 내림차순 정렬.
        봇 트래픽은 여기선 제외하고 집계함(2026-07-23 추가) — "실제로 사람들이 많이 보는 것"을 보려는
@@ -188,9 +187,27 @@ export async function handleTrack(path, request, env, url, headers) {
       // [2026-07-23 추가] 봇 제외 토글 — "실제 사용자만" 보고 싶을 때. vid 필터와 동시에 걸 수 있음.
       const excludeBot = url.searchParams.get("excludeBot") === "1";
 
+      // [2026-07-30 추가] 제외 방문자(excluded_vids) 숨기기 토글 — "실시간 순위" 집계에서 이미
+      // 빼고 있는 방문자(관리자 본인 등)를, 페이지 로그 목록에서도 안 보이게 함. 켤 때만 D1을
+      // 한 번 더 조회(평소엔 조회 안 함), vid는 저장 시점에 이미 영숫자만 통과하는 형식으로
+      // 검증돼 있지만 SQL 문자열에 직접 끼워 넣는 구조라 여기서도 같은 형식 재검증 후 사용.
+      const hideExcludedVids = url.searchParams.get("hideExcludedVids") === "1";
+      let excludedVidList = [];
+      if (hideExcludedVids) {
+        try {
+          const { results } = await env.DB.prepare("SELECT vid FROM excluded_vids").all();
+          excludedVidList = (results || [])
+            .map(r => r.vid)
+            .filter(v => /^[a-z0-9]{1,64}$/.test(v));
+        } catch (e) { /* 조회 실패해도 목록 자체는 정상 반환 — 필터만 안 걸림 */ }
+      }
+
       const whereClauses = [];
       if (vidFilter) whereClauses.push(`blob3 = '${vidFilter}'`);
       if (excludeBot) whereClauses.push(`blob4 != '1'`);
+      if (excludedVidList.length) {
+        whereClauses.push(`blob3 NOT IN (${excludedVidList.map(v => `'${v}'`).join(",")})`);
+      }
       const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
       // Analytics Engine SQL API — writeDataPoint(blobs:[type, id]) 그대로 조회.
@@ -321,7 +338,7 @@ export async function handleTrack(path, request, env, url, headers) {
       }
 
       return new Response(JSON.stringify({
-        ok: true, items, page, limit, has_more: hasMore, vid_filter: vidFilter || null, visit_info: visitInfo, exclude_bot: excludeBot,
+        ok: true, items, page, limit, has_more: hasMore, vid_filter: vidFilter || null, visit_info: visitInfo, exclude_bot: excludeBot, hide_excluded_vids: hideExcludedVids,
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
