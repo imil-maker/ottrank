@@ -1,3 +1,6 @@
+# 2026-07-31 rev.6 — flixpatrol_api.py (⚠️ 임시 디버그 — 웨이브 category04에 일본/미국/영국/
+#   중국/한국 작품이 섞여 들어오는 원인 파악용. 이 슬롯 응답 원본을 GitHub Actions 로그에
+#   그대로 찍음. 원인(국가/차트 구분 필드 등) 확인되면 이 디버그 블록 반드시 제거할 것!)
 # 2026-07-29 rev.5 — flixpatrol_api.py (Rankings 엔드포인트는 /top10s와 type 번호 체계가
 #   다른 것으로 확인됨 — TOP10s: Movies=2/TVShows=3, Rankings: Movie=1/TVShow=2.
 #   그동안 category07에 type=2를 그대로 보내서 실제로는 TV 데이터가 영화로 잘못
@@ -164,6 +167,17 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
         if not data or not data.get("data"):
             print(f"  [{platform}][{category_slot}] ⚠️ 데이터 없음")
             continue
+
+        # [2026-07-31 임시 디버그] 웨이브 category04에 일본/미국/영국/중국/한국 작품이
+        # 뒤섞여 들어오는 원인 파악용 — 응답 원본에 국가/차트를 구분하는 필드가 있는지 확인.
+        # 원인 확인되면 이 블록은 반드시 제거할 것.
+        if platform == "wavve" and category_slot == "category04":
+            import json
+            print(f"  [DEBUG][{platform}][{category_slot}] 원본 응답 rows={len(data['data'])}개")
+            for i, row in enumerate(data["data"][:20]):
+                print(f"  [DEBUG] row[{i}] top-level keys={list(row.keys())}")
+                print(f"  [DEBUG] row[{i}] data keys={list(row.get('data', {}).keys())}")
+                print(f"  [DEBUG] row[{i}] full={json.dumps(row, ensure_ascii=False)[:1000]}")
 
         rows = data["data"]
 
