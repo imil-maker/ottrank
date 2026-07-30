@@ -1,4 +1,5 @@
-/* 2026-07-30 rev.4 — search.js (시리즈 개봉일 최신순 정렬, "스파이더맨" 검색어에만 한정 테스트) */
+/* 2026-07-30 rev.5 — search.js (키워드 매칭 부분일치→앞글자일치 복원 — "일드"가 "하드보일드"에
+   걸리는 우연한 오매칭 수정. "일본공포"류 붙여쓴 키워드는 유사어 슬롯으로 개별 보완 필요) */
 /* ══════════════════════════════════════════════════════════════
    검색 관련 API 라우트
    [2026-07-15 신설] videos.js에 있던 /works/search, /works/exists를
@@ -83,15 +84,22 @@ function _titleMatchStatements(env, term) {
 
 // [2026-07-22 추가] 단어 하나에 대한 키워드(6점)/장르(5점) 매칭 쿼리 2종을 배열로 반환.
 // _splitScoreWords로 쪼갠 단어마다 각각 호출해서 몇 개 단어가 맞았는지 세는 데 사용.
+//
+// [2026-07-30 수정] 키워드 매칭을 부분일치(%검색어%) → 앞글자 일치(검색어%)로 변경.
+// 배경: "일드" 검색 시 "하드보일드"(단어 중간에 우연히 "일드"가 낀 경우)까지 걸리는 오매칭
+// 발견 — "행복"→"상행복종" 같은 케이스도 동일 원리로 걸러야 함이 확인되어 원칙을 "앞글자부터
+// 시작하는 것만 매칭"으로 복원함(원래 원칙, 7/15에 "일본공포" 같은 붙여쓴 키워드를 잡으려고
+// 잠시 부분일치로 풀어놨었음). "일본공포"류는 이제 이 방식으로 못 잡으므로, 필요하면 유사어
+// 슬롯(keyword_ko_2/3)에 띄어쓴 버전("일본 공포")을 개별 등록해서 보완하는 방식으로 대응.
 function _keywordGenreStatements(env, word, capLimit) {
   return [
     env.DB.prepare(`
       SELECT DISTINCT wk.tmdb_id
       FROM keyword_translation kt
       CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
-      WHERE kt.keyword_ko LIKE ('%' || ? || '%')
-         OR kt.keyword_ko_2 LIKE ('%' || ? || '%')
-         OR kt.keyword_ko_3 LIKE ('%' || ? || '%')
+      WHERE kt.keyword_ko LIKE (? || '%')
+         OR kt.keyword_ko_2 LIKE (? || '%')
+         OR kt.keyword_ko_3 LIKE (? || '%')
       LIMIT ?
     `).bind(word, word, word, capLimit),
     env.DB.prepare(`
