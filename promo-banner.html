@@ -1,0 +1,41 @@
+<!-- 2026-07-30 rev.1 — promo-banner.html (스파이더맨 시리즈 검색 유도 배너 위젯 — 신설)
+     header.html/footer.html과 동일한 패턴: 각 페이지에서 fetch로 불러와 innerHTML로 삽입해서 씀.
+     자체 <style>을 포함한 완전 독립 조각이라, index.html처럼 이미 .promo-banner CSS가 있는
+     페이지든, _title_detail.html처럼 없는 페이지든 이 파일 하나만 불러오면 그대로 동작함.
+
+     사용법 — 넣고 싶은 페이지에 아래 두 가지를 추가:
+       1) 원하는 위치에: <div id="promoBannerWrap"></div>
+       2) 페이지 아무 곳(예: body 끝)에:
+          <script>
+          (function(){
+            fetch('/promo-banner.html')
+              .then(r=>r.ok?r.text():Promise.reject())
+              .then(h=>{ document.getElementById('promoBannerWrap').innerHTML = h; })
+              .catch(()=>{});
+          })();
+          </script>
+-->
+<style>
+.promo-banner{
+  display:flex;align-items:center;justify-content:center;
+  width:100%;height:115px;margin:0 0 30px;border-radius:10px;
+  background-size:cover;background-position:center;
+  position:relative;overflow:hidden;text-decoration:none;
+}
+.promo-banner::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.55));
+}
+.promo-banner-text{
+  position:relative;z-index:1;color:#fff;font-size:18px;font-weight:700;
+  text-shadow:0 2px 8px rgba(0,0,0,.7);letter-spacing:-.2px;text-align:center;
+}
+@media (max-width:768px){
+  .promo-banner{height:90px;margin-bottom:22px}
+  .promo-banner-text{font-size:15px}
+}
+</style>
+<a class="promo-banner" href="/search-results.html?q=%EC%8A%A4%ED%8C%8C%EC%9D%B4%EB%8D%94%EB%A7%A8"
+   style="background-image:url('https://img.ottrank.kr/promo/spiderman-banner.gif')">
+  <span class="promo-banner-text">스파이더맨 시리즈 순서대로 보기</span>
+</a>
