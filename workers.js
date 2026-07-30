@@ -366,7 +366,7 @@ function rt(a,s,t){if(!s.length)return a.slice(0,t).map((l,m)=>({...l,rank:m+1})
         SELECT 1 FROM rankings
         WHERE tmdb_id = ? AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
         LIMIT 1
-      `).bind(parseInt(r)).all();g=!!(n&&n.length)}catch{g=!1}let b=g?l:m;if(!d.keyword_preview_updated_at||Date.now()-new Date(d.keyword_preview_updated_at).getTime()>b){let n={keyword:null,items:[]};if(d.keywords&&d.keywords!=="__NONE__"){let _=d.keywords.split(",").map(u=>u.trim()).filter(Boolean).slice(0,10);if(_.length)try{let u=_.map(w=>t.DB.prepare(`
+      `).bind(parseInt(r)).all();g=!!(n&&n.length)}catch{g=!1}let b=g?l:m;try{let{results:n}=await t.DB.prepare("SELECT keyword FROM work_keywords WHERE tmdb_id = ?").bind(parseInt(r)).all();n&&n.length&&(d.keywords=n.map(c=>c.keyword).join(","))}catch{}if(!d.keyword_preview_updated_at||Date.now()-new Date(d.keyword_preview_updated_at).getTime()>b){let n={keyword:null,items:[]};if(d.keywords&&d.keywords!=="__NONE__"){let _=d.keywords.split(",").map(u=>u.trim()).filter(Boolean).slice(0,10);if(_.length)try{let u=_.map(w=>t.DB.prepare(`
                 SELECT w.tmdb_id, w.title_ko, w.title_en, w.poster_path, w.original_language, w.tmdb_rating
                 FROM work_keywords wk
                 JOIN works w ON w.tmdb_id = wk.tmdb_id
