@@ -1,5 +1,6 @@
-// 2026-07-30 rev.6 — admin.js (DELETE /admin/works/:tmdb_id/keywords/:keyword 신규 — 작품별
-// 키워드 삭제. 사전(keyword_translation)은 안 건드리고 그 작품과의 연결만 끊음)
+// 2026-07-30 rev.7 — admin.js (POST /admin/works/:tmdb_id/reset-keyword-cache가 keyword_preview
+// 캐시도 같이 초기화하도록 확장 — 이전엔 keyword_ko_map만 지워서 "관련 작품 자동 추천"이
+// 옛날 캐시에 계속 묶여있던 문제)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -2839,6 +2840,9 @@ export async function handleAdmin(path, request, env, url, headers) {
   // [2026-07-15 신설] 키워드 번역을 고쳐도 작품페이지 캐시(keyword_ko_map, 5~100일 TTL) 때문에
   // 바로 반영 안 되는 문제 — 예전엔 D1 콘솔에서 SQL을 직접 실행해야 했는데, 자주 쓰는
   // 작업이라 버튼 하나로 처리할 수 있게 API로 분리.
+  // [2026-07-30 수정] keyword_preview(관련 작품 자동 추천) 캐시도 같이 초기화하도록 확장 —
+  // 이 버튼이 keyword_ko_map(한글 번역)만 지우고 keyword_preview는 안 건드려서, 예전에
+  // "관련 작품 없음"으로 캐싱된 작품은 번역을 고쳐도 관련 작품이 계속 안 뜨는 문제가 있었음.
   const resetCacheMatch = path.match(/^\/admin\/works\/(\d+)\/reset-keyword-cache$/);
   if (resetCacheMatch && request.method === "POST") {
     if (!_checkAuth(request, env)) {
@@ -2847,7 +2851,7 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const tmdb_id = parseInt(resetCacheMatch[1]);
       const result = await env.DB.prepare(
-        "UPDATE works SET keyword_ko_map_updated_at = NULL WHERE tmdb_id = ?"
+        "UPDATE works SET keyword_ko_map_updated_at = NULL, keyword_preview_updated_at = NULL WHERE tmdb_id = ?"
       ).bind(tmdb_id).run();
 
       if (!result.meta || result.meta.changes === 0) {
