@@ -1,4 +1,6 @@
-<!-- 2026-07-28 rev.2 — admin.html (순위 없음 처리 전부 되돌림, 랭킹 표 작품 제목에 사이트 작품페이지 링크는 유지) -->
+<!-- 2026-07-31 rev.3 — admin.html (① 랭킹관리: 필터링 결과 0개일 때 이전 플랫폼 카테고리
+     그룹이 안 지워지고 잔상으로 남던 버그 수정(박스오피스 탭 등에서 다른 OTT가 겹쳐 보이던 원인)
+     ② 작품/랭킹 저장 후 새로고침할 때마다 무조건 "전체" 탭으로 리셋되던 것을, 보던 탭 유지하도록 수정) -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2290,7 +2292,10 @@ async function loadData() {
     const noTmdbCnt = allData.filter(r => !r.tmdb_id).length;
     document.getElementById('noTmdbCount').textContent = noTmdbCnt > 0 ? `(${noTmdbCnt})` : '';
     loadNewMatchCount(date);
-    setFilter('all', document.querySelector('.ftab'));
+    // [2026-07-31 수정] 예전엔 무조건 '전체' 탭으로 리셋됐음 — 작품/랭킹 수정 후 저장할 때마다
+    // 이 함수가 다시 호출되는데, 보고 있던 OTT 탭(예: 웨이브)에서 계속 작업 중이었다면 매번
+    // '전체'로 튕겨나가서 불편했음. 지금 보고 있던 탭을 그대로 유지하도록 변경.
+    reapplyFilter();
   } catch(e) {
     document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
   }
@@ -2313,7 +2318,7 @@ async function loadManualData() {
     document.getElementById('statTxt').textContent = `수동 데이터 총 ${allData.length}개`;
     document.getElementById('noTmdbCount').textContent = '';
     document.getElementById('newMatchCount').textContent = '';
-    setFilter('all', document.querySelector('.ftab'));
+    reapplyFilter(); // [2026-07-31 수정] 위 loadData()와 동일한 이유로 필터 유지
   } catch(e) {
     document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">오류: ${e.message}</td></tr>`;
   }
@@ -2323,6 +2328,22 @@ function setFilter(f, btn) {
   curFilter = f;
   document.querySelectorAll('.ftab').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
+  renderTable();
+}
+
+// [2026-07-31 신규] 저장/수정 후 데이터를 다시 불러올 때, 무조건 "전체" 탭으로 돌아가지 않고
+// 방금 보고 있던 탭(curFilter)을 그대로 유지하기 위한 헬퍼. curFilter 값에 맞는 버튼을 찾아
+// 다시 활성화 표시만 해주고, 못 찾으면(예: 페이지 첫 로드) 안전하게 "전체"로 폴백.
+function reapplyFilter() {
+  document.querySelectorAll('.ftab').forEach(b => b.classList.remove('on'));
+  const target = Array.from(document.querySelectorAll('.ftab'))
+    .find(b => b.getAttribute('onclick') === `setFilter('${curFilter}',this)`);
+  if (target) {
+    target.classList.add('on');
+  } else {
+    const allBtn = document.querySelector('.ftab');
+    if (allBtn) { allBtn.classList.add('on'); curFilter = 'all'; }
+  }
   renderTable();
 }
 
@@ -2339,6 +2360,15 @@ function renderTable() {
   }
 
   const tbody = document.getElementById('tableBody');
+
+  // [2026-07-31 수정] ⚠️ 예전엔 이 정리 코드가 "결과가 있을 때" 경로에만 있어서, 필터링
+  // 결과가 0개(예: 박스오피스 탭인데 그날 박스오피스 데이터가 없음)일 때는 여기까지 오지도
+  // 못하고 "데이터 없음" 문구만 새로 세팅한 뒤 그대로 끝나버렸음. 그러면 바로 전에 그려져
+  // 있던 다른 플랫폼의 카테고리 그룹 div들이 안 지워진 채 화면에 잔상처럼 계속 남아있었음
+  // (실제로 다시 불러온 게 아니라 예전 화면이 그냥 안 지워진 것). 결과 유무와 상관없이
+  // 항상 먼저 지우도록 위치를 옮김.
+  const tableWrap = tbody.closest('.table-wrap');
+  tableWrap.querySelectorAll('.category-group').forEach(el => el.remove());
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty">데이터 없음</td></tr>';
@@ -2379,10 +2409,7 @@ function renderTable() {
 
   // ── 일반 랭킹: platform+category_slot 조합으로 그룹화하여 드래그앤드롭 렌더링 ──
   tbody.innerHTML = '';
-  const tableWrap = tbody.closest('.table-wrap');
-
-  // 기존 그룹 div 제거
-  tableWrap.querySelectorAll('.category-group').forEach(el => el.remove());
+  // (그룹 정리는 위에서 이미 처리됨 — tableWrap도 위에서 이미 선언돼 있음)
 
   // platform + category_slot 조합으로 그룹화
   const groups = {};
