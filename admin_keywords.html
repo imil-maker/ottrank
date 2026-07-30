@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-30 rev.1 — admin_keywords.html (페이지로그에 "제외 방문자 숨기기" 토글 버튼 신규 — excluded_vids 목록을 로그 화면에서도 필터링) -->
+<!-- 2026-07-30 rev.2 — admin_keywords.html (④ 작품 검색으로 키워드 수정에 "새 키워드 추가" 폼 신규 — 작품에 새 키워드 연결 가능) -->
 <!-- 2026-07-29 rev.1 — admin_keywords.html (대표작 매칭 탭 신규: 인물 검색 → 대표작 최대 5개 지정/저장) -->
 <!-- 2026-07-28 rev.9 — admin_keywords.html (상단 링크 정리: 영상 링크 추가, 어드민 텍스트 변경) -->
 <html lang="ko">
@@ -359,6 +359,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button class="btn-crawl" onclick="searchWorkKeywords()" style="padding:10px 20px;font-size:13px">🔍 검색</button>
       </div>
       <div id="wkMatchedWorks" style="display:none;margin-bottom:14px"></div>
+      <div id="wkAddSection" style="display:none;margin-bottom:14px"></div>
       <div id="wkEmpty" style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center;display:none">검색 결과가 없어요</div>
       <div id="wkList" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
@@ -3660,6 +3661,7 @@ async function searchWorkKeywords() {
   listEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0">검색 중...</div>';
   emptyEl.style.display = 'none';
   matchedEl.style.display = 'none';
+  document.getElementById('wkAddSection').style.display = 'none';
 
   try {
     const res  = await fetch(`${API}/admin/works/keywords?q=${encodeURIComponent(q)}`, {
@@ -3683,6 +3685,8 @@ async function searchWorkKeywords() {
     `).join('');
     matchedEl.style.display = 'block';
 
+    _renderWkAddSection(data.works);
+
     if (!data.items || !data.items.length) {
       listEl.innerHTML = '';
       emptyEl.textContent = '이 작품에 붙은 키워드가 없어요';
@@ -3692,6 +3696,67 @@ async function searchWorkKeywords() {
     _renderKeywordRows(data.items, listEl);
   } catch (e) {
     listEl.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0">검색 실패: ${e.message}</div>`;
+  }
+}
+
+// [2026-07-30 신규] ④ 섹션 — 검색된 작품(들)에 "새 키워드"를 연결하는 폼을 그림.
+// 매칭된 작품이 여러 개면 드롭다운으로 어느 작품에 붙일지 고름(보통 tmdb_id로 검색해서
+// 1개만 나오는 게 일반적인 사용 흐름). 폼 자체는 ③번 저장 폼과 같은 모양(영문+한글1~3).
+function _renderWkAddSection(works) {
+  const sec = document.getElementById('wkAddSection');
+  const options = works.map(w =>
+    `<option value="${w.tmdb_id}">${(w.title_ko || w.title_en || '(제목없음)').replace(/</g,'&lt;').replace(/"/g,'&quot;')} (${w.tmdb_id})</option>`
+  ).join('');
+
+  sec.innerHTML = `
+    <div style="border:1px dashed var(--border);border-radius:8px;padding:12px;background:var(--bg3)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">➕ 이 작품에 새 키워드 연결 — 사전에 이미 있는 영문 키워드면 번역은 그대로 두고 연결만 돼요</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        ${works.length > 1 ? `<select class="form-input" id="wkAddTarget" style="flex:0 0 200px;padding:7px 10px;font-size:13px">${options}</select>` : `<input type="hidden" id="wkAddTarget" value="${works[0].tmdb_id}">`}
+        <input class="form-input" id="wkAddEn" type="text" placeholder="영문 키워드 (예: revenge)" style="flex:1;padding:7px 10px;font-size:13px">
+      </div>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="wkAddKo1" type="text" placeholder="한글 번역 (기존 키워드면 생략 가능)" style="flex:1;padding:7px 10px;font-size:13px">
+        <input class="form-input" id="wkAddKo2" type="text" placeholder="유사어2 (선택)" style="flex:1;padding:7px 10px;font-size:13px">
+        <input class="form-input" id="wkAddKo3" type="text" placeholder="유사어3 (선택)" style="flex:1;padding:7px 10px;font-size:13px">
+        <button class="btn-crawl" onclick="addWorkKeyword(this)" style="padding:7px 16px;font-size:12px;white-space:nowrap">추가</button>
+      </div>
+    </div>
+  `;
+  sec.style.display = 'block';
+}
+
+async function addWorkKeyword(btn) {
+  const tmdbId      = parseInt(document.getElementById('wkAddTarget').value);
+  const keyword_en   = document.getElementById('wkAddEn').value.trim();
+  const keyword_ko   = document.getElementById('wkAddKo1').value.trim();
+  const keyword_ko_2 = document.getElementById('wkAddKo2').value.trim();
+  const keyword_ko_3 = document.getElementById('wkAddKo3').value.trim();
+
+  if (!keyword_en) { showToast('⚠️ 영문 키워드를 입력해주세요'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '추가 중...';
+  try {
+    const res  = await fetch(`${API}/admin/works/${tmdbId}/keywords/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3 }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    showToast(data.reused_existing ? `✅ 기존 키워드 "${keyword_en}" 연결됨` : `✅ 새 키워드 "${keyword_en}" 생성 및 연결됨`);
+    document.getElementById('wkAddEn').value = '';
+    document.getElementById('wkAddKo1').value = '';
+    document.getElementById('wkAddKo2').value = '';
+    document.getElementById('wkAddKo3').value = '';
+    searchWorkKeywords(); // 방금 추가한 게 반영된 최신 목록으로 다시 불러옴
+  } catch (e) {
+    showToast(`❌ 추가 실패: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '추가';
   }
 }
 
