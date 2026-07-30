@@ -1,6 +1,5 @@
-/* 2026-07-30 rev.6 — videos.js (GET /works/:tmdb_id — 작품페이지 키워드 태그를 이제 work_keywords
-   (어드민이 관리하는 우리 DB)가 있으면 그걸 우선 쓰고, 없으면 기존 TMDB 원본 캐시로 폴백.
-   규칙/캐싱 방식은 완전히 동일, 소스만 바뀜) */
+/* 2026-07-30 rev.7 — videos.js (POST /works/register 신규 등록 시, 일본어 TV 작품에
+   "japan drama"/"japan animation" 키워드 자동 연결 — 애니메이션 장르 여부로 분기) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
@@ -705,6 +704,20 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // 키워드/성인물 판별과 동일하게 "최초 1회, INSERT 시점에만" — 재방문마다 반복 호출되지 않게
       if (!existing) {
         ctx.waitUntil(_saveCastForWork(parseInt(tmdb_id), mediaTypeForInsert, env, original_language));
+      }
+
+      // [2026-07-30 신규] 신규 등록된 일본어 TV 작품에 "japan drama"/"japan animation" 키워드
+      // 자동 연결 — 위 출연진 저장과 동일하게 "최초 1회, INSERT 시점에만" 실행. keyword_translation
+      // 사전에는 이미 두 키워드 다 등록돼 있어서(어드민이 직접 만든 것, source='admin') 여기선
+      // work_keywords 연결만 하면 됨. 일본 영화나 비일본 작품은 대상 아님(요청 범위 그대로).
+      if (!existing && original_language === 'ja' && mediaTypeForInsert === 'tv') {
+        const isJapanAnimation = (genre || '').includes('애니메이션');
+        const autoKeyword = isJapanAnimation ? 'japan animation' : 'japan drama';
+        ctx.waitUntil(
+          env.DB.prepare(
+            "INSERT OR IGNORE INTO work_keywords (tmdb_id, keyword) VALUES (?, ?)"
+          ).bind(parseInt(tmdb_id), autoKeyword).run()
+        );
       }
 
       return new Response(JSON.stringify({ ok: true }), { headers });
