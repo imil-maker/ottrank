@@ -406,9 +406,9 @@ function rt(a,s,t){if(!s.length)return a.slice(0,t).map((l,m)=>({...l,rank:m+1})
       SELECT DISTINCT wk.tmdb_id
       FROM keyword_translation kt
       CROSS JOIN work_keywords wk ON wk.keyword = kt.keyword_en
-      WHERE kt.keyword_ko LIKE ('%' || ? || '%')
-         OR kt.keyword_ko_2 LIKE ('%' || ? || '%')
-         OR kt.keyword_ko_3 LIKE ('%' || ? || '%')
+      WHERE kt.keyword_ko LIKE (? || '%')
+         OR kt.keyword_ko_2 LIKE (? || '%')
+         OR kt.keyword_ko_3 LIKE (? || '%')
       LIMIT ?
     `).bind(s,s,s,t),a.DB.prepare(`
       SELECT tmdb_id FROM works
