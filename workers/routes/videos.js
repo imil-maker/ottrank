@@ -1,4 +1,6 @@
-/* 2026-07-26 rev.5 — videos.js (봇 판별 목록에 daumoa 추가 — track.js와 목록 일치시킴, 다음 검색봇 누락됐던 것 수정) */
+/* 2026-07-30 rev.6 — videos.js (GET /works/:tmdb_id — 작품페이지 키워드 태그를 이제 work_keywords
+   (어드민이 관리하는 우리 DB)가 있으면 그걸 우선 쓰고, 없으면 기존 TMDB 원본 캐시로 폴백.
+   규칙/캐싱 방식은 완전히 동일, 소스만 바뀜) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
@@ -908,6 +910,22 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       isRanked = false; // 조회 실패 시 보수적으로 100일(더 긴 캐시) 쪽으로 처리
     }
     const ACTIVE_TTL_MS = isRanked ? KEYWORD_TTL_RANKED_MS : KEYWORD_TTL_DEFAULT_MS;
+
+    // [2026-07-30 신규] 우리 키워드 DB(work_keywords, 어드민이 직접 추가/삭제 관리)에 이 작품
+    // 키워드가 있으면 그걸 우선 사용 — TMDB 원본 캐시(work.keywords)보다 정확하고, 어드민이
+    // 고친 내용이 바로 반영됨. 없으면(아직 손 안 댄 대부분의 작품) 기존 TMDB 원본 그대로 폴백.
+    // 바로 아래 "관련 작품 미리보기"/"한글 번역 매핑" 두 블록이 공통으로 work.keywords를
+    // 읽으므로, 여기서 한 번만 바꿔치기해두면 두 블록 모두 자동으로 우리 DB 기준으로 동작함.
+    try {
+      const { results: curatedKw } = await env.DB.prepare(
+        "SELECT keyword FROM work_keywords WHERE tmdb_id = ?"
+      ).bind(parseInt(tmdb_id)).all();
+      if (curatedKw && curatedKw.length) {
+        work.keywords = curatedKw.map(r => r.keyword).join(",");
+      }
+    } catch (e) {
+      // 조회 실패 시 work.keywords(TMDB 원본) 그대로 사용 — 안전한 폴백
+    }
 
     const kwStale = !work.keyword_preview_updated_at ||
       (Date.now() - new Date(work.keyword_preview_updated_at).getTime()) > ACTIVE_TTL_MS;
