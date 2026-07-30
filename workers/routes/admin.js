@@ -1,6 +1,5 @@
-// 2026-07-28 rev.4 — admin.js (POST /admin/rankings/tving-autofill 신규 — 티빙 category01이
-// 오늘 날짜로 저장 안 됐으면 가장 최근 날짜 데이터를 오늘 날짜로 복사. daily_crawl.yml에서
-// 크론 돌 때마다 호출해서, 관리자가 "순위 저장"을 깜빡해도 N일간 TOP10 히스토리가 끊기지 않게 함)
+// 2026-07-30 rev.5 — admin.js (POST /admin/works/:tmdb_id/keywords/add 신규 — 작품에 새 키워드
+// 연결. 사전에 없는 키워드면 한글 번역과 함께 새로 생성, 있으면 기존 번역 보호하고 연결만 함)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -50,6 +49,7 @@
    GET    /admin/keywords/search                     ← 키워드 en/ko 검색 (오탐 발견 시 수동 수정용)
    POST   /admin/keywords/update                      ← 특정 키워드 한글 번역 개별 수정
    GET    /admin/works/keywords                       ← 작품 제목/tmdb_id로 검색해 그 작품의 키워드 전체 조회(2026-07-15 신설)
+   POST   /admin/works/:tmdb_id/keywords/add           ← 이 작품에 새 키워드 연결(사전에 없으면 새로 생성)(2026-07-30 신설)
    POST   /admin/works/:tmdb_id/reset-keyword-cache    ← 특정 작품 키워드 캐시(keyword_ko_map) 초기화(2026-07-15 신설)
    POST   /admin/works/collect-ott                     ← OTT 서비스현황 일괄 수집(work_ott 정규화 테이블, 15일 주기 갱신, 2026-07-17 신설)
    GET    /admin/works/ott-stuck                       ← OTT 수집 계속 실패 중인(ott_updated_at NULL) 작품 목록(2026-07-17 신설)
@@ -2762,6 +2762,52 @@ export async function handleAdmin(path, request, env, url, headers) {
       `).bind(...tmdbIds).all();
 
       return new Response(JSON.stringify({ ok: true, works, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/:tmdb_id/keywords/add ───────────────────
+  // [2026-07-30 신설] admin_keywords.html "④ 작품 검색으로 키워드 수정" — 기존엔 이미 붙어있는
+  // 키워드의 번역만 고칠 수 있었는데, 이 작품에 아예 새 키워드를 연결하는 기능이 없었음.
+  // 영문 키워드가 keyword_translation에 이미 있으면(다른 작품에서 이미 쓰인 키워드) 그 번역은
+  // 그대로 보호하고 이 작품에 연결만 함. 없으면 입력받은 한글 번역으로 새로 만들면서 연결.
+  const addWorkKeywordMatch = path.match(/^\/admin\/works\/(\d+)\/keywords\/add$/);
+  if (addWorkKeywordMatch && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(addWorkKeywordMatch[1]);
+      const body = await request.json().catch(() => ({}));
+      const keyword_en = (body.keyword_en || "").trim().toLowerCase();
+      if (!keyword_en) {
+        return new Response(JSON.stringify({ ok: false, message: "keyword_en이 필요해요" }), { status: 400, headers });
+      }
+
+      const existing = await env.DB.prepare(
+        "SELECT keyword_en FROM keyword_translation WHERE keyword_en = ?"
+      ).bind(keyword_en).first();
+
+      if (!existing) {
+        // 사전에 없는 새 키워드 — 한글 번역(1번) 필수
+        const keyword_ko = (body.keyword_ko || "").trim();
+        if (!keyword_ko) {
+          return new Response(JSON.stringify({ ok: false, message: "새 키워드는 한글 번역(1번)이 필요해요" }), { status: 400, headers });
+        }
+        const keyword_ko_2 = (body.keyword_ko_2 || "").trim() || null;
+        const keyword_ko_3 = (body.keyword_ko_3 || "").trim() || null;
+        await env.DB.prepare(
+          "INSERT INTO keyword_translation (keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3, source) VALUES (?, ?, ?, ?, 'admin')"
+        ).bind(keyword_en, keyword_ko, keyword_ko_2, keyword_ko_3).run();
+      }
+      // 기존 키워드면(existing 있음) 번역은 손대지 않고 아래에서 연결만 함
+
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO work_keywords (tmdb_id, keyword) VALUES (?, ?)"
+      ).bind(tmdb_id, keyword_en).run();
+
+      return new Response(JSON.stringify({ ok: true, keyword_en, reused_existing: !!existing }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
