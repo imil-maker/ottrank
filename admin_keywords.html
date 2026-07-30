@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 2026-07-29 rev.2 — admin_keywords.html (대표작 매칭 탭에 "대표이미지" 섹션 추가 — R2 업로드/삭제) -->
+<!-- 2026-07-30 rev.1 — admin_keywords.html (페이지로그에 "제외 방문자 숨기기" 토글 버튼 신규 — excluded_vids 목록을 로그 화면에서도 필터링) -->
 <!-- 2026-07-29 rev.1 — admin_keywords.html (대표작 매칭 탭 신규: 인물 검색 → 대표작 최대 5개 지정/저장) -->
 <!-- 2026-07-28 rev.9 — admin_keywords.html (상단 링크 정리: 영상 링크 추가, 어드민 텍스트 변경) -->
 <html lang="ko">
@@ -715,6 +715,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:20px">
         <button class="btn-secondary" onclick="loadPageLogs(1)" style="padding:0 20px;white-space:nowrap">🔄 새로고침</button>
         <button id="plExcludeBotBtn" class="btn-secondary" onclick="togglePlExcludeBot()" style="padding:0 20px;white-space:nowrap">🤖 봇 제외</button>
+        <button id="plHideExcludedBtn" class="btn-secondary" onclick="togglePlHideExcluded()" style="padding:0 20px;white-space:nowrap">🚫 제외 방문자 숨기기</button>
       </div>
 
       <!-- [2026-07-23 신규] vid 필터 상태 배너 — 특정 방문자만 보고 있을 때만 표시 -->
@@ -1356,6 +1357,18 @@ function togglePlExcludeBot(){
   loadPageLogs(1);
 }
 
+/* [2026-07-30 신규] 제외 방문자(excluded_vids) 숨기기 토글 — 이미 "실시간 순위" 집계에서
+   빼둔 방문자(관리자 본인 등)를, 페이지 로그 목록에서도 안 보이게 함. 봇 제외와 동일한 패턴. */
+let plHideExcluded = false;
+function togglePlHideExcluded(){
+  plHideExcluded = !plHideExcluded;
+  const btn = document.getElementById('plHideExcludedBtn');
+  btn.style.background = plHideExcluded ? 'rgba(240,180,41,.2)' : 'transparent';
+  btn.style.color      = plHideExcluded ? 'var(--gold)' : 'var(--muted2)';
+  btn.style.borderColor= plHideExcluded ? 'rgba(240,180,41,.4)' : 'var(--border)';
+  loadPageLogs(1);
+}
+
 async function loadPageLogs(page){
   page = page || 1;
   const tbody = document.getElementById('plTbody');
@@ -1364,7 +1377,8 @@ async function loadPageLogs(page){
   try{
     const vidQs = plVidFilter ? `&vid=${encodeURIComponent(plVidFilter)}` : '';
     const botQs = plExcludeBot ? `&excludeBot=1` : '';
-    const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}${vidQs}${botQs}`, {
+    const exQs  = plHideExcluded ? `&hideExcludedVids=1` : '';
+    const res = await fetch(`${API}/admin/track/logs?page=${page}&limit=${PL_PAGE_SIZE}${vidQs}${botQs}${exQs}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const json = await res.json();
