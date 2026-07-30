@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- 2026-07-30 rev.2 — admin_keywords.html (④ 작품 검색으로 키워드 수정에 "새 키워드 추가" 폼 신규 — 작품에 새 키워드 연결 가능) -->
+<!-- 2026-07-30 rev.3 — admin_keywords.html (① ④ 섹션 키워드 목록에 삭제 버튼 추가 — 작품별
+     키워드 연결 삭제 ② 탭 순서 변경: 페이지 로그·검색어 로그를 맨 앞으로 이동) -->
 <!-- 2026-07-29 rev.1 — admin_keywords.html (대표작 매칭 탭 신규: 인물 검색 → 대표작 최대 5개 지정/저장) -->
 <!-- 2026-07-28 rev.9 — admin_keywords.html (상단 링크 정리: 영상 링크 추가, 어드민 텍스트 변경) -->
 <html lang="ko">
@@ -128,6 +129,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <h1 id="adminHeaderTitle">🏷 키워드 수집</h1>
     <div style="display:flex;gap:8px;align-items:center">
       <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px">
+        <button id="tabPageLog" onclick="switchPageTab('pageLog')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          📊 페이지 로그
+        </button>
+        <button id="tabSearchLog" onclick="switchPageTab('searchLog')"
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          🔍 검색어 로그
+        </button>
         <button id="tabKeyword" onclick="switchPageTab('keyword')"
           style="padding:5px 16px;border-radius:6px;border:none;background:rgba(52,211,153,.2);color:var(--green);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
           🏷 키워드 수집
@@ -143,14 +152,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <button id="tabMbti" onclick="switchPageTab('mbti')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🧠 MBTI 수집
-        </button>
-        <button id="tabSearchLog" onclick="switchPageTab('searchLog')"
-          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
-          🔍 검색어 로그
-        </button>
-        <button id="tabPageLog" onclick="switchPageTab('pageLog')"
-          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
-          📊 페이지 로그
         </button>
         <button id="tabPersonMatch" onclick="switchPageTab('personMatch')"
           style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
@@ -3596,11 +3597,17 @@ async function resetKeywordCache(tmdbId, btn) {
 }
 
 // ③ 키워드검색, ④ 작품검색 공용 — 키워드 한 줄(영문 → 한글1/2/3 입력 + 저장) 렌더링
-function _renderKeywordRows(items, listEl) {
+// [2026-07-30 수정] workTmdbIds가 주어지면(④ 작품별 키워드 목록에서만) 각 줄에 "삭제" 버튼을
+// 추가로 그림 — 이 작품(들)에서 그 키워드 연결만 끊음(사전 자체는 안 지움). ③(전체 사전
+// 검색)은 특정 작품이 아니라서 workTmdbIds 없이 호출되고, 그 경우 삭제 버튼 자체가 안 보임.
+function _renderKeywordRows(items, listEl, workTmdbIds) {
   listEl.innerHTML = '';
   items.forEach(item => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:8px';
+    const delBtn = (workTmdbIds && workTmdbIds.length)
+      ? `<button class="btn-secondary" onclick='deleteWorkKeyword(${JSON.stringify(item.keyword_en)}, ${JSON.stringify(workTmdbIds)}, this)' style="padding:7px 12px;font-size:12px;white-space:nowrap;color:var(--red)">삭제</button>`
+      : '';
     row.innerHTML = `
       <div style="flex:1;font-family:var(--mono);font-size:13px;color:var(--muted2)">${item.keyword_en}</div>
       <div style="color:var(--muted)">→</div>
@@ -3617,9 +3624,35 @@ function _renderKeywordRows(items, listEl) {
              placeholder="유사어3 (선택)"
              style="flex:1;padding:7px 10px;font-size:13px">
       <button class="btn-secondary" onclick="saveKeywordItem(this)" style="padding:7px 14px;font-size:12px;white-space:nowrap">저장</button>
+      ${delBtn}
     `;
     listEl.appendChild(row);
   });
+}
+
+// [2026-07-30 신규] ④ 섹션 — 이 키워드를 매칭된 작품(들)에서 삭제. 작품이 여러 개 매칭된
+// 상태였다면 그 전부에서 연결을 끊음(§배경: 아까 어벤져스 오탐 사례처럼, 검색 매칭 범위와
+// 실제 지우고 싶은 범위가 같다는 전제 — 보통 tmdb_id로 정확히 검색해서 1개만 매칭된 상태로 씀).
+async function deleteWorkKeyword(keyword, tmdbIds, btn) {
+  if (!confirm(`"${keyword}" 키워드를 이 작품에서 삭제할까요? (사전 자체는 안 지워져요)`)) return;
+  btn.disabled = true;
+  btn.textContent = '삭제 중...';
+  try {
+    await Promise.all(tmdbIds.map(id =>
+      fetch(`${API}/admin/works/${id}/keywords/${encodeURIComponent(keyword)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+      }).then(r => r.json()).then(d => {
+        if (!d.ok) throw new Error(d.message || 'failed');
+      })
+    ));
+    showToast(`🗑️ "${keyword}" 삭제 완료`);
+    searchWorkKeywords(); // 최신 목록으로 다시 불러옴
+  } catch (e) {
+    showToast(`❌ 삭제 실패: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = '삭제';
+  }
 }
 
 async function searchKeywords() {
@@ -3693,7 +3726,7 @@ async function searchWorkKeywords() {
       emptyEl.style.display = 'block';
       return;
     }
-    _renderKeywordRows(data.items, listEl);
+    _renderKeywordRows(data.items, listEl, data.works.map(w => w.tmdb_id));
   } catch (e) {
     listEl.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0">검색 실패: ${e.message}</div>`;
   }
