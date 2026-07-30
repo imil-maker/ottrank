@@ -1,3 +1,5 @@
+# 2026-07-31 rev.12 — daily_crawl.yml (Node.js 20 지원종료 경고 해결 — actions/checkout v4→v6,
+#   actions/setup-python v5→v6로 업그레이드. 크롤링 로직/배포 명령은 그대로)
 # 2026-07-29 rev.11 — daily_crawl.yml (Actions 화면 표시 이름을 "FlixPatrol API"로 변경 —
 #   박스오피스가 별도 워크플로우(boxoffice_crawl.yml, "KOBIS API")로 분리되어서
 #   Actions 탭에서 이 워크플로우가 FlixPatrol 전용임을 명확히 구분하기 위함)
@@ -43,11 +45,11 @@ jobs:
     steps:
       # ── 1. 코드 체크아웃 ────────────────────────────────────
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # ── 2. Python 설치 ───────────────────────────────────────
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
