@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-07-30 rev.1 — search-results.html (우선순위 버튼에 "날짜" 추가 — 개봉일 최신순 정렬) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -95,7 +96,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .priority-list{display:flex;flex-direction:row;gap:6px;margin:4px 0 20px}
 .priority-btn{
   flex:1;padding:8px 6px;border-radius:8px;border:1.5px solid var(--border2);
-  background:var(--bg2);color:var(--muted2);font-size:12px;font-family:var(--sans);
+  background:var(--bg2);color:var(--muted2);font-size:11px;font-family:var(--sans);
   cursor:pointer;text-align:center;transition:all .15s;
 }
 .priority-btn:hover{border-color:var(--border2);color:var(--text)}
@@ -227,6 +228,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <button class="priority-btn active" data-priority="0" onclick="togglePriority(0)">제목</button>
       <button class="priority-btn" data-priority="1" onclick="togglePriority(1)">키워드</button>
       <button class="priority-btn" data-priority="2" onclick="togglePriority(2)">장르</button>
+      <button class="priority-btn" data-priority="3" onclick="togglePriority(3)">날짜</button>
     </div>
   </div>
 
@@ -408,15 +410,22 @@ function _prewarmTmdbOtt(){
    서버가 이미 계산해서 내려준 정보(match_types)라 별도 백그라운드 조회조차 필요 없음.
    버튼을 누르면 이미 갖고 있는 allMatchedIds를 "선택한 카테고리가 앞으로 오도록"
    안정정렬(stable partition)만 하면 끝 — 원래 배열이 이미 (매칭타입→한국작품→평점) 순으로
-   정렬돼 있어서, 안정정렬로 재배치해도 각 그룹 내부의 한국작품/평점 순서는 그대로 보존된다. */
+   정렬돼 있어서, 안정정렬로 재배치해도 각 그룹 내부의 한국작품/평점 순서는 그대로 보존된다.
+
+   [2026-07-30 추가] "날짜"(activePriority=3) — 위 세 개(제목/키워드/장르)와 방식이 다름.
+   저 셋은 "카테고리가 맞는 것만 앞으로 당기는" 부분정렬이지만, 날짜는 진짜 최신순 정렬이라
+   서버가 같이 내려준 release_dates 맵으로 개봉일 내림차순 정렬을 한다(별도 API 호출 없음,
+   우리 DB는 이미 개봉일이 다 채워져 있어서 이 값만으로 충분). 개봉일 미확인 작품은 맨 뒤로.
+   제목/키워드/장르와 마찬가지로 TMDB 미등록 보충 작품은 대상에서 제외됨(§위 문단과 동일 원칙). */
 let activeOttFilter = null;
-let activePriority  = 0; // 0=제목(기본), 1=키워드, 2=장르
+let activePriority  = 0; // 0=제목(기본), 1=키워드, 2=장르, 3=날짜
 const cardOttKeys = new Map(); // tmdbId -> 확인된 OTT 키 배열 (일반 검색결과 카드용)
 let filterOffset  = 0;
 let filterHasMore = false;
 
 let allMatchedIds    = [];          // 검색 시 서버가 내려준 전체 매칭 후보 id 목록(정렬된 순서)
 let matchTypeMap      = {};         // tmdb_id -> 0(제목)/1(키워드)/2(장르)/3,4(기타) — 검색 응답에 이미 포함됨
+let releaseDateMap    = {};         // [2026-07-30 추가] tmdb_id -> 개봉일/방영일(YYYY-MM-DD) 또는 null — "날짜" 정렬용
 let ottMap           = {};          // tmdb_id -> [ott_key, ...] — 백그라운드로 채워짐
 let ottMapReady      = false;
 const ottDetailCache = new Map();   // tmdb_id -> 카드 상세정보 캐시 (details 재요청 방지)
@@ -452,7 +461,18 @@ function getFilteredSortedIds(){
     ? allMatchedIds.filter(id => (ottMap[id] || []).includes(activeOttFilter))
     : allMatchedIds.slice();
 
-  if(activePriority !== 0){
+  if(activePriority === 3){
+    // [2026-07-30 추가] 날짜순 — 개봉일 내림차순(최신 먼저). release_dates가 문자열(YYYY-MM-DD)
+    // 이라 사전식 비교로 그대로 날짜 비교가 됨. 개봉일 없는(null) 작품은 항상 맨 뒤로 보낸다.
+    ids.sort((a, b) => {
+      const da = releaseDateMap[a] || '';
+      const db = releaseDateMap[b] || '';
+      if(!da && !db) return 0;
+      if(!da) return 1;
+      if(!db) return -1;
+      return da < db ? 1 : da > db ? -1 : 0;
+    });
+  } else if(activePriority !== 0){
     const sel = [], rest = [];
     ids.forEach(id => ((matchTypeMap[id] ?? -1) === activePriority ? sel : rest).push(id));
     ids = [...sel, ...rest];
@@ -948,6 +968,7 @@ async function runSearch(){
     // 매칭 카테고리(제목/키워드/장르)는 서버가 이미 계산해서 응답에 실어주므로 별도 조회 없이 바로 사용.
     allMatchedIds = dbJson.all_ids || [];
     matchTypeMap  = dbJson.match_types || {};
+    releaseDateMap = dbJson.release_dates || {};
     prefetchOttMap();
 
     _resetGrid();
