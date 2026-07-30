@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<!-- 2026-07-30 rev.1 — search-results.html (우선순위 버튼에 "날짜" 추가 — 개봉일 최신순 정렬) -->
+<!-- 2026-07-30 rev.2 — search-results.html (① DB결과 0개일 때 "결과없음" 조기 표시로 인한
+     깜빡임 수정 — TMDB 확인 끝날 때까지 "검색 중..." 로딩 문구로 대체 ② TMDB 보충 결과
+     정렬을 관련도 순에서 개봉일/방영일 최신순으로 변경) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -829,6 +831,19 @@ async function fetchTmdbRaw(){
   }
   let combined = [...tmdbTv, ...tmdbMv].filter(hasPoster);
 
+  // [2026-07-30 추가] TMDB 보충 결과 최신순 정렬 — 원래는 TMDB가 준 순서(TV 전체→영화 전체,
+  // 관련도 기준)를 그대로 썼는데, 관련도 순서가 뒤죽박죽으로 보여서 개봉일/방영일 내림차순
+  // (최신 먼저)으로 재정렬. TV/영화 구분 없이 날짜 하나로 통합 정렬. 날짜 정보 없는 항목은
+  // 맨 뒤로 보낸다.
+  combined.sort((a, b) => {
+    const da = a.release_date || a.first_air_date || '';
+    const db = b.release_date || b.first_air_date || '';
+    if(!da && !db) return 0;
+    if(!da) return 1;
+    if(!db) return -1;
+    return da < db ? 1 : da > db ? -1 : 0;
+  });
+
   // "이미 우리 DB에 등록된 작품인데 이번 검색어로는 안 걸린 것"은 TMDB 줄거리 매칭으로
   // 새어 들어온 것일 수 있어 제외 (기존 로직 그대로 유지)
   if(combined.length){
@@ -978,24 +993,43 @@ async function runSearch(){
       renderMoreButton();
       updateWorkCount();
     } else {
-      workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
+      // [2026-07-30 수정] DB 결과가 0개라고 바로 "결과 없음"을 띄우면, 뒤이어 TMDB 보충 결과가
+      // 도착했을 때 문구가 화면에서 반짝였다가 바뀌는(깜빡임) 문제가 있었음. TMDB까지 확인이
+      // 끝난 뒤에(성공/실패/타임아웃 모두 포함, 아래 TMDB 콜백에서) 진짜 결과 유무를 확정하므로,
+      // 여기서는 아직 결과가 없다고 단정하지 말고 로딩 중이라는 문구만 띄워둔다.
+      workGrid.innerHTML = `<div class="loading"><span class="spin"></span>검색 중...</div>`;
     }
 
     // ── 2) TMDB는 백그라운드로 보충 — DB 화면은 이미 떠 있으므로 TMDB가 느리거나
     //      실패해도(제한시간 5초, _fetchWithTimeout) 사용자 경험에 영향 없음 ──
     fetchTmdbRaw().then(tmdbRaw => {
-      if(!tmdbRaw.length) return;
-      addUnique(tmdbPool, tmdbRaw);        // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
+      if(tmdbRaw.length) addUnique(tmdbPool, tmdbRaw); // ② TMDB는 DB와 겹치는 건 자동으로 제외됨
       _prewarmTmdbOtt();                   // 화면엔 안 보이지만 미리 OTT 확인해서 캐싱 (OTT 필터 첫 클릭 대비)
 
-      // DB 결과가 0개라 "결과 없음" 문구가 떠 있던 상태였다면, TMDB 보충분으로 다시 그려야 함
+      // [2026-07-30 수정] DB도 TMDB도 진짜 0개일 때만 이제서야 "결과 없음"을 확정해서 띄움
+      // (위에서는 "검색 중..." 로딩 문구만 띄워둔 상태였음 — 깜빡임 방지)
+      if(!combinedAvailable()){
+        workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
+        renderMoreButton();
+        updateWorkCount();
+        return;
+      }
+
+      // DB 결과가 0개라 "검색 중..." 문구가 떠 있던 상태였다면, TMDB 보충분으로 다시 그려야 함
       if(_renderedTotal() === 0) _resetGrid();
 
       _renderUpTo(Math.min(PAGE_SIZE, combinedAvailable()));
       renderMoreButton();
       updateWorkCount();
     }).catch(() => {
-      // TMDB 보충 실패해도 DB 결과는 이미 표시돼 있으므로 별도 에러 처리 불필요
+      // [2026-07-30 수정] TMDB 보충 실패해도 DB 결과가 있으면 그대로 두면 되지만, DB도 0개라
+      // "검색 중..." 문구만 떠 있던 상태였다면 여기서도 결과 없음을 확정해줘야 함(안 그러면
+      // 로딩 문구가 영원히 안 바뀌고 남아있게 됨)
+      if(!combinedAvailable()){
+        workGrid.innerHTML = `<div class="empty">작품 검색 결과가 없습니다.</div>`;
+        renderMoreButton();
+        updateWorkCount();
+      }
     }).finally(() => {
       // [2026-07-18 수정] 관리자 검색어 로그 — 예전엔 DB 응답 직후(TMDB 합산 전) 숫자로 기록해서
       // 화면에 실제 보이는 전체 개수(#cntWorks)와 로그 숫자가 달랐음. TMDB 보충까지(성공/실패/
