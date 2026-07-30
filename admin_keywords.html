@@ -1,8 +1,6 @@
 <!DOCTYPE html>
-<!-- 2026-07-30 rev.3 — admin_keywords.html (① ④ 섹션 키워드 목록에 삭제 버튼 추가 — 작품별
-     키워드 연결 삭제 ② 탭 순서 변경: 페이지 로그·검색어 로그를 맨 앞으로 이동) -->
+<!-- 2026-07-30 rev.4 — admin_keywords.html (기본 노출 탭을 "키워드 수집"→"페이지 로그"로 변경, 로그인 시 자동 로드 추가) -->
 <!-- 2026-07-29 rev.1 — admin_keywords.html (대표작 매칭 탭 신규: 인물 검색 → 대표작 최대 5개 지정/저장) -->
-<!-- 2026-07-28 rev.9 — admin_keywords.html (상단 링크 정리: 영상 링크 추가, 어드민 텍스트 변경) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -130,7 +128,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div style="display:flex;gap:8px;align-items:center">
       <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px">
         <button id="tabPageLog" onclick="switchPageTab('pageLog')"
-          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
+          style="padding:5px 16px;border-radius:6px;border:none;background:rgba(55,138,221,.2);color:#7ec8e3;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
           📊 페이지 로그
         </button>
         <button id="tabSearchLog" onclick="switchPageTab('searchLog')"
@@ -138,7 +136,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
           🔍 검색어 로그
         </button>
         <button id="tabKeyword" onclick="switchPageTab('keyword')"
-          style="padding:5px 16px;border-radius:6px;border:none;background:rgba(52,211,153,.2);color:var(--green);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+          style="padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--sans)">
           🏷 키워드 수집
         </button>
         <button id="tabKeywordTranslate" onclick="switchPageTab('keywordTranslate')"
@@ -187,7 +185,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   </div>
 
   <!-- ══ 키워드 수집 섹션 ══ -->
-  <div class="wrap" id="keywordWrap">
+  <div class="wrap" id="keywordWrap" style="display:none">
 
     <!-- 안내 메시지 -->
     <div style="background:rgba(55,138,221,.08);border:1px solid rgba(55,138,221,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
@@ -692,7 +690,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
   </div>
 
   <!-- ══ 페이지 로그 섹션 (2026-07-21 신규, 2026-07-22 서브탭 추가) ══ -->
-  <div class="wrap" id="pageLogWrap" style="display:none">
+  <div class="wrap" id="pageLogWrap">
 
     <!-- 서브탭: 최근 조회 / 실시간 순위 -->
     <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:20px;width:fit-content">
@@ -1801,6 +1799,7 @@ async function verifySecret(){
       document.getElementById('loginWrap').style.display = 'none';
       document.getElementById('mainWrap').style.display = 'block';
       checkProfileEditsBadge();
+      switchPageLogSubTab('recent'); // [2026-07-30 추가] 기본 탭이 "페이지 로그"로 바뀌어서, 로그인 직후 목록 자동 로드
     } else {
       document.getElementById('loginErr').style.display = 'block';
       ADMIN_SECRET = '';
@@ -1818,6 +1817,7 @@ async function verifySecret(){
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('mainWrap').style.display = 'block';
     checkProfileEditsBadge();
+    switchPageLogSubTab('recent'); // [2026-07-30 추가] 기본 탭이 "페이지 로그"로 바뀌어서, 자동 로그인 시에도 목록 자동 로드
   }
 })();
 
@@ -1836,7 +1836,7 @@ const PAGE_TABS = [
   { key: 'profileEdits',     wrapId: 'profileEditsWrap',      btnId: 'tabProfileEdits',     title: '✏️ 프로필 수정요청', onColor: 'rgba(52,211,153,.2)', onText: 'var(--green)' },
   { key: 'relationshipMatch', wrapId: 'relationshipMatchWrap', btnId: 'tabRelationshipMatch', title: '🔗 관계도 매칭', onColor: 'rgba(230,57,70,.2)', onText: 'var(--accent)' },
 ];
-let currentPageTab = 'keyword';
+let currentPageTab = 'pageLog';
 function switchPageTab(tab) {
   currentPageTab = tab;
   PAGE_TABS.forEach(t => {
