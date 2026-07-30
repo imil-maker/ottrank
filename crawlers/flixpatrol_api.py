@@ -1,3 +1,7 @@
+# 2026-07-31 rev.7 — flixpatrol_api.py (근본 원인 확정 및 수정 — 웨이브 category04 등에서
+#   요청에 "언어" 조건이 빠져있어서, 하나의 응답에 "언어무관 전체 차트"+"한국어 전용 차트"가
+#   섞여 오고 있었음. 두 차트 다 순위가 각자 1위부터 매겨져 있어 그대로 정렬하면 뒤섞임 —
+#   language="ko" 행이 있으면 그것만 남기는 필터 추가. rev.6 임시 디버그 블록은 제거함)
 # 2026-07-31 rev.6 — flixpatrol_api.py (⚠️ 임시 디버그 — 웨이브 category04에 일본/미국/영국/
 #   중국/한국 작품이 섞여 들어오는 원인 파악용. 이 슬롯 응답 원본을 GitHub Actions 로그에
 #   그대로 찍음. 원인(국가/차트 구분 필드 등) 확인되면 이 디버그 블록 반드시 제거할 것!)
@@ -168,18 +172,20 @@ async def crawl_flixpatrol(platform: str, local_conn) -> list[dict]:
             print(f"  [{platform}][{category_slot}] ⚠️ 데이터 없음")
             continue
 
-        # [2026-07-31 임시 디버그] 웨이브 category04에 일본/미국/영국/중국/한국 작품이
-        # 뒤섞여 들어오는 원인 파악용 — 응답 원본에 국가/차트를 구분하는 필드가 있는지 확인.
-        # 원인 확인되면 이 블록은 반드시 제거할 것.
-        if platform == "wavve" and category_slot == "category04":
-            import json
-            print(f"  [DEBUG][{platform}][{category_slot}] 원본 응답 rows={len(data['data'])}개")
-            for i, row in enumerate(data["data"][:20]):
-                print(f"  [DEBUG] row[{i}] top-level keys={list(row.keys())}")
-                print(f"  [DEBUG] row[{i}] data keys={list(row.get('data', {}).keys())}")
-                print(f"  [DEBUG] row[{i}] full={json.dumps(row, ensure_ascii=False)[:1000]}")
-
         rows = data["data"]
+
+        # [2026-07-31 수정] 근본 원인 — 우리가 API에 보내는 요청에 "언어" 조건이 빠져있어서,
+        # 하나의 슬롯 응답 안에 서로 다른 두 개의 차트가 섞여서 옴(웨이브 category04에서 확인:
+        # "언어 무관 전체 TV쇼" 차트 + "한국어 전용 TV쇼" 차트가 함께 옴). 두 차트 다 순위가
+        # 각자 1위부터 따로 매겨져 있어서, 그대로 ranking으로 정렬하면 서로 다른 차트의 같은
+        # 순위끼리 뒤섞여버림(중국/일본/미국/영국 작품이 한국 차트에 낀 것처럼 보인 원인).
+        # language="ko" 태그가 붙은 행이 하나라도 있으면, 그게 우리가 원하는 "한국어 전용"
+        # 차트이므로 그것만 남기고 나머지(다른 언어/미분류 차트)는 버림. 이 필드 자체가 없는
+        # 슬롯(넷플릭스 등, category01/02/05처럼 원래도 문제 없던 슬롯)은 동작 그대로 유지됨.
+        if any(r.get("data", {}).get("language") == "ko" for r in rows):
+            before_cnt = len(rows)
+            rows = [r for r in rows if r.get("data", {}).get("language") == "ko"]
+            print(f"  [{platform}][{category_slot}] 한국어 전용 차트만 필터링: {before_cnt}건 → {len(rows)}건")
 
         # 응답에 여러 날짜가 섞여 올 수 있으니, 그 중 가장 최신 날짜만 골라 사용
         latest_date = max(
