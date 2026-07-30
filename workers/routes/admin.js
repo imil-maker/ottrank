@@ -1,5 +1,5 @@
-// 2026-07-30 rev.5 — admin.js (POST /admin/works/:tmdb_id/keywords/add 신규 — 작품에 새 키워드
-// 연결. 사전에 없는 키워드면 한글 번역과 함께 새로 생성, 있으면 기존 번역 보호하고 연결만 함)
+// 2026-07-30 rev.6 — admin.js (DELETE /admin/works/:tmdb_id/keywords/:keyword 신규 — 작품별
+// 키워드 삭제. 사전(keyword_translation)은 안 건드리고 그 작품과의 연결만 끊음)
 /* ══════════════════════════════════════════════════════════════
    관리자 전용 API 라우트
    GET    /admin/title-map
@@ -50,6 +50,7 @@
    POST   /admin/keywords/update                      ← 특정 키워드 한글 번역 개별 수정
    GET    /admin/works/keywords                       ← 작품 제목/tmdb_id로 검색해 그 작품의 키워드 전체 조회(2026-07-15 신설)
    POST   /admin/works/:tmdb_id/keywords/add           ← 이 작품에 새 키워드 연결(사전에 없으면 새로 생성)(2026-07-30 신설)
+   DELETE /admin/works/:tmdb_id/keywords/:keyword       ← 이 작품에서 키워드 연결 하나 삭제(사전은 안 지움)(2026-07-30 신설)
    POST   /admin/works/:tmdb_id/reset-keyword-cache    ← 특정 작품 키워드 캐시(keyword_ko_map) 초기화(2026-07-15 신설)
    POST   /admin/works/collect-ott                     ← OTT 서비스현황 일괄 수집(work_ott 정규화 테이블, 15일 주기 갱신, 2026-07-17 신설)
    GET    /admin/works/ott-stuck                       ← OTT 수집 계속 실패 중인(ott_updated_at NULL) 작품 목록(2026-07-17 신설)
@@ -2808,6 +2809,27 @@ export async function handleAdmin(path, request, env, url, headers) {
       ).bind(tmdb_id, keyword_en).run();
 
       return new Response(JSON.stringify({ ok: true, keyword_en, reused_existing: !!existing }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/works/:tmdb_id/keywords/:keyword ────────────
+  // [2026-07-30 신설] admin_keywords.html "④ 작품 검색으로 키워드 수정" — 이 작품에서
+  // 키워드 연결 하나만 떼어냄. keyword_translation(사전) 자체는 안 지움 — 다른 작품에서
+  // 같은 키워드를 쓰고 있을 수 있으므로 사전은 그대로 두고 이 작품과의 연결만 삭제.
+  const delWorkKeywordMatch = path.match(/^\/admin\/works\/(\d+)\/keywords\/([^/]+)$/);
+  if (delWorkKeywordMatch && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const tmdb_id = parseInt(delWorkKeywordMatch[1]);
+      const keyword = decodeURIComponent(delWorkKeywordMatch[2]);
+      await env.DB.prepare(
+        "DELETE FROM work_keywords WHERE tmdb_id = ? AND keyword = ?"
+      ).bind(tmdb_id, keyword).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
