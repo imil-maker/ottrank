@@ -1,3 +1,6 @@
+# 2026-07-30 rev.1 — build-workers.yml (Node.js 20 지원종료 경고 해결 — actions/checkout v4→v6,
+#   actions/setup-node v4→v6로 업그레이드. node-version도 '20' 고정 대신 'lts/*'로 바꿔서
+#   앞으로 Node 버전이 또 바뀌어도 이 경고가 재발하지 않게 함)
 name: Build Workers
 
 on:
@@ -15,14 +18,14 @@ jobs:
 
     steps:
       - name: 저장소 체크아웃
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Node.js 설정
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: 'lts/*'
           cache: 'npm'
           cache-dependency-path: workers/package-lock.json
 
