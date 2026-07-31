@@ -1,3 +1,6 @@
+/* 2026-08-01 rev.7 — admin-persons.js (MBTI 네이버수집 자동/수동 구분 추가:
+   mbti_naver_source 컬럼(auto/manual) 채우기, 확정/미확정/개별검색 응답에 birthday+
+   mbti_naver_source 포함 — 화면에서 자동/수동 뱃지 + 구글 검색 링크 만드는 데 사용) */
 /* 2026-07-31 rev.6 — admin-persons.js (공개조회 API 응답에 credit_kind 필드 누락 발견,
    추가 — person.html의 cast/crew 병합 로직이 출연/연출을 명시적으로 구분할 수 있게 함) */
 /* 2026-07-31 rev.5 — admin-persons.js (필모그래피 수동 추가 기능 신규: person_manual_credits
@@ -279,7 +282,7 @@ export async function handleAdminPersons(path, request, env, url, headers) {
 
       if (naverResult.mbti) {
         await env.DB.prepare(
-          `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
+          `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now'), mbti_naver_source = 'auto' WHERE tmdb_id = ?`
         ).bind(naverResult.mbti, candidate.tmdb_id).run();
         return new Response(JSON.stringify({
           ok: true, done: false,
@@ -317,12 +320,12 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       let items;
       if (/^\d+$/.test(q)) {
         const row = await env.DB.prepare(
-          `SELECT tmdb_id, name, name_ko, mbti_naver FROM persons WHERE tmdb_id = ?`
+          `SELECT tmdb_id, name, name_ko, birthday, mbti_naver, mbti_naver_source FROM persons WHERE tmdb_id = ?`
         ).bind(parseInt(q, 10)).first();
         items = row ? [row] : [];
       } else {
         const { results } = await env.DB.prepare(`
-          SELECT tmdb_id, name, name_ko, mbti_naver FROM persons
+          SELECT tmdb_id, name, name_ko, birthday, mbti_naver, mbti_naver_source FROM persons
           WHERE name LIKE ? OR name_ko LIKE ?
           ORDER BY name LIMIT 30
         `).bind(`%${q}%`, `%${q}%`).all();
@@ -348,7 +351,8 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       const offset = (page - 1) * limit;
 
       const { results: items } = await env.DB.prepare(`
-        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti_naver AS mbti, mbti_naver_checked_at
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, birthday,
+               mbti_naver AS mbti, mbti_naver_checked_at, mbti_naver_source
         FROM persons
         WHERE mbti_naver IS NOT NULL
         ORDER BY mbti_naver_checked_at DESC
@@ -379,7 +383,7 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       const offset = (page - 1) * limit;
 
       const { results: items } = await env.DB.prepare(`
-        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, mbti_naver_checked_at
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, birthday, mbti_naver_checked_at
         FROM persons
         WHERE mbti_naver_checked_at IS NOT NULL AND mbti_naver IS NULL
         ORDER BY mbti_naver_checked_at DESC
@@ -421,11 +425,12 @@ export async function handleAdminPersons(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
       }
 
+      // 값을 넣으면(관리자 직접 저장) source='manual', 빈 값으로 삭제하면 source도 같이 비움
       await env.DB.prepare(
-        `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now') WHERE tmdb_id = ?`
-      ).bind(mbtiRaw || null, tmdbId).run();
+        `UPDATE persons SET mbti_naver = ?, mbti_naver_checked_at = datetime('now'), mbti_naver_source = ? WHERE tmdb_id = ?`
+      ).bind(mbtiRaw || null, mbtiRaw ? "manual" : null, tmdbId).run();
 
-      return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null }), { headers });
+      return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null, source: mbtiRaw ? "manual" : null }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
