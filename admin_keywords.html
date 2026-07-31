@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-01 rev.9 — admin_keywords.html (확정 리스트에 자동/수동 필터 버튼(전체/자동만/수동만) 추가,
+     구글 검색 링크에 직업(배우/감독) 포함 — 동명이인 정확도 개선. admin-persons.js rev.9의
+     job 필드 응답 활용) -->
 <!-- 2026-08-01 rev.8 — admin_keywords.html (MBTI 확정/미확정 리스트에 구글 검색 더블체크 링크 추가
      "생년+이름+MBTI" 형식(생년 없으면 이름+MBTI만), 확정 리스트(네이버 소스)엔 자동/수동 뱃지 추가 —
      admin-persons.js rev.7의 birthday/mbti_naver_source 응답 활용) -->
@@ -625,11 +628,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
     <!-- ══ 서브탭 ③: 확정 리스트 ══ -->
     <div id="mbtiConfirmedPanel" style="display:none">
-      <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:14px;width:fit-content">
+      <div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:10px;width:fit-content">
         <button id="mcfSrcAi" onclick="setMcfSource('ai')"
           style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">AI</button>
         <button id="mcfSrcNaver" onclick="setMcfSource('naver')"
           style="padding:5px 14px;border-radius:6px;border:none;background:rgba(168,85,247,.2);color:#c4b5fd;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">네이버</button>
+      </div>
+      <div id="mcfFilterRow" style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:14px;width:fit-content">
+        <button id="mcfFilterAll" onclick="setMcfFilter('all')"
+          style="padding:5px 14px;border-radius:6px;border:none;background:rgba(148,163,184,.2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">전체</button>
+        <button id="mcfFilterAuto" onclick="setMcfFilter('auto')"
+          style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">🤖 자동만</button>
+        <button id="mcfFilterManual" onclick="setMcfFilter('manual')"
+          style="padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);font-size:12px;cursor:pointer;font-family:var(--sans)">✋ 수동만</button>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
         MBTI가 채워진 인물 목록이에요(최근 확인 순). 인물페이지 링크로 바로 가거나, 여기서 값을 바로 수정할 수 있어요.
@@ -4608,7 +4619,7 @@ function switchMbtiSubTab(sub){
 }
 
 // ── 확정 리스트 ── (AI / 네이버 소스 전환 가능)
-let mcfPage = 1, mcfTotal = 0, mcfSource = 'naver';
+let mcfPage = 1, mcfTotal = 0, mcfSource = 'naver', mcfFilter = 'all';
 
 function setMcfSource(src){
   if (mcfSource === src) return;
@@ -4617,15 +4628,33 @@ function setMcfSource(src){
   document.getElementById('mcfSrcAi').style.color = src === 'ai' ? '#c4b5fd' : 'var(--muted2)';
   document.getElementById('mcfSrcNaver').style.background = src === 'naver' ? 'rgba(168,85,247,.2)' : 'transparent';
   document.getElementById('mcfSrcNaver').style.color = src === 'naver' ? '#c4b5fd' : 'var(--muted2)';
+  // 자동/수동 필터는 네이버 소스에서만 의미가 있음(AI 소스는 이 구분이 없음)
+  document.getElementById('mcfFilterRow').style.display = src === 'naver' ? 'flex' : 'none';
+  if (src !== 'naver') { mcfFilter = 'all'; }
   loadMbtiConfirmedList(1);
 }
 
-// [2026-08-01 신규] MBTI 더블체크용 구글 검색 링크 — "생년+이름+MBTI", 생년 없으면 "이름+MBTI"만
-function mbtiGoogleLink(name, birthday){
+function setMcfFilter(f){
+  if (mcfFilter === f) return;
+  mcfFilter = f;
+  const map = { all: 'mcfFilterAll', auto: 'mcfFilterAuto', manual: 'mcfFilterManual' };
+  Object.keys(map).forEach(k => {
+    const el = document.getElementById(map[k]);
+    el.style.background = k === f ? 'rgba(148,163,184,.2)' : 'transparent';
+    el.style.color = k === f ? 'var(--text)' : 'var(--muted2)';
+    el.style.fontWeight = k === f ? '600' : 'normal';
+  });
+  loadMbtiConfirmedList(1);
+}
+
+// [2026-08-01 신규] MBTI 더블체크용 구글 검색 링크 — "생년+이름+직업+MBTI", 생년 없으면 "이름+직업+MBTI"
+// 동명이인이 많아서 직업(배우/감독)까지 넣어 정확도를 높임(job='direct'면 감독, 그 외 배우).
+function mbtiGoogleLink(name, birthday, job){
   const clean = (name || '').replace(/</g,'&lt;');
-  let q = `${clean} MBTI`;
+  const jobLabel = job === 'direct' ? '감독' : '배우';
+  let q = `${clean} ${jobLabel} MBTI`;
   if (birthday && /^\d{4}/.test(birthday)) {
-    q = `${birthday.slice(0,4)}년생 ${clean} MBTI`;
+    q = `${birthday.slice(0,4)}년생 ${clean} ${jobLabel} MBTI`;
   }
   return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
 }
@@ -4635,8 +4664,9 @@ async function loadMbtiConfirmedList(page){
   const wrap = document.getElementById('mbtiConfirmedList');
   wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">불러오는 중...</div>';
   const endpoint = mcfSource === 'naver' ? 'mbti-naver-confirmed-list' : 'mbti-confirmed-list';
+  const filterParam = (mcfSource === 'naver' && mcfFilter !== 'all') ? `&source=${mcfFilter}` : '';
   try {
-    const res = await fetch(`${API}/admin/persons/${endpoint}?page=${page}`, {
+    const res = await fetch(`${API}/admin/persons/${endpoint}?page=${page}${filterParam}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
     });
     const data = await res.json();
@@ -4660,7 +4690,7 @@ async function loadMbtiConfirmedList(page){
           <input class="form-input" id="mcfInput-${p.tmdb_id}" type="text" value="${p.mbti || ''}" maxlength="4"
             style="width:80px;padding:6px 8px;font-size:12px;font-family:var(--mono);text-transform:uppercase">
           <button class="btn-secondary" onclick="saveMcfMbti(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px">저장</button>
-          <a href="${mbtiGoogleLink(p.display_name, p.birthday)}" target="_blank" style="font-size:12px;color:#fbbf24;text-decoration:none;white-space:nowrap">🔍 구글검색</a>
+          <a href="${mbtiGoogleLink(p.display_name, p.birthday, p.job)}" target="_blank" style="font-size:12px;color:#fbbf24;text-decoration:none;white-space:nowrap">🔍 구글검색</a>
           <a href="/person/${p.tmdb_id}" target="_blank" style="font-size:12px;color:#7ec8e3;text-decoration:none;white-space:nowrap">🔗 페이지</a>
         </div>
       `;
@@ -4743,7 +4773,7 @@ async function loadMbtiPendingList(page){
           <input class="form-input" id="mpdInput-${p.tmdb_id}" type="text" placeholder="예: ENFP" maxlength="4"
             style="width:80px;padding:6px 8px;font-size:12px;font-family:var(--mono);text-transform:uppercase">
           <button class="btn-secondary" onclick="saveMpdMbti(${p.tmdb_id}, this)" style="padding:6px 12px;font-size:12px">저장</button>
-          <a href="${mbtiGoogleLink(p.display_name, p.birthday)}" target="_blank" style="font-size:12px;color:#fbbf24;text-decoration:none;white-space:nowrap">🔍 구글검색</a>
+          <a href="${mbtiGoogleLink(p.display_name, p.birthday, p.job)}" target="_blank" style="font-size:12px;color:#fbbf24;text-decoration:none;white-space:nowrap">🔍 구글검색</a>
           <a href="/person/${p.tmdb_id}" target="_blank" style="font-size:12px;color:#7ec8e3;text-decoration:none;white-space:nowrap">🔗 페이지</a>
         </div>
       `).join('');
