@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-07-31 rev.6 — person.html (인물 관련 영상 기능 신규: 랭킹위젯 자리에 등록된 영상이
+     있으면 랭킹위젯 대신 노출 — 1개면 그 자리에서 바로 재생 가능한 기본임베드, 2개 이상이면
+     썸네일그리드+클릭시 재생창(작품페이지 관련영상과 동일 패턴). GET /videos/person/:id 사용) -->
 <!-- 2026-07-31 rev.5 — person.html (updateSEO() 함수가 페이지 로드 후 타이틀/키워드를 다시
      덮어쓰면서 감독 페이지도 "출연작"으로 되돌아가던 버그 수정 — [id].js SSR과 동일하게
      jobLabel이 감독이면 "연출작", 배우면 "출연작"으로 분기하는 workLabel 추가) -->
@@ -292,6 +295,29 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
 .known-for-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;
   scrollbar-width:none;-ms-overflow-style:none}
 .known-for-row::-webkit-scrollbar{display:none}
+
+/* [2026-07-31 추가] 인물 관련 영상 — 랭킹위젯과 같은 자리를 공유(영상 있으면 이 섹션,
+   없으면 랭킹위젯). 타이틀은 대표작(.section-title)과 동일한 스타일 재사용.
+   그리드/카드/재생창 CSS는 _title_detail.html의 "관련영상" 패턴을 그대로 가져옴. */
+.related-video-section{margin:32px 0}
+.yt-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.yt-card{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:border-color .15s}
+.yt-card:hover{border-color:var(--border2)}
+.yt-thumb{position:relative;aspect-ratio:16/9;background:var(--bg3);overflow:hidden}
+.yt-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.yt-thumb-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted)}
+.yt-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);opacity:0;transition:opacity .15s}
+.yt-card:hover .yt-play{opacity:1}
+.yt-play-icon{width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.yt-info{padding:12px}
+.yt-title{font-size:15px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.modal-wrap{display:none;border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:12px;background:var(--bg2)}
+.modal-wrap.show{display:block}
+.modal-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:.5px solid var(--border)}
+.modal-ttl{font-size:13px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal-close{background:none;border:none;font-size:13px;cursor:pointer;color:var(--muted);padding:0;line-height:1}
+.yt-player-wrap{position:relative;width:100%;aspect-ratio:16/9}
+.yt-player-wrap iframe{width:100%;height:100%;border:none;display:block}
 
 /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 방문객 전원에게 노출되는 유입 장치.
    포스터 카드는 대표작(.known-for-row .work-card)과 완전히 동일한 크기를 쓰려고
@@ -828,6 +854,22 @@ body.layout-test .person-meta-row{ justify-content:flex-start }
       <div class="known-for-row" id="knownForRow"></div>
       <button class="scroll-arrow scroll-arrow-right hidden" onclick="scrollRowBy('knownForRow',1)" aria-label="다음 작품">›</button>
     </div>
+  </div>
+
+  <!-- [2026-07-31 신규] 인물 관련 영상 — 관리자가 등록한 유튜브 영상이 있으면 랭킹위젯
+       대신 이 자리에 노출(둘 중 하나만 보임). 1개면 클릭 없이 바로 그 자리에서 재생
+       가능한 기본 임베드, 2개 이상이면 썸네일 그리드 → 클릭 시 위쪽 재생창에서 재생
+       (작품페이지 "관련영상"과 동일한 패턴). -->
+  <div id="personVideoSection" class="related-video-section" style="display:none">
+    <div class="section-title" id="personVideoTitle">🎥 관련 영상</div>
+    <div id="personVideoModalWrap" class="modal-wrap">
+      <div class="modal-head">
+        <span class="modal-ttl" id="personVideoModalTitle"></span>
+        <button class="modal-close" onclick="closePersonVideoPlayer()">✕</button>
+      </div>
+      <div class="yt-player-wrap"><iframe id="personVideoFrame" src="" allowfullscreen allow="autoplay;encrypted-media" title="유튜브 영상"></iframe></div>
+    </div>
+    <div id="personVideoArea"></div>
   </div>
 
   <!-- [2026-07-11 재배치] 오늘의 랭킹 위젯 — 어드민 "인물페이지 설정"에서 켠 카테고리 1개만 노출.
@@ -2024,6 +2066,62 @@ document.addEventListener('keydown', (e) => {
   else if(e.key === 'ArrowRight') personLightboxNav(e, 1);
 });
 
+/* [2026-07-31 신규] 인물 관련 영상 — 랭킹위젯과 같은 자리를 공유. 등록된 영상이
+   있으면 이 섹션을 노출하고 랭킹위젯은 호출하지 않음(자리 하나에 하나만).
+   조회 실패/영상 없음이면 기존처럼 랭킹위젯으로 폴백. */
+async function loadPersonVideosOrRanking(personId, displayName){
+  try{
+    const res  = await fetch(`${OTTRANK_API}/videos/person/${personId}`);
+    const json = await res.json();
+    const items = (json.ok && Array.isArray(json.data)) ? json.data : [];
+    if(!items.length){
+      loadRankingWidget();
+      return;
+    }
+    document.getElementById('personVideoTitle').textContent = `🎥 ${displayName} 관련 영상`;
+    renderPersonVideoArea(items);
+    document.getElementById('personVideoSection').style.display = 'block';
+  }catch(e){
+    loadRankingWidget(); // 조회 실패해도 랭킹위젯은 정상 노출되도록 폴백
+  }
+}
+
+function renderPersonVideoArea(items){
+  const area = document.getElementById('personVideoArea');
+
+  // [B안] 1개면 클릭 한 번 없이, 유튜브 기본 재생 버튼만 눌러도 그 자리에서 바로 재생
+  if(items.length === 1){
+    const v = items[0];
+    area.innerHTML = `
+      <div class="yt-player-wrap" style="border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+        <iframe src="https://www.youtube.com/embed/${v.youtube_id}" allowfullscreen allow="autoplay;encrypted-media" title="${escHtml(v.title||'')}"></iframe>
+      </div>`;
+    return;
+  }
+
+  // 2개 이상 — 썸네일 그리드, 클릭하면 위쪽 재생창(modal-wrap)이 열리며 그 자리에서 재생
+  area.innerHTML = `<div class="yt-grid">${items.map(v => `
+    <div class="yt-card" onclick="openPersonVideoPlayer('${v.youtube_id}','${(v.title||'').replace(/'/g,"\\'")}')">
+      <div class="yt-thumb">
+        <img src="https://img.youtube.com/vi/${v.youtube_id}/mqdefault.jpg" alt="${escHtml(v.title||'')}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="yt-thumb-ph" style="display:none">▶</div>
+        <div class="yt-play"><div class="yt-play-icon">▶</div></div>
+      </div>
+      <div class="yt-info"><div class="yt-title">${escHtml(v.title||'')}</div></div>
+    </div>`).join('')}</div>`;
+}
+
+function openPersonVideoPlayer(youtubeId, title){
+  document.getElementById('personVideoModalTitle').textContent = title;
+  document.getElementById('personVideoFrame').src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1`;
+  document.getElementById('personVideoModalWrap').classList.add('show');
+  document.getElementById('personVideoModalWrap').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+function closePersonVideoPlayer(){
+  document.getElementById('personVideoFrame').src = '';
+  document.getElementById('personVideoModalWrap').classList.remove('show');
+}
+
 /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 어드민이 "인물페이지 설정"에서 켜놓은 카테고리
    1개를 노출. 이 배우/인물과 무관하게 방문객 전원에게 보이는 유입 장치라, 사진갤러리와
    동일하게 initPage 메인 흐름과 분리된 fire-and-forget 호출로 둠 — 느리거나 실패해도
@@ -2211,9 +2309,10 @@ async function initPage(){
     /* [2026-07-11 추가] 사진 갤러리 — 메인 흐름을 안 막게 await 없이 별도 호출 */
     loadPhotoGallery(personId, IMG_PROFILE);
 
-    /* [2026-07-11 추가] 오늘의 랭킹 위젯 — 이 인물과 무관한 전역 데이터라
-       personId 로딩 성공 여부와 상관없이 독립적으로 호출, await 없이 별도 호출 */
-    loadRankingWidget();
+    /* [2026-07-31 수정] 오늘의 랭킹 위젯 자리에 인물 관련 영상이 등록돼 있으면 그걸
+       우선 노출하고, 없을 때만 랭킹 위젯을 노출함. 이 인물과 무관한 전역 데이터/부가
+       기능이라 personId 로딩 성공 여부와 상관없이 독립적으로 호출, await 없이 별도 호출 */
+    loadPersonVideosOrRanking(personId, displayName);
 
     /* ⑤ 약력 준비 — ko-KR 없으면 영어 fallback. [2026-07-20 수정] 여기서 바로
        화면에 그리지 않음 — 영어 약력이 먼저 번쩍 보였다가 위키 한글 요약으로
