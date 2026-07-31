@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-07-31 rev.7 — person.html (필모그래피 수동 추가 기능 신규: 관리자가 등록한
+     person_manual_credits를 TMDB 필모(combined_credits)와 합쳐서 필모그래피 그리드/대표작
+     매칭 후보 풀에 합류시킴 — GET /person-manual-credits/:id 사용, TMDB 필모와 중복이면
+     TMDB 쪽 우선, 대표작 자동계산 알고리즘에는 관여 안 함) -->
 <!-- 2026-07-31 rev.6 — person.html (인물 관련 영상 기능 신규: 랭킹위젯 자리에 등록된 영상이
      있으면 랭킹위젯 대신 노출 — 1개면 그 자리에서 바로 재생 가능한 기본임베드, 2개 이상이면
      썸네일그리드+클릭시 재생창(작품페이지 관련영상과 동일 패턴). GET /videos/person/:id 사용) -->
@@ -1690,6 +1694,21 @@ async function loadPinnedFeaturedWorks(personId){
   }
 }
 
+/* [2026-07-31 신규] 관리자가 수동으로 추가한 필모 작품 조회 — 공개 API, 인증 불필요.
+   TMDB 필모(combined_credits)에 없는 작품을 카드 렌더에 바로 쓸 수 있는 형태(포스터/제목/
+   연도/평점)로 받아옴. 실패해도 조용히 빈 배열 반환 — 필모그래피는 기존처럼 TMDB
+   데이터만으로도 정상 동작해야 함(이 기능이 필수 경로가 되면 안 됨). */
+async function loadManualCredits(personId){
+  try {
+    const res = await fetch(`${OTTRANK_API}/person-manual-credits/${personId}`);
+    if(!res.ok) return [];
+    const data = await res.json();
+    return (data.ok && Array.isArray(data.items)) ? data.items : [];
+  } catch(e) {
+    return [];
+  }
+}
+
 /* [2026-07-20 신규] OTT 배지 로드 — 화면에 보이는 카드들의 tmdb_id를 모아 한 번에 조회.
    /works/ott-map은 "우리 DB에 있는 작품"만 응답에 포함되므로, DB 미등록 작품은
    자동으로 배지가 안 뜸(실시간 TMDB 조회 없음 — 검색결과 페이지와 다르게 가볍게 처리). */
@@ -2399,6 +2418,14 @@ async function initPage(){
     const cast   = (credits.cast   || []).map(c=>({...c, media_type: c.media_type||'tv',  _kind:'act'}));
     const crew   = (credits.crew   || []).map(c=>({...c, media_type: c.media_type||'movie',_kind:'direct'}));
 
+    // [2026-07-31 신규] 관리자가 수동으로 추가한 필모 작품 — TMDB 필모(combined_credits)에
+    // 없는 작품을 이 사람의 출연/연출 목록에 합류시킴(대표작 자동계산 알고리즘에는 안 들어감,
+    // 아래 pinnedItems 매칭 후보 풀에만 합류). 이미 TMDB 필모에 있는 작품과 중복이면 아래
+    // dedup에서 TMDB 쪽(먼저 push됨)이 우선 유지되고 수동 항목은 자동으로 걸러짐.
+    const manualCredits = await loadManualCredits(personId);
+    const manualCast = manualCredits.filter(m=>m.credit_kind==='act').map(m=>({...m,_kind:'act'}));
+    const manualCrew = manualCredits.filter(m=>m.credit_kind==='direct').map(m=>({...m,_kind:'direct'}));
+
     // 중복 제거 (tmdb_id + media_type 기준)
     const dedup = (arr) => {
       const seen = new Set();
@@ -2416,12 +2443,12 @@ async function initPage(){
       return db.localeCompare(da);
     });
 
-    actCredits    = sortByDate(dedup(cast));
-    directCredits = sortByDate(dedup(crew.filter(c=>
+    actCredits    = sortByDate(dedup([...cast, ...manualCast]));
+    directCredits = sortByDate(dedup([...crew.filter(c=>
       c.job==='Director'||c.job==='Creator'||c.department==='Directing'
-    )));
+    ), ...manualCrew]));
     // 전체 = 출연 + 연출 합쳐서 중복 제거 후 정렬
-    allCredits = sortByDate(dedup([...cast, ...crew]));
+    allCredits = sortByDate(dedup([...cast, ...crew, ...manualCast, ...manualCrew]));
 
     const total = allCredits.length;
     if(total > 0){
