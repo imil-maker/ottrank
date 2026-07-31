@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-07-31 rev.5 — person.html (updateSEO() 함수가 페이지 로드 후 타이틀/키워드를 다시
+     덮어쓰면서 감독 페이지도 "출연작"으로 되돌아가던 버그 수정 — [id].js SSR과 동일하게
+     jobLabel이 감독이면 "연출작", 배우면 "출연작"으로 분기하는 workLabel 추가) -->
 <!-- 2026-07-29 rev.4 — person.html (대표작 5칸이 지정작만으로 이미 다 찼으면, 무거운 자동계산
      (order 정보 없는 작품마다 TMDB 실제 출연진 재조회하는 단계 포함)을 통째로 건너뛰도록 최적화 — 로딩 속도 개선) -->
 <!-- 2026-07-29 rev.3 — person.html (대표이미지 클릭 시 크게보기 안 되던 버그 수정 — 라이트박스가
@@ -1813,14 +1816,16 @@ function updateSEO(name, desc, imgUrl, jobLabel, instaId, enName){
   // title: "임윤아 출연작·필모그래피 | 배우 프로필 | 오뜨랑"
   // [2026-07-20 신규] 두번째 이름(영문명/본명 등)이 있으면 "이름(두번째이름)" 형태로 병기
   const job = jobLabel || '배우';
+  // [2026-07-31 신규] [id].js SSR과 동일 기준 — 감독은 "연출작", 배우는 "출연작"
+  const workLabel = job === '감독' ? '연출' : '출연';
   const nameLabel = enName ? `${name}(${enName})` : name;
-  const t = `${nameLabel} 필모그래피·출연작 | ${job} 프로필·나이 | 오뜨랑`;
+  const t = `${nameLabel} 필모그래피·${workLabel}작 | ${job} 프로필·나이 | 오뜨랑`;
 
   // keywords: 이름 변형 + 인스타 키워드 포함 (두번째 이름 있으면 그 변형도 함께)
   const kw = [
     name,
     enName || '',
-    `${name} 출연작`,
+    `${name} ${workLabel}작`,
     `${name} 드라마`,
     `${name} 영화`,
     `${name} 필모그래피`,
