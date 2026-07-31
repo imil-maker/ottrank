@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-07-31 rev.5 — admin_keywords.html ("대표작 매칭" 탭에 "🎬 관련 영상" 등록 UI 신규 추가 —
+     유튜브 링크+제목 입력해서 추가/삭제, admin-persons.js의 person_videos API 3종 연동) -->
 <!-- 2026-07-30 rev.4 — admin_keywords.html (기본 노출 탭을 "키워드 수집"→"페이지 로그"로 변경, 로그인 시 자동 로드 추가) -->
 <!-- 2026-07-29 rev.1 — admin_keywords.html (대표작 매칭 탭 신규: 인물 검색 → 대표작 최대 5개 지정/저장) -->
 <html lang="ko">
@@ -910,6 +912,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
         <button class="btn-primary" onclick="fwSave()" style="padding:10px 24px;font-size:14px">💾 저장</button>
         <span id="fwSaveStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+      </div>
+
+      <!-- 관련 영상 (2026-07-31 신규) -->
+      <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:20px">
+        <h3 style="margin-bottom:10px;font-size:15px">🎬 관련 영상</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          인물페이지의 "오늘의 랭킹" 위젯 자리에 노출돼요. 영상을 등록하면 그 위젯 대신
+          이 영상들이 보여요(1개면 바로재생, 2개 이상이면 목록+재생창).
+        </div>
+        <div id="fwVideoListWrap" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input type="text" id="fwVideoUrlInput" placeholder="유튜브 링크 (https://www.youtube.com/watch?v=...)"
+            style="flex:1;min-width:260px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans)">
+          <input type="text" id="fwVideoTitleInput" placeholder="제목(비워두면 자동으로 채워짐)"
+            style="flex:1;min-width:200px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans)">
+          <button class="btn-crawl" onclick="fwAddVideo()" style="padding:10px 20px;font-size:13px">➕ 추가</button>
+        </div>
+        <span id="fwVideoStatus" style="display:block;margin-top:8px;font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
       </div>
 
       <!-- 대표이미지 (2026-07-29 신규) -->
@@ -4959,6 +4979,7 @@ async function fwSelectPerson(tmdbId, name){
   }
 
   fwLoadProfileImage(tmdbId);
+  fwLoadVideos(tmdbId);
 }
 
 /* ── 대표이미지 (2026-07-29 신규) ── */
@@ -5039,6 +5060,89 @@ async function fwDeleteProfileImage(){
   }catch(e){
     statusEl.textContent = `❌ 삭제 실패: ${e.message}`;
     statusEl.style.color = 'var(--accent)';
+  }
+}
+
+/* ── 관련 영상 (2026-07-31 신규) ── */
+async function fwLoadVideos(tmdbId){
+  const listWrap = document.getElementById('fwVideoListWrap');
+  listWrap.innerHTML = `<div style="font-size:12px;color:var(--muted)">불러오는 중...</div>`;
+  document.getElementById('fwVideoStatus').textContent = '';
+  try{
+    const res  = await fetch(`${API}/admin/persons/videos?tmdb_person_id=${tmdbId}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    fwRenderVideoList(data.items || []);
+  }catch(e){
+    listWrap.innerHTML = `<div style="color:var(--accent);font-size:12px">불러오기 실패: ${e.message}</div>`;
+  }
+}
+
+function fwRenderVideoList(items){
+  const listWrap = document.getElementById('fwVideoListWrap');
+  if(!items.length){
+    listWrap.innerHTML = `<div style="font-size:12px;color:var(--muted)">등록된 영상이 없어요.</div>`;
+    return;
+  }
+  listWrap.innerHTML = items.map(v => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:8px">
+      <img src="https://img.youtube.com/vi/${v.youtube_id}/mqdefault.jpg" loading="lazy"
+        style="width:64px;aspect-ratio:16/9;border-radius:4px;object-fit:cover;background:var(--bg2);flex-shrink:0">
+      <div style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${escapeHtmlPm(v.title || '(제목없음)')}
+      </div>
+      <button onclick="fwDeleteVideo(${v.id})" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--accent);font-size:12px;padding:4px 10px;cursor:pointer;flex-shrink:0">✕ 삭제</button>
+    </div>
+  `).join('');
+}
+
+async function fwAddVideo(){
+  if(!fwSelectedPersonId) return;
+  const urlInput   = document.getElementById('fwVideoUrlInput');
+  const titleInput = document.getElementById('fwVideoTitleInput');
+  const statusEl   = document.getElementById('fwVideoStatus');
+  const url   = urlInput.value.trim();
+  const title = titleInput.value.trim();
+  if(!url){ showToast('⚠️ 유튜브 링크를 입력해주세요'); return; }
+
+  statusEl.textContent = '추가 중...';
+  statusEl.style.color = 'var(--muted)';
+  try{
+    const res = await fetch(`${API}/admin/persons/videos-add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_person_id: fwSelectedPersonId, youtube_url: url, title }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    statusEl.textContent = '✅ 추가 완료';
+    statusEl.style.color = 'var(--green)';
+    urlInput.value = '';
+    titleInput.value = '';
+    showToast('✅ 영상 추가 완료');
+    fwLoadVideos(fwSelectedPersonId);
+  }catch(e){
+    statusEl.textContent = `❌ 추가 실패: ${e.message}`;
+    statusEl.style.color = 'var(--accent)';
+  }
+}
+
+async function fwDeleteVideo(id){
+  if(!confirm('이 영상을 삭제할까요?')) return;
+  try{
+    const res = await fetch(`${API}/admin/persons/videos/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast('✅ 영상 삭제 완료');
+    fwLoadVideos(fwSelectedPersonId);
+  }catch(e){
+    showToast(`❌ 삭제 실패: ${e.message}`);
   }
 }
 
