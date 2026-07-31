@@ -1,3 +1,5 @@
+<!-- 2026-07-31 rev.4 — admin.html (상단 "영상 관리"/"키워드 관리" 탭을 헤더 영역(로그아웃 왼쪽)으로
+     이동하고 골드색으로 강조, 로그아웃과 간격 넓게 벌림. 나머지 페이지 탭들은 가운데 정렬로 변경) -->
 <!-- 2026-07-31 rev.3 — admin.html (① 랭킹관리: 필터링 결과 0개일 때 이전 플랫폼 카테고리
      그룹이 안 지워지고 잔상으로 남던 버그 수정(박스오피스 탭 등에서 다른 OTT가 겹쳐 보이던 원인)
      ② 작품/랭킹 저장 후 새로고침할 때마다 무조건 "전체" 탭으로 리셋되던 것을, 보던 탭 유지하도록 수정) -->
@@ -26,6 +28,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 .header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;gap:16px}
 .header h1{font-size:18px;font-weight:700}
 .header .badge{font-family:var(--mono);font-size:11px;background:rgba(230,57,70,.15);color:var(--accent);border:1px solid rgba(230,57,70,.3);padding:3px 10px;border-radius:4px}
+/* [2026-07-31 신규] 헤더로 이동한 영상관리/키워드관리 — 골드 색상으로 구분 */
+.header-gold-tab{font-size:13px;color:#f0b429;cursor:pointer;padding:6px 10px;border-radius:6px;transition:background .15s;white-space:nowrap}
+.header-gold-tab:hover{background:rgba(240,180,41,.14)}
 
 /* 로그인 */
 .login-wrap{max-width:400px;margin:100px auto;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:32px}
@@ -102,7 +107,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .loading{text-align:center;padding:40px;color:var(--muted);font-family:var(--mono)}
 
 /* 페이지 탭 */
-.page-tabs{display:flex;gap:2px;padding:0 28px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto}
+.page-tabs{display:flex;gap:2px;padding:0 28px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;justify-content:center}
 .page-tab{padding:12px 13px;font-size:13px;color:var(--muted2);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans);transition:all .15s;white-space:nowrap}
 .page-tab.on{color:var(--text);border-bottom-color:var(--accent)}
 .tab-new-badge{margin-left:6px;padding:1px 7px;border-radius:8px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;vertical-align:middle;letter-spacing:.3px}
@@ -207,7 +212,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div class="header">
   <h1>🎬 오뜨랑 관리자</h1>
   <span class="badge">ADMIN</span>
-  <span id="logoutBtn" style="margin-left:auto;cursor:pointer;color:var(--muted);font-size:13px;display:none" onclick="logout()">로그아웃</span>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <span class="header-gold-tab" onclick="location.href='/admin_videos.html'">🎬 영상 관리</span>
+    <span class="header-gold-tab" onclick="location.href='/admin_keywords.html'">🏷 키워드 관리</span>
+    <span id="logoutBtn" style="margin-left:40px;cursor:pointer;color:var(--muted);font-size:13px;display:none" onclick="logout()">로그아웃</span>
+  </div>
 </div>
 <div id="pageTabs" style="display:none">
   <div class="page-tabs">
@@ -219,8 +228,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
     <button class="page-tab"     onclick="switchPage('reaction',this)">📋 게시물 관리</button>
     <button class="page-tab"     onclick="switchPage('users',this)">👥 회원 관리</button>
-    <button class="page-tab"     onclick="location.href='/admin_videos.html'">🎬 영상 관리</button>
-    <button class="page-tab"     onclick="location.href='/admin_keywords.html'">🏷 키워드 관리</button>
     <button class="page-tab"     onclick="switchPage('contents',this)">🎞️ 예고편/신작 관리</button>
     <button class="page-tab"     onclick="location.href='/admin_blog.html'">📝 블로그 생성</button>
     <button class="page-tab"     onclick="location.href='/admin_inquiry.html'">📮 문의/신고 관리<span id="inquiryNewBadge" class="tab-new-badge" style="display:none">New</span></button>
