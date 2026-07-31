@@ -1,3 +1,7 @@
+/* 2026-07-31 rev.4 — admin-persons.js (인물 관련 영상 기능 신규: person_videos 관리자용 API
+   3종 추가 — 목록조회 GET /admin/persons/videos, 추가 POST /admin/persons/videos-add,
+   삭제 DELETE /admin/persons/videos/:id. title_videos의 유튜브ID추출/중복체크/oEmbed
+   제목자동조회 패턴 재사용) */
 /* 2026-07-29 rev.3 — admin-persons.js (인물 대표이미지 기능 신규: R2 업로드/조회/삭제 API +
    공개 조회 API. relationship.js의 IMAGES 바인딩/img.ottrank.kr 패턴 재사용) */
 /* 2026-07-29 rev.2 — admin-persons.js (공개 조회 API 신규: GET /person-featured-works/:id —
@@ -624,6 +628,112 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       }));
 
       return new Response(JSON.stringify({ ok: true, items }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // [2026-07-31 신규] 인물 관련 영상(person_videos) — 관리자용 3종
+  // 인물페이지 랭킹위젯 자리에 노출할 유튜브 영상. 작품페이지 title_videos의
+  // youtube_id 추출/중복체크/oEmbed 제목자동조회 패턴을 그대로 재사용.
+  // ══════════════════════════════════════════════════════════════
+
+  // ── GET /admin/persons/videos?tmdb_person_id= ────────────────────
+  if (path === "/admin/persons/videos" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const personId = parseInt(url.searchParams.get("tmdb_person_id"));
+      if (!personId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id가 필요해요" }), { status: 400, headers });
+      }
+      const { results } = await env.DB.prepare(
+        `SELECT id, youtube_id, title, sort_order, created_at FROM person_videos
+         WHERE tmdb_person_id = ? ORDER BY sort_order ASC, created_at ASC`
+      ).bind(personId).all();
+
+      return new Response(JSON.stringify({ ok: true, items: results || [] }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/videos-add ────────────────────────────────
+  // body: { tmdb_person_id, youtube_url, title? }
+  if (path === "/admin/persons/videos-add" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const personId = parseInt(body.tmdb_person_id);
+      const youtubeUrl = (body.youtube_url || "").trim();
+      let title = (body.title || "").trim();
+
+      if (!personId || !youtubeUrl) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id, youtube_url이 필요해요" }), { status: 400, headers });
+      }
+
+      // youtube_id 추출 (title_videos와 동일한 정규식)
+      const ytMatch = youtubeUrl.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+      if (!ytMatch) {
+        return new Response(JSON.stringify({ ok: false, message: "유효하지 않은 유튜브 URL이에요" }), { status: 400, headers });
+      }
+      const youtubeId = ytMatch[1];
+
+      const person = await env.DB.prepare(`SELECT tmdb_id FROM persons WHERE tmdb_id = ?`).bind(personId).first();
+      if (!person) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+
+      // 중복 체크: 같은 인물에 동일 youtube_id가 이미 있는지
+      const existing = await env.DB.prepare(
+        `SELECT id, title FROM person_videos WHERE tmdb_person_id = ? AND youtube_id = ? LIMIT 1`
+      ).bind(personId, youtubeId).first();
+      if (existing) {
+        return new Response(JSON.stringify({
+          ok: false,
+          message: `이미 등록된 영상이에요. (제목: "${existing.title || youtubeId}")`,
+        }), { status: 409, headers });
+      }
+
+      // 제목 비어있으면 유튜브 oEmbed로 자동 조회
+      if (!title) {
+        try {
+          const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${youtubeId}&format=json`);
+          const oembedData = await oembedRes.json();
+          title = oembedData.title || "";
+        } catch (e) { title = ""; }
+      }
+
+      // sort_order = 현재 최대값 + 1 (등록 순서대로 뒤에 붙음)
+      const maxRow = await env.DB.prepare(
+        `SELECT MAX(sort_order) as maxOrder FROM person_videos WHERE tmdb_person_id = ?`
+      ).bind(personId).first();
+      const nextOrder = ((maxRow && maxRow.maxOrder) || 0) + 1;
+
+      await env.DB.prepare(
+        `INSERT INTO person_videos (tmdb_person_id, youtube_id, title, sort_order) VALUES (?, ?, ?, ?)`
+      ).bind(personId, youtubeId, title, nextOrder).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/persons/videos/:id ──────────────────────────────
+  const videoDeleteMatch = path.match(/^\/admin\/persons\/videos\/(\d+)$/);
+  if (videoDeleteMatch && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const id = parseInt(videoDeleteMatch[1], 10);
+      await env.DB.prepare(`DELETE FROM person_videos WHERE id = ?`).bind(id).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
