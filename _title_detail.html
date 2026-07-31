@@ -1,3 +1,6 @@
+<!-- 2026-07-31 rev.2 — _title_detail.html (관련영상이 1개뿐일 때 썸네일+클릭모달 대신,
+     화면 전체를 채우는 기본임베드로 바로 재생 가능하게 변경 — 인물페이지 관련영상과 동일 방식.
+     2개 이상일 땐 기존 썸네일그리드+모달 방식 그대로) -->
 <!-- 2026-07-28 rev.1 — _title_detail.html (후기 카드의 개별 공유 버튼(🔗 공유) 삭제 요청에 따라 제거) -->
 <!DOCTYPE html>
 <html lang="ko">
@@ -3326,7 +3329,9 @@ async function loadTitleVideos(){
 }
 
 /* == YouTube Render == */
-// 2개씩 좌우 표시 + 2개씩 페이지네이션 (모바일/PC 동일)
+// [2026-07-31 수정] 영상이 딱 1개뿐이면(페이지네이션 중간의 나머지 1개가 아니라
+// 전체 목록 자체가 1개인 경우) 썸네일+클릭모달 대신, 화면 전체를 채우는 기본임베드로
+// 바로 재생 가능하게 함(인물페이지 관련영상과 동일한 방식). 2개 이상이면 기존 방식 그대로.
 function renderYtPage(page){
   ytPage=page;
   const total=allYtVideos.length;
@@ -3342,6 +3347,18 @@ function renderYtPage(page){
   }
   if(ytSectionEl) ytSectionEl.style.display=''; // 이후 영상이 채워지면(DB 영상 재조회 등) 다시 노출
   if(subtitleEl) subtitleEl.textContent=`${total}개 영상`;
+
+  // 전체 목록이 1개뿐이면 — 클릭 없이 바로 그 자리에서 재생 가능한 기본임베드
+  if(total===1){
+    const v=allYtVideos[0];
+    document.getElementById('ytArea').innerHTML=`
+      <div class="yt-player-wrap" style="border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+        <iframe src="https://www.youtube.com/embed/${v.key}" allowfullscreen allow="autoplay;encrypted-media" title="${(v.name||'').replace(/"/g,'&quot;')}"></iframe>
+      </div>`;
+    const pgElSingle=document.getElementById('ytPagination');
+    if(pgElSingle) pgElSingle.style.display='none';
+    return;
+  }
 
   // 페이지별 시작/끝 인덱스 — 항상 2개씩 균등 분할
   const start=page*YT_PER_PAGE;
