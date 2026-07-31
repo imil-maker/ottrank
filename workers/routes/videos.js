@@ -1,8 +1,11 @@
+/* 2026-07-31 rev.8 — videos.js (공개 조회 API 신규: GET /videos/person/:tmdb_person_id —
+   person.html이 인증 없이 호출, 인물 관련 영상(person_videos) 목록 반환) */
 /* 2026-07-30 rev.7 — videos.js (POST /works/register 신규 등록 시, 일본어 TV 작품에
    "japan drama"/"japan animation" 키워드 자동 연결 — 애니메이션 장르 여부로 분기) */
 /* ══════════════════════════════════════════════════════════════
    영상 관련 API 라우트
    GET    /videos/:tmdb_id          작품별 영상 목록
+   GET    /videos/person/:tmdb_person_id  인물별 관련 영상 목록 (공개, 2026-07-31 신설)
    POST   /admin/videos/crawl       관리자 YouTube 크롤링 (단건, 수동)
    POST   /admin/videos/batch-crawl 관리자 YouTube 크롤링 (배치, 어드민 수동 반복호출 + 하루 예산 상한)
    POST   /admin/videos             관리자 영상 수동 추가
@@ -94,6 +97,26 @@ function _isBotUserAgent(ua) {
 }
 
 export async function handleVideos(path, request, env, ctx, url, headers) {
+
+  // ── GET /videos/person/:tmdb_person_id ────────────────────────
+  // [2026-07-31 신규] 인물 관련 영상 공개 조회 — person.html에서 사용, 인증 불필요.
+  // 작품용 /videos/:tmdb_id와 달리 TMDB 트레일러 자동보충 없음(person_videos는
+  // 관리자가 직접 등록한 것만 존재 — 자동수집 대상 아님). 아래 일반 /videos/ 라우트보다
+  // 먼저 매칭시켜야 "person"이 tmdb_id로 잘못 파싱되는 걸 막을 수 있음.
+  const personVideosMatch = path.match(/^\/videos\/person\/(\d+)$/);
+  if (personVideosMatch && request.method === "GET") {
+    try {
+      const personId = parseInt(personVideosMatch[1], 10);
+      const { results } = await env.DB.prepare(
+        `SELECT id, youtube_id, title FROM person_videos
+         WHERE tmdb_person_id = ? ORDER BY sort_order ASC, created_at ASC`
+      ).bind(personId).all();
+
+      return new Response(JSON.stringify({ ok: true, data: results || [] }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
 
   // ── GET /videos/:tmdb_id ─────────────────────────────────────
   // [2026-07-08 구조 변경] YouTube 실시간 방문 트리거 완전 제거.
