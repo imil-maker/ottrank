@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-07-31 rev.6 — admin_keywords.html ("대표작 매칭" 탭에 "🎞 필모 작품 추가" UI 신규 추가 —
+     우리 DB 작품만 검색해서 출연/연출+배역명 입력 후 추가/삭제, admin-persons.js의
+     person_manual_credits API 연동. TMDB 필모에 없는 작품을 필모/대표작 후보에 이어붙이는 용도) -->
 <!-- 2026-07-31 rev.5 — admin_keywords.html ("대표작 매칭" 탭에 "🎬 관련 영상" 등록 UI 신규 추가 —
      유튜브 링크+제목 입력해서 추가/삭제, admin-persons.js의 person_videos API 3종 연동) -->
 <!-- 2026-07-30 rev.4 — admin_keywords.html (기본 노출 탭을 "키워드 수집"→"페이지 로그"로 변경, 로그인 시 자동 로드 추가) -->
@@ -912,6 +915,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
         <button class="btn-primary" onclick="fwSave()" style="padding:10px 24px;font-size:14px">💾 저장</button>
         <span id="fwSaveStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+      </div>
+
+      <!-- 필모 작품 추가 (2026-07-31 신규) -->
+      <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:20px">
+        <h3 style="margin-bottom:10px;font-size:15px">🎞 필모 작품 추가</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          TMDB 필모그래피에 없는 작품을, 우리 DB에 있는 것만 골라 이 인물의 필모그래피에
+          이어붙여요. 대표작으로도 지정할 수 있게 되지만, 대표작 자동계산 알고리즘에는
+          영향 없어요.
+        </div>
+        <div id="mcAddedListWrap" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <input type="text" id="mcWorkSearchInput" placeholder="작품 제목 또는 tmdb_id로 검색 (우리 DB만)"
+            style="flex:1;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans)"
+            onkeydown="if(event.key==='Enter'){ event.preventDefault(); mcSearchWork(); }">
+          <button class="btn-crawl" onclick="mcSearchWork()" style="padding:10px 20px;font-size:13px">🔍 검색</button>
+        </div>
+        <div id="mcSearchResultsWrap"></div>
+        <div id="mcAddFormWrap"></div>
       </div>
 
       <!-- 관련 영상 (2026-07-31 신규) -->
@@ -4980,6 +5002,7 @@ async function fwSelectPerson(tmdbId, name){
 
   fwLoadProfileImage(tmdbId);
   fwLoadVideos(tmdbId);
+  mcLoadList(tmdbId);
 }
 
 /* ── 대표이미지 (2026-07-29 신규) ── */
@@ -5059,6 +5082,147 @@ async function fwDeleteProfileImage(){
     fwLoadProfileImage(fwSelectedPersonId);
   }catch(e){
     statusEl.textContent = `❌ 삭제 실패: ${e.message}`;
+    statusEl.style.color = 'var(--accent)';
+  }
+}
+
+/* ── 필모 작품 추가 (2026-07-31 신규) ── */
+async function mcLoadList(tmdbId){
+  const wrap = document.getElementById('mcAddedListWrap');
+  wrap.innerHTML = `<div style="font-size:12px;color:var(--muted)">불러오는 중...</div>`;
+  try{
+    const res  = await fetch(`${API}/admin/persons/manual-credits?tmdb_person_id=${tmdbId}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    mcRenderList(data.items || []);
+  }catch(e){
+    wrap.innerHTML = `<div style="color:var(--accent);font-size:12px">불러오기 실패: ${e.message}</div>`;
+  }
+}
+
+function mcRenderList(items){
+  const wrap = document.getElementById('mcAddedListWrap');
+  if(!items.length){
+    wrap.innerHTML = `<div style="font-size:12px;color:var(--muted)">수동으로 추가한 필모 작품이 없어요.</div>`;
+    return;
+  }
+  wrap.innerHTML = items.map(it => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:8px">
+      <img src="https://poster.ottrank.kr/tmdb-img/w92${it.poster_path||''}" onerror="this.style.visibility='hidden'"
+        style="width:34px;height:48px;border-radius:4px;object-fit:cover;background:var(--bg2);flex-shrink:0">
+      <div style="flex:1;min-width:0;font-size:13px;color:var(--text)">
+        ${escapeHtmlPm(it.title || '(제목없음)')}
+        <span style="color:var(--muted);font-size:11px;font-family:var(--mono)">
+          · ${it.work_media_type === 'movie' ? '영화' : 'TV'} · ${it.credit_kind === 'act' ? '출연' : '연출'}${it.role_text ? ' · '+escapeHtmlPm(it.role_text) : ''}
+        </span>
+      </div>
+      <button onclick="mcDelete(${it.id})" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--accent);font-size:12px;padding:4px 10px;cursor:pointer;flex-shrink:0">✕ 삭제</button>
+    </div>
+  `).join('');
+}
+
+async function mcDelete(id){
+  if(!confirm('이 필모 작품을 삭제할까요?')) return;
+  try{
+    const res = await fetch(`${API}/admin/persons/manual-credits/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast('✅ 삭제 완료');
+    mcLoadList(fwSelectedPersonId);
+  }catch(e){
+    showToast(`❌ 삭제 실패: ${e.message}`);
+  }
+}
+
+async function mcSearchWork(){
+  const q = document.getElementById('mcWorkSearchInput').value.trim();
+  const resultsWrap = document.getElementById('mcSearchResultsWrap');
+  document.getElementById('mcAddFormWrap').innerHTML = '';
+  if(!q){ resultsWrap.innerHTML = ''; return; }
+
+  resultsWrap.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px">검색 중...</div>`;
+  try{
+    const res  = await fetch(`${API}/admin/persons/manual-credit-work-search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    if(!data.items.length){
+      resultsWrap.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px">우리 DB에 없는 작품이에요. 작품페이지에서 먼저 등록해주세요.</div>`;
+      return;
+    }
+    resultsWrap.innerHTML = data.items.map(it => `
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--bg3);border-radius:8px;margin-bottom:6px">
+        <img src="https://poster.ottrank.kr/tmdb-img/w92${it.poster_path||''}" onerror="this.style.visibility='hidden'"
+          style="width:34px;height:48px;border-radius:4px;object-fit:cover;background:var(--bg2);flex-shrink:0">
+        <div style="flex:1;min-width:0;font-size:13px;color:var(--text)">
+          ${escapeHtmlPm(it.title || '(제목없음)')}
+          <span style="color:var(--muted);font-size:11px;font-family:var(--mono)"> · ${it.media_type === 'movie' ? '영화' : 'TV'}</span>
+        </div>
+        <button class="btn-secondary" onclick='mcPickWork(${JSON.stringify(it)})' style="padding:6px 14px;white-space:nowrap;font-size:12px">➕ 선택</button>
+      </div>
+    `).join('');
+  }catch(e){
+    resultsWrap.innerHTML = `<div style="padding:12px;color:var(--accent);font-size:13px">검색 실패: ${e.message}</div>`;
+  }
+}
+
+function mcPickWork(item){
+  document.getElementById('mcSearchResultsWrap').innerHTML = '';
+  document.getElementById('mcAddFormWrap').innerHTML = `
+    <div style="padding:12px;background:var(--bg3);border-radius:8px;margin-bottom:10px">
+      <div style="font-size:13px;margin-bottom:10px">
+        <strong>${escapeHtmlPm(item.title || '(제목없음)')}</strong>
+        <span style="color:var(--muted);font-size:11px;font-family:var(--mono)"> · ${item.media_type === 'movie' ? '영화' : 'TV'}</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select id="mcKindSelect" style="padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+          <option value="act">출연</option>
+          <option value="direct">연출</option>
+        </select>
+        <input type="text" id="mcRoleInput" placeholder="배역명(출연) 또는 직책(연출, 예: 감독)"
+          style="flex:1;min-width:200px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans)">
+        <button class="btn-crawl" onclick='mcConfirmAdd(${JSON.stringify(item)})' style="padding:10px 20px;font-size:13px">➕ 추가</button>
+        <button class="btn-secondary" onclick="document.getElementById('mcAddFormWrap').innerHTML=''" style="padding:10px 16px;font-size:13px">취소</button>
+      </div>
+      <span id="mcAddStatus" style="display:block;margin-top:8px;font-size:12px;color:var(--muted);font-family:var(--mono)"></span>
+    </div>`;
+}
+
+async function mcConfirmAdd(item){
+  if(!fwSelectedPersonId) return;
+  const kind     = document.getElementById('mcKindSelect').value;
+  const roleText = document.getElementById('mcRoleInput').value.trim();
+  const statusEl = document.getElementById('mcAddStatus');
+
+  statusEl.textContent = '추가 중...';
+  statusEl.style.color = 'var(--muted)';
+  try{
+    const res = await fetch(`${API}/admin/persons/manual-credits-add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({
+        tmdb_person_id: fwSelectedPersonId,
+        work_tmdb_id: item.tmdb_id,
+        work_media_type: item.media_type,
+        credit_kind: kind,
+        role_text: roleText,
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    showToast('✅ 필모 작품 추가 완료');
+    document.getElementById('mcAddFormWrap').innerHTML = '';
+    document.getElementById('mcWorkSearchInput').value = '';
+    mcLoadList(fwSelectedPersonId);
+  }catch(e){
+    statusEl.textContent = `❌ 추가 실패: ${e.message}`;
     statusEl.style.color = 'var(--accent)';
   }
 }
