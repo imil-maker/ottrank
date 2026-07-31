@@ -1,3 +1,7 @@
+/* 2026-08-01 rev.9 — admin-persons.js (구글 더블체크 링크에 직업(배우/감독) 포함시키기 위해
+   개별검색/확정리스트/미확정리스트 응답에 job 필드 추가) */
+/* 2026-08-01 rev.8 — admin-persons.js (확정 리스트 API에 자동/수동 필터 파라미터(source) 추가:
+   all(기본)/auto/manual 세 가지, NULL(예전 데이터)은 auto로 취급) */
 /* 2026-08-01 rev.7 — admin-persons.js (MBTI 네이버수집 자동/수동 구분 추가:
    mbti_naver_source 컬럼(auto/manual) 채우기, 확정/미확정/개별검색 응답에 birthday+
    mbti_naver_source 포함 — 화면에서 자동/수동 뱃지 + 구글 검색 링크 만드는 데 사용) */
@@ -320,12 +324,12 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       let items;
       if (/^\d+$/.test(q)) {
         const row = await env.DB.prepare(
-          `SELECT tmdb_id, name, name_ko, birthday, mbti_naver, mbti_naver_source FROM persons WHERE tmdb_id = ?`
+          `SELECT tmdb_id, name, name_ko, birthday, job, mbti_naver, mbti_naver_source FROM persons WHERE tmdb_id = ?`
         ).bind(parseInt(q, 10)).first();
         items = row ? [row] : [];
       } else {
         const { results } = await env.DB.prepare(`
-          SELECT tmdb_id, name, name_ko, birthday, mbti_naver, mbti_naver_source FROM persons
+          SELECT tmdb_id, name, name_ko, birthday, job, mbti_naver, mbti_naver_source FROM persons
           WHERE name LIKE ? OR name_ko LIKE ?
           ORDER BY name LIMIT 30
         `).bind(`%${q}%`, `%${q}%`).all();
@@ -350,17 +354,24 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       const limit = 50;
       const offset = (page - 1) * limit;
 
+      // [2026-08-01 신규] 자동/수동 필터 — all(기본)/auto/manual.
+      // 예전에 채워진 데이터는 mbti_naver_source가 NULL인데, 이건 전부 자동수집이었으므로 auto로 취급.
+      const filter = url.searchParams.get("source") || "all";
+      let filterSql = "";
+      if (filter === "manual") filterSql = "AND mbti_naver_source = 'manual'";
+      else if (filter === "auto") filterSql = "AND (mbti_naver_source = 'auto' OR mbti_naver_source IS NULL)";
+
       const { results: items } = await env.DB.prepare(`
-        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, birthday,
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, birthday, job,
                mbti_naver AS mbti, mbti_naver_checked_at, mbti_naver_source
         FROM persons
-        WHERE mbti_naver IS NOT NULL
+        WHERE mbti_naver IS NOT NULL ${filterSql}
         ORDER BY mbti_naver_checked_at DESC
         LIMIT ? OFFSET ?
       `).bind(limit, offset).all();
 
       const totalRow = await env.DB.prepare(
-        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti_naver IS NOT NULL`
+        `SELECT COUNT(*) AS cnt FROM persons WHERE mbti_naver IS NOT NULL ${filterSql}`
       ).first();
 
       return new Response(JSON.stringify({
@@ -383,7 +394,7 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       const offset = (page - 1) * limit;
 
       const { results: items } = await env.DB.prepare(`
-        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, birthday, mbti_naver_checked_at
+        SELECT tmdb_id, COALESCE(name_ko, name) AS display_name, birthday, job, mbti_naver_checked_at
         FROM persons
         WHERE mbti_naver_checked_at IS NOT NULL AND mbti_naver IS NULL
         ORDER BY mbti_naver_checked_at DESC
