@@ -1,3 +1,5 @@
+# 2026-07-31 rev.2 — boxoffice_crawl.yml (Node.js 20 지원종료 경고 해결 — actions/checkout
+#   v4→v6, actions/setup-python v5→v6로 업그레이드. 크롤링 로직/스케줄은 그대로)
 # 2026-07-29 rev.1 — boxoffice_crawl.yml (박스오피스 전용 신규 워크플로우)
 # daily_crawl.yml(FlixPatrol)과 완전히 분리 — KOBIS 접속 타임아웃이 잦아
 # 하루 3번(재시도 목적)으로 도는 별도 스케줄이 필요해서 분리함.
@@ -23,10 +25,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
