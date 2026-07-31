@@ -1,3 +1,6 @@
+/* 2026-07-31 rev.9 — index.js (필모그래피 수동 추가 라우팅 신규: /admin/persons/manual-credit*
+   (관리자), /person-manual-credits/:id(공개) — handleAdminPersonManualCredits로 위임,
+   admin-persons.js에 신설된 별도 함수) */
 /* 2026-07-31 rev.8 — index.js (/admin/persons/videos* 라우팅 추가 — 인물 관련 영상 관리자
    API가 12번 관리자 캐치올로 잘못 넘어가서 "Not found"(404) 나던 문제 수정,
    admin-persons.js로 위임) */
@@ -52,7 +55,7 @@ import { handleImageProxy } from "./routes/image-proxy.js";
 import { handlePersonWiki } from "./routes/person-wiki.js";
 import { handleTrack      } from "./routes/track.js";
 import { handleRelationship } from "./routes/relationship.js";
-import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomProfilePublic } from "./routes/admin-persons.js";
+import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomProfilePublic, handleAdminPersonManualCredits } from "./routes/admin-persons.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -201,6 +204,19 @@ export default {
     // 3-8. 인물 대표이미지 공개 조회 — person.html에서 비로그인 방문자도 호출(2026-07-29 신규)
     if (!res && path.match(/^\/person-custom-profile\/\d+$/)) {
       res = await handlePersonCustomProfilePublic(path, request, env, headers);
+    }
+
+    // 3-9. 필모그래피 수동 추가(person_manual_credits) — 관리자용. handleAdminPersons와
+    //      별도 함수(handleAdminPersonManualCredits)라 여기서 새로 라우팅해야 함. 12번
+    //      관리자 캐치올보다 반드시 앞에 있어야 함(2026-07-31 신규)
+    if (!res && path.startsWith("/admin/persons/manual-credit")) {
+      res = await handleAdminPersonManualCredits(path, request, env, url, headers);
+    }
+
+    // 3-10. 필모그래피 수동 추가 공개 조회 — person.html에서 비로그인 방문자도 호출
+    //       (인증 없음, 2026-07-31 신규)
+    if (!res && path.match(/^\/person-manual-credits\/\d+$/)) {
+      res = await handleAdminPersonManualCredits(path, request, env, url, headers);
     }
 
     // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
