@@ -1,3 +1,7 @@
+/* 2026-07-31 rev.6 — functions/person/[id].js (감독인 경우 title/description/keywords에서
+   "출연작"이 아니라 "연출작"으로 표시되도록 workLabel 분기 추가 — known_for_department가
+   'Directing'일 때만 "연출", 그 외(배우)는 기존과 동일하게 "출연". title/description/
+   keywords 3곳 모두 이 변수 하나로 통일해서 사용) */
 /* 2026-07-27 rev.5 — functions/person/[id].js (MBTI SEO 반영 — persons.mbti_naver 조회해서
    MBTI 확정된 사람만 title/description/keywords에 "MBTI" 단어 추가(실제 값은 절대 안 넣음 —
    검색결과에서 다 보여주면 클릭 안 하고 넘어가버리니까 단어만 노출, 값은 페이지 안에서만
@@ -66,6 +70,9 @@ export async function onRequest(context) {
         /* 대표 직업 (배우/감독) */
         const dept      = data.known_for_department || '';
         const jobLabel  = dept === 'Directing' ? '감독' : '배우';
+        /* [2026-07-31 신규] 감독은 "출연작"이 아니라 "연출작"이 맞는 표현이라 분기.
+           title/description/keywords 3곳에서 공통으로 사용 */
+        const workLabel = dept === 'Directing' ? '연출' : '출연';
 
         /* [2026-07-27 신규] 인스타 계정 여부 — title에 "·인스타" 추가할지 판단에 필요해서
            앞으로 끌어옴(기존엔 파일 뒷부분 sameAs 만들 때만 썼음). external_ids를
@@ -152,7 +159,7 @@ export async function onRequest(context) {
         let titleExtras = '';
         if (instaId) titleExtras += '·인스타';
         if (hasMbti) titleExtras += '·MBTI';
-        seoTitle = `${name} 프로필·출연작·필모그래피${titleExtras} | ${jobLabel} 정보 | 오뜨랑`;
+        seoTitle = `${name} 프로필·${workLabel}작·필모그래피${titleExtras} | ${jobLabel} 정보 | 오뜨랑`;
 
         /* description */
         const worksSnippet = topWorks.length
@@ -161,7 +168,7 @@ export async function onRequest(context) {
         // [2026-07-27 신규] MBTI 확정이면 "나이" 다음에 "MBTI" 단어만 추가(값 없음).
         // 인스타는 원래도 "인스타그램 정보를"이 무조건 들어가 있어서 별도 추가 불필요.
         const mbtiDescWord = hasMbti ? ', MBTI' : '';
-        seoDesc = `${name} ${jobLabel} 나이${mbtiDescWord}, 출연 드라마·영화, 인스타그램 정보를 오뜨랑에서 확인하세요. ${worksSnippet}${bio ? bio + '...' : ''}`.trim();
+        seoDesc = `${name} ${jobLabel} 나이${mbtiDescWord}, ${workLabel} 드라마·영화, 인스타그램 정보를 오뜨랑에서 확인하세요. ${worksSnippet}${bio ? bio + '...' : ''}`.trim();
 
         /* keywords */
         seoKeywords = [
@@ -171,7 +178,7 @@ export async function onRequest(context) {
           `${name} 나이`,
           `${name} 프로필`,
           `${name} 인스타`,
-          `${name} 출연작`,
+          `${name} ${workLabel}작`,
           hasMbti ? `${name} MBTI` : '', // [2026-07-27 신규]
           enName,
           `${jobLabel} 필모그래피`,
