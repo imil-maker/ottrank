@@ -1,3 +1,5 @@
+// 2026-07-31 rev.4 — track.js (실시간 순위 기간에 30분/1시간/6시간/12시간 롤링 기간 추가 —
+// 기존 24시간과 동일한 "지금 - N" 방식, PERIOD_WHITELIST에도 추가)
 // 2026-07-30 rev.3 — track.js (GET /admin/track/logs에 ?hideExcludedVids=1 추가 — 순위 집계에서
 // 빼둔 excluded_vids 목록을 페이지 로그 목록에서도 안 보이게 필터링. 기존 excludeBot과 동일한
 // 패턴, 켤 때만 D1을 한 번 더 조회함)
@@ -86,10 +88,15 @@ function _isBotUserAgent(ua) {
 // - today/yesterday: 한국시간(KST=UTC+9) 자정 기준으로 하루를 딱 끊음.
 //   "오늘 KST 0시"를 UTC ms로 구하려면: (KST로 본 오늘 날짜의 UTC 자정) - 9시간.
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const PERIOD_WHITELIST = ["today", "yesterday", "24h"];
+const PERIOD_WHITELIST = ["30min", "1h", "6h", "12h", "today", "yesterday", "24h"];
 
 function _periodBounds(period) {
   const now = Date.now();
+  // [2026-07-31 추가] 30분/1시간/6시간/12시간 — 24h와 동일하게 "지금 - N" 롤링 방식
+  const ROLLING_MS = { "30min": 30 * 60 * 1000, "1h": 60 * 60 * 1000, "6h": 6 * 60 * 60 * 1000, "12h": 12 * 60 * 60 * 1000 };
+  if (ROLLING_MS[period]) {
+    return { sinceMs: now - ROLLING_MS[period], untilMs: null };
+  }
   if (period === "24h") {
     return { sinceMs: now - 24 * 60 * 60 * 1000, untilMs: null };
   }
