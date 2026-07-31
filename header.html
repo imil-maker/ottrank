@@ -1,3 +1,9 @@
+<!-- 2026-07-31 rev.2 — header.html (검색창 드롭다운에 우리 DB persons 검색 신규 연결 — 기존엔
+     TMDB /search/person만 호출해서 동명이인이 섞이면 우리 DB에 있는 인물이 안 뜨는 문제가
+     있었음(예: "윤상훈" 검색 시 배우 대신 동명 감독이 뜸). /persons/search API로 DB 인물
+     먼저 조회해서 "DB" 배지와 함께 보여주고, TMDB 인물은 그 중 DB에 이미 있는 사람만 제외한
+     나머지로 보충 — 작품 검색(dbWorks/tmdbTv/tmdbMv)과 동일한 패턴. PC/모바일 두 검색
+     블록 모두 동일하게 적용) -->
 <!-- 2026-07-25 rev.1 — header.html (PC 상단+모바일 드로어 네비게이션 순서: 쿠팡플레이-웨이브 → 웨이브-쿠팡플레이) -->
 <!-- ── [2026-07-17 추가] 포스터 이미지 서버(TMDB) 미리 연결 ──
      이 헤더는 모든 페이지 공통으로 삽입되므로, 여기 한 번만 추가하면 사이트 전체에 적용됨.
@@ -903,9 +909,10 @@ function initHeader(){
       const profile   = p.profile_path ? `<img class="ottrang-sr-profile" src="${IMG}${p.profile_path}" alt="" loading="lazy">` : `<div class="ottrang-sr-profile-ph">👤</div>`;
       const name      = p.name || '';
       const knownFor  = (p.known_for || []).map(k => k.title || k.name).slice(0, 2).join(', ');
-      const dept      = p.known_for_department || '';
+      // [2026-07-31 신규] DB 인물은 known_for_department가 없고 job('act'/'direct')만 있어서 분기
+      const dept      = p.known_for_department || (p.job === 'direct' ? '감독' : p.job === 'act' ? '배우' : '');
       const dbBadge   = isDB ? '<span class="ottrang-sr-db">DB</span>' : '';
-      const personUrl = `/person.html?id=${p.id || p.tmdb_person_id}`;
+      const personUrl = `/person.html?id=${p.id || p.tmdb_person_id || p.tmdb_id}`;
 
       return `<div class="ottrang-sr-item" onclick="location.href='${personUrl}'">
         ${profile}
@@ -923,12 +930,13 @@ function initHeader(){
     }
 
     try {
-      // ① 우리 DB works 검색 + TMDB 작품/인물 검색 병렬 실행
-      const [dbRes, tvRes, mvRes, personRes] = await Promise.allSettled([
+      // ① 우리 DB works 검색 + 우리 DB persons 검색 + TMDB 작품/인물 검색 병렬 실행
+      const [dbRes, tvRes, mvRes, personRes, dbPersonRes] = await Promise.allSettled([
         fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=6`),
         fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
         fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
         fetch(`${TMDB_PROXY}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${API}/persons/search?q=${encodeURIComponent(q)}&limit=4`),
       ]);
 
       // DB 결과
@@ -961,15 +969,25 @@ function initHeader(){
           .map(r => ({ ...r, _type: 'movie', tmdb_id: r.id }));
       }
 
-      // TMDB 인물 결과
+      // 우리 DB 인물 결과
+      let dbPersons = [];
+      if (dbPersonRes.status === 'fulfilled' && dbPersonRes.value.ok) {
+        const dbPJson = await dbPersonRes.value.json();
+        dbPersons = (dbPJson.data || []).slice(0, 4);
+      }
+      const dbPersonIds = new Set(dbPersons.map(p => p.tmdb_id));
+
+      // TMDB 인물 결과 — DB에 이미 있는 사람은 제외 (작품 중복 제외와 동일 패턴)
       let tmdbPersons = [];
       if (personRes.status === 'fulfilled' && personRes.value.ok) {
         const pJson = await personRes.value.json();
-        tmdbPersons = (pJson.results || []).slice(0, 4);
+        tmdbPersons = (pJson.results || [])
+          .filter(p => !dbPersonIds.has(p.id))
+          .slice(0, 4);
       }
 
       // 결과가 아무것도 없으면
-      const totalCount = dbWorks.length + tmdbTv.length + tmdbMv.length + tmdbPersons.length;
+      const totalCount = dbWorks.length + tmdbTv.length + tmdbMv.length + dbPersons.length + tmdbPersons.length;
       if (totalCount === 0) {
         el.innerHTML = `<div class="ottrang-sr-empty">검색 결과가 없습니다</div>`;
         el.classList.add('show');
@@ -992,10 +1010,11 @@ function initHeader(){
         html += tmdbWorks.map(w => _workItem(w, false)).join('');
       }
 
-      // [인물]
-      if (tmdbPersons.length) {
+      // [인물] — 우리 DB 먼저, TMDB는 보충
+      const allPersons = [...dbPersons.map(p => ({ ...p, _isDB: true })), ...tmdbPersons];
+      if (allPersons.length) {
         html += `<div class="ottrang-sr-section">👤 인물</div>`;
-        html += tmdbPersons.map(p => _personItem(p, false)).join('');
+        html += allPersons.map(p => _personItem(p, !!p._isDB)).join('');
       }
 
       el.innerHTML = html;
@@ -1162,20 +1181,22 @@ function initHeader(){
         : `location.href='#'`;
       return `<div class="ottrang-sr-item" onclick="${goWork}">${poster}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(title)}</div><div class="ottrang-sr-meta">${_hesc(titleEn)}${year?` · ${year}`:''}</div></div><span class="ottrang-sr-type" style="background:${typeColor};color:#fff">${typeLabel}</span>${dbBadge}</div>`;
     }
-    function _personItem(p){
+    function _personItem(p, isDB) {
       const profile  = p.profile_path?`<img class="ottrang-sr-profile" src="${IMG}${p.profile_path}" alt="" loading="lazy">`:`<div class="ottrang-sr-profile-ph">👤</div>`;
       const name     = p.name||'';
       const knownFor = (p.known_for||[]).map(k=>k.title||k.name).slice(0,2).join(', ');
-      const dept     = p.known_for_department||'';
-      const url      = `/person.html?id=${p.id||p.tmdb_person_id}`;
-      return `<div class="ottrang-sr-item" onclick="location.href='${url}'">${profile}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(name)}</div><div class="ottrang-sr-meta">${dept}${knownFor?` · ${knownFor}`:''}</div></div></div>`;
+      const dept     = p.known_for_department || (p.job === 'direct' ? '감독' : p.job === 'act' ? '배우' : '');
+      const dbBadge  = isDB ? '<span class="ottrang-sr-db">DB</span>' : '';
+      const url      = `/person.html?id=${p.id||p.tmdb_person_id||p.tmdb_id}`;
+      return `<div class="ottrang-sr-item" onclick="location.href='${url}'">${profile}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(name)}</div><div class="ottrang-sr-meta">${dept}${knownFor?` · ${knownFor}`:''}</div></div>${dbBadge}</div>`;
     }
     try {
-      const [dbRes,tvRes,mvRes,personRes] = await Promise.allSettled([
+      const [dbRes,tvRes,mvRes,personRes,dbPersonRes] = await Promise.allSettled([
         fetch(`${API}/works/search?q=${encodeURIComponent(q)}&limit=6`),
         fetch(`${TMDB_PROXY}/search/tv?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
         fetch(`${TMDB_PROXY}/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&include_adult=false`),
         fetch(`${TMDB_PROXY}/search/person?query=${encodeURIComponent(q)}&language=ko-KR`),
+        fetch(`${API}/persons/search?q=${encodeURIComponent(q)}&limit=4`),
       ]);
       let dbWorks=[];
       if(dbRes.status==='fulfilled'&&dbRes.value.ok){ const j=await dbRes.value.json(); dbWorks=(j.data||[]).slice(0,6); }
@@ -1184,16 +1205,23 @@ function initHeader(){
       if(tvRes.status==='fulfilled'&&tvRes.value.ok){ const j=await tvRes.value.json(); tmdbTv=(j.results||[]).filter(r=>!r.adult).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'tv',tmdb_id:r.id})); }
       let tmdbMv=[];
       if(mvRes.status==='fulfilled'&&mvRes.value.ok){ const j=await mvRes.value.json(); tmdbMv=(j.results||[]).filter(r=>!r.adult).filter(r=>!dbIds.has(r.id)).slice(0,4).map(r=>({...r,_type:'movie',tmdb_id:r.id})); }
+      // 우리 DB 인물 결과
+      let dbPersons=[];
+      if(dbPersonRes.status==='fulfilled'&&dbPersonRes.value.ok){ const j=await dbPersonRes.value.json(); dbPersons=(j.data||[]).slice(0,4); }
+      const dbPersonIds=new Set(dbPersons.map(p=>p.tmdb_id));
+      // TMDB 인물 결과 — DB에 이미 있는 사람 제외
       let persons=[];
-      if(personRes.status==='fulfilled'&&personRes.value.ok){ const j=await personRes.value.json(); persons=(j.results||[]).slice(0,3); }
-      if(!dbWorks.length&&!tmdbTv.length&&!tmdbMv.length&&!persons.length){
+      if(personRes.status==='fulfilled'&&personRes.value.ok){ const j=await personRes.value.json(); persons=(j.results||[]).filter(p=>!dbPersonIds.has(p.id)).slice(0,3); }
+      if(!dbWorks.length&&!tmdbTv.length&&!tmdbMv.length&&!dbPersons.length&&!persons.length){
         el.innerHTML='<div class="ottrang-sr-empty">검색 결과가 없습니다</div>'; return;
       }
       let html='';
       if(dbWorks.length){ html+='<div class="ottrang-sr-section">🗄️ 추천</div>'+dbWorks.map(w=>_workItem(w,true)).join(''); }
       const tmdbAll=[...tmdbTv,...tmdbMv];
       if(tmdbAll.length){ html+='<div class="ottrang-sr-section">🎬 작품</div>'+tmdbAll.map(w=>_workItem(w,false)).join(''); }
-      if(persons.length){ html+='<div class="ottrang-sr-section">👤 인물</div>'+persons.map(p=>_personItem(p)).join(''); }
+      // [인물] — 우리 DB 먼저, TMDB는 보충
+      const allPersons=[...dbPersons.map(p=>({...p,_isDB:true})),...persons];
+      if(allPersons.length){ html+='<div class="ottrang-sr-section">👤 인물</div>'+allPersons.map(p=>_personItem(p,!!p._isDB)).join(''); }
       el.innerHTML=html;
       el.style.display='block'; // 헤더 검색결과 표시
     } catch(e){
