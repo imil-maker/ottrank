@@ -1,3 +1,5 @@
+/* 2026-07-31 rev.6 — admin-persons.js (공개조회 API 응답에 credit_kind 필드 누락 발견,
+   추가 — person.html의 cast/crew 병합 로직이 출연/연출을 명시적으로 구분할 수 있게 함) */
 /* 2026-07-31 rev.5 — admin-persons.js (필모그래피 수동 추가 기능 신규: person_manual_credits
    관리자용 API 4종(목록조회/작품검색/추가/삭제) + 공개조회 API 1종(handleAdminPersonManualCredits
    함수로 분리, index.js에서 별도 라우팅 필요) — TMDB 필모에 없는 작품을 우리 DB 기준으로
@@ -886,6 +888,7 @@ export async function handleAdminPersonManualCredits(path, request, env, url, he
       const items = (results || []).map((r) => ({
         id: r.id,
         media_type: r.media_type,
+        credit_kind: r.credit_kind, // 'act' | 'direct' — person.html이 cast/crew 병합 시 사용
         title: r.title,
         name: r.title, // TV는 name 필드를 보는 코드도 있어 동일값으로 함께 채움
         poster_path: r.poster_path,
