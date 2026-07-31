@@ -1,3 +1,7 @@
+/* 2026-07-31 rev.5 — admin-persons.js (필모그래피 수동 추가 기능 신규: person_manual_credits
+   관리자용 API 4종(목록조회/작품검색/추가/삭제) + 공개조회 API 1종(handleAdminPersonManualCredits
+   함수로 분리, index.js에서 별도 라우팅 필요) — TMDB 필모에 없는 작품을 우리 DB 기준으로
+   이 인물 필모그래피에 이어붙임, 대표작 자동계산에는 관여 안 함) */
 /* 2026-07-31 rev.4 — admin-persons.js (인물 관련 영상 기능 신규: person_videos 관리자용 API
    3종 추가 — 목록조회 GET /admin/persons/videos, 추가 POST /admin/persons/videos-add,
    삭제 DELETE /admin/persons/videos/:id. title_videos의 유튜브ID추출/중복체크/oEmbed
@@ -734,6 +738,165 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       const id = parseInt(videoDeleteMatch[1], 10);
       await env.DB.prepare(`DELETE FROM person_videos WHERE id = ?`).bind(id).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  return null; // 해당하는 라우트 없음 — index.js가 다음 라우트로 넘어감
+}
+
+// ══════════════════════════════════════════════════════════════
+// [2026-07-31 신규] 필모그래피 수동 추가(person_manual_credits) — 관리자용 3종 + 공개용 1종.
+// TMDB 필모(combined_credits)에 없는 작품을, 우리 DB(works)에 있는 것만 골라 이 인물의
+// 필모그래피에 이어붙임. 대표작 자동계산 알고리즘에는 관여하지 않고, 관리자가 대표작으로
+// 수동 지정할 때 매칭될 후보 풀(person.html의 allCredits)에만 합류시키는 용도.
+// export async function handleAdminPersonManualCredits는 index.js에서 별도 라우팅.
+// ══════════════════════════════════════════════════════════════
+export async function handleAdminPersonManualCredits(path, request, env, url, headers) {
+  // ── GET /admin/persons/manual-credits?tmdb_person_id= ────────────
+  if (path === "/admin/persons/manual-credits" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const personId = parseInt(url.searchParams.get("tmdb_person_id"));
+      if (!personId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id가 필요해요" }), { status: 400, headers });
+      }
+      const { results } = await env.DB.prepare(
+        `SELECT pmc.id, pmc.work_tmdb_id, pmc.work_media_type, pmc.credit_kind, pmc.role_text,
+                COALESCE(w.title_ko, w.title_en) AS title, w.poster_path
+         FROM person_manual_credits pmc
+         LEFT JOIN works w ON w.tmdb_id = pmc.work_tmdb_id AND w.media_type = pmc.work_media_type
+         WHERE pmc.tmdb_person_id = ? ORDER BY pmc.created_at DESC`
+      ).bind(personId).all();
+
+      return new Response(JSON.stringify({ ok: true, items: results || [] }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/persons/manual-credit-work-search?q= ──────────────
+  // 우리 DB(works)에 있는 작품만 검색 — TMDB 보완 없음(요청사항: "우리 DB에 있는 작품만")
+  if (path === "/admin/persons/manual-credit-work-search" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: true, items: [] }), { headers });
+      }
+
+      if (/^\d+$/.test(q)) {
+        const { results } = await env.DB.prepare(
+          `SELECT tmdb_id, media_type, COALESCE(title_ko, title_en) AS title, poster_path
+           FROM works WHERE tmdb_id = ?`
+        ).bind(parseInt(q, 10)).all();
+        return new Response(JSON.stringify({ ok: true, items: results || [] }), { headers });
+      }
+
+      const { results } = await env.DB.prepare(
+        `SELECT tmdb_id, media_type, COALESCE(title_ko, title_en) AS title, poster_path
+         FROM works WHERE title_ko LIKE ? OR title_en LIKE ? LIMIT 8`
+      ).bind(`%${q}%`, `%${q}%`).all();
+
+      return new Response(JSON.stringify({ ok: true, items: results || [] }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/manual-credits-add ────────────────────────
+  // body: { tmdb_person_id, work_tmdb_id, work_media_type, credit_kind('act'|'direct'), role_text }
+  if (path === "/admin/persons/manual-credits-add" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const personId  = parseInt(body.tmdb_person_id);
+      const workId    = parseInt(body.work_tmdb_id);
+      const mediaType = (body.work_media_type || "").trim();
+      const kind      = (body.credit_kind || "").trim();
+      const roleText  = (body.role_text || "").trim();
+
+      if (!personId || !workId || !mediaType || (kind !== "act" && kind !== "direct")) {
+        return new Response(JSON.stringify({ ok: false, message: "필수 항목이 비어있어요" }), { status: 400, headers });
+      }
+
+      const work = await env.DB.prepare(
+        `SELECT tmdb_id FROM works WHERE tmdb_id = ? AND media_type = ?`
+      ).bind(workId, mediaType).first();
+      if (!work) {
+        return new Response(JSON.stringify({ ok: false, message: "우리 DB에 없는 작품이에요. 작품페이지에서 먼저 등록해주세요." }), { status: 404, headers });
+      }
+
+      const existing = await env.DB.prepare(
+        `SELECT id FROM person_manual_credits WHERE tmdb_person_id = ? AND work_tmdb_id = ? AND work_media_type = ? LIMIT 1`
+      ).bind(personId, workId, mediaType).first();
+      if (existing) {
+        return new Response(JSON.stringify({ ok: false, message: "이미 추가된 작품이에요." }), { status: 409, headers });
+      }
+
+      await env.DB.prepare(
+        `INSERT INTO person_manual_credits (tmdb_person_id, work_tmdb_id, work_media_type, credit_kind, role_text)
+         VALUES (?, ?, ?, ?, ?)`
+      ).bind(personId, workId, mediaType, kind, roleText || null).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/persons/manual-credits/:id ──────────────────────
+  const deleteMatch = path.match(/^\/admin\/persons\/manual-credits\/(\d+)$/);
+  if (deleteMatch && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const id = parseInt(deleteMatch[1], 10);
+      await env.DB.prepare(`DELETE FROM person_manual_credits WHERE id = ?`).bind(id).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /person-manual-credits/:tmdb_person_id ────────────────────
+  // 공개(비인증) 조회 — person.html에서 사용. works 테이블과 조인해서 카드 렌더에
+  // 바로 쓸 수 있는 형태(title/poster_path/release_date/vote_average)로 내려줌.
+  const publicCreditsMatch = path.match(/^\/person-manual-credits\/(\d+)$/);
+  if (publicCreditsMatch && request.method === "GET") {
+    try {
+      const personId = parseInt(publicCreditsMatch[1], 10);
+      const { results } = await env.DB.prepare(
+        `SELECT pmc.work_tmdb_id AS id, pmc.work_media_type AS media_type, pmc.credit_kind, pmc.role_text,
+                COALESCE(w.title_ko, w.title_en) AS title, w.poster_path, w.release_date,
+                w.release_year, w.tmdb_rating AS vote_average
+         FROM person_manual_credits pmc
+         JOIN works w ON w.tmdb_id = pmc.work_tmdb_id AND w.media_type = pmc.work_media_type
+         WHERE pmc.tmdb_person_id = ?`
+      ).bind(personId).all();
+
+      const items = (results || []).map((r) => ({
+        id: r.id,
+        media_type: r.media_type,
+        title: r.title,
+        name: r.title, // TV는 name 필드를 보는 코드도 있어 동일값으로 함께 채움
+        poster_path: r.poster_path,
+        release_date: r.release_date || (r.release_year ? `${r.release_year}-01-01` : ""),
+        first_air_date: r.media_type === "tv" ? (r.release_date || (r.release_year ? `${r.release_year}-01-01` : "")) : "",
+        vote_average: r.vote_average,
+        character: r.credit_kind === "act" ? (r.role_text || "") : "",
+        job: r.credit_kind === "direct" ? (r.role_text || "감독") : "",
+      }));
+
+      return new Response(JSON.stringify({ ok: true, items }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
