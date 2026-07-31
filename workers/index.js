@@ -1,3 +1,6 @@
+/* 2026-07-31 rev.8 — index.js (/admin/persons/videos* 라우팅 추가 — 인물 관련 영상 관리자
+   API가 12번 관리자 캐치올로 잘못 넘어가서 "Not found"(404) 나던 문제 수정,
+   admin-persons.js로 위임) */
 /* 2026-07-29 rev.7 — index.js (대표이미지(custom_profile_path) 라우팅 추가: 관리자 업로드/조회/삭제 +
    공개 조회. admin-persons.js에 신설된 handleAdminPersonProfileImage/handlePersonCustomProfilePublic 위임) */
 /* 2026-07-29 rev.6 — index.js (/person-featured-works/:id 공개 조회 라우팅 추가 — person.html
@@ -168,13 +171,15 @@ export default {
     }
 
     // 3-5. 인물(persons) 관련 신규 어드민 기능 — admin.js와 별도 파일(2026-07-27 신규)
-    //      /admin/persons/mbti-naver-*, /admin/persons/featured-works*는 12번 관리자
-    //      캐치올(handleAdmin)보다 반드시 앞에 있어야 함(안 그러면 handleAdmin으로 잘못
-    //      넘어가서 404가 남 — track.js/relationship.js와 동일 패턴, 2026-07-29 대표작
-    //      매칭 기능 추가하며 동일 문제 재발 확인 후 조건 확장)
+    //      /admin/persons/mbti-naver-*, /admin/persons/featured-works*, /admin/persons/videos*는
+    //      12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함(안 그러면 handleAdmin으로
+    //      잘못 넘어가서 404가 남 — track.js/relationship.js와 동일 패턴, 2026-07-29 대표작
+    //      매칭 기능 추가하며 동일 문제 재발 확인 후 조건 확장, 2026-07-31 관련영상 기능
+    //      추가하며 동일 문제 재재발 확인 후 조건 재확장)
     if (!res && (
       path.startsWith("/admin/persons/mbti-naver") ||
-      path.startsWith("/admin/persons/featured-works")
+      path.startsWith("/admin/persons/featured-works") ||
+      path.startsWith("/admin/persons/videos")
     )) {
       res = await handleAdminPersons(path, request, env, url, headers);
     }
