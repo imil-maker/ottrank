@@ -1,3 +1,5 @@
+// 2026-08-01 rev.9 — admin.js (GET /admin/works?filter=adult_confirmed에 &flag=1|2 파라미터 추가 —
+// admin_videos.html "확정된 성인물 리스트"에서 1(19금)/2(포르노그라피) 목록을 따로 조회할 수 있게)
 // 2026-08-01 rev.8 — admin.js (PATCH /admin/works/:tmdb_id/adult-flag가 adult_flag=2(포르노그라피)도
 // 받아들이도록 확장. 1/2 둘 다 media_type을 'movie'로 자동 고정하는 기존 로직 유지, 그 외 값은 전부 null)
 // 2026-07-30 rev.7 — admin.js (POST /admin/works/:tmdb_id/reset-keyword-cache가 keyword_preview
@@ -18,7 +20,7 @@
    POST   /admin/rank-override
    DELETE /admin/rank-override
    GET    /admin/works                (?sort=recent 기본값=created_at DESC, ?sort=updated=updated_at DESC)
-                                       (?filter=adult_confirmed → adult_flag=1 확정 성인물만, 2026-07-13 신설)
+                                       (?filter=adult_confirmed[&flag=1|2] → adult_flag 확정된 성인물만, 2026-07-13 신설, 2026-08-01 flag 파라미터 추가)
    POST   /admin/works/register                         ← works 관리 "➕ 작품 등록" 전용 수동 등록, 성인물 필터 없음(2026-07-21 신설)
    PATCH  /admin/works/:tmdb_id
    PATCH  /admin/works/:tmdb_id/hero-backdrop  ← 핫100 히어로 캐러셀 배경이미지 수동 선택(2026-07-11 신설, 다른 필드는 안 건드리는 격리된 엔드포인트)
@@ -1084,13 +1086,17 @@ export async function handleAdmin(path, request, env, url, headers) {
         query  = `SELECT * FROM works WHERE first_matched_date = ? AND match_source IN ('auto_claude', 'auto_tmdb') ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
         params = [date, limit, offset];
       } else if (filter === "adult_confirmed" && q) {
-        // [2026-07-13 추가] "확정된 성인물 리스트"용 — adult_flag=1로 확정된 것만, 제목 검색도 함께 지원
-        query  = `SELECT * FROM works WHERE adult_flag = 1 AND (title_ko LIKE ? OR title_en LIKE ?) ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
-        params = [`%${q}%`, `%${q}%`, limit, offset];
+        // [2026-07-13 추가, 2026-08-01 확장] "확정된 성인물 리스트"용 — adult_flag=1(기본) 또는
+        // 2(포르노그라피, ?flag=2)로 확정된 것만, 제목 검색도 함께 지원
+        const flagVal = url.searchParams.get("flag") === "2" ? 2 : 1;
+        query  = `SELECT * FROM works WHERE adult_flag = ? AND (title_ko LIKE ? OR title_en LIKE ?) ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+        params = [flagVal, `%${q}%`, `%${q}%`, limit, offset];
       } else if (filter === "adult_confirmed") {
-        // [2026-07-13 추가] admin.html works 관리 왼쪽 체크박스로 표시한 adult_flag=1 작품 전체 목록
-        query  = `SELECT * FROM works WHERE adult_flag = 1 ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
-        params = [limit, offset];
+        // [2026-07-13 추가, 2026-08-01 확장] admin.html works 관리 체크박스로 표시한
+        // adult_flag=1(기본) 또는 2(?flag=2) 작품 전체 목록
+        const flagVal = url.searchParams.get("flag") === "2" ? 2 : 1;
+        query  = `SELECT * FROM works WHERE adult_flag = ? ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+        params = [flagVal, limit, offset];
       } else if (q) {
         query  = `SELECT * FROM works WHERE title_ko LIKE ? OR title_en LIKE ? ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
         params = [`%${q}%`, `%${q}%`, limit, offset];
