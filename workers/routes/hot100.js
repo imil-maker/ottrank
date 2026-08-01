@@ -1,3 +1,7 @@
+// 2026-08-01 rev.5 — hot100.js (GET /hot100/hero-tabs 응답에 release_year가 아예 빠져있던 문제
+// 수정 — 메인페이지 히어로 캐러셀(하우스 오브 드래곤 등) 클릭 시 항상 오늘 날짜로 링크가
+// 만들어지던 원인. "all"/플랫폼 두 분기 SQL과 응답 매핑 전부에 w.release_year 추가.
+// getHot100()은 이미 있었음 — hero-tabs만 별도로 빠져있던 것)
 // 2026-07-26 rev.4 — hot100.js (OTT_DISPLAY_ORDER를 사용자 지정 순서 그대로 반영: 넷플릭스,티빙,디즈니+,박스오피스,웨이브,쿠팡플레이)
 // ─────────────────────────────────────────────────────────
 // HOT100 랭킹 점수 계산 라우트
@@ -827,7 +831,7 @@ export async function getHeroTabs(request, env, headers) {
           env.DB.prepare(
             `SELECT h.tmdb_id, h.best_platform, w.title_ko, w.title_en,
                     w.poster_path, w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
-                    w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
+                    w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating, w.release_year
              FROM hot100_scores h
              LEFT JOIN works w ON w.tmdb_id = h.tmdb_id
              ORDER BY h.total_score DESC
@@ -843,7 +847,7 @@ export async function getHeroTabs(request, env, headers) {
         env.DB.prepare(
           `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
                   w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
-                  w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
+                  w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating, w.release_year
            FROM rankings r
            LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
            WHERE r.platform = ? AND r.category_slot = ?
@@ -858,7 +862,7 @@ export async function getHeroTabs(request, env, headers) {
         env.DB.prepare(
           `SELECT r.rank, r.tmdb_id, r.title_ko, r.title_en, r.poster_path,
                   w.hero_backdrop_path, w.hero_custom_image_url, w.hero_title_baked_in,
-                  w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating
+                  w.hero_logo_path, w.media_type, ROUND(w.tmdb_rating, 1) AS tmdb_rating, w.release_year
            FROM rankings r
            LEFT JOIN works w ON w.tmdb_id = r.tmdb_id
            WHERE r.platform = ? AND r.category_slot = ? AND r.is_manual = 1 AND r.date = 'manual'
@@ -887,6 +891,7 @@ export async function getHeroTabs(request, env, headers) {
             hero_title_baked_in: row.hero_title_baked_in,
             hero_logo_path: row.hero_logo_path,
             media_type: row.media_type, tmdb_rating: row.tmdb_rating,
+            release_year: row.release_year,
           })),
         });
         continue;
@@ -909,6 +914,7 @@ export async function getHeroTabs(request, env, headers) {
           hero_title_baked_in: row.hero_title_baked_in,
           hero_logo_path: row.hero_logo_path,
           media_type: row.media_type, tmdb_rating: row.tmdb_rating,
+          release_year: row.release_year,
         })),
       });
     }
