@@ -1,3 +1,7 @@
+<!-- 2026-08-01 rev.7 — admin.html (rev.6에서 openWorksModalEl까지만 고치고 정작 openWorksModal
+     함수 자체엔 tmdbIdReal을 반영 안 해서 여전히 가짜 합성번호로 TMDB 조회하던 실수 수정 —
+     editTmdbId 필드값을 tmdbIdReal 있으면 그걸로 채움. openMediaTypeChange가 이 필드를 그대로
+     읽으므로 이거 하나만 고치면 포스터 미리보기까지 자동으로 같이 해결됨) -->
 <!-- 2026-08-01 rev.6 — admin.html (works 관리 수정모달이 합성번호 작품(tmdb_id_real 있는 행)에서
      TMDB 재조회를 시도할 때, 가짜 합성번호 대신 진짜 tmdb_id_real로 조회하도록 수정 —
      안 그러면 "없는 TMDBid"라 포스터/재조회가 항상 실패해서 media_type 등 저장이 헷갈렸음) -->
@@ -4491,12 +4495,15 @@ async function saveNewWorkFromModal() {
 // worksMode=true 일 때는 saveEdit 대신 saveWorkFromModal 호출
 let worksModalTmdbId = null;
 
-function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType) {
-  worksModalTmdbId = tmdbId;
+function openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType, tmdbIdReal) {
+  worksModalTmdbId = tmdbId; // PATCH 대상은 항상 이 행의 진짜 키(합성번호 포함) 그대로
   document.getElementById('editId').value       = tmdbId;
   document.getElementById('editTitleKo').value  = titleKo;
   document.getElementById('editTitleEn').value  = titleEn;
-  document.getElementById('editTmdbId').value   = tmdbId;
+  // [2026-08-01 수정] TMDB 재조회(previewPoster/onMediaTypeChange)는 이 필드값을 그대로 읽어서
+  // TMDB API를 부르므로, 합성번호 행이면 반드시 tmdbIdReal(진짜 TMDB 번호)을 넣어야 함.
+  // 없으면(합성행 아닌 보통 작품) 예전처럼 tmdbId 그대로.
+  document.getElementById('editTmdbId').value   = tmdbIdReal || tmdbId;
   document.getElementById('modalSub').textContent = `works 테이블 · tmdb_id: ${tmdbId}`;
 
   // TMDB 검색 블록 초기화
