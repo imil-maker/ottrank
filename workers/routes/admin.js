@@ -1,3 +1,5 @@
+// 2026-08-01 rev.8 — admin.js (PATCH /admin/works/:tmdb_id/adult-flag가 adult_flag=2(포르노그라피)도
+// 받아들이도록 확장. 1/2 둘 다 media_type을 'movie'로 자동 고정하는 기존 로직 유지, 그 외 값은 전부 null)
 // 2026-07-30 rev.7 — admin.js (POST /admin/works/:tmdb_id/reset-keyword-cache가 keyword_preview
 // 캐시도 같이 초기화하도록 확장 — 이전엔 keyword_ko_map만 지워서 "관련 작품 자동 추천"이
 // 옛날 캐시에 계속 묶여있던 문제)
@@ -1311,13 +1313,14 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const tmdb_id = parseInt(path.split("/")[3]);
       const body    = await request.json();
-      const finalValue = body.adult_flag === 1 ? 1 : null; // 1 이외에는 전부 null로 취급(안전한 기본값)
+      // [2026-08-01 수정] 1(소프트 성인물) 또는 2(포르노그라피)만 허용, 그 외는 전부 null(미검토)
+      const finalValue = (body.adult_flag === 1 || body.adult_flag === 2) ? body.adult_flag : null;
 
-      // [2026-07-18 추가] 19금으로 체크(1)되는 순간 media_type도 자동으로 'movie'로 고정.
+      // [2026-07-18 추가] 19금으로 체크(1 또는 2)되는 순간 media_type도 자동으로 'movie'로 고정.
       // 성인물은 TV 시리즈로 등록될 일이 거의 없고, 영화로 통일해두면 이후 필터/집계에서
       // 예외 처리를 안 해도 됨. 체크 해제(null)일 때는 media_type을 건드리지 않음 —
       // 되돌릴 원래 타입을 알 방법이 없어 잘못된 값을 덮어쓸 수 있기 때문.
-      if (finalValue === 1) {
+      if (finalValue === 1 || finalValue === 2) {
         await env.DB.prepare(
           "UPDATE works SET adult_flag = ?, media_type = 'movie' WHERE tmdb_id = ?"
         ).bind(finalValue, tmdb_id).run();
