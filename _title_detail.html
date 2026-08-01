@@ -1,3 +1,8 @@
+<!-- 2026-08-01 rev.5 — _title_detail.html (포스터 옆 OTT 로고(loadOttLogos)가 work_ott 조회할 때
+     진짜번호(WORK.tmdb_id)를 그대로 써서, 합성번호 행(동갑내기 과외하기 등)에서 엉뚱하게
+     충돌 상대(온에어)의 OTT를 가져오던 버그 수정. "보러가기" 섹션은 TMDB 실시간 호출이라
+     원래도 정확했음 — work_ott DB 조회하는 이 함수만 문제였음. WORK.dbTmdbId(이 행의 실제
+     works.tmdb_id)를 새로 저장해서, 있으면 그걸로 조회하도록 변경) -->
 <!-- 2026-08-01 rev.4 — _title_detail.html (실전 테스트 중 발견된 버그 수정: movie/tv 둘 다
      TMDB에 존재할 때 인기도로만 고르던 걸, URL에 이미 있는 연도(WORK.year)와 먼저 비교해서
      맞는 쪽을 우선 선택하도록 변경. 인기도 때문에 엉뚱한 타입(예: 2003년 영화 URL인데
@@ -1978,9 +1983,13 @@ async function loadOttLogos(){
   const pc=document.getElementById('platformPills');
   if(!pc)return;
   try{
-    const res=await fetch(`${OTTRANK_API}/works/ott-map?tmdb_ids=${WORK.tmdb_id}`);
+    // [2026-08-01 수정] work_ott는 우리 DB 테이블이라, 이 작품 행의 실제 tmdb_id(합성번호
+    // 포함 가능)로 조회해야 함 — WORK.tmdb_id(항상 진짜 TMDB 번호)로 조회하면 충돌 상대
+    // 작품의 OTT 목록을 잘못 가져올 수 있음(동갑내기 과외하기가 온에어 것을 가져오던 사례).
+    const queryId=WORK.dbTmdbId||WORK.tmdb_id;
+    const res=await fetch(`${OTTRANK_API}/works/ott-map?tmdb_ids=${queryId}`);
     const json=await res.json();
-    const keys=(json.ok&&json.map&&json.map[WORK.tmdb_id])||null;
+    const keys=(json.ok&&json.map&&json.map[queryId])||null;
     // [2026-07-20 수정] work_ott엔 "오늘자 랭킹" 데이터도 우선순위로 섞여 들어가는데,
     // 랭킹의 platform 값 중 'boxoffice'는 실제 OTT가 아니라서 OTT_META에 로고가 없음.
     // 이런 값까지 그대로 map()에 넘기면 빈 문자열(''}이 되어 기존에 잘 떠 있던
@@ -2239,7 +2248,7 @@ function goToTitle(tmdbId,mediaType,year){
 }
 
 /* == WORK Init == */
-let WORK={tmdb_id:null,type:'tv',typeConfirmed:false,platform:null,rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
+let WORK={tmdb_id:null,dbTmdbId:null,type:'tv',typeConfirmed:false,platform:null,rank:'-',title:'작품명',season:1,year:null,media_type:null,poster_path:''};
 (function initWork(){
   /* 지금 실제로 열린 URL의 tmdb_id를 먼저 파악해둔다.
      아래 sessionStorage('ottrang_work') 값이 "이 URL을 위해" 다른 페이지가
@@ -2855,6 +2864,10 @@ async function loadTmdb(){
       }
       // mbti_tags 저장 (renderMbtiSection에서 사용)
       WORK.mbti_tags=worksData?.mbti_tags||null;
+      // [2026-08-01 추가] 이 행의 실제 works.tmdb_id 저장 — 합성번호(충돌 대응) 행이면
+      // WORK.tmdb_id(항상 진짜 TMDB 번호)와 다를 수 있음. work_ott처럼 "우리 DB 테이블을
+      // 그 행 기준으로 조회"해야 하는 곳(loadOttLogos 등)은 반드시 이 값을 써야 정확함.
+      WORK.dbTmdbId=worksData?.tmdb_id||WORK.tmdb_id;
     }
 
     // Select valid TV/Movie
