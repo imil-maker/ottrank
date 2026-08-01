@@ -1,3 +1,7 @@
+<!-- 2026-08-01 rev.4 — _title_detail.html (실전 테스트 중 발견된 버그 수정: movie/tv 둘 다
+     TMDB에 존재할 때 인기도로만 고르던 걸, URL에 이미 있는 연도(WORK.year)와 먼저 비교해서
+     맞는 쪽을 우선 선택하도록 변경. 인기도 때문에 엉뚱한 타입(예: 2003년 영화 URL인데
+     인기도 높은 2008년 드라마)이 뜨던 문제 수정. 연도로 구분 안 되면 기존처럼 인기도로 폴백) -->
 <!-- 2026-08-01 rev.3 — _title_detail.html (같은 tmdb_id로 movie/tv 충돌 대응: 작품 조회 시
      연도(WORK.year)를 ?year= 파라미터로 같이 보내서, videos.js가 합성행을 정확히 찾을 수
      있게 함. WORK.year 없으면 파라미터 자체를 안 보내서 기존 동작 그대로 유지) -->
@@ -2871,10 +2875,22 @@ async function loadTmdb(){
       // 예전엔 무조건 TV를 먼저 고르는 순서라 사실상 "항상 TV 우선"이었음. 이제 그 경우엔
       // popularity(TMDB 인기도)가 더 높은 쪽을 고름 — 완벽하진 않지만 "무조건 TV"보다 훨씬 정확함.
       // 하나만 존재하면(다른 쪽은 404) 기존처럼 그 하나를 그대로 사용.
+      // [2026-08-01 수정] URL에 연도가 있으면(parseSlug로 이미 파싱됨) 인기도보다 연도 일치를
+      // 우선 신뢰 — 방문자가 URL로 이미 "어느 쪽을 보고 싶은지" 알려준 것이므로. 연도가 없거나
+      // 둘 다 안 맞으면 기존처럼 인기도로 폴백.
       const movieValid=movieData?.id?movieData:null;
       const tvValid=tvData?.id?tvData:null;
       if(movieValid&&tvValid){
-        const movieOK=(movieValid.popularity||0)>=(tvValid.popularity||0);
+        const movieYear=(movieValid.release_date||'').slice(0,4);
+        const tvYear=(tvValid.first_air_date||'').slice(0,4);
+        let movieOK;
+        if(WORK.year&&String(WORK.year)===movieYear&&String(WORK.year)!==tvYear){
+          movieOK=true;
+        }else if(WORK.year&&String(WORK.year)===tvYear&&String(WORK.year)!==movieYear){
+          movieOK=false;
+        }else{
+          movieOK=(movieValid.popularity||0)>=(tvValid.popularity||0);
+        }
         det=movieOK?movieValid:tvValid;
         WORK.type=movieOK?'movie':'tv';
       }else if(WORK.type==='movie'){
