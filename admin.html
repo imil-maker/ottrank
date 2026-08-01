@@ -1,3 +1,6 @@
+<!-- 2026-08-01 rev.6 — admin.html (works 관리 수정모달이 합성번호 작품(tmdb_id_real 있는 행)에서
+     TMDB 재조회를 시도할 때, 가짜 합성번호 대신 진짜 tmdb_id_real로 조회하도록 수정 —
+     안 그러면 "없는 TMDBid"라 포스터/재조회가 항상 실패해서 media_type 등 저장이 헷갈렸음) -->
 <!-- 2026-08-01 rev.5 — admin.html (works 관리 19금 체크박스 옆에 adult_flag=2(포르노그라피)용
      체크박스 신규 추가. 두 체크박스는 서로 배타적(하나 체크하면 다른 하나 자동 해제),
      2번 체크 시 🔞🔞 두 개 표시. toggleAdultFlag()를 flag값 인자를 받도록 확장) -->
@@ -4311,6 +4314,7 @@ function renderWorks(rows) {
       <td style="min-width:80px">
         <button class="btn-sm btn-fix"
           data-tmdb-id="${r.tmdb_id}"
+          data-tmdb-id-real="${r.tmdb_id_real || ''}"
           data-title-ko="${_esc(r.title_ko||'')}"
           data-title-en="${_esc(r.title_en||'')}"
           data-poster="${_esc(r.poster_path||'')}"
@@ -4372,11 +4376,12 @@ async function toggleAdultFlag(tmdbId, checkboxEl, flagValue) {
 /* ── data-* 속성으로 works 수정 모달 열기 (onclick 문자열 이스케이프 문제 방지) ── */
 function openWorksModalEl(btn) {
   const tmdbId    = parseInt(btn.dataset.tmdbId);
+  const tmdbIdReal = parseInt(btn.dataset.tmdbIdReal) || null;
   const titleKo   = btn.dataset.titleKo   || '';
   const titleEn   = btn.dataset.titleEn   || '';
   const posterPath = btn.dataset.poster   || '';
   const mediaType = btn.dataset.mediaType || '';
-  openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType);
+  openWorksModal(tmdbId, titleKo, titleEn, posterPath, mediaType, tmdbIdReal);
 }
 
 /* ── works 신규 등록 모달 열기 ── */
