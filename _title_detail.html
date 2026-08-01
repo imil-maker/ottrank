@@ -1,3 +1,7 @@
+<!-- 2026-08-01 rev.6 — _title_detail.html (updateSEO의 브라우저 탭 타이틀(document.title)과
+     SEO 메타(og/twitter title, JSON-LD name)에 시즌2부터 "시즌N" 추가. TV만 해당(영화는
+     시즌 개념 자체가 없어서 movie면 절대 안 붙임), 시즌1은 원래 제목 그대로 유지.
+     화면에 보이는 큰 제목(hero-title)은 안 건드림 — 브라우저 타이틀/SEO만) -->
 <!-- 2026-08-01 rev.5 — _title_detail.html (포스터 옆 OTT 로고(loadOttLogos)가 work_ott 조회할 때
      진짜번호(WORK.tmdb_id)를 그대로 써서, 합성번호 행(동갑내기 과외하기 등)에서 엉뚱하게
      충돌 상대(온에어)의 OTT를 가져오던 버그 수정. "보러가기" 섹션은 TMDB 실시간 호출이라
@@ -2342,7 +2346,12 @@ let _saveDropdownOpen=false; // 드롭다운 열림 여부
 
 /* == SEO == */
 function updateSEO(title,overview,posterUrl,platform,rank){
-  const t=title||WORK.title;
+  const rawTitle=title||WORK.title;
+  // [2026-08-01 추가] 브라우저 탭 타이틀 + SEO 메타(og/twitter/JSON-LD)에만 시즌2부터
+  // "시즌N"을 붙임. 화면에 보이는 큰 제목(hero-title)은 이 값을 안 쓰므로 영향 없음.
+  // TV만 해당 — 영화는 시즌이 다른 별개 작품으로 등록되므로 시즌 개념 자체가 없음.
+  const isTvWithSeason=WORK.type!=='movie'&&WORK.season&&WORK.season>=2;
+  const t=isTvWithSeason?`${rawTitle} 시즌${WORK.season}`:rawTitle;
   // 미디어 타입 라벨 — 영화/드라마 2분류 (세부 장르는 화면 태그에서 별도 노출)
   const isMovie=WORK.type==='movie';
   const typeLabel=isMovie?'영화':'드라마';
