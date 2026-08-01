@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-01 rev.2 — tving.html (goWork가 연도를 안 받고 무조건 오늘 날짜로 URL을 만들던
+     문제 수정 — item.release_year는 이미 있었는데 링크엔 안 넘기고 있었음. media_type='tv'
+     고정은 티빙=TV 전용이라 의도된 정상 코드, 안 건드림) -->
 <!-- 2026-07-23 rev.1 — tving.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
 <html lang="ko">
 <head>
@@ -433,9 +436,10 @@ const TMDB_IMG = 'https://poster.ottrank.kr/tmdb-img/w342'; // [2026-07-17] TMDB
 const PLATFORM = 'tving';
 
 /* ── 작품 상세 페이지 이동 ── */
-function goWork(tmdbId, title) {
+function goWork(tmdbId, title, year) {
   if (!tmdbId) return;
-  const y   = new Date().getFullYear();
+  // [2026-08-01 수정] 항상 오늘 날짜였던 것을, 넘겨받은 실제 release_year 우선으로 변경
+  const y   = year || new Date().getFullYear();
   const url = `/title/1-${y}${tmdbId}`;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
     tmdb_id: tmdbId, type: 'tv', title: title || '', platform: PLATFORM
@@ -460,7 +464,7 @@ function makeCard(item, rank) {
     ? `<span class="pk-season">시즌 ${item.season}</span>` : '';
 
   return `
-    <div class="pk-card" onclick="goWork(${item.tmdb_id},'${escAttr(item.title_ko || '')}')">
+    <div class="pk-card" onclick="goWork(${item.tmdb_id},'${escAttr(item.title_ko || '')}','${item.release_year || ''}')">
       <div class="pk-poster">
         ${poster}
         <div class="pk-rank-num${isTop3 ? ' pk-rank-top3' : ''}">${rank}</div>
