@@ -1,3 +1,12 @@
+/* 2026-08-01 rev.10 — videos.js (실전 테스트 중 발견된 버그 2건 수정:
+   ① POST /works/register 충돌 판단 기준을 media_type→release_date 연도로 변경. 첫 방문(둘 다
+   미등록) 시점엔 화면이 아직 타입을 확정 못 해 media_type이 null로 올 수 있어 충돌을 못 잡던
+   문제 — release_date는 항상 정확히 오므로 이걸 1순위 판단 기준으로 삼음(media_type은 연도
+   정보 없을 때만 보조로 사용).
+   ② GET /works/:tmdb_id — ?year= 왔는데 합성행이 없을 때, 무조건 realId 행으로 폴백하지 않고
+   그 행의 실제 release_date 연도가 요청 연도와 같을 때만 신뢰하도록 변경. 다르면 "못 찾음"
+   처리해서 프론트가 TMDB로 새로 판단하게 함 — 안 그러면 전혀 다른 연도의 기존 행(예: 2008년
+   드라마)을 2003년 영화 요청에 그대로 돌려주는 사고가 남) */
 /* 2026-08-01 rev.9 — videos.js (같은 tmdb_id로 movie/tv가 실제로 충돌하는 극소수 케이스 대응:
    POST /works/register가 media_type이 서로 다르다고 확신될 때만 "연도+실제tmdb_id" 합성번호로
    새 행을 만들어 기존 작품을 보호. 새 컬럼 tmdb_id_real(진짜 TMDB 번호) 사용.
@@ -611,25 +620,33 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // "이 실제 작품에 해당하는 행이 이미 있는지"를 정확히 판단한다.
       const realId = parseInt(tmdb_id);
       const { results: candidates } = await env.DB.prepare(
-        "SELECT tmdb_id, media_type, tmdb_id_real FROM works WHERE tmdb_id = ? OR tmdb_id_real = ?"
+        "SELECT tmdb_id, media_type, tmdb_id_real, release_date FROM works WHERE tmdb_id = ? OR tmdb_id_real = ?"
       ).bind(realId, realId).all();
 
-      // 이번 요청의 media_type과 정확히 같은 행이 있으면 그 행을 갱신 대상으로 삼는다.
-      let targetRow = media_type ? candidates.find(r => r.media_type === media_type) : null;
-      let needSynthetic = false;
+      // [2026-08-01 수정] 판단 기준을 media_type 대신 release_date 연도로 변경.
+      // 이유: 첫 방문(둘 다 DB에 없는 순간)엔 화면이 아직 타입을 확정 못 해서 media_type이
+      // null로 올 수 있음 — 이때 media_type만 보면 충돌을 못 잡고 기존 행을 그대로 덮어써버림.
+      // 반면 release_date(연도)는 항상 TMDB 응답에서 정확히 채워져서 오므로 더 믿을 수 있음.
+      const incomingYear = (release_date || "").slice(0, 4);
+      const hasValidYear = /^\d{4}$/.test(incomingYear);
 
-      if (!targetRow) {
-        if (media_type) {
-          // media_type을 확실히 아는데, 그 타입과 일치하는 행이 없는 경우
-          const hasConflictingType = candidates.some(r => r.media_type && r.media_type !== media_type);
-          if (hasConflictingType) {
-            needSynthetic = true; // 진짜 충돌 — 새 합성행 필요
-          } else {
-            // 후보는 있지만 media_type이 전부 NULL(미확정) → 그 행을 그대로 이어서 씀(기존 동작 유지)
-            targetRow = candidates.find(r => r.tmdb_id === realId) || candidates[0] || null;
-          }
+      let targetRow = null;
+      if (hasValidYear) {
+        targetRow = candidates.find(r => (r.release_date || "").slice(0, 4) === incomingYear) || null;
+      } else if (media_type) {
+        targetRow = candidates.find(r => r.media_type === media_type) || null;
+      }
+
+      let needSynthetic = false;
+      if (!targetRow && candidates.length) {
+        const hasYearConflict = hasValidYear &&
+          candidates.some(r => r.release_date && (r.release_date || "").slice(0, 4) !== incomingYear);
+        const hasTypeConflict = !hasValidYear && media_type &&
+          candidates.some(r => r.media_type && r.media_type !== media_type);
+        if (hasYearConflict || hasTypeConflict) {
+          needSynthetic = true; // 진짜 충돌 — 새 합성행 필요
         } else {
-          // media_type을 모르는 요청 — 예전처럼 realId 행(있으면)을 그대로 갱신 대상으로
+          // 판단 근거(연도/타입) 자체가 불확실 → 안전하게 기존 행 그대로 이어서 사용(예전 동작 유지)
           targetRow = candidates.find(r => r.tmdb_id === realId) || candidates[0] || null;
         }
       }
@@ -640,11 +657,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       if (needSynthetic) {
         // 연도가 없으면 합성번호를 안전하게 만들 수 없음 — 등록 자체를 조용히 건너뜀
         // (기존 작품을 잘못 건드리느니, 이번 요청 하나를 포기하는 쪽이 훨씬 안전함)
-        const yearStr = (release_date || "").slice(0, 4);
-        if (!/^\d{4}$/.test(yearStr)) {
+        if (!hasValidYear) {
           return new Response(JSON.stringify({ ok: true, skipped: "conflict_no_year" }), { headers });
         }
-        finalTmdbId = parseInt(`${yearStr}${realId}`);
+        finalTmdbId = parseInt(`${incomingYear}${realId}`);
         tmdbIdRealVal = realId;
       } else if (targetRow) {
         finalTmdbId = targetRow.tmdb_id;
@@ -972,9 +988,20 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     if (yearParam && /^\d{4}$/.test(yearParam)) {
       const syntheticId = parseInt(`${yearParam}${tmdb_id}`);
       workRow = await env.DB.prepare("SELECT * FROM works WHERE tmdb_id = ?").bind(syntheticId).first();
-      if (workRow) tmdb_id = String(syntheticId); // 이후 로직 전부가 이 값을 기준으로 동작하도록 치환
-    }
-    if (!workRow) {
+      if (workRow) {
+        tmdb_id = String(syntheticId); // 이후 로직 전부가 이 값을 기준으로 동작하도록 치환
+      } else {
+        // [2026-08-01 수정] 합성행이 없다고 무조건 realId 행으로 폴백하면 안 됨 — 그 행이
+        // 실제로는 "다른 연도(=다른 타입)"의 작품일 수 있음(예: 2003년 영화를 찾는데 2008년
+        // 드라마 행이 걸림). realId 행의 실제 연도가 요청한 연도와 같을 때만 신뢰하고,
+        // 다르면 "못 찾음"으로 처리해서 프론트가 TMDB로 새로 확인하도록 넘긴다.
+        const fallback = await env.DB.prepare("SELECT * FROM works WHERE tmdb_id = ?").bind(parseInt(tmdb_id)).first();
+        const fallbackYear = (fallback?.release_date || "").slice(0, 4);
+        if (fallback && fallbackYear === yearParam) {
+          workRow = fallback;
+        }
+      }
+    } else {
       workRow = await env.DB.prepare("SELECT * FROM works WHERE tmdb_id = ?").bind(parseInt(tmdb_id)).first();
     }
     if (!workRow) {
