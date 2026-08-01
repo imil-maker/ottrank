@@ -1,3 +1,7 @@
+// 2026-08-01 rev.10 — admin.js (OTT 수집(_recollectOttForWork, collect-ott 배치)이 합성번호
+// 작품(tmdb_id_real 있는 행)에서 TMDB를 부를 때 가짜 합성번호를 그대로 써서 엉뚱한/실패한
+// 결과가 들어가던 문제 수정. TMDB 호출은 항상 tmdb_id_real(있으면), work_ott 저장은 항상
+// 그 행의 진짜 tmdb_id(합성번호 포함) 기준으로 분리)
 // 2026-08-01 rev.9 — admin.js (GET /admin/works?filter=adult_confirmed에 &flag=1|2 파라미터 추가 —
 // admin_videos.html "확정된 성인물 리스트"에서 1(19금)/2(포르노그라피) 목록을 따로 조회할 수 있게)
 // 2026-08-01 rev.8 — admin.js (PATCH /admin/works/:tmdb_id/adult-flag가 adult_flag=2(포르노그라피)도
@@ -126,19 +130,24 @@ import { _checkAuth } from "../utils/authUtils.js";
 // 저장/삭제 시점에 그 작품 하나만 바로 재수집해서 이 문제를 근본적으로 없앤다.
 async function _recollectOttForWork(env, tmdbId) {
   const work = await env.DB.prepare(
-    `SELECT media_type FROM works WHERE tmdb_id = ?`
+    `SELECT media_type, tmdb_id_real FROM works WHERE tmdb_id = ?`
   ).bind(tmdbId).first();
   if (!work) return; // works에 없는(미등록) 작품이면 재수집 대상 아님
+
+  // [2026-08-01 추가] 합성번호(tmdb_id_real 있는 행)면 TMDB 호출엔 반드시 진짜 번호를 써야 함
+  // — 합성번호는 TMDB가 모르는 가짜 값이라 그대로 부르면 엉뚱한 작품이 걸리거나 실패함.
+  // DB 저장(work_ott 등)은 계속 이 행의 진짜 키인 tmdbId(합성번호 포함) 기준으로 그대로 함.
+  const realId = work.tmdb_id_real || tmdbId;
 
   const mtype = work.media_type === "movie" ? "movie" : "tv";
   const keys  = new Set();
 
-  // Priority 1 — 오늘자 랭킹
+  // Priority 1 — 오늘자 랭킹 (크롤러는 항상 진짜 tmdb_id로 저장하므로 realId로 조회)
   const { results: rankRows } = await env.DB.prepare(`
     SELECT platform FROM rankings
     WHERE tmdb_id = ?
       AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
-  `).bind(tmdbId).all();
+  `).bind(realId).all();
   rankRows.forEach(r => keys.add(r.platform));
 
   const OTT_NAME_MATCH = [
@@ -153,14 +162,14 @@ async function _recollectOttForWork(env, tmdbId) {
   try {
     // Priority 2 — 쿠팡플레이 Network 보완 (TV만)
     if (mtype === "tv" && !keys.has("coupang")) {
-      const detResp = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${env.TMDB_API_KEY}`);
+      const detResp = await fetch(`https://api.themoviedb.org/3/tv/${realId}?api_key=${env.TMDB_API_KEY}`);
       if (detResp.ok) {
         const det = await detResp.json();
         if ((det.networks || []).some(n => n.id === 5169)) keys.add("coupang");
       }
     }
     // Priority 3 — TMDB Watch Providers (flatrate+rent+buy, collect-ott 배치와 동일 기준)
-    const wpResp = await fetch(`https://api.themoviedb.org/3/${mtype}/${tmdbId}/watch/providers?api_key=${env.TMDB_API_KEY}`);
+    const wpResp = await fetch(`https://api.themoviedb.org/3/${mtype}/${realId}/watch/providers?api_key=${env.TMDB_API_KEY}`);
     if (wpResp.ok) {
       const wp = await wpResp.json();
       const kr = (wp.results && wp.results.KR) || {};
@@ -183,7 +192,7 @@ async function _recollectOttForWork(env, tmdbId) {
     else if (o.action === "remove") keys.delete(o.ott_key);
   });
 
-  // 기존 값 지우고 새로 씀 (collect-ott 배치와 동일 원칙)
+  // 기존 값 지우고 새로 씀 (collect-ott 배치와 동일 원칙) — 항상 이 행의 진짜 키(tmdbId) 기준
   const stmts = [env.DB.prepare("DELETE FROM work_ott WHERE tmdb_id = ?").bind(tmdbId)];
   keys.forEach(k => {
     stmts.push(env.DB.prepare("INSERT INTO work_ott (tmdb_id, ott_key) VALUES (?, ?)").bind(tmdbId, k));
@@ -2008,7 +2017,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       const CUTOFF_DAYS = 15;
 
       const { results: targets } = await env.DB.prepare(`
-        SELECT tmdb_id, title_ko, media_type FROM works
+        SELECT tmdb_id, title_ko, media_type, tmdb_id_real FROM works
         WHERE (ott_updated_at IS NULL OR ott_updated_at < datetime('now', '-${CUTOFF_DAYS} days'))
         LIMIT ?
       `).bind(limit).all();
@@ -2018,23 +2027,27 @@ export async function handleAdmin(path, request, env, url, headers) {
       }
 
       const tmdbIds      = targets.map(t => t.tmdb_id);
-      const placeholders = tmdbIds.map(() => "?").join(",");
+      // [2026-08-01 추가] 합성번호 행은 랭킹이 진짜번호(tmdb_id_real)로 크롤링돼 있으므로,
+      // 랭킹/오버라이드 조회 대상에 진짜번호도 같이 넣어야 함
+      const realIds       = targets.map(t => t.tmdb_id_real).filter(Boolean);
+      const lookupIds     = [...new Set([...tmdbIds, ...realIds])];
+      const placeholders  = lookupIds.map(() => "?").join(",");
 
       // Priority 1 — 오늘자 랭킹을 한 번에 조회 (건마다 따로 안 물어봄)
       const { results: rankRows } = await env.DB.prepare(`
         SELECT tmdb_id, platform FROM rankings
         WHERE tmdb_id IN (${placeholders})
           AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
-      `).bind(...tmdbIds).all();
+      `).bind(...lookupIds).all();
       const rankMap = {};
       rankRows.forEach(r => {
         (rankMap[r.tmdb_id] ||= new Set()).add(r.platform);
       });
 
-      // Priority 4 — 어드민 수동 오버라이드도 한 번에 조회
+      // Priority 4 — 어드민 수동 오버라이드도 한 번에 조회 (오버라이드는 이 행의 진짜 키 기준이라 tmdbIds만)
       const { results: overrideRows } = await env.DB.prepare(`
         SELECT tmdb_id, ott_key, action FROM work_ott_overrides
-        WHERE tmdb_id IN (${placeholders})
+        WHERE tmdb_id IN (${tmdbIds.map(() => "?").join(",")})
       `).bind(...tmdbIds).all();
       const overrideMap = {};
       overrideRows.forEach(o => {
@@ -2058,15 +2071,18 @@ export async function handleAdmin(path, request, env, url, headers) {
 
       for (const row of targets) {
         const tmdbId = row.tmdb_id;
+        // [2026-08-01 추가] TMDB 호출은 항상 진짜번호로 — 합성번호(tmdb_id_real 있는 행)는
+        // TMDB가 모르는 가짜 값이라 그대로 부르면 엉뚱한 작품/실패가 걸림
+        const realId = row.tmdb_id_real || tmdbId;
         const mtype  = row.media_type === "movie" ? "movie" : "tv";
-        const keys   = new Set(rankMap[tmdbId] || []); // Priority 1
+        const keys   = new Set([...(rankMap[tmdbId] || []), ...(rankMap[realId] || [])]); // Priority 1
         let anySuccess = false;
         let lastReason  = null; // 이번 건에서 마지막으로 확인된 실패 사유(성공하면 null로 안 씀)
 
         try {
           // Priority 2 — 쿠팡플레이 Network 보완 (TV만 해당)
           if (mtype === "tv" && !keys.has("coupang")) {
-            const detResp = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${env.TMDB_API_KEY}`);
+            const detResp = await fetch(`https://api.themoviedb.org/3/tv/${realId}?api_key=${env.TMDB_API_KEY}`);
             if (detResp.ok) {
               anySuccess = true;
               const det = await detResp.json();
@@ -2080,7 +2096,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           // 구분하지 않는 원칙이라 rent(대여)/buy(구매)도 같이 인정하도록 변경.
           // Top Gun: Maverick 같은 대작 영화가 구독형 없이 대여/구매로만 걸려있어서
           // "OTT 없음"으로 잘못 저장되던 문제 발견 후 수정.
-          const wpResp = await fetch(`https://api.themoviedb.org/3/${mtype}/${tmdbId}/watch/providers?api_key=${env.TMDB_API_KEY}`);
+          const wpResp = await fetch(`https://api.themoviedb.org/3/${mtype}/${realId}/watch/providers?api_key=${env.TMDB_API_KEY}`);
           if (wpResp.ok) {
             anySuccess = true;
             const wp = await wpResp.json();
