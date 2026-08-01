@@ -1,3 +1,8 @@
+/* 2026-08-01 rev.9 — videos.js (같은 tmdb_id로 movie/tv가 실제로 충돌하는 극소수 케이스 대응:
+   POST /works/register가 media_type이 서로 다르다고 확신될 때만 "연도+실제tmdb_id" 합성번호로
+   새 행을 만들어 기존 작품을 보호. 새 컬럼 tmdb_id_real(진짜 TMDB 번호) 사용.
+   GET /works/:tmdb_id는 ?year= 파라미터로 합성 행을 우선 조회하도록 확장. 연도 정보가 없어서
+   합성번호를 만들 수 없는 경우는 안전하게 등록을 건너뜀 — 기존 작품 오염 방지 최우선) */
 /* 2026-07-31 rev.8 — videos.js (공개 조회 API 신규: GET /videos/person/:tmdb_person_id —
    person.html이 인증 없이 호출, 인물 관련 영상(person_videos) 목록 반환) */
 /* 2026-07-30 rev.7 — videos.js (POST /works/register 신규 등록 시, 일본어 TV 작품에
@@ -17,7 +22,7 @@
    GET    /works/variety-similar/:tmdb_id  예능 태그 기반 비슷한 작품 (공개, % 계산 포함)
    GET    /works/:tmdb_id/cast      우리 DB(work_cast) 출연진 조회 (공개, 2026-07-26 신설)
    POST   /works/:tmdb_id/cast-sync 우리 DB에 없을 때만 호출 — 서버가 TMDB에서 받아와 저장 (공개, 2026-07-26 신설)
-   GET    /works/:tmdb_id           작품 단건 조회
+   GET    /works/:tmdb_id           작품 단건 조회 (?year=YYYY로 합성행 우선조회, 2026-08-01 추가)
    GET    /search/keyword           키워드로 작품 검색 (공개, 한국작품 우선)
 
    [2026-07-15] /works/search, /works/exists는 search.js로 이전됨 (index.js에서 라우팅)
@@ -599,9 +604,56 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       //   무한반복 문제가 생김 — 그래서 최초 1회, INSERT 시점에만 실행)
       // - admin.js의 collect-keywords 배치는 이 로직을 더 이상 하지 않음(2026-07-19 제거) —
       //   성인물 자동판별은 이제 이 지점 하나로 일원화됨
-      const existing = await env.DB.prepare(
-        "SELECT tmdb_id FROM works WHERE tmdb_id = ?"
-      ).bind(parseInt(tmdb_id)).first();
+      // [2026-08-01 수정] 같은 tmdb_id로 movie/tv가 실제로 충돌하는 극소수 케이스 대응.
+      // 기존엔 tmdb_id 하나로만 조회해서, 충돌 시 먼저 등록된 작품 위에 그대로 덮어써지는
+      // 사고가 있었음(온에어/동갑내기 과외하기 사례). 이제 realId(진짜 TMDB 번호)로
+      // 저장된 행뿐 아니라, 이미 합성번호로 저장된 행(tmdb_id_real=realId)까지 같이 조회해서
+      // "이 실제 작품에 해당하는 행이 이미 있는지"를 정확히 판단한다.
+      const realId = parseInt(tmdb_id);
+      const { results: candidates } = await env.DB.prepare(
+        "SELECT tmdb_id, media_type, tmdb_id_real FROM works WHERE tmdb_id = ? OR tmdb_id_real = ?"
+      ).bind(realId, realId).all();
+
+      // 이번 요청의 media_type과 정확히 같은 행이 있으면 그 행을 갱신 대상으로 삼는다.
+      let targetRow = media_type ? candidates.find(r => r.media_type === media_type) : null;
+      let needSynthetic = false;
+
+      if (!targetRow) {
+        if (media_type) {
+          // media_type을 확실히 아는데, 그 타입과 일치하는 행이 없는 경우
+          const hasConflictingType = candidates.some(r => r.media_type && r.media_type !== media_type);
+          if (hasConflictingType) {
+            needSynthetic = true; // 진짜 충돌 — 새 합성행 필요
+          } else {
+            // 후보는 있지만 media_type이 전부 NULL(미확정) → 그 행을 그대로 이어서 씀(기존 동작 유지)
+            targetRow = candidates.find(r => r.tmdb_id === realId) || candidates[0] || null;
+          }
+        } else {
+          // media_type을 모르는 요청 — 예전처럼 realId 행(있으면)을 그대로 갱신 대상으로
+          targetRow = candidates.find(r => r.tmdb_id === realId) || candidates[0] || null;
+        }
+      }
+
+      let finalTmdbId;
+      let tmdbIdRealVal = null;
+
+      if (needSynthetic) {
+        // 연도가 없으면 합성번호를 안전하게 만들 수 없음 — 등록 자체를 조용히 건너뜀
+        // (기존 작품을 잘못 건드리느니, 이번 요청 하나를 포기하는 쪽이 훨씬 안전함)
+        const yearStr = (release_date || "").slice(0, 4);
+        if (!/^\d{4}$/.test(yearStr)) {
+          return new Response(JSON.stringify({ ok: true, skipped: "conflict_no_year" }), { headers });
+        }
+        finalTmdbId = parseInt(`${yearStr}${realId}`);
+        tmdbIdRealVal = realId;
+      } else if (targetRow) {
+        finalTmdbId = targetRow.tmdb_id;
+        tmdbIdRealVal = targetRow.tmdb_id_real || null; // 이미 합성행이었으면 그 표시를 그대로 유지
+      } else {
+        finalTmdbId = realId; // 완전히 새로운 작품(충돌 없음) — 기존과 동일
+      }
+
+      const existing = candidates.find(r => r.tmdb_id === finalTmdbId) || null;
 
       let keywordsVal  = null;
       let adultFlagVal = null;
@@ -662,14 +714,16 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
 
       await env.DB.prepare(`
         INSERT INTO works (
-          tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
+          tmdb_id, tmdb_id_real, title_ko, title_en, poster_path, media_type, genre, original_language,
           tmdb_rating, release_date, rating_updated_at, match_source, keywords, adult_flag
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- media_type: title_en과 달리 "보호 대상 아님" — 확신 있는 값(NULL 아님)이 오면 항상 최신화.
           -- movie/tv tmdb_id가 우연히 겹쳐 한 번 잘못 저장돼도, 이후 신뢰 가능한 값이 들어오면
           -- 자동으로 스스로 고쳐지는 자가치유(self-healing) 구조 (2026-07-07)
+          -- [2026-08-01] finalTmdbId(합성번호 포함)를 키로 쓰기 때문에, 여기서 media_type이
+          -- 달라져서 다시 충돌하는 일은 없음 — 충돌 판단은 INSERT 이전에 이미 끝난 상태.
           media_type = CASE
             WHEN excluded.media_type IS NOT NULL AND excluded.media_type != ''
               THEN excluded.media_type
@@ -708,8 +762,11 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           -- rating_updated_at: 이 등록 요청이 들어온 시점 = 방문자가 TMDB를 조회해온 시점이므로
           -- 매 호출마다 무조건 최신 시각으로 갱신 (신작 1일 / 구작 5일 주기 판단의 기준값)
           rating_updated_at = excluded.rating_updated_at
+          -- tmdb_id_real은 의도적으로 UPDATE SET에 넣지 않음 — 최초 INSERT 시점에 정해진 값을
+          -- 그대로 영구 보존(합성행이었는지 아닌지 표시가 나중에 바뀌면 안 됨)
       `).bind(
-        parseInt(tmdb_id),
+        finalTmdbId,
+        tmdbIdRealVal,
         title_ko       || null,
         validTitle_en  || null,
         poster_path    || null,
@@ -733,13 +790,15 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // 자동 연결 — 위 출연진 저장과 동일하게 "최초 1회, INSERT 시점에만" 실행. keyword_translation
       // 사전에는 이미 두 키워드 다 등록돼 있어서(어드민이 직접 만든 것, source='admin') 여기선
       // work_keywords 연결만 하면 됨. 일본 영화나 비일본 작품은 대상 아님(요청 범위 그대로).
+      // [2026-08-01 수정] work_keywords.tmdb_id는 works.tmdb_id와 조인되므로, 합성번호 행이면
+      // 반드시 finalTmdbId(합성번호)를 써야 함 — realId를 쓰면 어느 works 행과도 안 맞아 조인 누락됨.
       if (!existing && original_language === 'ja' && mediaTypeForInsert === 'tv') {
         const isJapanAnimation = (genre || '').includes('애니메이션');
         const autoKeyword = isJapanAnimation ? 'japan animation' : 'japan drama';
         ctx.waitUntil(
           env.DB.prepare(
             "INSERT OR IGNORE INTO work_keywords (tmdb_id, keyword) VALUES (?, ?)"
-          ).bind(parseInt(tmdb_id), autoKeyword).run()
+          ).bind(finalTmdbId, autoKeyword).run()
         );
       }
 
@@ -897,19 +956,32 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
   }
 
   // ── GET /works/:tmdb_id ───────────────────────────────────
+  // [2026-08-01 수정] ?year=YYYY가 같이 오면, 그 연도+실제tmdb_id로 만들어진 합성행(충돌
+  // 대응용, tmdb_id_real 참고)이 있는지 먼저 확인해서 있으면 그걸 우선 사용한다.
+  // 없으면(대부분의 경우) 예전처럼 realId 그대로 조회 — 기존 동작과 100% 동일.
+  // 이후 함수 전체가 지역변수 tmdb_id를 그대로 참조하므로, 여기서 한 번만 정확한 값으로
+  // 맞춰두면 캐시 저장(keyword_preview 등) 쿼리들도 자동으로 올바른 행을 가리키게 된다.
   if (path.startsWith("/works/") && request.method === "GET") {
-    const tmdb_id = path.split("/works/")[1];
+    let tmdb_id = path.split("/works/")[1];
     if (!tmdb_id) {
       return new Response(JSON.stringify({ ok: false, message: "tmdb_id required" }), { status: 400, headers });
     }
-    const { results } = await env.DB.prepare(
-      "SELECT * FROM works WHERE tmdb_id = ?"
-    ).bind(parseInt(tmdb_id)).all();
-    if (!results.length) {
+
+    let workRow = null;
+    const yearParam = url.searchParams.get("year");
+    if (yearParam && /^\d{4}$/.test(yearParam)) {
+      const syntheticId = parseInt(`${yearParam}${tmdb_id}`);
+      workRow = await env.DB.prepare("SELECT * FROM works WHERE tmdb_id = ?").bind(syntheticId).first();
+      if (workRow) tmdb_id = String(syntheticId); // 이후 로직 전부가 이 값을 기준으로 동작하도록 치환
+    }
+    if (!workRow) {
+      workRow = await env.DB.prepare("SELECT * FROM works WHERE tmdb_id = ?").bind(parseInt(tmdb_id)).first();
+    }
+    if (!workRow) {
       return new Response(JSON.stringify({ ok: false, message: "Not found" }), { status: 404, headers });
     }
 
-    const work = { ...results[0] };
+    const work = { ...workRow };
 
     // mbti_tags 없으면 장르 기반 자동 계산 후 백그라운드 캐싱
     if (!work.mbti_tags && work.genre) {
