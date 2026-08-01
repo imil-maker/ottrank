@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-01 rev.5 — index.html (작품페이지 링크 생성 시 실제 연도를 안 쓰고 오늘 날짜로
+     하드코딩되던 곳 수정 — HOT100 카드(goDetail 호출 시 연도 누락), ft-card(박스오피스 등,
+     item.release_year 바로 옆에 있는데 안 쓰고 있었음) + ftGoWork()에 year 파라미터 추가.
+     같은 tmdb_id로 movie/tv가 충돌하는 극소수 케이스에서 정확한 연도 매칭이 되게 하기 위함) -->
 <!-- 2026-07-31 rev.4 — index.html (핫100 캐러셀 로고 세로 최대높이 34px→52px 조정) -->
 <html lang="ko"><head><meta charset="UTF-8">
 
@@ -1422,10 +1426,12 @@ function renderFeatured(featuredGroups) {
         : '';
       const year   = item.release_year ? `<span class="ft-year">${item.release_year}</span>` : '';
       const rating = item.tmdb_rating  ? `<span class="ft-rating">★ ${parseFloat(item.tmdb_rating).toFixed(1)}</span>` : '';
-      const y      = new Date().getFullYear();
+      // [2026-08-01 수정] 바로 위 표시용(year)엔 실제 release_year를 쓰면서 정작 링크는
+      // 오늘 날짜로 하드코딩돼 있었음 — 링크도 실제 연도 우선, 없을 때만 오늘 날짜로 폴백.
+      const y      = item.release_year || new Date().getFullYear();
       const href   = item.tmdb_id ? `/title/1-${y}${item.tmdb_id}` : '#';
       return `
-        <div class="ft-card" onclick="ftGoWork(${item.tmdb_id},'${_escAttrFt(item.title_ko || '')}')">
+        <div class="ft-card" onclick="ftGoWork(${item.tmdb_id},'${_escAttrFt(item.title_ko || '')}','${item.release_year || ''}')">
           <div class="ft-poster">
             ${poster}
             <div class="ft-poster-ph" style="${poster ? 'display:none' : ''}">🎬</div>
@@ -1452,9 +1458,10 @@ function renderFeatured(featuredGroups) {
 }
 
 /* featured 섹션 전용 유틸 */
-function ftGoWork(tmdbId, title) {
+function ftGoWork(tmdbId, title, year) {
   if (!tmdbId) return;
-  const y = new Date().getFullYear();
+  // [2026-08-01 수정] 항상 오늘 날짜였던 것을, 넘겨받은 실제 release_year 우선으로 변경
+  const y = year || new Date().getFullYear();
   sessionStorage.setItem('ottrang_work', JSON.stringify({
     tmdb_id: tmdbId, type: 'tv', title: title || '', platform: 'netflix'
   }));
@@ -1859,9 +1866,11 @@ function _hhCardHtml(item){
     : '';
 
   // 카드 클릭 이동은 새로 만들지 않고 이 페이지에 이미 있는 goDetail() 그대로 재사용
+  // [2026-08-01 수정] 연도(season 생략, year만) 안 넘기면 goDetail이 항상 오늘 날짜로 URL을
+  // 만듦 — item.release_year가 있으면 실제 연도로, 없으면 기존처럼 폴백(안전, 회귀 없음).
   const mediaType = item.media_type || 'tv';
   const safeTitleAttr = title.replace(/'/g, '');
-  const goAttr = `onclick="goDetail(${item.tmdb_id},'${mediaType}','${item.best_platform}',${item.rank},'${safeTitleAttr}')"`;
+  const goAttr = `onclick="goDetail(${item.tmdb_id},'${mediaType}','${item.best_platform}',${item.rank},'${safeTitleAttr}',1,'${item.release_year || ''}')"`;
 
   return `
     <div class="hh-card" ${goAttr} style="cursor:pointer">
