@@ -1,3 +1,6 @@
+/* 2026-08-01 rev.2 — functions/title/[slug].js (parseSlugForSeo가 season도 같이 파싱하도록
+   확장, TV(media_type='tv')이고 시즌2 이상일 때만 <title>/og·twitter title/JSON-LD name에
+   " 시즌N" 추가. 영화는 시즌 개념이 없어서 안 붙임, 시즌1은 그대로 유지) */
 /* 2026-07-27 rev.1 — functions/title/[slug].js (줄거리 더보기/접기 구조 변경으로 <p id="overview"> 안에 span/button이 추가되면서 기존 정규식이 매칭 실패하던 문제 수정 — span#overviewText만 정확히 타겟) */
 /* ══════════════════════════════════════════════════════════════
    Cloudflare Pages Function — /title/:slug 요청을 가로채서,
@@ -22,9 +25,10 @@
    그대로 반환한다 — 이 기능 때문에 페이지 자체가 깨지는 일은 절대 없어야 하므로.
 ══════════════════════════════════════════════════════════════ */
 
-// URL 슬러그에서 tmdb_id와 year(동명이인 tmdb_id 충돌 시 연도로 구분용)만 뽑아냄.
-// _title_detail.html의 parseSlug()와 같은 규칙이지만, SEO 프리필엔 season이 필요 없어서
-// tmdb_id/year 두 개만 반환하는 축약판.
+// URL 슬러그에서 tmdb_id, year(동명이인 tmdb_id 충돌 시 연도로 구분용), season을 뽑아냄.
+// _title_detail.html의 parseSlug()와 동일한 파싱 규칙.
+// [2026-08-01 수정] season은 원래 "SEO 프리필엔 필요 없다"고 안 뽑았는데, 이제 시즌2 이상
+// TV 작품의 <title>에 "시즌N"을 붙여야 해서 같이 반환하도록 확장.
 function parseSlugForSeo(slug) {
   const clean = slug.replace(/\.html$/, "");
   const m = clean.match(/-(\d+)$/);
@@ -35,21 +39,23 @@ function parseSlugForSeo(slug) {
   if (numStr.length < 6) return null;
 
   if (/^\d+$/.test(titleSlug)) {
-    // 작품명 없는 URL: ex) '2-2023126485' → titleSlug='2'(시즌, 무시), numStr=연도4자리+tmdb_id
+    // 작품명 없는 URL: ex) '2-2023126485' → titleSlug='2'(시즌), numStr=연도4자리+tmdb_id
+    const season = parseInt(titleSlug, 10) || 1;
     const year = parseInt(numStr.slice(0, 4), 10);
     const tid = numStr.slice(4);
     if (tid.length >= 1 && year >= 1900 && year <= 2100) {
-      return { tmdb_id: parseInt(tid, 10), year };
+      return { tmdb_id: parseInt(tid, 10), year, season };
     }
     return null;
   }
 
   // 작품명 포함 URL: ex) 'moving-2-2023126485'
   for (let sLen = 1; sLen <= 2; sLen++) {
+    const season = parseInt(numStr.slice(0, sLen), 10);
     const year = parseInt(numStr.slice(sLen, sLen + 4), 10);
     const tid = numStr.slice(sLen + 4);
-    if (tid.length >= 1 && year >= 1900 && year <= 2100) {
-      return { tmdb_id: parseInt(tid, 10), year };
+    if (tid.length >= 1 && year >= 1900 && year <= 2100 && season >= 1) {
+      return { tmdb_id: parseInt(tid, 10), year, season };
     }
   }
   return null;
@@ -97,7 +103,11 @@ export async function onRequestGet(context) {
       `).bind(parsed.tmdb_id, parsed.year).first();
 
       if (row) {
-        const title = row.title_ko || row.title_en || "";
+        const baseTitle = row.title_ko || row.title_en || "";
+        // [2026-08-01 추가] TV(media_type='tv')이고 시즌2 이상일 때만 "시즌N" 붙임.
+        // 영화는 시즌이 다른 별개 작품으로 등록되므로 이 로직 대상 아님. 시즌1은 그대로.
+        const isTvWithSeason = row.media_type === "tv" && parsed.season && parsed.season >= 2;
+        const title = isTvWithSeason ? `${baseTitle} 시즌${parsed.season}` : baseTitle;
         // '__NONE__'은 admin.js의 backfill-overview가 "TMDB에도 줄거리가 없었다"는 걸
         // 표시해두는 센티널 값(재시도 방지용) — 화면엔 그냥 빈 것과 동일하게 처리.
         const rawOverview = (row.overview || "").trim();
