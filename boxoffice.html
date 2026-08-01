@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-01 rev.2 — boxoffice.html (goWork/JSON-LD가 연도를 안 받고 무조건 오늘 날짜로
+     URL을 만들던 문제 수정 — item.release_year는 이미 있었는데 링크엔 안 넘기고 있었음.
+     media_type='movie' 고정은 박스오피스=영화 전용이라 의도된 정상 코드, 안 건드림) -->
 <!-- 2026-07-23 rev.1 — boxoffice.html (익명 방문자 ID(vid) 트래킹 전송 추가) -->
 <html lang="ko">
 <head>
@@ -442,9 +445,10 @@ const PLATFORM = 'boxoffice';
 const PLATFORM_LABEL = '박스오피스'; // ItemList JSON-LD의 name에 사용
 
 /* ── 작품 상세 페이지 이동 ── */
-function goWork(tmdbId, title) {
+function goWork(tmdbId, title, year) {
   if (!tmdbId) return;
-  const y   = new Date().getFullYear();
+  // [2026-08-01 수정] 항상 오늘 날짜였던 것을, 넘겨받은 실제 release_year 우선으로 변경
+  const y   = year || new Date().getFullYear();
   const url = `/title/1-${y}${tmdbId}`;
   sessionStorage.setItem('ottrang_work', JSON.stringify({
     tmdb_id: tmdbId, type: 'movie', title: title || '', platform: PLATFORM
@@ -473,7 +477,7 @@ function makeCard(item, rank) {
     ? `<div class="pk-en">${escHtml(item.title_en)}</div>` : '';
 
   return `
-    <div class="pk-card" onclick="goWork(${item.tmdb_id},'${escAttr(item.title_ko || '')}')">
+    <div class="pk-card" onclick="goWork(${item.tmdb_id},'${escAttr(item.title_ko || '')}','${item.release_year || ''}')">
       <div class="pk-poster">
         ${poster}
         <div class="pk-rank-num${isTop3 ? ' pk-rank-top3' : ''}">${rank}</div>
@@ -595,7 +599,7 @@ async function loadAll() {
    그래서 boxoffice.html은 "극장 상영"+"역대 한국 영화" 두 카테고리를 별개 ItemList로 만들지 않고,
    하나의 ItemList 안에 30개를 순서대로 합쳐서 넣는다(화면의 두 섹션은 그대로 유지, SEO 마크업만 합침). */
 function updateItemListSEO(groups) {
-  const y = new Date().getFullYear();
+  const yFallback = new Date().getFullYear(); // release_year 없는 극히 일부 항목만 폴백용
   // 카테고리가 몇 개든 하나의 ItemList로 합치기 위해, itemListElement를 그룹 바깥에서 누적한다.
   const itemListElement = [];
   let globalPos = 0;
@@ -612,7 +616,7 @@ function updateItemListSEO(groups) {
       const entry = {
         '@type': 'Movie',
         'name' : it.title_ko || it.title_en || '',
-        'url'  : `https://ottrank.kr/title/1-${y}${it.tmdb_id}`,
+        'url'  : `https://ottrank.kr/title/1-${it.release_year || yFallback}${it.tmdb_id}`,
       };
       // 평점(aggregateRating)은 이 API에 투표수(vote_count)가 없어 신뢰도 낮은 마크업이 되므로 넣지 않음
       if (it.poster_path) entry.image = `${TMDB_IMG}${it.poster_path}`;
