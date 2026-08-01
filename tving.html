@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-01 rev.3 — tving.html (리스트 카드 제목(pk-title, 오버레이 ov-title 둘 다)에
+     시즌2부터 숫자만 붙임(예: "무빙2"), "시즌 N" 배지는 그대로 유지) -->
 <!-- 2026-08-01 rev.2 — tving.html (goWork가 연도를 안 받고 무조건 오늘 날짜로 URL을 만들던
      문제 수정 — item.release_year는 이미 있었는데 링크엔 안 넘기고 있었음. media_type='tv'
      고정은 티빙=TV 전용이라 의도된 정상 코드, 안 건드림) -->
@@ -470,12 +472,12 @@ function makeCard(item, rank) {
         <div class="pk-rank-num${isTop3 ? ' pk-rank-top3' : ''}">${rank}</div>
         ${rating}
         <div class="pk-overlay">
-          <div class="ov-title">${escHtml(item.title_ko || item.title_en || '')}</div>
+          <div class="ov-title">${escHtml(item.title_ko || item.title_en || '')}${(item.season && item.season >= 2) ? item.season : ''}</div>
           <div class="ov-meta">${item.release_year || ''} ${item.genre ? '· ' + item.genre.split(',')[0] : ''}</div>
         </div>
       </div>
       <div class="pk-info">
-        <div class="pk-title">${escHtml(item.title_ko || item.title_en || '')}</div>
+        <div class="pk-title">${escHtml(item.title_ko || item.title_en || '')}${(item.season && item.season >= 2) ? item.season : ''}</div>
         <div class="pk-year">
           ${item.release_year || '-'}
           ${season}${memo}
