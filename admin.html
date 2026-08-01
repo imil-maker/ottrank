@@ -1,3 +1,6 @@
+<!-- 2026-08-01 rev.5 — admin.html (works 관리 19금 체크박스 옆에 adult_flag=2(포르노그라피)용
+     체크박스 신규 추가. 두 체크박스는 서로 배타적(하나 체크하면 다른 하나 자동 해제),
+     2번 체크 시 🔞🔞 두 개 표시. toggleAdultFlag()를 flag값 인자를 받도록 확장) -->
 <!-- 2026-07-31 rev.4 — admin.html (상단 "영상 관리"/"키워드 관리" 탭을 헤더 영역(로그아웃 왼쪽)으로
      이동하고 골드색으로 강조, 로그아웃과 간격 넓게 벌림. 나머지 페이지 탭들은 가운데 정렬로 변경) -->
 <!-- 2026-07-31 rev.3 — admin.html (① 랭킹관리: 필터링 결과 0개일 때 이전 플랫폼 카테고리
@@ -4265,15 +4268,23 @@ function renderWorks(rows) {
     const tmdbUrl   = `https://www.themoviedb.org/${tmdbType}/${r.tmdb_id}`;
 
     const isAdult = r.adult_flag === 1;
+    const isPorn  = r.adult_flag === 2;
 
     return `
     <tr>
       <td>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
-          <input type="checkbox" class="works-adult-check" data-tmdb-id="${r.tmdb_id}"
-            ${isAdult ? 'checked' : ''} onchange="toggleAdultFlag(${r.tmdb_id}, this)">
-          <span class="adult-badge" data-tmdb-id="${r.tmdb_id}" style="display:${isAdult ? 'inline' : 'none'};font-size:14px" title="19금 표시됨">🔞</span>
-        </label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap" title="19금(소프트)">
+            <input type="checkbox" class="works-adult-check" data-tmdb-id="${r.tmdb_id}"
+              ${isAdult ? 'checked' : ''} onchange="toggleAdultFlag(${r.tmdb_id}, this, 1)">
+            <span class="adult-badge" data-tmdb-id="${r.tmdb_id}" style="display:${isAdult ? 'inline' : 'none'};font-size:14px" title="19금 표시됨">🔞</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap" title="포르노그라피(노출 차단)">
+            <input type="checkbox" class="works-porn-check" data-tmdb-id="${r.tmdb_id}"
+              ${isPorn ? 'checked' : ''} onchange="toggleAdultFlag(${r.tmdb_id}, this, 2)">
+            <span class="porn-badge" data-tmdb-id="${r.tmdb_id}" style="display:${isPorn ? 'inline' : 'none'};font-size:14px" title="포르노그라피로 표시됨(작품페이지 노출 차단)">🔞🔞</span>
+          </label>
+        </div>
       </td>
       <td>
         <a href="${ottUrl}" target="_blank" rel="noopener" title="오뜨랑 작품페이지로 이동">
@@ -4316,24 +4327,39 @@ function renderWorks(rows) {
   }).join('');
 }
 
-// [2026-07-13 추가] works 관리 표 왼쪽 체크박스 — 19금 표시 토글.
+// [2026-07-13 추가, 2026-08-01 확장] works 관리 표 왼쪽 체크박스 — 19금(1)/포르노그라피(2) 표시 토글.
 // 체크/해제 즉시 서버에 저장(별도 실행 버튼 없음), 배지는 낙관적으로 먼저 바꾸고
 // 요청이 실패하면 체크박스·배지 둘 다 원래 상태로 되돌림(화면-서버 상태 불일치 방지).
 // 체크 해제 시 adult_flag=0이 아니라 null(미검토)로 되돌림 — 정리 탭에서 다시 후보로 뜰 수 있게.
-async function toggleAdultFlag(tmdbId, checkboxEl) {
+// [2026-08-01 추가] adult_flag는 컬럼 하나뿐이라 1과 2는 서로 배타적 — 한쪽을 체크하면
+// 반대쪽 체크박스·배지를 화면에서 즉시 같이 꺼줌(실제 저장값도 마지막에 체크한 쪽으로 덮어써짐).
+async function toggleAdultFlag(tmdbId, checkboxEl, flagValue) {
   const checked = checkboxEl.checked;
-  const badge = document.querySelector(`.adult-badge[data-tmdb-id="${tmdbId}"]`);
+  const badgeSelector = flagValue === 2 ? '.porn-badge' : '.adult-badge';
+  const otherCheckSelector = flagValue === 2 ? '.works-adult-check' : '.works-porn-check';
+  const otherBadgeSelector = flagValue === 2 ? '.adult-badge' : '.porn-badge';
+
+  const badge = document.querySelector(`${badgeSelector}[data-tmdb-id="${tmdbId}"]`);
   if (badge) badge.style.display = checked ? 'inline' : 'none';
+
+  // 체크하는 순간 반대쪽은 배타적으로 화면에서 즉시 해제
+  if (checked) {
+    const otherCheck = document.querySelector(`${otherCheckSelector}[data-tmdb-id="${tmdbId}"]`);
+    const otherBadge = document.querySelector(`${otherBadgeSelector}[data-tmdb-id="${tmdbId}"]`);
+    if (otherCheck) otherCheck.checked = false;
+    if (otherBadge) otherBadge.style.display = 'none';
+  }
+
   checkboxEl.disabled = true;
   try {
     const res = await fetch(`${API}/admin/works/${tmdbId}/adult-flag`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adult_flag: checked ? 1 : null })
+      body: JSON.stringify({ adult_flag: checked ? flagValue : null })
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.message || '저장 실패');
-    showToast(checked ? '🔞 19금으로 표시됨' : '19금 표시 해제됨', 'ok');
+    showToast(checked ? (flagValue === 2 ? '🔞🔞 포르노그라피로 표시됨' : '🔞 19금으로 표시됨') : '19금 표시 해제됨', 'ok');
   } catch(e) {
     checkboxEl.checked = !checked; // 원상복구
     if (badge) badge.style.display = !checked ? 'inline' : 'none';
