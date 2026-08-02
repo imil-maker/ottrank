@@ -1,3 +1,5 @@
+/* 2026-08-02 rev.11 — index.js (시즌 관리 라우팅 신규: /admin/works/backfill-season*
+   — handleAdminSeason으로 위임, admin-season.js 신규 파일. 자동 시즌포스터 배치 첫 단계) */
 /* 2026-08-02 rev.10 — index.js (박스오피스 이미지 업로드 라우팅 신규: /admin/boxoffice/*
    — handleBoxofficeAdmin으로 위임, boxoffice-admin.js 신규 파일. KOBIS 자동크롤러 연속
    실패 대비 수동 업로드 기능) */
@@ -62,6 +64,7 @@ import { handleTrack      } from "./routes/track.js";
 import { handleRelationship } from "./routes/relationship.js";
 import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomProfilePublic, handleAdminPersonManualCredits } from "./routes/admin-persons.js";
 import { handleBoxofficeAdmin } from "./routes/boxoffice-admin.js";
+import { handleAdminSeason } from "./routes/admin-season.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -230,6 +233,13 @@ export default {
     //       (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — track.js/relationship.js와 동일 패턴)
     if (!res && path.startsWith("/admin/boxoffice/")) {
       res = await handleBoxofficeAdmin(path, request, env, url, headers);
+    }
+
+    // 3-12. 시즌 관리(자동배치/관리자지정) — /admin/works/backfill-season 등, 2026-08-02 신규
+    //       12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함
+    //       (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — boxoffice-admin.js와 동일 패턴)
+    if (!res && path.startsWith("/admin/works/backfill-season")) {
+      res = await handleAdminSeason(path, request, env, url, headers);
     }
 
     // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
