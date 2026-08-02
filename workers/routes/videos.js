@@ -1,3 +1,8 @@
+/* 2026-08-02 rev.11 — videos.js (POST /works/register에 season_hint/season_poster_hint
+   반영 — 신규 등록(!existing)이고 최종 media_type=tv일 때만 works.season/season_poster_path/
+   season_source='auto'/season_checked_at 저장. TMDB 추가 호출 없음(프론트가 이미 계산해서
+   보냄). ON CONFLICT UPDATE SET에는 의도적으로 미포함 — 재방문 시 절대 안 덮어씀,
+   관리자 지정(admin)/자동배치(auto) 둘 다 여기서 보호됨) */
 /* 2026-08-01 rev.10 — videos.js (실전 테스트 중 발견된 버그 2건 수정:
    ① POST /works/register 충돌 판단 기준을 media_type→release_date 연도로 변경. 첫 방문(둘 다
    미등록) 시점엔 화면이 아직 타입을 확정 못 해 media_type이 null로 올 수 있어 충돌을 못 잡던
@@ -587,7 +592,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const body = await request.json();
       const {
         tmdb_id, title_ko, title_en, poster_path, media_type, genre, original_language,
-        tmdb_rating, release_date,
+        tmdb_rating, release_date, season_hint, season_poster_hint,
       } = body;
 
       // 필수값 검증
@@ -728,12 +733,30 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         }
       }
 
+      // [2026-08-02 신규] 시즌 자동 채우기 — 신규 등록(!existing)이고 최종 media_type이 tv일
+      // 때만 사용(성인물 판별로 movie로 재분류된 경우 등은 제외하기 위해 여기서 최종값으로 판단).
+      // 값 자체는 프론트(_title_detail.html)가 이미 받아온 TMDB 응답에서 뽑아 보낸 것이라
+      // 여기서 TMDB를 추가로 호출하지 않음. season_source='auto'로 저장되며, 관리자가
+      // 시즌 관리 탭에서 직접 지정(admin)하면 그 값이 최우선으로 보호됨(자동배치와 동일 원칙).
+      let seasonVal = null, seasonPosterVal = null, seasonSourceVal = null, seasonCheckedVal = null;
+      if (!existing && mediaTypeForInsert === 'tv' && season_hint && season_poster_hint) {
+        seasonVal       = parseInt(season_hint) || null;
+        seasonPosterVal = season_poster_hint || null;
+        if (seasonVal && seasonPosterVal) {
+          seasonSourceVal  = 'auto';
+          seasonCheckedVal = nowIso;
+        } else {
+          seasonVal = null; seasonPosterVal = null;
+        }
+      }
+
       await env.DB.prepare(`
         INSERT INTO works (
           tmdb_id, tmdb_id_real, title_ko, title_en, poster_path, media_type, genre, original_language,
-          tmdb_rating, release_date, rating_updated_at, match_source, keywords, adult_flag
+          tmdb_rating, release_date, rating_updated_at, match_source, keywords, adult_flag,
+          season, season_poster_path, season_source, season_checked_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- media_type: title_en과 달리 "보호 대상 아님" — 확신 있는 값(NULL 아님)이 오면 항상 최신화.
           -- movie/tv tmdb_id가 우연히 겹쳐 한 번 잘못 저장돼도, 이후 신뢰 가능한 값이 들어오면
@@ -780,6 +803,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           rating_updated_at = excluded.rating_updated_at
           -- tmdb_id_real은 의도적으로 UPDATE SET에 넣지 않음 — 최초 INSERT 시점에 정해진 값을
           -- 그대로 영구 보존(합성행이었는지 아닌지 표시가 나중에 바뀌면 안 됨)
+          -- season / season_poster_path / season_source / season_checked_at도 의도적으로
+          -- UPDATE SET에 넣지 않음 — ON CONFLICT(=이미 있던 작품 재방문)에서는 절대 안 건드림.
+          -- 관리자가 시즌 관리 탭에서 직접 지정(admin)한 값이든, 자동배치가 채운 값(auto)이든
+          -- 재방문 때마다 도는 이 API가 덮어쓰면 안 되기 때문 — 최초 INSERT 시점에만 값이 들어감.
       `).bind(
         finalTmdbId,
         tmdbIdRealVal,
@@ -793,7 +820,11 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         releaseDateVal,
         nowIso,
         keywordsVal,
-        adultFlagVal
+        adultFlagVal,
+        seasonVal,
+        seasonPosterVal,
+        seasonSourceVal,
+        seasonCheckedVal
       ).run();
 
       // [2026-07-26 신규] 신규 등록된 작품만 출연진/감독을 조용히 저장 (기존 작품은 어드민 배치가 담당)
