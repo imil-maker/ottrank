@@ -1,4 +1,8 @@
 """
+2026-08-02 rev.1 — sync_works.py (시즌 관련 컬럼 로컬 동기화 추가: media_type, season,
+season_poster_path, season_source, season_checked_at, season_new_available.
+크롤러가 "새 시즌 나왔는지" 확인하려면 로컬에도 이 값들이 있어야 하는데 기존엔 없었음)
+
 D1 데이터 → 로컬 rankings.db 동기화 v2
 ────────────────────────────────────────────────────────────────
 크롤링 전에 반드시 실행 (daily_crawl.yml에서 제거 절대 금지!)
@@ -83,6 +87,14 @@ def _ensure_local_tables(conn: sqlite3.Connection):
     for col_sql in [
         "ALTER TABLE works ADD COLUMN match_source TEXT DEFAULT 'admin'",
         "ALTER TABLE works ADD COLUMN confidence_score INTEGER DEFAULT 100",
+        # [2026-08-02 신규] 시즌 관련 컬럼 — 크롤러가 "새 시즌 나왔는지" 확인하려면
+        # 로컬에도 이 값들이 있어야 함(D1에만 있고 로컬엔 없어서 확인 자체가 불가능했음)
+        "ALTER TABLE works ADD COLUMN media_type TEXT",
+        "ALTER TABLE works ADD COLUMN season INTEGER",
+        "ALTER TABLE works ADD COLUMN season_poster_path TEXT",
+        "ALTER TABLE works ADD COLUMN season_source TEXT",
+        "ALTER TABLE works ADD COLUMN season_checked_at TEXT",
+        "ALTER TABLE works ADD COLUMN season_new_available INTEGER",
     ]:
         try:
             conn.execute(col_sql)
@@ -103,7 +115,9 @@ def sync_works(conn: sqlite3.Connection):
         rows = d1_query("""
             SELECT tmdb_id, title_ko, title_en, poster_path,
                    genre, overview, release_year, tmdb_rating,
-                   match_source, confidence_score
+                   match_source, confidence_score,
+                   media_type, season, season_poster_path, season_source,
+                   season_checked_at, season_new_available
             FROM works
             WHERE tmdb_id IS NOT NULL
         """)
@@ -117,8 +131,10 @@ def sync_works(conn: sqlite3.Connection):
                 INSERT INTO works
                     (tmdb_id, title_ko, title_en, poster_path,
                      genre, overview, release_year, tmdb_rating,
-                     match_source, confidence_score, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+                     match_source, confidence_score,
+                     media_type, season, season_poster_path, season_source,
+                     season_checked_at, season_new_available, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
                 ON CONFLICT(tmdb_id) DO UPDATE SET
                     title_ko         = CASE WHEN excluded.title_ko != '' THEN excluded.title_ko ELSE title_ko END,
                     title_en         = CASE WHEN excluded.title_en != '' THEN excluded.title_en ELSE title_en END,
@@ -129,6 +145,12 @@ def sync_works(conn: sqlite3.Connection):
                     tmdb_rating      = COALESCE(excluded.tmdb_rating, tmdb_rating),
                     match_source     = excluded.match_source,
                     confidence_score = excluded.confidence_score,
+                    media_type           = COALESCE(excluded.media_type, media_type),
+                    season               = COALESCE(excluded.season, season),
+                    season_poster_path   = COALESCE(excluded.season_poster_path, season_poster_path),
+                    season_source        = COALESCE(excluded.season_source, season_source),
+                    season_checked_at    = COALESCE(excluded.season_checked_at, season_checked_at),
+                    season_new_available = COALESCE(excluded.season_new_available, season_new_available),
                     updated_at       = datetime('now','localtime')
             """, (
                 row["tmdb_id"],
@@ -141,6 +163,12 @@ def sync_works(conn: sqlite3.Connection):
                 row["tmdb_rating"],
                 row.get("match_source", "admin"),
                 row.get("confidence_score", 100),
+                row.get("media_type"),
+                row.get("season"),
+                row.get("season_poster_path"),
+                row.get("season_source"),
+                row.get("season_checked_at"),
+                row.get("season_new_available"),
             ))
             count += 1
 
