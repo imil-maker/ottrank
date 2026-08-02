@@ -750,6 +750,9 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         }
       }
 
+      // poster_path 자체도 시즌 포스터가 있으면 그걸 우선 사용(화면에 실제 뜨는 값이 이 컬럼이므로)
+      const finalPosterPath = seasonPosterVal || (poster_path || null);
+
       await env.DB.prepare(`
         INSERT INTO works (
           tmdb_id, tmdb_id_real, title_ko, title_en, poster_path, media_type, genre, original_language,
@@ -812,7 +815,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         tmdbIdRealVal,
         title_ko       || null,
         validTitle_en  || null,
-        poster_path    || null,
+        finalPosterPath,
         mediaTypeForInsert,
         genre          || null,
         original_language || null,
