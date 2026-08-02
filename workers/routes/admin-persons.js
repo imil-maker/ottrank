@@ -1,3 +1,8 @@
+/* 2026-08-03 rev.10 — admin-persons.js (인물 SNS 링크 기능 신규: person_sns_links 관리자용
+   API 3종 추가 — 목록조회 GET /admin/persons/sns-links(같이 mbti_naver도 실어서 응답,
+   admin.js를 안 건드리기 위한 방식)/추가 POST /admin/persons/sns-links-add(플랫폼
+   instagram/youtube/x 화이트리스트 검증)/삭제 DELETE /admin/persons/sns-links/:id.
+   person_videos 관리자용 API 패턴 그대로 재사용) */
 /* 2026-08-01 rev.9 — admin-persons.js (구글 더블체크 링크에 직업(배우/감독) 포함시키기 위해
    개별검색/확정리스트/미확정리스트 응답에 job 필드 추가) */
 /* 2026-08-01 rev.8 — admin-persons.js (확정 리스트 API에 자동/수동 필터 파라미터(source) 추가:
@@ -755,6 +760,94 @@ export async function handleAdminPersons(path, request, env, url, headers) {
     try {
       const id = parseInt(videoDeleteMatch[1], 10);
       await env.DB.prepare(`DELETE FROM person_videos WHERE id = ?`).bind(id).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // [2026-08-03 신규] 인물 SNS 링크(person_sns_links) — 관리자용 3종.
+  // "프로필 생성" 탭에서 인스타/유튜브/X 링크를 여러 개 등록. person_videos와 동일한
+  // 패턴(목록조회/추가/삭제). 인물페이지에는 아직 노출 안 함(1단계는 저장까지만).
+  // GET 응답에 mbti_naver도 같이 실어보냄 — admin.js(wiki-detail)를 안 건드리고,
+  // "프로필 생성" 화면이 이 API 하나만 호출해서 SNS+MBTI를 한 번에 채우도록 하기 위함.
+  // ══════════════════════════════════════════════════════════════
+  const SNS_PLATFORMS = ["instagram", "youtube", "x"];
+
+  // ── GET /admin/persons/sns-links?tmdb_person_id= ──────────────────
+  if (path === "/admin/persons/sns-links" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const personId = parseInt(url.searchParams.get("tmdb_person_id"));
+      if (!personId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id가 필요해요" }), { status: 400, headers });
+      }
+      const { results } = await env.DB.prepare(
+        `SELECT id, platform, url, created_at FROM person_sns_links
+         WHERE tmdb_person_id = ? ORDER BY created_at ASC`
+      ).bind(personId).all();
+
+      // mbti_naver도 같이 조회해서 응답에 실어보냄(위 설명 참고)
+      const personRow = await env.DB.prepare(
+        `SELECT mbti_naver FROM persons WHERE tmdb_id = ?`
+      ).bind(personId).first();
+
+      return new Response(JSON.stringify({
+        ok: true,
+        items: results || [],
+        mbti_naver: (personRow && personRow.mbti_naver) || "",
+      }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/sns-links-add ──────────────────────────────
+  // body: { tmdb_person_id, platform, url }
+  if (path === "/admin/persons/sns-links-add" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const personId = parseInt(body.tmdb_person_id);
+      const platform = (body.platform || "").trim().toLowerCase();
+      const linkUrl  = (body.url || "").trim();
+
+      if (!personId || !SNS_PLATFORMS.includes(platform)) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_person_id, platform(instagram/youtube/x)이 올바르지 않아요" }), { status: 400, headers });
+      }
+      if (!/^https?:\/\//i.test(linkUrl)) {
+        return new Response(JSON.stringify({ ok: false, message: "http(s)로 시작하는 링크를 입력해주세요" }), { status: 400, headers });
+      }
+
+      const person = await env.DB.prepare(`SELECT tmdb_id FROM persons WHERE tmdb_id = ?`).bind(personId).first();
+      if (!person) {
+        return new Response(JSON.stringify({ ok: false, message: "인물을 찾을 수 없어요" }), { status: 404, headers });
+      }
+
+      await env.DB.prepare(
+        `INSERT INTO person_sns_links (tmdb_person_id, platform, url) VALUES (?, ?, ?)`
+      ).bind(personId, platform, linkUrl).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE /admin/persons/sns-links/:id ────────────────────────────
+  const snsDeleteMatch = path.match(/^\/admin\/persons\/sns-links\/(\d+)$/);
+  if (snsDeleteMatch && request.method === "DELETE") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const id = parseInt(snsDeleteMatch[1], 10);
+      await env.DB.prepare(`DELETE FROM person_sns_links WHERE id = ?`).bind(id).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
