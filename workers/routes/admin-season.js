@@ -1,3 +1,10 @@
+/* 2026-08-02 rev.3 — admin-season.js (자동배치/관리자지정 저장 시 poster_path도 함께 갱신 —
+   화면에 실제로 뜨는 값은 season_poster_path가 아니라 poster_path라서, 이걸 안 바꾸면
+   시즌 저장해도 화면엔 안 보이는 문제가 있었음) */
+/* 2026-08-02 rev.3 — admin-season.js (화면에 실제 뜨는 poster_path도 시즌 저장 시 같이
+   갱신하도록 수정 — 지금까지는 season_poster_path만 저장하고 poster_path는 안 건드려서
+   화면에 반영이 안 됐음. season-apply에는 season_new_available 알림 초기화(NULL)도 추가,
+   season-search 응답에도 season_new_available 포함) */
 /* 2026-08-02 rev.2 — admin-season.js (관리자 직접 지정 API 2개 추가:
    GET /admin/works/season-search — 제목/tmdb_id 검색, /admin/works/keywords의
    검색 로직만 그대로 재사용(키워드 조인은 제외한 가벼운 버전).
@@ -78,9 +85,9 @@ export async function handleAdminSeason(path, request, env, url, headers) {
           updates.push(
             env.DB.prepare(`
               UPDATE works
-              SET season = ?, season_poster_path = ?, season_source = 'auto', season_checked_at = ?
+              SET season = ?, season_poster_path = ?, poster_path = ?, season_source = 'auto', season_checked_at = ?
               WHERE tmdb_id = ?
-            `).bind(seasonNum, seasonPoster, now, row.tmdb_id)
+            `).bind(seasonNum, seasonPoster, seasonPoster, now, row.tmdb_id)
           );
           filled++;
         } else {
@@ -122,12 +129,12 @@ export async function handleAdminSeason(path, request, env, url, headers) {
       let works;
       if (/^\d+$/.test(q)) {
         const row = await env.DB.prepare(
-          "SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source FROM works WHERE tmdb_id = ?"
+          "SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source, season_new_available FROM works WHERE tmdb_id = ?"
         ).bind(parseInt(q)).first();
         works = row ? [row] : [];
       } else {
         const { results } = await env.DB.prepare(`
-          SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source
+          SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source, season_new_available
           FROM works
           WHERE title_ko LIKE ? OR title_en LIKE ?
           ORDER BY tmdb_rating DESC
@@ -163,9 +170,10 @@ export async function handleAdminSeason(path, request, env, url, headers) {
 
       await env.DB.prepare(`
         UPDATE works
-        SET season = ?, season_poster_path = ?, season_source = 'admin', season_checked_at = ?
+        SET season = ?, season_poster_path = ?, poster_path = ?, season_source = 'admin',
+            season_checked_at = ?, season_new_available = NULL
         WHERE tmdb_id = ?
-      `).bind(season, poster_path, new Date().toISOString(), tmdb_id).run();
+      `).bind(season, poster_path, poster_path, new Date().toISOString(), tmdb_id).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
