@@ -1,3 +1,8 @@
+/* 2026-08-02 rev.6 — search.js (검색결과 순위배지 오표시 버그 수정 — 한 작품이 넷플릭스
+   한국/월드 등 여러 카테고리에 동시에 순위가 있을 때, 정렬 기준 없이 마지막에 조회된 행이
+   그냥 남아서 낮은 순위(예: 월드10위)가 높은 순위(한국1위) 대신 표시되던 문제. rankings.js의
+   /rankings/platforms-batch와 동일하게 MIN(rank)+GROUP BY로 항상 최고 순위만 남도록 수정.
+   /works/search 응답 2곳(페이지 조회, exists류 조회) 전부 동일하게 수정) */
 /* 2026-07-30 rev.5 — search.js (키워드 매칭 부분일치→앞글자일치 복원 — "일드"가 "하드보일드"에
    걸리는 우연한 오매칭 수정. "일본공포"류 붙여쓴 키워드는 유사어 슬롯으로 개별 보완 필요) */
 /* ══════════════════════════════════════════════════════════════
@@ -291,11 +296,12 @@ export async function handleSearch(path, request, env, url, headers) {
 
         const [{ results: rankRows }, { results: ottRows }] = await Promise.all([
           env.DB.prepare(`
-            SELECT tmdb_id, platform, rank
+            SELECT tmdb_id, platform, MIN(rank) as rank
             FROM rankings
             WHERE tmdb_id IN (${pagePlaceholders})
               AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
               AND NOT (platform = 'netflix' AND category_slot = 'category10')
+            GROUP BY tmdb_id, platform
           `).bind(...pageIds).all(),
           env.DB.prepare(`
             SELECT tmdb_id, ott_key FROM work_ott
@@ -460,11 +466,12 @@ export async function handleSearch(path, request, env, url, headers) {
         const foundPlaceholders = foundIds.map(() => "?").join(",");
         const [{ results: rankRows }, { results: ottRows }] = await Promise.all([
           env.DB.prepare(`
-            SELECT tmdb_id, platform, rank
+            SELECT tmdb_id, platform, MIN(rank) as rank
             FROM rankings
             WHERE tmdb_id IN (${foundPlaceholders})
               AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
               AND NOT (platform = 'netflix' AND category_slot = 'category10')
+            GROUP BY tmdb_id, platform
           `).bind(...foundIds).all(),
           env.DB.prepare(`
             SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${foundPlaceholders})
