@@ -1,3 +1,7 @@
+/* 2026-08-02 rev.12 — videos.js (GET /works/poster-map 신규 — tmdb_id 여러 개를 한 번에
+   조회해 works.poster_path를 돌려주는 배치 API. person.html 필모그래피가 TMDB 원본
+   포스터를 그대로 쓰던 문제를 화면 그리기 전에 미리 우리 DB 값으로 바꿔치기하기 위함
+   (깜빡임 방지). GET /works/:tmdb_id/cast보다 앞에 배치) */
 /* 2026-08-02 rev.11 — videos.js (POST /works/register에 season_hint/season_poster_hint
    반영 — 신규 등록(!existing)이고 최종 media_type=tv일 때만 works.season/season_poster_path/
    season_source='auto'/season_checked_at 저장. TMDB 추가 호출 없음(프론트가 이미 계산해서
@@ -853,6 +857,32 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       }
 
       return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /works/poster-map ────────────────────────────────────
+  // [2026-08-02 신규] 공개 API — 여러 tmdb_id를 한 번에 넘기면 우리 DB(works.poster_path)
+  // 값을 {tmdb_id: poster_path} 형태로 돌려줌. person.html 필모그래피가 TMDB
+  // combined_credits를 그대로 써서 관리자가 지정한 시즌 포스터가 반영 안 되던 문제 수정용 —
+  // 화면 그리기 "전에" 한 번에 조회해서 덮어써야 깜빡임이 없어서 배치 조회로 만듦.
+  // ⚠️ 반드시 아래 범용 "GET /works/:tmdb_id"보다 앞에 있어야 함.
+  if (path === "/works/poster-map" && request.method === "GET") {
+    try {
+      const idsParam = url.searchParams.get("tmdb_ids") || "";
+      const ids = [...new Set(idsParam.split(",").map(s => parseInt(s)).filter(Boolean))].slice(0, 200);
+      if (!ids.length) {
+        return new Response(JSON.stringify({ ok: true, data: {} }), { headers });
+      }
+      const placeholders = ids.map(() => "?").join(",");
+      const { results } = await env.DB.prepare(
+        `SELECT tmdb_id, poster_path FROM works WHERE tmdb_id IN (${placeholders}) AND poster_path IS NOT NULL`
+      ).bind(...ids).all();
+
+      const data = {};
+      results.forEach(r => { data[r.tmdb_id] = r.poster_path; });
+      return new Response(JSON.stringify({ ok: true, data }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
