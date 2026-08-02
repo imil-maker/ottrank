@@ -1,4 +1,9 @@
 """
+2026-08-02 rev.2 — upload_to_d1.py (upload_works()가 시즌 관련 컬럼(season,
+season_poster_path, season_source, season_checked_at, season_new_available)을
+D1로 안 올리고 있던 문제 수정. db.py의 _check_season_update()가 로컬에 써둔 값이
+touched_works에 잡혀도 지금까지는 D1까지 못 올라갔음. COALESCE로 로컬에 값 있을
+때만 반영, 없으면 D1 기존값 유지 — 다른 필드(genre/keywords)와 동일한 보호 원칙)
 2026-07-28 rev.1 — upload_to_d1.py (티빙 자동 업로드/날짜고정 제외, 수동 관리로 전환)
 rankings.db → Cloudflare D1 직접 업로드 v2
 ────────────────────────────────────────────────────────────────
@@ -325,7 +330,9 @@ def upload_works(conn: sqlite3.Connection) -> int:
         rows = conn.execute("""
             SELECT tmdb_id, title_ko, title_en, poster_path,
                    genre, overview, release_year, tmdb_rating,
-                   match_source, confidence_score, keywords
+                   match_source, confidence_score, keywords,
+                   season, season_poster_path, season_source,
+                   season_checked_at, season_new_available
             FROM works
             WHERE tmdb_id IS NOT NULL
               AND tmdb_id IN (SELECT tmdb_id FROM touched_works)
@@ -336,7 +343,9 @@ def upload_works(conn: sqlite3.Connection) -> int:
             rows = conn.execute("""
                 SELECT tmdb_id, title_ko, title_en, poster_path,
                        genre, overview, release_year, tmdb_rating,
-                       match_source, confidence_score, '' as keywords
+                       match_source, confidence_score, '' as keywords,
+                       season, season_poster_path, season_source,
+                       season_checked_at, season_new_available
                 FROM works
                 WHERE tmdb_id IS NOT NULL
                   AND tmdb_id IN (SELECT tmdb_id FROM touched_works)
@@ -346,7 +355,9 @@ def upload_works(conn: sqlite3.Connection) -> int:
             rows = conn.execute("""
                 SELECT tmdb_id, title_ko, title_en, poster_path,
                        genre, overview, release_year, tmdb_rating,
-                       'admin' as match_source, 100 as confidence_score, '' as keywords
+                       'admin' as match_source, 100 as confidence_score, '' as keywords,
+                       NULL as season, NULL as season_poster_path, NULL as season_source,
+                       NULL as season_checked_at, NULL as season_new_available
                 FROM works
                 WHERE tmdb_id IS NOT NULL
                   AND tmdb_id IN (SELECT tmdb_id FROM touched_works)
@@ -357,12 +368,15 @@ def upload_works(conn: sqlite3.Connection) -> int:
     for row in rows:
         (tmdb_id, title_ko, title_en, poster_path,
          genre, overview, release_year, tmdb_rating,
-         match_source, confidence_score, keywords) = row
+         match_source, confidence_score, keywords,
+         season, season_poster_path, season_source,
+         season_checked_at, season_new_available) = row
         sql_list.append(
             f"INSERT INTO works "
             f"(tmdb_id, title_ko, title_en, poster_path, "
             f"genre, overview, release_year, tmdb_rating, keywords, "
-            f"match_source, confidence_score, updated_at) "
+            f"match_source, confidence_score, updated_at, "
+            f"season, season_poster_path, season_source, season_checked_at, season_new_available) "
             f"VALUES ({tmdb_id}, {esc(title_ko)}, {esc(title_en)}, "
             f"{esc(poster_path) if poster_path else 'NULL'}, "
             f"{esc(genre) if genre else 'NULL'}, "
@@ -372,7 +386,12 @@ def upload_works(conn: sqlite3.Connection) -> int:
             f"{esc(keywords) if keywords else 'NULL'}, "
             f"{esc(match_source or 'admin')}, "
             f"{confidence_score or 100}, "
-            f"datetime('now')) "
+            f"datetime('now'), "
+            f"{season if season else 'NULL'}, "
+            f"{esc(season_poster_path) if season_poster_path else 'NULL'}, "
+            f"{esc(season_source) if season_source else 'NULL'}, "
+            f"{esc(season_checked_at) if season_checked_at else 'NULL'}, "
+            f"{season_new_available if season_new_available else 'NULL'}) "
             f"ON CONFLICT(tmdb_id) DO UPDATE SET"
             # ── 3키 원칙: title_ko / title_en / tmdb_id 절대 수정 불가 ──
             # ── tmdb_rating 은 변동값 → 항상 최신값으로 업데이트 ──
@@ -387,6 +406,13 @@ def upload_works(conn: sqlite3.Connection) -> int:
             f"  keywords = CASE"
             f"    WHEN (works.keywords IS NULL OR works.keywords = '') AND excluded.keywords IS NOT NULL"
             f"    THEN excluded.keywords ELSE works.keywords END,"
+            # ── [2026-08-02 신규] 시즌 관련 — 로컬(크롤러 _check_season_update)이 실제로
+            # 값을 넣었을 때만 반영, 없으면(NULL) D1 기존 값 그대로 유지 (COALESCE) ──
+            f"  season               = COALESCE(excluded.season, works.season),"
+            f"  season_poster_path   = COALESCE(excluded.season_poster_path, works.season_poster_path),"
+            f"  season_source        = COALESCE(excluded.season_source, works.season_source),"
+            f"  season_checked_at    = COALESCE(excluded.season_checked_at, works.season_checked_at),"
+            f"  season_new_available = COALESCE(excluded.season_new_available, works.season_new_available),"
             f"  updated_at = datetime('now');"
         )
 
