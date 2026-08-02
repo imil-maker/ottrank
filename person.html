@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-03 rev.10 — person.html (관리자가 "프로필 생성" 탭에서 등록한 SNS 링크(인스타/유튜브/X)를
+     TMDB SNS 아이콘 옆에 추가로 노출 — GET /person-sns-links/:id 사용, TMDB 아이콘은 그대로 유지,
+     신규 링크는 별도로 덧붙이는 방식) -->
 <!-- 2026-08-02 rev.9 — person.html (포스터 조회를 OTT 조회와 Promise.all로 동시 실행하도록
      변경 — 순서대로 기다리던 걸 합쳐서 체감 로딩 지연 최소화. 로직(포스터 우리 DB 우선)은
      rev.8과 동일, 실행 순서만 개선) -->
@@ -1685,6 +1688,20 @@ async function loadCustomProfileImage(personId){
   }
 }
 
+/* [2026-08-03 신규] 관리자가 "프로필 생성" 탭에서 등록한 SNS 링크(인스타/유튜브/X) 조회 —
+   공개 API, 인증 불필요. TMDB에서 오는 SNS 아이콘과는 별개로 화면에 추가로 노출하는 용도.
+   실패해도 조용히 빈 배열 반환(기존 TMDB SNS 아이콘 노출에는 영향 없음). */
+async function loadCustomSnsLinks(personId){
+  try {
+    const res = await fetch(`${OTTRANK_API}/person-sns-links/${personId}`);
+    if(!res.ok) return [];
+    const data = await res.json();
+    return (data.ok && data.items) ? data.items : [];
+  } catch(e) {
+    return [];
+  }
+}
+
 /* [2026-07-29 신규] 관리자가 지정한 대표작(최대 5개) 조회 — 공개 API, 인증 불필요.
    tmdb_id + media_type + 순서만 가볍게 받아옴. 포스터/제목 등 나머지 정보는 아래에서
    allCredits(이미 받아온 TMDB combined_credits)에서 그대로 찾아 쓰므로 추가 TMDB 호출 없음.
@@ -2254,9 +2271,10 @@ async function initPage(){
   try{
     /* ① TMDB Person + external_ids + combined_credits 한 번에 호출
        [2026-07-29 수정] 관리자 지정 대표이미지 조회를 병렬로 같이 실행(추가 대기시간 없음) */
-    const [res, customProfilePath] = await Promise.all([
+    const [res, customProfilePath, customSnsLinks] = await Promise.all([
       fetch(`${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=external_ids,combined_credits`),
       loadCustomProfileImage(personId),
+      loadCustomSnsLinks(personId), // [2026-08-03 신규]
     ]);
     const data = await res.json();
 
@@ -2393,6 +2411,19 @@ async function initPage(){
     if(ext.instagram_id) socialLinks.push({ url:`https://www.instagram.com/${ext.instagram_id}/`, label:`Instagram @${ext.instagram_id}`, icon:'/img/instagram.png' });
     if(ext.twitter_id)   socialLinks.push({ url:`https://x.com/${ext.twitter_id}/`, label:`X(Twitter) @${ext.twitter_id}`, icon:'/img/twitter.png' });
     if(ext.tiktok_id)    socialLinks.push({ url:`https://www.tiktok.com/@${ext.tiktok_id}`, label:`TikTok @${ext.tiktok_id}`, icon:'/img/tiktok.png' });
+
+    // [2026-08-03 신규] 관리자가 직접 등록한 SNS 링크 — TMDB 아이콘 뒤에 별도로 추가
+    // (TMDB 값을 대체하지 않고 덧붙이는 방식, 중복 여부는 확인 안 함 — 관리자 판단에 맡김)
+    const CUSTOM_SNS_META = {
+      instagram: { icon:'/img/instagram.png', label:'Instagram' },
+      youtube:   { icon:'/img/youtube.png',   label:'YouTube' },
+      x:         { icon:'/img/twitter.png',   label:'X' },
+    };
+    (customSnsLinks || []).forEach(item => {
+      const meta = CUSTOM_SNS_META[item.platform];
+      if(!meta) return;
+      socialLinks.push({ url: item.url, label: meta.label, icon: meta.icon });
+    });
 
     const nameEl = document.getElementById('personName');
     const iconsHtml = socialLinks.map(s => `<a class="person-social-icon"
