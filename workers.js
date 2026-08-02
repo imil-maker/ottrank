@@ -1910,7 +1910,13 @@ ${D.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
         SET season = ?, season_poster_path = ?, poster_path = ?, season_source = 'admin',
             season_checked_at = ?, season_new_available = NULL
         WHERE tmdb_id = ?
-      `).bind(c,p,p,new Date().toISOString(),l).run(),new Response(JSON.stringify({ok:!0}),{headers:e}))}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}return null}async function ls(a,s,t){let f=s?[s]:["tv","movie"],e=!1;for(let d of f)try{let l=await fetch(`https://api.themoviedb.org/3/${d}/${a}/images?api_key=${t.TMDB_API_KEY}`);if(!l.ok)continue;e=!0;let p=(await l.json()).logos||[],r=p.find(o=>o.iso_639_1==="ko")||p.find(o=>!o.iso_639_1)||null;if(r)return{ok:!0,logoPath:r.file_path}}catch{}return{ok:e,logoPath:null}}async function ne(a,s){let{results:t}=await a.DB.prepare(`SELECT w.tmdb_id, w.media_type
+      `).bind(c,p,p,new Date().toISOString(),l).run(),new Response(JSON.stringify({ok:!0}),{headers:e}))}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(a==="/admin/works/season-alerts"&&s.method==="GET"){if(!T(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});try{let{results:d}=await t.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, season, season_poster_path, season_new_available
+        FROM works
+        WHERE season_new_available IS NOT NULL
+        ORDER BY season_checked_at DESC
+        LIMIT 50
+      `).all();return new Response(JSON.stringify({ok:!0,works:d}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}return null}async function ls(a,s,t){let f=s?[s]:["tv","movie"],e=!1;for(let d of f)try{let l=await fetch(`https://api.themoviedb.org/3/${d}/${a}/images?api_key=${t.TMDB_API_KEY}`);if(!l.ok)continue;e=!0;let p=(await l.json()).logos||[],r=p.find(o=>o.iso_639_1==="ko")||p.find(o=>!o.iso_639_1)||null;if(r)return{ok:!0,logoPath:r.file_path}}catch{}return{ok:e,logoPath:null}}async function ne(a,s){let{results:t}=await a.DB.prepare(`SELECT w.tmdb_id, w.media_type
      FROM hot100_scores h
      JOIN works w ON w.tmdb_id = h.tmdb_id
      WHERE COALESCE(w.hero_title_baked_in, 0) = 0
