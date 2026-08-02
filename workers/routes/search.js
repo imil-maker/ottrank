@@ -1,3 +1,6 @@
+/* 2026-08-02 rev.8 — search.js (OTT 미서비스 작품 감점(-7점) 신설 — work_ott에 등록이 하나도
+   없는 작품은 총점에서 7점 차감. work_ott 전체 tmdb_id를 쿼리 1번으로 미리 가져와서 후보별로
+   따로 조회하지 않으므로 속도 영향 없음. 100개 컷 전 시점(scoreMap 계산)에서 반영) */
 /* 2026-08-02 rev.7 — search.js (한국작품 장르매칭 가산점 신설 — 키워드 태그가 없어 장르점수만
    받는 한국작품이, 키워드+장르 둘 다 태그된 해외작품에 밀려 CANDIDATE_CAP(100개) 밖으로
    통째로 잘려나가던 문제 수정. 장르매칭 시 원어(original_language)를 같이 조회해서, 한국작품이면
@@ -179,6 +182,9 @@ export async function handleSearch(path, request, env, url, headers) {
     // 밖으로 통째로 잘려나가는 문제를 막기 위함. 5점 × 2.2 = 11점으로, 키워드+장르 둘 다
     // 걸린 작품과 동급 경쟁이 가능해짐.
     const GENRE_KOREAN_MULTIPLIER = 2.2;
+    // [2026-08-02 신규] 지금 어느 OTT에서도 서비스 중이지 않은 작품 감점 — work_ott(정규화
+    // 캐시 테이블)에 등록이 하나도 없으면 총점에서 7점을 뺀다.
+    const OTT_MISSING_PENALTY = -7;
 
     if (!q.trim()) {
       return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
@@ -189,7 +195,12 @@ export async function handleSearch(path, request, env, url, headers) {
       const scoreWords = _splitScoreWords(q);
       const titleStmts = _titleMatchStatements(env, q);
       const kgStmts = scoreWords.flatMap(w => _keywordGenreStatements(env, w, WORD_MATCH_CAP));
-      const [titleFtsRes, titleNoSpaceRes, ...kgResults] = await env.DB.batch([...titleStmts, ...kgStmts]);
+      // [2026-08-02 신규] OTT 미서비스 감점(-7점)용 — work_ott에 있는 tmdb_id 전체를 한 번에 가져옴
+      // (후보마다 따로 조회하지 않고 쿼리 1번으로 끝내서 속도 영향 없게 함)
+      const ottAllStmt = env.DB.prepare("SELECT DISTINCT tmdb_id FROM work_ott");
+      const [titleFtsRes, titleNoSpaceRes, ottAllRes, ...kgResults] =
+        await env.DB.batch([...titleStmts, ottAllStmt, ...kgStmts]);
+      const hasOttSet = new Set(ottAllRes.results.map(r => r.tmdb_id));
 
       // ② 제목 매칭 집합(FTS 단어시작 매칭 ∪ 띄어쓰기무시 부분일치 — 둘 다 10점 취급)
       const titleHit = new Set();
@@ -219,7 +230,9 @@ export async function handleSearch(path, request, env, url, headers) {
         const keywordScore = (keywordCount.get(id) || 0) * SCORE_KEYWORD_PER_WORD;
         let genreScore = (genreCount.get(id) || 0) * SCORE_GENRE_PER_WORD;
         if (genreKoreanSet.has(id)) genreScore *= GENRE_KOREAN_MULTIPLIER; // 한국작품 장르매칭 가산
-        scoreMap.set(id, titleScore + keywordScore + genreScore);
+        let total = titleScore + keywordScore + genreScore;
+        if (!hasOttSet.has(id)) total += OTT_MISSING_PENALTY; // 지금 서비스 중인 OTT가 하나도 없으면 감점
+        scoreMap.set(id, total);
 
         let category = 0, best = titleScore;
         if (keywordScore > best) { best = keywordScore; category = 1; }
