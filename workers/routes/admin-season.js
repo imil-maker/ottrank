@@ -1,6 +1,8 @@
 /* 2026-08-02 rev.3 — admin-season.js (자동배치/관리자지정 저장 시 poster_path도 함께 갱신 —
    화면에 실제로 뜨는 값은 season_poster_path가 아니라 poster_path라서, 이걸 안 바꾸면
    시즌 저장해도 화면엔 안 보이는 문제가 있었음) */
+/* 2026-08-02 rev.4 — admin-season.js (GET /admin/works/season-alerts 신규 —
+   season_new_available 있는 작품 목록 조회, 관리자가 시즌 관리 탭에서 보고 직접 적용) */
 /* 2026-08-02 rev.3 — admin-season.js (화면에 실제 뜨는 poster_path도 시즌 저장 시 같이
    갱신하도록 수정 — 지금까지는 season_poster_path만 저장하고 poster_path는 안 건드려서
    화면에 반영이 안 됐음. season-apply에는 season_new_available 알림 초기화(NULL)도 추가,
@@ -176,6 +178,27 @@ export async function handleAdminSeason(path, request, env, url, headers) {
       `).bind(season, poster_path, poster_path, new Date().toISOString(), tmdb_id).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/works/season-alerts ──────────────────────────────
+  // season_new_available 값이 있는(=TMDB에 새 시즌 나왔는데 관리자 지정이라 자동갱신 안 된)
+  // 작품 목록. 관리자가 보고 직접 적용할지 결정하는 용도.
+  if (path === "/admin/works/season-alerts" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT tmdb_id, title_ko, title_en, season, season_poster_path, season_new_available
+        FROM works
+        WHERE season_new_available IS NOT NULL
+        ORDER BY season_checked_at DESC
+        LIMIT 50
+      `).all();
+      return new Response(JSON.stringify({ ok: true, works: results }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
