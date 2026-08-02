@@ -1,3 +1,6 @@
+/* 2026-08-02 rev.12 — index.js (버그수정: 시즌 관리 라우팅이 /admin/works/backfill-season만
+   걸려있어서 season-search/season-apply/season-alerts가 실제로는 연결 안 돼 있던 문제 수정.
+   /admin/works/season-*까지 조건 확장) */
 /* 2026-08-02 rev.11 — index.js (시즌 관리 라우팅 신규: /admin/works/backfill-season*
    — handleAdminSeason으로 위임, admin-season.js 신규 파일. 자동 시즌포스터 배치 첫 단계) */
 /* 2026-08-02 rev.10 — index.js (박스오피스 이미지 업로드 라우팅 신규: /admin/boxoffice/*
@@ -235,10 +238,15 @@ export default {
       res = await handleBoxofficeAdmin(path, request, env, url, headers);
     }
 
-    // 3-12. 시즌 관리(자동배치/관리자지정) — /admin/works/backfill-season 등, 2026-08-02 신규
+    // 3-12. 시즌 관리(자동배치/관리자지정/알림) — /admin/works/backfill-season,
+    //       /admin/works/season-search, /admin/works/season-apply, /admin/works/season-alerts
+    //       2026-08-02 신규, rev.12에서 season-* 경로 누락 수정(원래 backfill-season만 걸려있었음)
     //       12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함
     //       (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — boxoffice-admin.js와 동일 패턴)
-    if (!res && path.startsWith("/admin/works/backfill-season")) {
+    if (!res && (
+      path.startsWith("/admin/works/backfill-season") ||
+      path.startsWith("/admin/works/season-")
+    )) {
       res = await handleAdminSeason(path, request, env, url, headers);
     }
 
