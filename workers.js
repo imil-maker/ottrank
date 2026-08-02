@@ -1888,7 +1888,17 @@ ${T.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
             `).bind(y,i,o,w.tmdb_id)),r++):p.push(t.DB.prepare("UPDATE works SET season_checked_at = ? WHERE tmdb_id = ?").bind(o,w.tmdb_id))}p.length&&await t.DB.batch(p);let g=await t.DB.prepare(`
         SELECT COUNT(*) as cnt FROM works
         WHERE media_type = 'tv' AND season IS NULL AND season_checked_at IS NULL
-      `).first();return new Response(JSON.stringify({ok:!0,attempted:c.length,filled:r,remaining:g?.cnt||0}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}return null}async function os(a,s,t){let f=s?[s]:["tv","movie"],e=!1;for(let d of f)try{let l=await fetch(`https://api.themoviedb.org/3/${d}/${a}/images?api_key=${t.TMDB_API_KEY}`);if(!l.ok)continue;e=!0;let p=(await l.json()).logos||[],r=p.find(o=>o.iso_639_1==="ko")||p.find(o=>!o.iso_639_1)||null;if(r)return{ok:!0,logoPath:r.file_path}}catch{}return{ok:e,logoPath:null}}async function ie(a,s){let{results:t}=await a.DB.prepare(`SELECT w.tmdb_id, w.media_type
+      `).first();return new Response(JSON.stringify({ok:!0,attempted:c.length,filled:r,remaining:g?.cnt||0}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(a==="/admin/works/season-search"&&s.method==="GET"){if(!D(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});try{let d=(f.searchParams.get("q")||"").trim();if(!d)return new Response(JSON.stringify({ok:!1,message:"\uAC80\uC0C9\uC5B4(q)\uAC00 \uD544\uC694\uD574\uC694"}),{status:400,headers:e});let l;if(/^\d+$/.test(d)){let c=await t.DB.prepare("SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source FROM works WHERE tmdb_id = ?").bind(parseInt(d)).first();l=c?[c]:[]}else{let{results:c}=await t.DB.prepare(`
+          SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source
+          FROM works
+          WHERE title_ko LIKE ? OR title_en LIKE ?
+          ORDER BY tmdb_rating DESC
+          LIMIT 10
+        `).bind(`%${d}%`,`%${d}%`).all();l=c}return new Response(JSON.stringify({ok:!0,works:l}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(a==="/admin/works/season-apply"&&s.method==="POST"){if(!D(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});try{let d=await s.json(),l=parseInt(d.tmdb_id)||null,c=parseInt(d.season)||null,p=d.poster_path||null;return!l||!c||!p?new Response(JSON.stringify({ok:!1,message:"tmdb_id, season, poster_path \uD544\uC218"}),{status:400,headers:e}):(await t.DB.prepare(`
+        UPDATE works
+        SET season = ?, season_poster_path = ?, season_source = 'admin', season_checked_at = ?
+        WHERE tmdb_id = ?
+      `).bind(c,p,new Date().toISOString(),l).run(),new Response(JSON.stringify({ok:!0}),{headers:e}))}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}return null}async function os(a,s,t){let f=s?[s]:["tv","movie"],e=!1;for(let d of f)try{let l=await fetch(`https://api.themoviedb.org/3/${d}/${a}/images?api_key=${t.TMDB_API_KEY}`);if(!l.ok)continue;e=!0;let p=(await l.json()).logos||[],r=p.find(o=>o.iso_639_1==="ko")||p.find(o=>!o.iso_639_1)||null;if(r)return{ok:!0,logoPath:r.file_path}}catch{}return{ok:e,logoPath:null}}async function ie(a,s){let{results:t}=await a.DB.prepare(`SELECT w.tmdb_id, w.media_type
      FROM hot100_scores h
      JOIN works w ON w.tmdb_id = h.tmdb_id
      WHERE COALESCE(w.hero_title_baked_in, 0) = 0
