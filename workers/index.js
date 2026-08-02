@@ -1,3 +1,5 @@
+/* 2026-08-03 rev.13 — index.js (/admin/persons/sns-links* 라우팅 추가 — 인물 SNS 링크
+   관리자 API가 12번 관리자 캐치올로 잘못 넘어가서 404 나는 것 방지, admin-persons.js로 위임) */
 /* 2026-08-02 rev.12 — index.js (버그수정: 시즌 관리 라우팅이 /admin/works/backfill-season만
    걸려있어서 season-search/season-apply/season-alerts가 실제로는 연결 안 돼 있던 문제 수정.
    /admin/works/season-*까지 조건 확장) */
@@ -194,7 +196,8 @@ export default {
     if (!res && (
       path.startsWith("/admin/persons/mbti-naver") ||
       path.startsWith("/admin/persons/featured-works") ||
-      path.startsWith("/admin/persons/videos")
+      path.startsWith("/admin/persons/videos") ||
+      path.startsWith("/admin/persons/sns-links")
     )) {
       res = await handleAdminPersons(path, request, env, url, headers);
     }
