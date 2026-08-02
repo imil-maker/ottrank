@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-02 rev.6 — admin_videos.html ("🎞 시즌 관리" 탭에 "③ 새 시즌 알림" 섹션 신규
+     추가 — season_new_available 있는 작품 목록(GET season-alerts), "확인하러 가기" 누르면
+     ②(관리자 직접지정) 검색+선택+시즌입력까지 자동으로 채워서 포스터 미리보기까지 뜨게 함,
+     저장은 관리자가 눈으로 보고 직접 눌러야 함(자동저장 없음). 탭 전환 시 자동 로드) -->
 <!-- 2026-08-02 rev.5 — admin_videos.html ("🎞 시즌 관리" 탭 신규 추가:
      ① 자동배치(TMDB 최신시즌, admin-season.js backfill-season) ② 관리자 직접 지정 검색+포스터
      미리보기+저장(season-search/season-apply). season_source='admin' 저장분은 자동배치가
@@ -1443,6 +1447,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         </button>
       </div>
     </div>
+
+    <!-- ③ 새 시즌 알림 -->
+    <div style="background:var(--bg2);border:1px solid rgba(240,180,41,.3);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:14px;font-weight:600">③ 🔔 새 시즌 알림</div>
+        <button class="btn-secondary" style="padding:6px 14px;font-size:12px" onclick="ssLoadAlerts()">새로고침</button>
+      </div>
+      <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--muted2);font-family:var(--mono);line-height:1.7">
+        💡 관리자가 직접 지정(②)한 작품 중, TMDB에 더 최신 시즌이 나온 게 확인되면 여기 뜹니다.
+        자동으로 안 바뀌고, 여기서 확인 후 "적용"을 눌러야 반영됩니다.
+      </div>
+      <div id="ssAlertList" style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono)">불러오는 중...</div>
+      </div>
+    </div>
   </div>
 
   <!-- ══ 예능 태그 섹션 ══ -->
@@ -1984,6 +2003,7 @@ function switchPageTab(tab) {
   });
   if (tab === 'adult') { acRenderWordHistory(); acConfirmedLoad(); }
   if (tab === 'rating' && !rcCategoriesLoaded) loadRcCategories();
+  if (tab === 'season') ssLoadAlerts();
 }
 
 /* ══ MBTI 관리 — 상태 ══ */
@@ -4411,6 +4431,50 @@ async function ssApply() {
     showToast('오류: ' + e.message, 'err');
   }
 }
+
+/* ══════════════════════════════════════════════════════
+   ③ 새 시즌 알림 — season_new_available 있는 작품 목록
+   /admin/works/season-alerts 조회, "적용" 누르면 ②(관리자 직접지정)로
+   자동 이동해서 검색+선택+시즌입력까지 대신 채워줌(포스터 확인만 관리자가 함)
+══════════════════════════════════════════════════════ */
+async function ssLoadAlerts() {
+  const listEl = document.getElementById('ssAlertList');
+  listEl.innerHTML = '<div style="font-size:12px;color:var(--muted);font-family:var(--mono)">불러오는 중...</div>';
+  try {
+    const res  = await fetch(`${API}/admin/works/season-alerts`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+    });
+    const data = await res.json();
+    if (!data.ok || !data.works.length) {
+      listEl.innerHTML = '<div style="font-size:12px;color:var(--muted);font-family:var(--mono)">새 시즌 알림 없음</div>';
+      return;
+    }
+    listEl.innerHTML = data.works.map(w => `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+        <div style="font-size:13px">
+          ${w.title_ko || w.title_en || '(제목 없음)'} <span style="color:var(--muted);font-family:var(--mono);font-size:11px">tmdb_id ${w.tmdb_id}</span>
+          <span style="color:var(--gold);font-family:var(--mono);font-size:11px;margin-left:6px">현재 시즌${w.season} → 새 시즌${w.season_new_available} 나옴</span>
+        </div>
+        <button class="btn-primary" style="padding:6px 14px;font-size:12px"
+          onclick='ssApplyFromAlert(${w.tmdb_id}, ${w.season_new_available}, ${JSON.stringify(w.title_ko || w.title_en || "")})'>확인하러 가기</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div style="font-size:12px;color:var(--red);font-family:var(--mono)">오류: ${e.message}</div>`;
+  }
+}
+
+// "확인하러 가기" 클릭 → ②(관리자 직접지정) 검색창에 자동으로 선택 + 새 시즌 번호까지
+// 미리 입력해서 포스터 미리보기까지 자동 조회. 저장(적용)은 관리자가 포스터 눈으로
+// 확인하고 직접 눌러야 함 — 여기서 자동 저장은 하지 않음(안전장치).
+function ssApplyFromAlert(tmdbId, seasonNum, title) {
+  document.getElementById('ssSearchInput').value = tmdbId;
+  ssSelectWork(tmdbId, title);
+  document.getElementById('ssSeasonInp').value = seasonNum;
+  ssOnSeasonInput(String(seasonNum));
+  document.getElementById('ssSelectedBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 
 /* ══════════════════════════════════════════════════════
    미디어타입 채우기 (works.media_type 이 비어있는 작품을
