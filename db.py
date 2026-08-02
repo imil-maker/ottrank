@@ -1,5 +1,9 @@
 """
 오뜨랑 DB + TMDB 매칭 모듈 v3
+# 2026-08-02 rev.4 — db.py (안전장치 추가: lookup_works/lookup_works_by_tmdb_id가 시즌
+#   컬럼 조회 실패(sqlite3.OperationalError, 배포 순서 꼬여서 sync_works.py 마이그레이션이
+#   아직 안 돈 경우 등) 시 예외로 죽지 않고 예전 컬럼만으로 폴백 — 크롤링/랭킹 업데이트
+#   자체는 절대 안 멈추게 함. 이 경우 시즌 확인 기능만 조용히 스킵됨)
 # 2026-08-02 rev.3 — db.py (새 시즌 확인 기능 신규: _check_season_update() 추가.
 #   이미 works.season이 지정된 TV 작품이 오늘 랭킹에 걸릴 때만 TMDB로 시즌 수 확인
 #   (시즌 없는 작품은 대상 아님, 매일 3000개 전체 확인 아님 — 실제로 걸리는 소수만).
@@ -286,34 +290,58 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
 
     title = title_en.strip()
 
-    # 1순위: title_en으로 조회 (영어 제목 크롤러) — 대소문자 무시, 신뢰도 높은 것 우선
-    row = conn.execute("""
-        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
-               media_type, season, season_poster_path, season_source
-        FROM works
-        WHERE title_en = ? COLLATE NOCASE
-        ORDER BY confidence_score DESC
-        LIMIT 1
-    """, (title,)).fetchone()
+    # [2026-08-02 안전장치] 시즌 컬럼이 아직 로컬에 없어도(sync_works.py 배포 전/실패 시)
+    # 여기서 에러 나서 크롤링 전체가 멈추면 안 됨 — 없으면 예전 컬럼만으로 폴백.
+    try:
+        # 1순위: title_en으로 조회 (영어 제목 크롤러) — 대소문자 무시, 신뢰도 높은 것 우선
+        row = conn.execute("""
+            SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
+                   media_type, season, season_poster_path, season_source
+            FROM works
+            WHERE title_en = ? COLLATE NOCASE
+            ORDER BY confidence_score DESC
+            LIMIT 1
+        """, (title,)).fetchone()
 
-    if row and row["tmdb_id"]:
-        return dict(row)
+        if row and row["tmdb_id"]:
+            return dict(row)
 
-    # 2순위: title_ko로 조회 (한글 제목이 title_en 자리에 들어온 경우)
-    # 웨이브/티빙 등 한글 제목 크롤러에서 Admin 저장 데이터를 찾지 못하는 문제 방지
-    row = conn.execute("""
-        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
-               media_type, season, season_poster_path, season_source
-        FROM works
-        WHERE title_ko = ?
-        ORDER BY confidence_score DESC
-        LIMIT 1
-    """, (title,)).fetchone()
+        # 2순위: title_ko로 조회 (한글 제목이 title_en 자리에 들어온 경우)
+        # 웨이브/티빙 등 한글 제목 크롤러에서 Admin 저장 데이터를 찾지 못하는 문제 방지
+        row = conn.execute("""
+            SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
+                   media_type, season, season_poster_path, season_source
+            FROM works
+            WHERE title_ko = ?
+            ORDER BY confidence_score DESC
+            LIMIT 1
+        """, (title,)).fetchone()
 
-    if row and row["tmdb_id"]:
-        return dict(row)
+        if row and row["tmdb_id"]:
+            return dict(row)
 
-    return None
+        return None
+    except sqlite3.OperationalError:
+        # 시즌 컬럼 없는 예전 로컬 DB — 폴백(시즌 확인 기능만 빠짐, 나머지는 정상 동작)
+        row = conn.execute("""
+            SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+            FROM works
+            WHERE title_en = ? COLLATE NOCASE
+            ORDER BY confidence_score DESC
+            LIMIT 1
+        """, (title,)).fetchone()
+        if row and row["tmdb_id"]:
+            return dict(row)
+        row = conn.execute("""
+            SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+            FROM works
+            WHERE title_ko = ?
+            ORDER BY confidence_score DESC
+            LIMIT 1
+        """, (title,)).fetchone()
+        if row and row["tmdb_id"]:
+            return dict(row)
+        return None
 
 
 
@@ -328,13 +356,22 @@ def lookup_works_by_tmdb_id(conn: sqlite3.Connection, tmdb_id: int) -> dict | No
     """
     if not tmdb_id:
         return None
-    row = conn.execute("""
-        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
-               media_type, season, season_poster_path, season_source
-        FROM works
-        WHERE tmdb_id = ?
-    """, (tmdb_id,)).fetchone()
-    return dict(row) if row else None
+    # [2026-08-02 안전장치] 시즌 컬럼 없어도 에러로 크롤링이 멈추지 않게 폴백
+    try:
+        row = conn.execute("""
+            SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
+                   media_type, season, season_poster_path, season_source
+            FROM works
+            WHERE tmdb_id = ?
+        """, (tmdb_id,)).fetchone()
+        return dict(row) if row else None
+    except sqlite3.OperationalError:
+        row = conn.execute("""
+            SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+            FROM works
+            WHERE tmdb_id = ?
+        """, (tmdb_id,)).fetchone()
+        return dict(row) if row else None
 
 
 # FlixPatrol TOP10 Type enum → TMDB media_type 매핑
