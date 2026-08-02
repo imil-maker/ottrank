@@ -1,3 +1,7 @@
+/* 2026-08-02 rev.2 — admin-season.js (관리자 직접 지정 API 2개 추가:
+   GET /admin/works/season-search — 제목/tmdb_id 검색, /admin/works/keywords의
+   검색 로직만 그대로 재사용(키워드 조인은 제외한 가벼운 버전).
+   POST /admin/works/season-apply — 관리자가 고른 시즌+포스터 저장, season_source='admin' */
 /* 2026-08-02 rev.1 — admin-season.js (신규 — 시즌 관리 전용 파일)
    POST /admin/works/backfill-season 만 우선 구현.
    대상: media_type='tv' AND season IS NULL AND season_checked_at IS NULL
@@ -97,6 +101,73 @@ export async function handleAdminSeason(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, attempted: targets.length, filled, remaining: remainRow?.cnt || 0,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /admin/works/season-search ─────────────────────────────
+  // 제목(부분일치) 또는 tmdb_id(완전일치) 검색 — /admin/works/keywords 검색 로직 재사용
+  // (키워드 조인은 빼고, 시즌 관리에 필요한 필드만 반환)
+  if (path === "/admin/works/season-search" && request.method === "GET") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: false, message: "검색어(q)가 필요해요" }), { status: 400, headers });
+      }
+
+      let works;
+      if (/^\d+$/.test(q)) {
+        const row = await env.DB.prepare(
+          "SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source FROM works WHERE tmdb_id = ?"
+        ).bind(parseInt(q)).first();
+        works = row ? [row] : [];
+      } else {
+        const { results } = await env.DB.prepare(`
+          SELECT tmdb_id, title_ko, title_en, media_type, season, season_poster_path, season_source
+          FROM works
+          WHERE title_ko LIKE ? OR title_en LIKE ?
+          ORDER BY tmdb_rating DESC
+          LIMIT 10
+        `).bind(`%${q}%`, `%${q}%`).all();
+        works = results;
+      }
+
+      return new Response(JSON.stringify({ ok: true, works }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/works/season-apply ─────────────────────────────
+  // 관리자가 직접 고른 시즌 번호+포스터 저장. season_source='admin'으로 표시되어
+  // 앞으로 자동배치·크롤러 어떤 자동 로직도 이 값을 절대 덮어쓰지 않음(최우선 원칙).
+  if (path === "/admin/works/season-apply" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json();
+      const tmdb_id = parseInt(body.tmdb_id) || null;
+      const season  = parseInt(body.season) || null;
+      const poster_path = body.poster_path || null;
+
+      if (!tmdb_id || !season || !poster_path) {
+        return new Response(JSON.stringify({
+          ok: false, message: "tmdb_id, season, poster_path 필수"
+        }), { status: 400, headers });
+      }
+
+      await env.DB.prepare(`
+        UPDATE works
+        SET season = ?, season_poster_path = ?, season_source = 'admin', season_checked_at = ?
+        WHERE tmdb_id = ?
+      `).bind(season, poster_path, new Date().toISOString(), tmdb_id).run();
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
