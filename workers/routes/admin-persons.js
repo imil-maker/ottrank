@@ -1,3 +1,6 @@
+/* 2026-08-03 rev.11 — admin-persons.js (공개 조회 함수 신규: GET /person-sns-links/:tmdb_id —
+   person.html에서 인증 없이 호출, 관리자가 등록한 SNS 링크를 화면에 노출하기 위함.
+   person-custom-profile과 동일한 공개조회 패턴) */
 /* 2026-08-03 rev.10 — admin-persons.js (인물 SNS 링크 기능 신규: person_sns_links 관리자용
    API 3종 추가 — 목록조회 GET /admin/persons/sns-links(같이 mbti_naver도 실어서 응답,
    admin.js를 안 건드리기 위한 방식)/추가 POST /admin/persons/sns-links-add(플랫폼
@@ -1095,6 +1098,24 @@ export async function handlePersonCustomProfilePublic(path, request, env, header
       `SELECT custom_profile_path FROM persons WHERE tmdb_id = ?`
     ).bind(tmdbId).first();
     return new Response(JSON.stringify({ ok: true, custom_profile_path: (row && row.custom_profile_path) || null }), { headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+  }
+}
+
+// ── GET /person-sns-links/:tmdb_id ────────────────────────────────
+// [2026-08-03 신규] 공개(비인증) 조회 — person.html에서 사용. 관리자가 "프로필 생성" 탭에서
+// 등록한 SNS 링크(인스타/유튜브/X) 목록만 반환. TMDB에서 오는 SNS 아이콘과는 별개로,
+// 화면에서 추가로 노출하는 용도(person-custom-profile와 동일한 공개 조회 패턴).
+export async function handlePersonSnsLinksPublic(path, request, env, headers) {
+  const m = path.match(/^\/person-sns-links\/(\d+)$/);
+  if (!m || request.method !== "GET") return null;
+  try {
+    const tmdbId = parseInt(m[1], 10);
+    const { results } = await env.DB.prepare(
+      `SELECT platform, url FROM person_sns_links WHERE tmdb_person_id = ? ORDER BY created_at ASC`
+    ).bind(tmdbId).all();
+    return new Response(JSON.stringify({ ok: true, items: results || [] }), { headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
   }
