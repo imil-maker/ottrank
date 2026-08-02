@@ -1,5 +1,9 @@
 """극장 박스오피스 크롤러 - KOBIS(영화진흥위원회) 오픈API 직접 연동
 ────────────────────────────────────────────────────────────────
+2026-08-02 rev.2 — boxoffice.py (KOBIS 접속 타임아웃 시 즉시 포기하지 않고
+  5초 간격으로 최대 3번까지 그 자리에서 재시도하도록 수정 — 하루 3회 스케줄
+  중 한 회차가 통째로 실패해도 몇 초 안에 자체 복구되도록 함. 재시도 로직만
+  추가, 매칭/저장 로직은 전혀 안 건드림)
 2026-07-29 rev.1 — boxoffice.py (KOBIS_URL을 http → https로 변경 —
   GitHub Actions에서 http(80번 포트) 접속이 타임아웃되던 문제 수정)
 
@@ -70,13 +74,27 @@ def _fetch_kobis_daily() -> list[dict]:
         "itemPerPage": 10,
     }
 
-    try:
-        resp = requests.get(KOBIS_URL, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        # 에러 로그에 API 키가 노출되지 않도록 params 전체는 출력하지 않음
-        print(f"  [박스오피스] KOBIS API 호출 오류: {type(e).__name__}: {e}")
+    # [2026-08-02 추가] 접속 타임아웃 등으로 실패하면 5초 쉬었다가 최대 3번까지
+    # 그 자리에서 재시도. 하루 3회 스케줄 중 한 회차가 통째로 KOBIS 접속 실패로
+    # 날아가는 사고(7/27, 8/2 실제 발생)를 줄이기 위함. 마지막 시도까지 실패하면
+    # 기존과 동일하게 조용히 빈 리스트 반환(같은 날 다음 회차가 또 재시도함).
+    MAX_ATTEMPTS = 3
+    RETRY_WAIT_SEC = 5
+    data = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            resp = requests.get(KOBIS_URL, params=params, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as e:
+            # 에러 로그에 API 키가 노출되지 않도록 params 전체는 출력하지 않음
+            print(f"  [박스오피스] KOBIS API 호출 오류({attempt}/{MAX_ATTEMPTS}회): {type(e).__name__}: {e}")
+            if attempt < MAX_ATTEMPTS:
+                time.sleep(RETRY_WAIT_SEC)
+
+    if data is None:
+        print(f"  [박스오피스] {MAX_ATTEMPTS}번 모두 실패 → 이번 회차는 스킵")
         return []
 
     # KOBIS는 키 오류/날짜 형식 오류 시 boxOfficeResult 대신 faultInfo를 반환
