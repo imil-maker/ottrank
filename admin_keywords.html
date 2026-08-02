@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- 2026-08-03 rev.10 — admin_keywords.html (인물 좋아요 순위 기본값을 "전체"→"오늘"로 변경) -->
 <!-- 2026-08-01 rev.9 — admin_keywords.html (확정 리스트에 자동/수동 필터 버튼(전체/자동만/수동만) 추가,
      구글 검색 링크에 직업(배우/감독) 포함 — 동명이인 정확도 개선. admin-persons.js rev.9의
      job 필드 응답 활용) -->
@@ -1650,7 +1651,7 @@ const LR_PERIODS = [
   { key: 'month',     btnId: 'lrPeriodMonth' },
   { key: 'year',      btnId: 'lrPeriodYear' },
 ];
-let lrCurrentPeriod = 'all';
+let lrCurrentPeriod = 'today';
 
 function switchLikeRankingPeriod(period){
   lrCurrentPeriod = period;
@@ -1917,7 +1918,7 @@ function switchPageTab(tab) {
   if (tab === 'searchLog') loadSearchLogs(1);
   if (tab === 'pageLog') switchPageLogSubTab('recent');
   if (tab === 'personMatch') switchPersonMatchSubTab('generate');
-  if (tab === 'likeRanking') switchLikeRankingPeriod('all');
+  if (tab === 'likeRanking') switchLikeRankingPeriod('today');
   if (tab === 'profileEdits') loadProfileEdits(1);
   if (tab === 'relationshipMatch') rcLoad(1);
 }
