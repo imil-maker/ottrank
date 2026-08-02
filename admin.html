@@ -1,3 +1,6 @@
+<!-- 2026-08-02 rev.8 — admin.html (박스오피스 캡처 이미지 업로드 기능 신규 — "수동 데이터
+     불러오기" 버튼 옆에 "📸 박스오피스 업로드" 버튼 추가, 이미지 인식→매칭 미리보기→저장
+     확인 모달. KOBIS 자동크롤러 연속 실패 대비, boxoffice-admin.js 신규 백엔드와 연동) -->
 <!-- 2026-08-01 rev.7 — admin.html (rev.6에서 openWorksModalEl까지만 고치고 정작 openWorksModal
      함수 자체엔 tmdbIdReal을 반영 안 해서 여전히 가짜 합성번호로 TMDB 조회하던 실수 수정 —
      editTmdbId 필드값을 tmdbIdReal 있으면 그걸로 채움. openMediaTypeChange가 이 필드를 그대로
@@ -262,6 +265,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
       onclick="loadManualData()"
       style="border-color:rgba(240,180,41,.4);color:var(--gold)">
       🔒 수동 데이터 불러오기
+    </button>
+    <!-- 박스오피스 캡처 이미지 업로드 — KOBIS 자동크롤러 실패 대비 수동 반영(2026-08-02 신설) -->
+    <button class="btn-load" id="btnBoxofficeUpload"
+      onclick="openBoxofficeUploadModal()"
+      style="border-color:rgba(240,180,41,.4);color:var(--gold)">
+      📸 박스오피스 업로드
     </button>
     <span class="stat" id="statTxt"></span>
   </div>
@@ -1129,6 +1138,55 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">취소</button>
       <button id="editSaveBtn" class="btn-save" onclick="saveEdit()">저장 (수동고정)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 박스오피스 캡처 이미지 업로드 모달(2026-08-02 신설) -->
+<div class="overlay" id="boxofficeUploadOverlay" onclick="if(event.target===this)closeBoxofficeUploadModal()">
+  <div class="modal" style="width:900px" onclick="event.stopPropagation()">
+    <h3>📸 박스오피스 이미지 업로드 <span class="sub">KOBIS 자동크롤러 실패 시 수동 반영</span></h3>
+
+    <div class="form-row">
+      <label>박스오피스 캡처 이미지</label>
+      <input type="file" id="boUploadFileInp" class="inp" accept="image/*" onchange="boxofficeOnFileSelected(event)">
+      <div class="form-hint">순위·영화명·매출액·관객수·스크린수 등이 보이는 표 캡처를 올려주세요</div>
+    </div>
+
+    <div id="boUploadPreviewImgWrap" style="display:none;margin-bottom:16px">
+      <img id="boUploadPreviewImg" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--border2)">
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button class="btn-save" id="boParseBtn" onclick="boxofficeParseImage()" disabled>🔍 이미지 인식하기</button>
+      <span id="boParseStatus" style="font-size:12px;color:var(--muted2);align-self:center;font-family:var(--mono)"></span>
+    </div>
+
+    <div id="boResultWrap" style="display:none">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:8px;font-family:var(--mono)">
+        인식 날짜(오늘, KST): <span id="boResultDate"></span> — 매칭 실패 항목은 TMDB ID를 직접 입력해서 고칠 수 있어요
+      </div>
+      <div class="table-wrap" style="max-height:360px;overflow-y:auto">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px">순위</th>
+              <th>인식된 제목</th>
+              <th style="width:70px">매칭</th>
+              <th style="width:110px">TMDB ID</th>
+              <th style="width:90px">관객수</th>
+              <th style="width:70px">스크린</th>
+              <th style="width:110px">매출액</th>
+            </tr>
+          </thead>
+          <tbody id="boResultBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeBoxofficeUploadModal()">닫기</button>
+      <button class="btn-save" id="boSaveBtn" onclick="boxofficeSaveAll()" style="display:none">💾 오늘 날짜로 저장</button>
     </div>
   </div>
 </div>
@@ -5646,6 +5704,144 @@ async function submitContentAdd(){
     }
   } catch(e){ showToast(e.message,'err'); }
   finally { btn.disabled=false; btn.textContent='등록'; }
+}
+
+// ════════════════════════════════════════════════════
+// 박스오피스 캡처 이미지 업로드 (2026-08-02 신설)
+// KOBIS 자동크롤러 실패 대비, 캡처 이미지를 AI가 읽어서 오늘 날짜 랭킹에 수동 반영
+// ════════════════════════════════════════════════════
+let boSelectedFile = null;   // 선택된 이미지 File 객체
+let boParsedRows   = [];     // 인식+매칭 결과 (저장 시 화면 입력값으로 덮어써서 사용)
+
+function openBoxofficeUploadModal() {
+  boSelectedFile = null;
+  boParsedRows   = [];
+  document.getElementById('boUploadFileInp').value = '';
+  document.getElementById('boUploadPreviewImgWrap').style.display = 'none';
+  document.getElementById('boParseBtn').disabled = true;
+  document.getElementById('boParseStatus').textContent = '';
+  document.getElementById('boResultWrap').style.display = 'none';
+  document.getElementById('boSaveBtn').style.display = 'none';
+  document.getElementById('boResultBody').innerHTML = '';
+  document.getElementById('boxofficeUploadOverlay').classList.add('show');
+}
+
+function closeBoxofficeUploadModal() {
+  document.getElementById('boxofficeUploadOverlay').classList.remove('show');
+}
+
+function boxofficeOnFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  boSelectedFile = file;
+  const reader = new FileReader();
+  reader.onload = () => {
+    document.getElementById('boUploadPreviewImg').src = reader.result;
+    document.getElementById('boUploadPreviewImgWrap').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('boParseBtn').disabled = false;
+  document.getElementById('boResultWrap').style.display = 'none';
+  document.getElementById('boSaveBtn').style.display = 'none';
+}
+
+// File → base64(data URL 접두어 제거) 변환
+function _boFileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function boxofficeParseImage() {
+  if (!boSelectedFile) return;
+  const btn = document.getElementById('boParseBtn');
+  const statusEl = document.getElementById('boParseStatus');
+  btn.disabled = true;
+  statusEl.textContent = 'AI가 이미지를 읽는 중... (10~20초 정도 걸려요)';
+  try {
+    const base64 = await _boFileToBase64(boSelectedFile);
+    const res = await fetch(`${API}/admin/boxoffice/parse-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ image: base64, media_type: boSelectedFile.type || 'image/jpeg' })
+    });
+    const data = await res.json();
+    if (!data.ok) { showToast(data.message || '인식 실패', 'err'); statusEl.textContent = ''; return; }
+
+    boParsedRows = data.rows || [];
+    document.getElementById('boResultDate').textContent = data.date || '';
+    _boRenderPreview();
+    document.getElementById('boResultWrap').style.display = 'block';
+    document.getElementById('boSaveBtn').style.display = 'inline-block';
+    statusEl.textContent = `${boParsedRows.length}개 행 인식 완료`;
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'err');
+    statusEl.textContent = '';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _boRenderPreview() {
+  const body = document.getElementById('boResultBody');
+  body.innerHTML = boParsedRows.map((r, i) => `
+    <tr style="${r.matched ? '' : 'background:rgba(230,57,70,.08)'}">
+      <td>${r.rank ?? ''}</td>
+      <td>
+        <div class="title-ko">${r.title || ''}</div>
+        ${r.matched ? `<div class="title-en">${r.title_ko || ''} (${r.match_source === 'works' ? '우리DB' : 'TMDB검색'})</div>` : `<div class="no-tmdb">⚠ 매칭 실패 — TMDB ID 직접 입력</div>`}
+      </td>
+      <td>${r.matched ? '✅' : '⚠️'}</td>
+      <td><input type="number" class="inp" style="margin-bottom:0;font-size:12px;padding:6px 8px" value="${r.tmdb_id ?? ''}" data-idx="${i}" onchange="_boUpdateTmdbId(${i}, this.value)"></td>
+      <td style="font-family:var(--mono);font-size:12px">${r.audi_cnt != null ? r.audi_cnt.toLocaleString() : '-'}</td>
+      <td style="font-family:var(--mono);font-size:12px">${r.scrn_cnt ?? '-'}</td>
+      <td style="font-family:var(--mono);font-size:12px">${r.sales_amt != null ? r.sales_amt.toLocaleString() : '-'}</td>
+    </tr>
+  `).join('');
+}
+
+// 관리자가 매칭 실패 행에 TMDB ID를 직접 입력했을 때 반영
+// (제목/포스터 등은 저장 시 백엔드가 tmdb_id 기준으로 다시 채워주지 않으므로,
+//  최소한 tmdb_id만 정확히 넘어가면 백엔드의 works 테이블 COALESCE 보호 로직이
+//  기존에 그 작품이 등록돼 있다면 나머지 정보를 자동으로 보완함)
+function _boUpdateTmdbId(idx, value) {
+  const v = parseInt(value);
+  boParsedRows[idx].tmdb_id = isNaN(v) ? null : v;
+  boParsedRows[idx].matched = !isNaN(v);
+}
+
+async function boxofficeSaveAll() {
+  const matchedCount = boParsedRows.filter(r => r.tmdb_id).length;
+  if (matchedCount === 0) { showToast('저장할 매칭된 항목이 없습니다', 'err'); return; }
+  if (!confirm(`매칭된 ${matchedCount}개 항목을 오늘 날짜 박스오피스 랭킹으로 저장할까요?\n(매칭 안 된 항목은 자동으로 건너뜁니다)`)) return;
+
+  const btn = document.getElementById('boSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const res = await fetch(`${API}/admin/boxoffice/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ rows: boParsedRows })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`저장 완료! ${data.saved}개 반영됨${data.skipped?.length ? ` (건너뜀: ${data.skipped.length}개)` : ''}`, 'ok');
+      closeBoxofficeUploadModal();
+      // 현재 화면이 오늘 날짜를 보고 있으면 바로 갱신
+      loadData();
+    } else {
+      showToast(data.message || '저장 실패', 'err');
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 오늘 날짜로 저장';
+  }
 }
 
 </script>
