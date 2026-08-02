@@ -1,3 +1,10 @@
+// 2026-08-02 rev.11 — admin.js (POST /admin/rankings 시즌 포스터 근본 수정:
+// ① season_poster_path 있으면 TMDB 기본 포스터 대신 무조건 그걸 사용(크롤링이 매일
+// 포스터를 시즌1로 되돌리던 버그의 근본 원인 수정) ② 이 작품이 works에 처음 생기는
+// 순간(TV)이면 최신시즌 자동 채움 ③ season_source='auto' 작품은 TMDB 시즌 수 늘면
+// 자동으로 최신시즌 갱신 ④ season_source='admin' 작품은 절대 자동 갱신 안 하고
+// season_new_available에 알림만 기록(관리자가 시즌 관리 탭에서 보고 직접 적용).
+// 추가 TMDB 호출 없음 — 기존에 이미 받던 응답의 seasons 배열 재사용)
 // 2026-08-01 rev.10 — admin.js (OTT 수집(_recollectOttForWork, collect-ott 배치)이 합성번호
 // 작품(tmdb_id_real 있는 행)에서 TMDB를 부를 때 가짜 합성번호를 그대로 써서 엉뚱한/실패한
 // 결과가 들어가던 문제 수정. TMDB 호출은 항상 tmdb_id_real(있으면), work_ott 저장은 항상
@@ -351,6 +358,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       let finalGenre   = null;
       let finalRating  = null;
       let finalMtype   = (media_type === "tv" || media_type === "movie") ? media_type : null;
+      let tmdbSeasons  = null; // TV일 때만 채워짐 — 시즌 자동갱신/알림용, 추가 호출 없이 이미 받은 응답 재사용
 
       // ① TMDB API 조회 (포스터/연도/장르/평점/영문제목)
       try {
@@ -369,6 +377,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           finalGenre  = (tmdbData.genres || []).map(g => g.name).join(", ") || null;
           if (!finalMtype) finalMtype = mtype;
           if (!finalTitleKo) finalTitleKo = tmdbData.name || tmdbData.title || null;
+          if (mtype === "tv") tmdbSeasons = tmdbData.seasons || null;
 
           if (!finalTitleEn) {
             const enResp = await fetch(
@@ -385,10 +394,62 @@ export async function handleAdmin(path, request, env, url, headers) {
         }
       } catch (e) { /* TMDB 실패 시 기존 값으로 진행 */ }
 
+      // [2026-08-02 신규] 시즌 처리 — 보호 / 신규 자동채움 / 자동갱신(auto) / 알림(admin)
+      // - season_poster_path 있으면 TMDB 기본 포스터 대신 무조건 그걸 사용(기본 보호)
+      // - 이 작품이 works에 처음 생기는 순간(!existingSeasonRow)이고 TV면 최신시즌 바로 채움
+      // - 이미 season_source='auto'인데 TMDB 시즌 수가 늘었으면 자동으로 최신시즌으로 갱신
+      // - season_source='admin'인데 시즌 수가 늘었으면 절대 안 바꾸고 season_new_available만 표시
+      //   (관리자가 시즌 관리 탭에서 보고 직접 적용). 추가 TMDB 호출 없음 — 위에서 이미 받은
+      //   tmdbSeasons 재사용.
+      let newSeasonNum = null, newSeasonPoster = null;
+      if (finalMtype === "tv" && Array.isArray(tmdbSeasons)) {
+        const regular = tmdbSeasons.filter(s => s.season_number > 0);
+        if (regular.length) {
+          const latest = regular.reduce((a, b) => a.season_number > b.season_number ? a : b);
+          if (latest.poster_path) { newSeasonNum = latest.season_number; newSeasonPoster = latest.poster_path; }
+        }
+      }
+
+      let seasonColSet = false; // season/season_poster_path/season_source/season_checked_at 직접 갱신 여부
+      let seasonNum = null, seasonPoster = null, seasonSource = null, seasonCheckedAt = null;
+      let alertColSet = false;  // season_new_available 직접 갱신 여부 (계산 성공했을 때만)
+      let seasonNewAvailable = null;
+
+      try {
+        const existingSeasonRow = await env.DB.prepare(
+          "SELECT season, season_poster_path, season_source FROM works WHERE tmdb_id = ?"
+        ).bind(parseInt(tmdb_id)).first();
+
+        if (!existingSeasonRow) {
+          // 최초 등록 — TV면 바로 시즌 채움 (관리자 직접등록도 결국 이 경로로 신규 생성됨)
+          if (newSeasonNum && newSeasonPoster) {
+            seasonColSet = true;
+            seasonNum = newSeasonNum; seasonPoster = newSeasonPoster;
+            seasonSource = "auto"; seasonCheckedAt = new Date().toISOString();
+            finalPoster = newSeasonPoster;
+          }
+        } else {
+          if (existingSeasonRow.season_poster_path) {
+            finalPoster = existingSeasonRow.season_poster_path; // 기본 보호
+          }
+          const hasNewer = newSeasonNum && existingSeasonRow.season && newSeasonNum > existingSeasonRow.season;
+          if (hasNewer && existingSeasonRow.season_source === "auto") {
+            seasonColSet = true;
+            seasonNum = newSeasonNum; seasonPoster = newSeasonPoster;
+            seasonSource = "auto"; seasonCheckedAt = new Date().toISOString();
+            finalPoster = newSeasonPoster;
+          } else if (existingSeasonRow.season_source === "admin") {
+            alertColSet = true;
+            seasonNewAvailable = hasNewer ? newSeasonNum : null; // 새 시즌 없으면(이미 최신) 알림 정리
+          }
+        }
+      } catch (e) { /* 조회 실패 시 시즌 관련은 건드리지 않고 기존 값 유지 */ }
+
       // ② works upsert (마스터 데이터 보장)
       await env.DB.prepare(`
-        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type, match_source, confidence_score)
-        VALUES (?, ?, ?, ?, ?, 'admin', 100)
+        INSERT INTO works (tmdb_id, title_ko, title_en, poster_path, media_type, match_source, confidence_score,
+          season, season_poster_path, season_source, season_checked_at)
+        VALUES (?, ?, ?, ?, ?, 'admin', 100, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           title_ko         = COALESCE(?, title_ko),
           title_en         = COALESCE(NULLIF(?, ''), title_en),
@@ -396,10 +457,18 @@ export async function handleAdmin(path, request, env, url, headers) {
           media_type       = COALESCE(?, media_type),
           match_source     = 'admin',
           confidence_score = 100,
-          updated_at       = datetime('now')
+          updated_at       = datetime('now'),
+          season               = ${seasonColSet ? '?' : 'season'},
+          season_poster_path   = ${seasonColSet ? '?' : 'season_poster_path'},
+          season_source        = ${seasonColSet ? '?' : 'season_source'},
+          season_checked_at    = ${seasonColSet ? '?' : 'season_checked_at'},
+          season_new_available = ${alertColSet ? '?' : 'season_new_available'}
       `).bind(
         parseInt(tmdb_id), finalTitleKo || "", finalTitleEn || "", finalPoster, finalMtype,
-        finalTitleKo || null, finalTitleEn || null, finalPoster, finalMtype
+        seasonNum, seasonPoster, seasonSource, seasonCheckedAt,
+        finalTitleKo || null, finalTitleEn || null, finalPoster, finalMtype,
+        ...(seasonColSet ? [seasonNum, seasonPoster, seasonSource, seasonCheckedAt] : []),
+        ...(alertColSet ? [seasonNewAvailable] : [])
       ).run();
 
       // ③ 마지막 순위 계산 (rank 미지정 시 자동)
