@@ -1,3 +1,5 @@
+/* 2026-08-03 rev.14 — index.js (/person-sns-links/:id 공개 조회 라우팅 추가 — person.html에서
+   관리자가 등록한 SNS 링크 노출용, admin-persons.js의 handlePersonSnsLinksPublic 위임) */
 /* 2026-08-03 rev.13 — index.js (/admin/persons/sns-links* 라우팅 추가 — 인물 SNS 링크
    관리자 API가 12번 관리자 캐치올로 잘못 넘어가서 404 나는 것 방지, admin-persons.js로 위임) */
 /* 2026-08-02 rev.12 — index.js (버그수정: 시즌 관리 라우팅이 /admin/works/backfill-season만
@@ -67,7 +69,7 @@ import { handleImageProxy } from "./routes/image-proxy.js";
 import { handlePersonWiki } from "./routes/person-wiki.js";
 import { handleTrack      } from "./routes/track.js";
 import { handleRelationship } from "./routes/relationship.js";
-import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomProfilePublic, handleAdminPersonManualCredits } from "./routes/admin-persons.js";
+import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomProfilePublic, handleAdminPersonManualCredits, handlePersonSnsLinksPublic } from "./routes/admin-persons.js";
 import { handleBoxofficeAdmin } from "./routes/boxoffice-admin.js";
 import { handleAdminSeason } from "./routes/admin-season.js";
 import {
@@ -219,6 +221,11 @@ export default {
     // 3-8. 인물 대표이미지 공개 조회 — person.html에서 비로그인 방문자도 호출(2026-07-29 신규)
     if (!res && path.match(/^\/person-custom-profile\/\d+$/)) {
       res = await handlePersonCustomProfilePublic(path, request, env, headers);
+    }
+
+    // 3-8b. 인물 SNS 링크 공개 조회 — person.html에서 비로그인 방문자도 호출(2026-08-03 신규)
+    if (!res && path.match(/^\/person-sns-links\/\d+$/)) {
+      res = await handlePersonSnsLinksPublic(path, request, env, headers);
     }
 
     // 3-9. 필모그래피 수동 추가(person_manual_credits) — 관리자용. handleAdminPersons와
