@@ -1,3 +1,6 @@
+<!-- 2026-08-02 rev.7 — _title_detail.html (works/register 요청에 season_hint/season_poster_hint
+     추가 — 이미 받아온 det.seasons에서 시즌0 제외 최신시즌+포스터만 뽑아 보냄, 추가 TMDB
+     호출 없음. 백엔드는 신규 등록일 때만 사용(videos.js 다음 작업 예정). 그 외 로직은 안 건드림) -->
 <!-- 2026-08-01 rev.6 — _title_detail.html (updateSEO의 브라우저 탭 타이틀(document.title)과
      SEO 메타(og/twitter title, JSON-LD name)에 시즌2부터 "시즌N" 추가. TV만 해당(영화는
      시즌 개념 자체가 없어서 movie면 절대 안 붙임), 시즌1은 원래 제목 그대로 유지.
@@ -3004,6 +3007,23 @@ async function loadTmdb(){
       // TMDB 평점: 0점(투표수 부족)도 유효한 값이므로 ?? 로 처리 (|| 사용 시 0이 null로 사라지는 버그 방지)
       const ratingVal = (det.vote_average ?? null);
 
+      // [2026-08-02 신규] 시즌 자동 채우기용 힌트 — 이미 받아온 det(TMDB 상세)에 시즌별
+      // 포스터가 들어있는 det.seasons를 그대로 활용, 추가 TMDB 호출 없음.
+      // 시즌0(스페셜)은 정식 시즌이 아니므로 반드시 제외하고 season_number > 0 중 최댓값만 사용.
+      // 백엔드(videos.js)는 이 값을 "신규 등록일 때만" 사용하고, 재방문 시 업데이트에는 안 씀
+      // (admin-season.js 자동배치와 동일한 조건으로 통일).
+      let seasonHint = null, seasonPosterHint = null;
+      if (WORK.type === 'tv' && Array.isArray(det.seasons)) {
+        const regularSeasons = det.seasons.filter(s => s.season_number > 0);
+        if (regularSeasons.length) {
+          const latest = regularSeasons.reduce((a, b) => a.season_number > b.season_number ? a : b);
+          if (latest.poster_path) {
+            seasonHint = latest.season_number;
+            seasonPosterHint = latest.poster_path;
+          }
+        }
+      }
+
       fetch(`${OTTRANK_API}/works/register`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3020,6 +3040,8 @@ async function loadTmdb(){
           genre       : genreStr || null,
           tmdb_rating : ratingVal,
           release_date: WORK.releaseDate || null,
+          season_hint       : seasonHint,        // 신규 등록일 때만 사용(백엔드에서 조건 처리)
+          season_poster_hint: seasonPosterHint,
         }),
       }).catch(()=>{});  // 실패해도 UI에 영향 없음
     }
