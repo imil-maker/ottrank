@@ -1,3 +1,8 @@
+/* 2026-08-02 rev.7 — search.js (한국작품 장르매칭 가산점 신설 — 키워드 태그가 없어 장르점수만
+   받는 한국작품이, 키워드+장르 둘 다 태그된 해외작품에 밀려 CANDIDATE_CAP(100개) 밖으로
+   통째로 잘려나가던 문제 수정. 장르매칭 시 원어(original_language)를 같이 조회해서, 한국작품이면
+   장르점수(5점)에 2.2배(11점) 가산 — 100개로 추리기 전 시점에 반영해서 애초에 컷 밖으로
+   안 밀리게 함. scoreMap 계산 한 곳만 고치면 최종 정렬/정렬버튼 카테고리까지 자동 반영됨) */
 /* 2026-08-02 rev.6 — search.js (검색결과 순위배지 오표시 버그 수정 — 한 작품이 넷플릭스
    한국/월드 등 여러 카테고리에 동시에 순위가 있을 때, 정렬 기준 없이 마지막에 조회된 행이
    그냥 남아서 낮은 순위(예: 월드10위)가 높은 순위(한국1위) 대신 표시되던 문제. rankings.js의
@@ -108,7 +113,7 @@ function _keywordGenreStatements(env, word, capLimit) {
       LIMIT ?
     `).bind(word, word, word, capLimit),
     env.DB.prepare(`
-      SELECT tmdb_id FROM works
+      SELECT tmdb_id, original_language FROM works
       WHERE (',' || REPLACE(genre, ', ', ',') || ',') LIKE ('%,' || ? || ',%')
         AND (adult_flag IS NULL OR adult_flag NOT IN (1, 2))
         AND poster_path IS NOT NULL AND poster_path != ''
@@ -169,6 +174,11 @@ export async function handleSearch(path, request, env, url, headers) {
     const SCORE_TITLE = 10;
     const SCORE_KEYWORD_PER_WORD = 6;
     const SCORE_GENRE_PER_WORD = 5;
+    // [2026-08-02 신규] 한국작품 장르매칭 가산 배율 — 키워드 태그가 안 달려있어서 장르점수(5점)만
+    // 받는 한국작품이, 키워드+장르 둘 다 태그된 해외작품(6+5=11점)에 밀려 CANDIDATE_CAP(100개)
+    // 밖으로 통째로 잘려나가는 문제를 막기 위함. 5점 × 2.2 = 11점으로, 키워드+장르 둘 다
+    // 걸린 작품과 동급 경쟁이 가능해짐.
+    const GENRE_KOREAN_MULTIPLIER = 2.2;
 
     if (!q.trim()) {
       return new Response(JSON.stringify({ ok: false, message: "q required" }), { status: 400, headers });
@@ -189,9 +199,13 @@ export async function handleSearch(path, request, env, url, headers) {
       // ③ 키워드/장르는 단어별로 몇 개 단어가 맞았는지 센다
       const keywordCount = new Map();
       const genreCount = new Map();
+      const genreKoreanSet = new Set(); // 장르매칭된 후보 중 한국작품(original_language='ko') — 가산점 대상
       scoreWords.forEach((w, i) => {
         kgResults[i * 2].results.forEach(r => keywordCount.set(r.tmdb_id, (keywordCount.get(r.tmdb_id) || 0) + 1));
-        kgResults[i * 2 + 1].results.forEach(r => genreCount.set(r.tmdb_id, (genreCount.get(r.tmdb_id) || 0) + 1));
+        kgResults[i * 2 + 1].results.forEach(r => {
+          genreCount.set(r.tmdb_id, (genreCount.get(r.tmdb_id) || 0) + 1);
+          if (r.original_language === 'ko') genreKoreanSet.add(r.tmdb_id);
+        });
       });
 
       // ④ 총점 계산 + "정렬 우선순위(제목/키워드/장르)" 버튼용 대표 카테고리 계산.
@@ -203,7 +217,8 @@ export async function handleSearch(path, request, env, url, headers) {
       candidateIds.forEach(id => {
         const titleScore = titleHit.has(id) ? SCORE_TITLE : 0;
         const keywordScore = (keywordCount.get(id) || 0) * SCORE_KEYWORD_PER_WORD;
-        const genreScore = (genreCount.get(id) || 0) * SCORE_GENRE_PER_WORD;
+        let genreScore = (genreCount.get(id) || 0) * SCORE_GENRE_PER_WORD;
+        if (genreKoreanSet.has(id)) genreScore *= GENRE_KOREAN_MULTIPLIER; // 한국작품 장르매칭 가산
         scoreMap.set(id, titleScore + keywordScore + genreScore);
 
         let category = 0, best = titleScore;
