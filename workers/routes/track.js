@@ -1,3 +1,6 @@
+// 2026-08-03 rev.5 — track.js (실시간 순위 집계 방식 변경: 조회 건수 총합(SUM) 대신
+// 같은 기간 안에서 방문자(vid) 중복 제거 후 세기(COUNT DISTINCT)로 변경 —
+// 같은 사람이 새로고침 여러 번 해도 순위엔 1로만 반영됨. "최근 조회" 로그 목록은 변경 없음)
 // 2026-07-31 rev.4 — track.js (실시간 순위 기간에 30분/1시간/6시간/12시간 롤링 기간 추가 —
 // 기존 24시간과 동일한 "지금 - N" 방식, PERIOD_WHITELIST에도 추가)
 // 2026-07-30 rev.3 — track.js (GET /admin/track/logs에 ?hideExcludedVids=1 추가 — 순위 집계에서
@@ -448,10 +451,12 @@ export async function handleTrack(path, request, env, url, headers) {
         whereSql += ` AND blob3 NOT IN (${excludedVids.map(v => `'${v}'`).join(",")})`;
       }
 
-      // 종류(blob1)+ID(blob2)별로 묶어서 조회수(SUM) 집계 후 내림차순. has_more 판단을 위해
+      // 종류(blob1)+ID(blob2)별로 묶어서 집계 후 내림차순. has_more 판단을 위해
       // limit보다 1개 더(limit+1) 가져와서, 실제로 그만큼 있으면 다음 페이지도 있다고 판단.
+      // [2026-08-03 변경] 조회 건수 총합(SUM)이 아니라, 같은 기간 안 방문자(vid) 중복 제거
+      // 후 세기(COUNT DISTINCT blob3)로 변경 — 같은 사람이 새로고침을 여러 번 해도 1로만 반영됨.
       const sql = `
-        SELECT blob1 AS type, blob2 AS ref_id, SUM(double1) AS cnt
+        SELECT blob1 AS type, blob2 AS ref_id, COUNT(DISTINCT blob3) AS cnt
         FROM ottrank_page_views
         WHERE ${whereSql}
         GROUP BY blob1, blob2
