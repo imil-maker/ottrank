@@ -1,3 +1,6 @@
+/* 2026-08-02 rev.10 — index.js (박스오피스 이미지 업로드 라우팅 신규: /admin/boxoffice/*
+   — handleBoxofficeAdmin으로 위임, boxoffice-admin.js 신규 파일. KOBIS 자동크롤러 연속
+   실패 대비 수동 업로드 기능) */
 /* 2026-07-31 rev.9 — index.js (필모그래피 수동 추가 라우팅 신규: /admin/persons/manual-credit*
    (관리자), /person-manual-credits/:id(공개) — handleAdminPersonManualCredits로 위임,
    admin-persons.js에 신설된 별도 함수) */
@@ -38,6 +41,8 @@
    relationship.js : /admin/relationship-charts/*  (등장인물 관계도 — 공식 이미지 업로드, 2026-07-25 신설)
    admin-persons.js : /admin/persons/mbti-naver-*  (네이버 검색 기반 MBTI 수집 — admin.js와 별도,
                   인물 관련 신규 어드민 기능은 앞으로 여기 모음, 2026-07-27 신설)
+   boxoffice-admin.js : /admin/boxoffice/*  (박스오피스 캡처 이미지 업로드 — KOBIS 자동크롤러
+                  실패 대비 수동 반영, 2026-08-02 신설)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -56,6 +61,7 @@ import { handlePersonWiki } from "./routes/person-wiki.js";
 import { handleTrack      } from "./routes/track.js";
 import { handleRelationship } from "./routes/relationship.js";
 import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomProfilePublic, handleAdminPersonManualCredits } from "./routes/admin-persons.js";
+import { handleBoxofficeAdmin } from "./routes/boxoffice-admin.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -217,6 +223,13 @@ export default {
     //       (인증 없음, 2026-07-31 신규)
     if (!res && path.match(/^\/person-manual-credits\/\d+$/)) {
       res = await handleAdminPersonManualCredits(path, request, env, url, headers);
+    }
+
+    // 3-11. 박스오피스 캡처 이미지 업로드(KOBIS 자동크롤러 실패 대비 수동 반영) — 2026-08-02 신규
+    //       /admin/boxoffice/*는 12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함
+    //       (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — track.js/relationship.js와 동일 패턴)
+    if (!res && path.startsWith("/admin/boxoffice/")) {
+      res = await handleBoxofficeAdmin(path, request, env, url, headers);
     }
 
     // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
