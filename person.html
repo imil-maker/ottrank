@@ -1,4 +1,11 @@
 <!DOCTYPE html>
+<!-- 2026-08-02 rev.9 — person.html (포스터 조회를 OTT 조회와 Promise.all로 동시 실행하도록
+     변경 — 순서대로 기다리던 걸 합쳐서 체감 로딩 지연 최소화. 로직(포스터 우리 DB 우선)은
+     rev.8과 동일, 실행 순서만 개선) -->
+<!-- 2026-08-02 rev.8 — person.html (필모그래피 포스터를 우리 DB(works.poster_path) 기준으로
+     덮어쓰도록 수정 — 기존엔 TMDB combined_credits 포스터를 그대로 써서 관리자가 지정한
+     시즌 포스터가 반영 안 됐음. 신규 배치 API GET /works/poster-map으로 렌더 전에 한 번에
+     조회해서 바꿔치기, 깜빡임 없음. 실패해도 기존 TMDB 값으로 그대로 진행) -->
 <!-- 2026-07-31 rev.7 — person.html (필모그래피 수동 추가 기능 신규: 관리자가 등록한
      person_manual_credits를 TMDB 필모(combined_credits)와 합쳐서 필모그래피 그리드/대표작
      매칭 후보 풀에 합류시킴 — GET /person-manual-credits/:id 사용, TMDB 필모와 중복이면
@@ -2460,10 +2467,34 @@ async function initPage(){
       document.getElementById('tabAct').textContent    = `출연 (${actCredits.length})`;
       document.getElementById('tabDirect').textContent = `연출 (${directCredits.length})`;
 
-      // [2026-07-20 신규] "OTT 있는 작품 우선" 정렬이 기본값이라, 렌더 전에
-      // 전체 작품의 OTT 여부를 미리 한 번에 조회해둠 (loadOttBadges 재사용 —
-      // 아직 카드가 없어 화면 반영은 안 되지만 ottBadgeCache는 채워짐, 중복요청 없음)
-      await loadOttBadges(allCredits);
+      // [2026-08-02 수정] 포스터 조회(우리 DB)와 OTT 조회를 순서대로 안 기다리고
+      // Promise.all로 동시에 보냄 — 어차피 있던 OTT조회 왕복시간 안에 묻혀서 체감 지연 거의 없음.
+      // ① 포스터: 필모그래피가 TMDB combined_credits 포스터를 그대로 쓰던 문제 수정 —
+      //    관리자가 works에 직접 지정한 포스터(시즌 포스터 등)가 있으면 그걸로 렌더 전에
+      //    바꿔치기("우리 DB 먼저, 없으면 TMDB" 원칙, 이 화면만 예외였음). 실패해도 기존
+      //    TMDB 포스터로 그대로 진행(필모그래피 표시 자체엔 영향 없음).
+      // ② OTT: [2026-07-20 신규] "OTT 있는 작품 우선" 정렬이 기본값이라, 렌더 전에 전체
+      //    작품의 OTT 여부를 미리 한 번에 조회해둠(loadOttBadges 재사용 — 아직 카드가 없어
+      //    화면 반영은 안 되지만 ottBadgeCache는 채워짐, 중복요청 없음).
+      // actCredits/directCredits는 allCredits와 같은 객체를 참조하고 있어서(스프레드는 얕은
+      // 복사) allCredits 포스터만 바꿔도 셋 다 함께 반영됨.
+      const posterIds = [...new Set(allCredits.filter(it=>it.id).map(it=>it.id))];
+      const posterMapPromise = posterIds.length
+        ? fetch(`${OTTRANK_API}/works/poster-map?tmdb_ids=${posterIds.join(',')}`)
+            .then(r=>r.json())
+            .then(json=>{
+              if(json.ok && json.data){
+                allCredits.forEach(it=>{
+                  const ourPoster = json.data[it.id];
+                  if(ourPoster) it.poster_path = ourPoster;
+                });
+              }
+            })
+            .catch(()=>{})
+        : Promise.resolve();
+
+      await Promise.all([posterMapPromise, loadOttBadges(allCredits)]);
+
 
       // [2026-07-29 신규] 관리자가 지정한 대표작 목록 — 아래 knownFor 계산에서 사용
       const pinnedFeaturedWorks = await loadPinnedFeaturedWorks(personId);
