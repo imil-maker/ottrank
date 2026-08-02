@@ -1,5 +1,12 @@
 """
 오뜨랑 DB + TMDB 매칭 모듈 v3
+# 2026-08-02 rev.3 — db.py (새 시즌 확인 기능 신규: _check_season_update() 추가.
+#   이미 works.season이 지정된 TV 작품이 오늘 랭킹에 걸릴 때만 TMDB로 시즌 수 확인
+#   (시즌 없는 작품은 대상 아님, 매일 3000개 전체 확인 아님 — 실제로 걸리는 소수만).
+#   season_source='auto'면 바로 갱신, 'admin'이면 season_new_available만 표시하고
+#   자동 갱신 안 함. lookup_works/lookup_works_by_tmdb_id에 media_type/season/
+#   season_poster_path/season_source 컬럼도 같이 SELECT하도록 확장(기존엔 없었음).
+#   save_ranking()/save_rankings_batch() 총 4곳(실제 크롤러가 쓰는 경로 포함)에 호출 추가)
 # 2026-07-31 rev.2 — db.py (_search_tmdb_by_title — "TMDB 검색결과 1개면 유사도 검증 없이
 #   무조건 확정"하던 구멍 수정. 웨이브 카테고리04에 전혀 다른 작품(예: "Doctor Who")이
 #   잘못 매칭되던 사고의 원인이었음. 여러 개 결과일 때와 동일하게 _tmdb_title_score >= 80
@@ -281,7 +288,8 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
 
     # 1순위: title_en으로 조회 (영어 제목 크롤러) — 대소문자 무시, 신뢰도 높은 것 우선
     row = conn.execute("""
-        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
+               media_type, season, season_poster_path, season_source
         FROM works
         WHERE title_en = ? COLLATE NOCASE
         ORDER BY confidence_score DESC
@@ -294,7 +302,8 @@ def lookup_works(conn: sqlite3.Connection, title_en: str) -> dict | None:
     # 2순위: title_ko로 조회 (한글 제목이 title_en 자리에 들어온 경우)
     # 웨이브/티빙 등 한글 제목 크롤러에서 Admin 저장 데이터를 찾지 못하는 문제 방지
     row = conn.execute("""
-        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
+               media_type, season, season_poster_path, season_source
         FROM works
         WHERE title_ko = ?
         ORDER BY confidence_score DESC
@@ -320,7 +329,8 @@ def lookup_works_by_tmdb_id(conn: sqlite3.Connection, tmdb_id: int) -> dict | No
     if not tmdb_id:
         return None
     row = conn.execute("""
-        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating
+        SELECT tmdb_id, title_ko, title_en, poster_path, genre, overview, release_year, tmdb_rating,
+               media_type, season, season_poster_path, season_source
         FROM works
         WHERE tmdb_id = ?
     """, (tmdb_id,)).fetchone()
@@ -817,6 +827,74 @@ def _fetch_detail(tmdb_id: int, media_type: str) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════
+# [2026-08-02 신규] 새 시즌 확인 — 이미 시즌이 지정된 TV 작품만 대상
+# ══════════════════════════════════════════════════════════════
+
+def _check_season_update(conn: sqlite3.Connection, works_data: dict) -> None:
+    """
+    works_data(로컬 DB에서 이미 찾은 작품)에 시즌이 지정돼 있고 TV면,
+    TMDB에 더 최신 시즌이 나왔는지 확인한다.
+    - season_source='auto' (자동배치/신규등록으로 채워진 것) → 새 시즌 발견 시 바로 갱신
+    - season_source='admin' (관리자가 직접 지정) → 자동 갱신하지 않고 season_new_available만 표시
+      (관리자가 어드민 "시즌 관리" 탭에서 보고 직접 적용)
+    시즌이 없는(NULL) 작품이나 movie는 대상이 아니므로 여기서 바로 건너뛴다 —
+    오늘 랭킹에 걸린 작품 중 극히 일부만 해당되므로 추가 TMDB 호출도 그만큼만 발생.
+    실패해도 조용히 무시 — 랭킹 저장 자체는 항상 정상 진행되어야 함.
+    """
+    tmdb_id = works_data.get("tmdb_id")
+    season  = works_data.get("season")
+    if not tmdb_id or not season or works_data.get("media_type") != "tv":
+        return
+
+    try:
+        resp = requests.get(
+            f"{TMDB_PROXY}/tv/{tmdb_id}",
+            params={"language": "ko-KR"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return
+        data = resp.json()
+        seasons = data.get("seasons") or []
+        regular = [s for s in seasons if (s.get("season_number") or 0) > 0]
+        if not regular:
+            return
+        latest = max(regular, key=lambda s: s.get("season_number") or 0)
+        latest_num = latest.get("season_number")
+        latest_poster = latest.get("poster_path")
+
+        if not latest_num or latest_num <= season:
+            return  # 새 시즌 없음 — 아무것도 안 함
+
+        now = "datetime('now','localtime')"
+        if works_data.get("season_source") == "auto" and latest_poster:
+            conn.execute(f"""
+                UPDATE works
+                SET season = ?, season_poster_path = ?, poster_path = ?,
+                    season_checked_at = {now}
+                WHERE tmdb_id = ?
+            """, (latest_num, latest_poster, latest_poster, tmdb_id))
+            print(f"     🆙 시즌 자동갱신: tmdb_id={tmdb_id} 시즌{season} → 시즌{latest_num}")
+        elif works_data.get("season_source") == "admin":
+            conn.execute(f"""
+                UPDATE works
+                SET season_new_available = ?, season_checked_at = {now}
+                WHERE tmdb_id = ?
+            """, (latest_num, tmdb_id))
+            print(f"     🔔 새 시즌 알림: tmdb_id={tmdb_id} 시즌{season} → 시즌{latest_num} (관리자 확인 필요)")
+        else:
+            return  # season_source 없음(구데이터 등) — 안전하게 건드리지 않음
+
+        conn.execute(
+            "INSERT OR IGNORE INTO touched_works (tmdb_id) VALUES (?)",
+            (tmdb_id,)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"     ⚠️ 시즌 확인 실패(무시하고 진행): tmdb_id={tmdb_id} — {e}")
+
+
+# ══════════════════════════════════════════════════════════════
 # review_queue 저장 (TMDB 매칭 실패)
 # ══════════════════════════════════════════════════════════════
 
@@ -986,6 +1064,7 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
         works_data = lookup_works_by_tmdb_id(conn, tmdb_id)
         if works_data:
             print(f"  ✅ [{platform}][{slot}] {rank:2d}. tmdb_id={tmdb_id} → works DB")
+            _check_season_update(conn, works_data)  # [2026-08-02] 시즌 있는 TV 작품만 새 시즌 확인
             _save_to_rankings(conn, item, works_data)
             return
 
@@ -1025,6 +1104,7 @@ async def save_ranking(conn: sqlite3.Connection, item: dict):
                 conn.commit()
                 print(f"     → tmdb_rating 갱신: {old} → {rating}")
 
+        _check_season_update(conn, works_data)  # [2026-08-02] 시즌 있는 TV 작품만 새 시즌 확인
         _save_to_rankings(conn, item, works_data)
         return
 
@@ -1100,6 +1180,7 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
         if works_data:
             print(f"  ✅ [{item['platform']}][{item['category_slot']}] "
                   f"{item['rank']:2d}. tmdb_id={tmdb_id} → works DB ('{works_data.get('title_ko') or works_data.get('title_en')}')")
+            _check_season_update(conn, works_data)  # [2026-08-02] 시즌 있는 TV 작품만 새 시즌 확인
             _save_to_rankings(conn, item, works_data)
             continue
 
@@ -1162,6 +1243,7 @@ async def save_rankings_batch(conn: sqlite3.Connection, items: list[dict]):
                 conn.commit()
                 print(f"     → tmdb_rating 갱신: {old} → {rating}")
 
+        _check_season_update(conn, works_data)  # [2026-08-02] 시즌 있는 TV 작품만 새 시즌 확인
         _save_to_rankings(conn, item, works_data)
 
     if not unmatched_items:
