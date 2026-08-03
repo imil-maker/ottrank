@@ -167,10 +167,9 @@ export async function onRequest(context) {
         let titleExtras = '';
         if (instaId) titleExtras += '·인스타';
         if (hasMbti) titleExtras += '·MBTI';
-        /* [2026-08-03 변경] "배우 {이름}" 검색 패턴에 정확히 매칭되도록 직업명을 이름
-           바로 앞으로 이동. 기존엔 "{이름} ... | {직업} 정보 | 오뜨랑"으로 직업명이 뒤에
-           떨어져 있어서 "배우 {이름}" 구(phrase) 검색에 약했음. */
-        seoTitle = `${jobLabel} ${name} 프로필·${workLabel}작·필모그래피${titleExtras} | 오뜨랑`;
+        /* [2026-08-03 변경] 관리자 지정 순서 — 직업명은 이름 앞, 그 뒤로 "프로필·필모그래피·
+           {활동}작" 순서 고정 (프로필-필모그래피-출연작 순) */
+        seoTitle = `${jobLabel} ${name} 프로필·필모그래피·${workLabel}작${titleExtras} | 오뜨랑`;
 
         /* description */
         const worksSnippet = topWorks.length
