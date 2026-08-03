@@ -1,3 +1,12 @@
+/* 2026-08-04 rev.16 — work_cast.js ("Secretary Sun-hee"처럼 설명단어+사람이름이 섞인 경우,
+   rev.15가 공백/하이픈 구분 없이 모든 토큰 사이에 무조건 띄어쓰기를 넣어서 "비서 선 희"처럼
+   이름 음절까지 쪼개버리던 문제 수정 — 원문에서 공백으로 나뉜 자리만 띄어쓰고, 하이픈으로
+   나뉜 자리(이름 음절)는 그대로 붙여쓰도록 구분자 종류를 기억해서 재현("비서 선희")) */
+/* 2026-08-04 rev.15 — work_cast.js (일반 토큰번역(_translateTokenSequence) 결과가 4글자
+   이상이면 영어 원문의 단어 구분(공백/하이픈)을 그대로 살려서 띄어쓰기 적용
+   ("Company senior" → "회사시니어"가 아니라 "회사 시니어"). 3글자 이하(대부분 사람 이름)는
+   기존처럼 붙여쓰기 유지. 예외단어(cast_name_overrides)가 다른 토큰이랑 합쳐질 때 무조건
+   띄어쓰는 규칙(rev.14)은 글자수 상관없이 그대로 유지됨) */
 /* 2026-08-04 rev.14 — work_cast.js (cast_name_overrides 예외등록 로직 개편 — ① 대소문자
    구분 없이 비교하도록 수정("middle School" 등록해놨는데 "Middle School"은 안 걸리던 문제)
    ② 배역명 전체가 예외문구와 완전히 같을 때만 적용하던 것을, 배역명 "일부"에 예외문구가
@@ -88,9 +97,10 @@ async function _translateToken(rawToken, env) {
   return (openParen ? "(" : "") + hangul + (closeParen ? ")" : "");
 }
 
-// [rev.14] 토큰 배열 하나를 이어붙여 번역 — 기존 _translateName 안에 있던 로직을 재사용
-// 가능하게 분리함(예외문구 앞/뒤 남는 토큰들도 이 함수로 번역)
-async function _translateTokenSequence(tokens, env) {
+// [rev.16] 토큰 배열 하나를 이어붙여 번역 — delimTypes[i]는 tokens[i]와 tokens[i+1] 사이의
+// 원문 구분자 종류('space' | 'hyphen'). 4글자 이상일 때 'space' 자리만 띄우고 'hyphen'
+// 자리(이름 음절 구분용)는 그대로 붙여써서 원문 구분을 재현함.
+async function _translateTokenSequence(tokens, delimTypes, env) {
   if (tokens.length === 0) return { ok: true, hangul: "" };
 
   const results = await Promise.all(
@@ -100,14 +110,27 @@ async function _translateTokenSequence(tokens, env) {
   // 앞에서부터 순서대로 이어붙이다가 막히는 토큰이 나오면 거기서 멈춤. 거기까지 이어붙인
   // 한글이 이미 3글자 이상이면(=사람 이름 정도는 나온 걸로 판단) 그걸로 성공 처리하고
   // 나머지(예: "[2018 - serial killer]" 같은 부가설명)는 그냥 버림.
-  let hangul = "";
+  const pieces = [];
   let stopIndex = tokens.length;
   for (let i = 0; i < tokens.length; i++) {
     if (results[i] === null) { stopIndex = i; break; }
-    hangul += results[i];
+    pieces.push(results[i]);
   }
+  const concatenated = pieces.join("");
   const fullMatch = stopIndex === tokens.length;
-  if (fullMatch || hangul.length >= 3) {
+  if (fullMatch || concatenated.length >= 3) {
+    let hangul;
+    if (concatenated.length >= 4) {
+      // [rev.15/16] 4글자 이상이면 설명형 배역명으로 보고, 원문에서 공백이었던 자리만
+      // 띄어씀. 하이픈이었던 자리(이름 음절 구분용)는 그대로 붙여씀.
+      hangul = pieces.reduce((acc, piece, i) => {
+        if (i === 0) return piece;
+        const delim = delimTypes[i - 1];
+        return acc + (delim === "space" ? " " : "") + piece;
+      }, "");
+    } else {
+      hangul = concatenated;
+    }
     return { ok: true, hangul };
   }
 
@@ -115,7 +138,7 @@ async function _translateTokenSequence(tokens, env) {
   if (failedTokens.length > 0) {
     return { ok: false, tokens: failedTokens };
   }
-  return { ok: true, hangul };
+  return { ok: true, hangul: concatenated };
 }
 
 // [rev.14] 소문자로 정리된 토큰 배열(tokensLower) 안에서, cast_name_overrides에 등록된
@@ -151,10 +174,11 @@ async function _findOverrideSpan(tokensLower, env) {
 
 // [신규] 배역명 문자열 하나를 번역 — ① 통째 예외표(cast_name_overrides) 먼저 확인(대소문자
 // 무시), 완전히 일치하면 그대로 사용. ② 완전히 일치하는 게 없으면, 기호 정리(괄호는 유지,
-// 그 외 기호는 전부 제거) 후 공백/하이픈으로 쪼개서 토큰화. ③ [rev.14] 쪼갠 토큰들 안에
-// 예외문구(여러 단어)와 일치하는 구간이 있으면 그 부분만 바꿔치고, 앞/뒤 남는 토큰은 기존
-// 방식대로 번역해서 공백으로 이어붙임("middle School girl" → "중학교" + " " + "소녀").
-// ④ 예외문구 매칭이 아예 없으면 기존처럼 전체를 토큰별로 번역(공백 없이 이어붙임).
+// 그 외 기호는 전부 제거) 후 공백/하이픈으로 쪼개서 토큰화(이때 [rev.16] 각 구분자가
+// 공백이었는지 하이픈이었는지도 같이 기억해둠). ③ [rev.14] 쪼갠 토큰들 안에 예외문구(여러
+// 단어)와 일치하는 구간이 있으면 그 부분만 바꿔치고, 앞/뒤 남는 토큰은 기존 방식대로
+// 번역해서 공백으로 이어붙임("middle School girl" → "중학교" + " " + "소녀").
+// ④ 예외문구 매칭이 아예 없으면 기존처럼 전체를 토큰별로 번역(rev.16 구분자 규칙 적용).
 async function _translateName(rawName, env) {
   const overrideFull = await env.DB.prepare(
     `SELECT hangul FROM cast_name_overrides WHERE LOWER(original) = LOWER(?)`
@@ -167,11 +191,32 @@ async function _translateName(rawName, env) {
   // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
   const symbolsCleaned = rawName.replace(/[^A-Za-z0-9\s\-'()]/g, "");
   const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
-  const tokens = normalized.split(/[\s\-]+/).filter(Boolean).map((t) => {
-    // [2026-08-04 신규] "'Woo-gi'"처럼 닉네임을 감싸는 따옴표는 벗겨냄. "'s" 토큰 자체는 보호.
-    if (t === "'s") return t;
-    return t.replace(/^'+/, "").replace(/'+$/, "");
-  }).filter(Boolean);
+
+  // [rev.16] 공백/하이픈 구분자를 캡처 그룹으로 살려서 쪼갬 — 짝수 인덱스는 토큰,
+  // 홀수 인덱스는 그 앞뒤 토큰을 나눈 구분자 원문(공백묶음 또는 하이픈묶음)
+  const rawParts = normalized.split(/([\s-]+)/).filter((p) => p !== "");
+  const tokens = [];
+  const delimTypes = []; // delimTypes[i] = tokens[i]와 tokens[i+1] 사이 구분자 종류
+
+  for (let i = 0; i < rawParts.length; i++) {
+    if (i % 2 === 0) {
+      let t = rawParts[i];
+      // [2026-08-04 신규] "'Woo-gi'"처럼 닉네임을 감싸는 따옴표는 벗겨냄. "'s" 토큰 자체는 보호.
+      if (t !== "'s") {
+        t = t.replace(/^'+/, "").replace(/'+$/, "");
+      }
+      if (t) {
+        tokens.push(t);
+      } else if (delimTypes.length > 0) {
+        // 정리 후 빈 토큰이 되면(드문 케이스) 앞뒤 구분자를 하나로 합침(공백 우선)
+        delimTypes[delimTypes.length - 1] = "space";
+      }
+    } else {
+      // 하이픈이 하나라도 섞여있으면 공백은 무시하고 hyphen으로 판단하지 않고,
+      // 반대로 공백이 하나라도 섞여있으면 무조건 'space'로 취급(단어 구분 우선)
+      delimTypes.push(rawParts[i].includes(" ") ? "space" : "hyphen");
+    }
+  }
   if (tokens.length === 0) return { ok: false, tokens: [] };
 
   // [rev.14] 토큰 안에서 예외문구 부분매칭 구간을 찾아봄(괄호 벗기고 소문자로 비교)
@@ -181,10 +226,12 @@ async function _translateName(rawName, env) {
   const span = await _findOverrideSpan(tokensLower, env);
   if (span) {
     const beforeTokens = tokens.slice(0, span.startIdx);
+    const beforeDelims = delimTypes.slice(0, Math.max(span.startIdx - 1, 0));
     const afterTokens = tokens.slice(span.endIdx);
+    const afterDelims = delimTypes.slice(span.endIdx);
     const [beforeR, afterR] = await Promise.all([
-      _translateTokenSequence(beforeTokens, env),
-      _translateTokenSequence(afterTokens, env),
+      _translateTokenSequence(beforeTokens, beforeDelims, env),
+      _translateTokenSequence(afterTokens, afterDelims, env),
     ]);
     if (beforeR.ok && afterR.ok) {
       const parts = [beforeR.hangul, span.hangul, afterR.hangul].filter(Boolean);
@@ -198,7 +245,7 @@ async function _translateName(rawName, env) {
   }
 
   // 예외문구 매칭이 없으면 기존처럼 전체를 토큰별로 번역
-  return await _translateTokenSequence(tokens, env);
+  return await _translateTokenSequence(tokens, delimTypes, env);
 }
 
 // [2026-08-04 신규] 배치 실행 공용 함수 — retryFailed=false면 "한 번도 시도 안 한 것"만,
