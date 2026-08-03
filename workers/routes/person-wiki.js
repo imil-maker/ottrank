@@ -1,3 +1,6 @@
+/* 2026-08-03 rev.6 — person-wiki.js (persons.job_manual 컬럼 추가 반영 — 관리자가 직접
+   입력한 직업이 있으면 manual.job_manual로 내려줌. 화면/SSR에서 이 값이 있으면
+   자동판별(배우/감독/작가) 대신 우선 사용하도록 person.html / [id].js에서 소비함) */
 // 2026-07-27 rev.5 — person-wiki.js (manual 응답에 mbti 필드 추가 — persons.mbti_naver 조회,
 // "UNDISCLOSED"(공개안함 확정) 값과 빈 값은 화면에 안 보여주기로 해서 여기서 걸러내고 내려줌)
 // workers/routes/person-wiki.js
@@ -119,8 +122,10 @@ export async function handlePersonWiki(path, request, env, url, headers) {
     // 사용 — 새 컬럼을 예명 케이스마다 하나씩 채우는 것보다, 이미 절반 이상 채워져 있는
     // name_ko를 재사용하는 게 더 효율적(관리자 판단). name_ko가 TMDB 자동탐색 결과와
     // 다를 때만(=관리자가 예명 등으로 의도적으로 다르게 채워둔 경우) 화면 이름을 덮어씀.
+    // [2026-08-03 신규] job_manual — 관리자가 직접 입력한 직업(자유 텍스트). 배우/감독/작가
+    // 3분류에 안 맞는 인물(가수, 방송인, 제작자 등)을 위한 수동 오버라이드값.
     const person = await env.DB.prepare(
-      `SELECT birthday, gender, place_of_birth, like_count, poster_badge, korean_confirmed, name_ko, mbti_naver FROM persons WHERE tmdb_id = ?`
+      `SELECT birthday, gender, place_of_birth, like_count, poster_badge, korean_confirmed, name_ko, mbti_naver, job_manual FROM persons WHERE tmdb_id = ?`
     )
       .bind(tmdbPersonId)
       .first();
@@ -135,7 +140,9 @@ export async function handlePersonWiki(path, request, env, url, headers) {
       // [2026-07-27 신규] MBTI — 아직 수집 안 됨(빈 값)이거나 "공개안함"으로 확정된 경우
       // (UNDISCLOSED)는 화면에 안 보여주기로 함(관리자 판단) — 여기서 걸러내고 내려줌.
       const hasMbti = person.mbti_naver && person.mbti_naver !== "" && person.mbti_naver !== "UNDISCLOSED";
-      if (hasBirthday || hasGender || hasPlace || hasBadge || hasDisplayName || hasMbti) {
+      // [2026-08-03 신규] job_manual 존재 여부
+      const hasJobManual = person.job_manual && person.job_manual !== "";
+      if (hasBirthday || hasGender || hasPlace || hasBadge || hasDisplayName || hasMbti || hasJobManual) {
         manual = {
           birthday: hasBirthday ? person.birthday : null,
           gender: hasGender ? person.gender : null,
@@ -143,6 +150,7 @@ export async function handlePersonWiki(path, request, env, url, headers) {
           poster_badge: hasBadge ? person.poster_badge : null,
           display_name: hasDisplayName ? person.name_ko : null,
           mbti: hasMbti ? person.mbti_naver : null,
+          job_manual: hasJobManual ? person.job_manual : null,
         };
       }
     }
