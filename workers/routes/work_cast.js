@@ -1,3 +1,10 @@
+/* 2026-08-04 rev.23 — work_cast.js (cast_name_overrides 매칭 방식 전면 개편 — 예전엔 배역명을
+   기호 정리+토큰화한 뒤에 비교해서, 하이픈처럼 토큰 구분자로 쓰이는 기호가 낀 예외문구
+   ("Man-" 등)는 등록해도 매칭이 안 됐음(rev.22에서 이 케이스만 코드로 별도 처리해야 했음).
+   이제 예외문구를 배역명 원문 그대로(기호 하나도 안 지우고, 대소문자만 무시)에서 부분매칭
+   먼저 찾고, 매칭된 자리 앞뒤 원문 조각만 따로 번역해서 이어붙임 — 이때 원문에서 실제로
+   공백이 있던 자리만 띄어쓰고, 하이픈처럼 공백이 없던 자리는 그대로 붙여씀("Go Man-geun"
+   → "고 만근"). 앞으로 이런 케이스는 코드 수정 없이 예외등록만으로 처리 가능해짐) */
 /* 2026-08-04 rev.22 — work_cast.js ("Man-soo"처럼 단어 뒤에 하이픈이 바로 붙어있으면(예:
    "Man-"), romanization_map에서 그 단어 자체("man")가 아니라 하이픈 붙은 전용 항목("man-")을
    먼저 찾아보도록 수정 — 예전에는 cast_name_overrides에 "Man-"/"man-"을 등록해서 구분하려
@@ -179,55 +186,38 @@ async function _translateTokenSequence(tokens, delimTypes, hyphenFlags, env) {
   return { ok: true, hangul: concatenated };
 }
 
-// [rev.14] 소문자로 정리된 토큰 배열(tokensLower) 안에서, cast_name_overrides에 등록된
-// 문구(여러 단어일 수 있음)와 연속으로 일치하는 가장 긴 구간을 찾음. 대소문자 무시.
-// 찾으면 { startIdx, endIdx, hangul } 반환(endIdx는 배타적), 없으면 null.
-async function _findOverrideSpan(tokensLower, env) {
+// [rev.23] cast_name_overrides에 등록된 문구를 배역명 원문(rawName) 그대로 — 기호 하나도
+// 지우지 않고 대소문자만 무시 — 부분매칭. 여러 개 걸리면 가장 긴 문구를 우선 채택.
+// 찾으면 { start, end, hangul } 반환(end는 배타적, 원문 인덱스 기준), 없으면 null.
+async function _findRawOverrideMatch(rawName, env) {
   const { results } = await env.DB.prepare(
     `SELECT original, hangul FROM cast_name_overrides`
   ).all();
   if (!results || results.length === 0) return null;
 
-  const overridePhrases = results.map((r) => ({
-    tokens: r.original.toLowerCase().split(/[\s\-]+/).filter(Boolean),
-    hangul: r.hangul,
-  }));
-
+  const lowerName = rawName.toLowerCase();
   let best = null;
-  for (let start = 0; start < tokensLower.length; start++) {
-    for (const ov of overridePhrases) {
-      const len = ov.tokens.length;
-      if (len === 0 || start + len > tokensLower.length) continue;
-      let match = true;
-      for (let k = 0; k < len; k++) {
-        if (tokensLower[start + k] !== ov.tokens[k]) { match = false; break; }
-      }
-      if (match && (!best || len > best.endIdx - best.startIdx)) {
-        best = { startIdx: start, endIdx: start + len, hangul: ov.hangul };
-      }
+  for (const r of results) {
+    const needle = r.original.toLowerCase();
+    if (!needle) continue;
+    const idx = lowerName.indexOf(needle);
+    if (idx === -1) continue;
+    if (!best || needle.length > best.original.length) {
+      best = { start: idx, end: idx + needle.length, hangul: r.hangul, original: r.original };
     }
   }
   return best;
 }
 
-// [신규] 배역명 문자열 하나를 번역 — ① 통째 예외표(cast_name_overrides) 먼저 확인(대소문자
-// 무시), 완전히 일치하면 그대로 사용. ② 완전히 일치하는 게 없으면, 기호 정리(괄호는 유지,
-// 그 외 기호는 전부 제거) 후 공백/하이픈으로 쪼개서 토큰화(이때 [rev.16] 각 구분자가
-// 공백이었는지 하이픈이었는지도 같이 기억해둠). ③ [rev.14] 쪼갠 토큰들 안에 예외문구(여러
-// 단어)와 일치하는 구간이 있으면 그 부분만 바꿔치고, 앞/뒤 남는 토큰은 기존 방식대로
-// 번역해서 공백으로 이어붙임("middle School girl" → "중학교" + " " + "소녀").
-// ④ 예외문구 매칭이 아예 없으면 기존처럼 전체를 토큰별로 번역(rev.16 구분자 규칙 적용).
-async function _translateName(rawName, env) {
-  const overrideFull = await env.DB.prepare(
-    `SELECT hangul FROM cast_name_overrides WHERE LOWER(original) = LOWER(?)`
-  ).bind(rawName).first();
-  if (overrideFull) {
-    return { ok: true, hangul: overrideFull.hangul };
-  }
+// [rev.23] 예외문구 없이 순수 토큰 번역만 수행 — 기존 _translateName 본문에 있던 토큰화+
+// 번역 로직을 재사용 가능하게 분리(예외문구 앞/뒤로 남는 원문 조각도 이 함수로 각각 번역)
+async function _translatePlainSegment(rawSegment, env) {
+  const trimmed = rawSegment.trim();
+  if (!trimmed) return { ok: true, hangul: "" };
 
   // 괄호( )는 유지, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거.
   // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
-  const symbolsCleaned = rawName.replace(/[^A-Za-z0-9\s\-'()]/g, "");
+  const symbolsCleaned = trimmed.replace(/[^A-Za-z0-9\s\-'()]/g, "");
   const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
 
   // [rev.16] 공백/하이픈 구분자를 캡처 그룹으로 살려서 쪼갬 — 짝수 인덱스는 토큰,
@@ -274,24 +264,36 @@ async function _translateName(rawName, env) {
     }
   }
 
-  // [rev.21] 예외문구 부분매칭 구간을 찾아봄 — 괄호는 벗기지 않고 그대로(소문자만) 비교해서
-  // "young"(이름음절)과 "(young)"(예외문구)이 서로 다른 것으로 구분되도록 함
-  const tokensLower = tokens.map((t) => t.toLowerCase());
-  const span = await _findOverrideSpan(tokensLower, env);
-  if (span) {
-    const beforeTokens = tokens.slice(0, span.startIdx);
-    const beforeDelims = delimTypes.slice(0, Math.max(span.startIdx - 1, 0));
-    const beforeFlags = hyphenFlags.slice(0, span.startIdx);
-    const afterTokens = tokens.slice(span.endIdx);
-    const afterDelims = delimTypes.slice(span.endIdx);
-    const afterFlags = hyphenFlags.slice(span.endIdx);
+  return await _translateTokenSequence(tokens, delimTypes, hyphenFlags, env);
+}
+
+// [신규/rev.23] 배역명 문자열 하나를 번역 — ① cast_name_overrides에서 원문(rawName) 그대로
+// (기호 하나도 안 지우고, 대소문자만 무시) 부분매칭되는 문구를 먼저 찾음. 찾으면 매칭된
+// 자리 앞/뒤 원문 조각을 각각 _translatePlainSegment로 번역하고, 매칭 자리 바로 앞/뒤에
+// 원문에 실제 공백이 있었으면 그 자리만 띄우고(하이픈처럼 공백이 없던 자리는 그대로 붙임)
+// 이어붙임("Go Man-geun" → "고 만근", "middle School girl" → "중학교 소녀").
+// ② 매칭이 아예 없으면 전체를 _translatePlainSegment로 번역.
+async function _translateName(rawName, env) {
+  const match = await _findRawOverrideMatch(rawName, env);
+  if (match) {
+    const rawPrefix = rawName.slice(0, match.start);
+    const rawSuffix = rawName.slice(match.end);
     const [beforeR, afterR] = await Promise.all([
-      _translateTokenSequence(beforeTokens, beforeDelims, beforeFlags, env),
-      _translateTokenSequence(afterTokens, afterDelims, afterFlags, env),
+      _translatePlainSegment(rawPrefix, env),
+      _translatePlainSegment(rawSuffix, env),
     ]);
     if (beforeR.ok && afterR.ok) {
-      const parts = [beforeR.hangul, span.hangul, afterR.hangul].filter(Boolean);
-      return { ok: true, hangul: parts.join(" ") };
+      const leftSep = match.start > 0 ? rawName[match.start - 1] : null;
+      const rightSep = match.end < rawName.length ? rawName[match.end] : null;
+      let hangul = "";
+      if (beforeR.hangul) {
+        hangul += beforeR.hangul + (leftSep === " " ? " " : "");
+      }
+      hangul += match.hangul;
+      if (afterR.hangul) {
+        hangul += (rightSep === " " ? " " : "") + afterR.hangul;
+      }
+      return { ok: true, hangul };
     }
     const failedTokens = [
       ...(beforeR.ok ? [] : beforeR.tokens),
@@ -300,8 +302,7 @@ async function _translateName(rawName, env) {
     return { ok: false, tokens: failedTokens };
   }
 
-  // 예외문구 매칭이 없으면 기존처럼 전체를 토큰별로 번역
-  return await _translateTokenSequence(tokens, delimTypes, hyphenFlags, env);
+  return await _translatePlainSegment(rawName, env);
 }
 
 // [2026-08-04 신규] 배치 실행 공용 함수 — retryFailed=false면 "한 번도 시도 안 한 것"만,
