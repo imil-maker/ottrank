@@ -1,3 +1,7 @@
+/* 2026-08-04 rev.11 — work_cast.js (work_cast.character_name_ko_attempted 컬럼 연동 —
+   실패하면 attempted=1로 표시해두고, /admin/cast/translate-batch는 "한 번도 시도 안 한 것"만,
+   신규 /admin/cast/retry-failed는 "예전에 실패한 것"만 대상으로 분리. 배치 반복할 때마다
+   실패건까지 처음부터 다시 도는 문제 해결. 공용 로직은 _runBatch()로 정리) */
 /* 2026-08-04 rev.10 — work_cast.js (rev.8의 병렬처리가 D1에 순간적으로 요청이 너무 많이
    몰려서 배치가 아예 멈추는 문제를 일으켜서, 안정성 위해 행별 처리·2조각 분해 둘 다
    순차 처리로 되돌림. UPDATE는 env.DB.batch()로 모아서 쓰는 것만 유지) */
@@ -116,14 +120,90 @@ async function _translateName(rawName, env) {
   return { ok: true, hangul };
 }
 
+// [2026-08-04 신규] 배치 실행 공용 함수 — retryFailed=false면 "한 번도 시도 안 한 것"만,
+// true면 "예전에 실패해서 character_name_ko_attempted=1로 표시된 것"만 대상으로 함.
+// 실패하면 character_name_ko_attempted=1로 표시해둬서, 다음부터 "자동번역배치"(미시도용)
+// 에는 안 걸리고 "미매칭 재시도" 버튼에서만 다시 만나도록 분리함.
+async function _runBatch(env, { afterId, limit, retryFailed }) {
+  const attemptedCond = retryFailed
+    ? "wc.character_name_ko_attempted = 1"
+    : "wc.character_name_ko_attempted IS NULL";
+
+  const { results } = await env.DB.prepare(
+    `SELECT wc.id, wc.character_name, wc.name AS actor_name, w.title_ko
+     FROM work_cast wc
+     JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
+     WHERE w.original_language = 'ko'
+       AND wc.character_name_ko IS NULL
+       AND ${attemptedCond}
+       AND wc.character_name IS NOT NULL AND wc.character_name != ''
+       AND wc.id > ?
+     ORDER BY wc.id ASC
+     LIMIT ?`
+  ).bind(afterId, limit).all();
+
+  const rows = results || [];
+  const succeeded = [];
+  const failed = [];
+  let lastId = afterId;
+
+  const translations = [];
+  for (const row of rows) {
+    if (/self|himself|herself/i.test(row.character_name)) {
+      translations.push(row.actor_name
+        ? { ok: true, hangul: row.actor_name }
+        : { ok: false, tokens: ["(배우 한글이름 없음)"] });
+    } else {
+      translations.push(await _translateName(row.character_name, env));
+    }
+  }
+
+  const updateStmts = [];
+  rows.forEach((row, i) => {
+    if (row.id > lastId) lastId = row.id;
+    const r = translations[i];
+    if (r.ok) {
+      updateStmts.push(
+        env.DB.prepare(
+          `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'auto' WHERE id = ?`
+        ).bind(r.hangul, row.id)
+      );
+      succeeded.push({
+        id: row.id, work: row.title_ko, actor: row.actor_name,
+        original: row.character_name, translated: r.hangul,
+      });
+    } else {
+      updateStmts.push(
+        env.DB.prepare(
+          `UPDATE work_cast SET character_name_ko_attempted = 1 WHERE id = ?`
+        ).bind(row.id)
+      );
+      failed.push({
+        id: row.id, work: row.title_ko, actor: row.actor_name,
+        original: row.character_name, missing_tokens: r.tokens,
+      });
+    }
+  });
+  if (updateStmts.length > 0) {
+    await env.DB.batch(updateStmts);
+  }
+
+  const remainRow = await env.DB.prepare(
+    `SELECT COUNT(*) AS cnt FROM work_cast wc
+     JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
+     WHERE w.original_language = 'ko' AND wc.character_name_ko IS NULL
+       AND ${attemptedCond}
+       AND wc.character_name IS NOT NULL AND wc.character_name != ''`
+  ).first();
+
+  return { ok: true, succeeded, failed, remaining: remainRow?.cnt || 0, last_id: lastId };
+}
+
 export async function handleWorkCast(path, request, env, url, headers) {
   try {
     // ── POST /admin/cast/translate-batch ──────────────────────
     // body: { limit?, after_id? }  기본 30, 최대 100
-    // 대상: work_cast 중 character_name_ko가 아직 비어있고, 해당 작품이 한국작품인 것만.
-    // [2026-08-04 신규] after_id 커서 — id 오름차순으로 처리하면서, 화면(admin_cast.html)이
-    // "마지막으로 처리한 id"를 넘겨주면 그 이후 것만 조회. 실패(미매칭)한 것도 이번 커서를
-    // 지나치므로 같은 회차 안에서 무한히 같은 30건을 재시도하던 문제가 해결됨.
+    // "한 번도 시도 안 한 것"만 대상(character_name_ko_attempted가 아직 NULL인 것)
     if (path === "/admin/cast/translate-batch" && request.method === "POST") {
       if (!_checkAuth(request, env)) {
         return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -131,76 +211,22 @@ export async function handleWorkCast(path, request, env, url, headers) {
       const body = await request.json().catch(() => ({}));
       const limit = Math.min(parseInt(body.limit) || 30, 100);
       const afterId = parseInt(body.after_id) || 0;
+      const result = await _runBatch(env, { afterId, limit, retryFailed: false });
+      return new Response(JSON.stringify(result), { headers });
+    }
 
-      const { results } = await env.DB.prepare(
-        `SELECT wc.id, wc.character_name, wc.name AS actor_name, w.title_ko
-         FROM work_cast wc
-         JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
-         WHERE w.original_language = 'ko'
-           AND wc.character_name_ko IS NULL
-           AND wc.character_name IS NOT NULL AND wc.character_name != ''
-           AND wc.id > ?
-         ORDER BY wc.id ASC
-         LIMIT ?`
-      ).bind(afterId, limit).all();
-
-      const rows = results || [];
-      const succeeded = [];
-      const failed = [];
-      let lastId = afterId;
-
-      // [2026-08-04 신규] self/himself/herself는 음절 매칭 대신 work_cast.name(배우 이름을
-      // 그대로 사용. 배우 이름 자체가 비어있으면 실패로 표시. ── 속도 개선: 행별 번역을
-      // 순서대로 기다리지 않고 한꺼번에 병렬 처리.
-      // [2026-08-04 신규] 행 30개를 한꺼번에 동시 처리하면 D1에 순간적으로 너무 많은
-      // 요청이 몰려서 배치 자체가 멈추는 문제가 있어서, 안정성 위해 다시 순서대로 처리
-      const translations = [];
-      for (const row of rows) {
-        if (/self|himself|herself/i.test(row.character_name)) {
-          translations.push(row.actor_name
-            ? { ok: true, hangul: row.actor_name }
-            : { ok: false, tokens: ["(배우 한글이름 없음)"] });
-        } else {
-          translations.push(await _translateName(row.character_name, env));
-        }
+    // ── POST /admin/cast/retry-failed ──────────────────────────
+    // body: { limit?, after_id? }  — "예전에 실패해서 attempted=1로 표시된 것"만 재시도.
+    // 매칭표(romanization_map)에 단어를 추가한 뒤, 실패했던 것만 다시 돌려보는 용도.
+    if (path === "/admin/cast/retry-failed" && request.method === "POST") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
       }
-
-      const updateStmts = [];
-      rows.forEach((row, i) => {
-        if (row.id > lastId) lastId = row.id;
-        const r = translations[i];
-        if (r.ok) {
-          updateStmts.push(
-            env.DB.prepare(
-              `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'auto' WHERE id = ?`
-            ).bind(r.hangul, row.id)
-          );
-          succeeded.push({
-            id: row.id, work: row.title_ko, actor: row.actor_name,
-            original: row.character_name, translated: r.hangul,
-          });
-        } else {
-          failed.push({
-            id: row.id, work: row.title_ko, actor: row.actor_name,
-            original: row.character_name, missing_tokens: r.tokens,
-          });
-        }
-      });
-      if (updateStmts.length > 0) {
-        await env.DB.batch(updateStmts);
-      }
-
-      // 이번 배치 대상이 됐던 전체 미번역 건수(진행률 참고용)
-      const remainRow = await env.DB.prepare(
-        `SELECT COUNT(*) AS cnt FROM work_cast wc
-         JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
-         WHERE w.original_language = 'ko' AND wc.character_name_ko IS NULL
-           AND wc.character_name IS NOT NULL AND wc.character_name != ''`
-      ).first();
-
-      return new Response(JSON.stringify({
-        ok: true, succeeded, failed, remaining: remainRow?.cnt || 0, last_id: lastId,
-      }), { headers });
+      const body = await request.json().catch(() => ({}));
+      const limit = Math.min(parseInt(body.limit) || 30, 100);
+      const afterId = parseInt(body.after_id) || 0;
+      const result = await _runBatch(env, { afterId, limit, retryFailed: true });
+      return new Response(JSON.stringify(result), { headers });
     }
 
     // ── POST /admin/cast/override-save ────────────────────────
