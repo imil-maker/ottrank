@@ -1,3 +1,6 @@
+<!-- 2026-08-03 rev.3 — header.html (검색 드롭다운 직업 표시에 job_manual 반영 — 관리자가
+     인물매칭 화면에서 직접 입력한 직업(가수/방송인 등)이 있으면 자동판별(배우/감독)보다
+     우선 표시. PC/모바일 드로어 두 블록 모두 동일하게 적용, search.js rev.9와 연동) -->
 <!-- 2026-07-31 rev.2 — header.html (검색창 드롭다운에 우리 DB persons 검색 신규 연결 — 기존엔
      TMDB /search/person만 호출해서 동명이인이 섞이면 우리 DB에 있는 인물이 안 뜨는 문제가
      있었음(예: "윤상훈" 검색 시 배우 대신 동명 감독이 뜸). /persons/search API로 DB 인물
@@ -910,7 +913,8 @@ function initHeader(){
       const name      = p.name || '';
       const knownFor  = (p.known_for || []).map(k => k.title || k.name).slice(0, 2).join(', ');
       // [2026-07-31 신규] DB 인물은 known_for_department가 없고 job('act'/'direct')만 있어서 분기
-      const dept      = p.known_for_department || (p.job === 'direct' ? '감독' : p.job === 'act' ? '배우' : '');
+      // [2026-08-03 신규] job_manual(관리자 수동입력)이 있으면 자동판별보다 최우선
+      const dept      = p.job_manual || p.known_for_department || (p.job === 'direct' ? '감독' : p.job === 'act' ? '배우' : '');
       const dbBadge   = isDB ? '<span class="ottrang-sr-db">DB</span>' : '';
       const personUrl = `/person.html?id=${p.id || p.tmdb_person_id || p.tmdb_id}`;
 
@@ -1185,7 +1189,8 @@ function initHeader(){
       const profile  = p.profile_path?`<img class="ottrang-sr-profile" src="${IMG}${p.profile_path}" alt="" loading="lazy">`:`<div class="ottrang-sr-profile-ph">👤</div>`;
       const name     = p.name||'';
       const knownFor = (p.known_for||[]).map(k=>k.title||k.name).slice(0,2).join(', ');
-      const dept     = p.known_for_department || (p.job === 'direct' ? '감독' : p.job === 'act' ? '배우' : '');
+      // [2026-08-03 신규] job_manual(관리자 수동입력)이 있으면 자동판별보다 최우선
+      const dept     = p.job_manual || p.known_for_department || (p.job === 'direct' ? '감독' : p.job === 'act' ? '배우' : '');
       const dbBadge  = isDB ? '<span class="ottrang-sr-db">DB</span>' : '';
       const url      = `/person.html?id=${p.id||p.tmdb_person_id||p.tmdb_id}`;
       return `<div class="ottrang-sr-item" onclick="location.href='${url}'">${profile}<div class="ottrang-sr-info"><div class="ottrang-sr-title">${_hesc(name)}</div><div class="ottrang-sr-meta">${dept}${knownFor?` · ${knownFor}`:''}</div></div>${dbBadge}</div>`;
