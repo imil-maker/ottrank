@@ -1,3 +1,5 @@
+/* 2026-08-04 rev.13 — work_cast.js (숫자만 있는 토큰(예: "8")은 romanization_map 조회 없이
+   그대로 통과시키도록 수정 — "Student 8" 같은 배역명이 숫자에서 막혀 미매칭 처리되던 문제 해결) */
 /* 2026-08-04 rev.12 — work_cast.js (속도개선 — 행별 번역을 완전 순차 대신 "5개씩 묶어서
    동시처리"로 변경. 완전 동시(rev.8)는 D1 과부하로 멈춘 적 있고, 완전 순차(rev.10)는
    안전하지만 느려서, 절충안으로 5개 단위 청크만 Promise.all 병렬 처리하고 청크끼리는
@@ -72,6 +74,10 @@ async function _translateToken(rawToken, env) {
   const closeParen = rawToken.endsWith(")");
   const inner = rawToken.replace(/^\(/, "").replace(/\)$/, "");
   if (!inner) return null;
+  // [rev.13] 숫자만 있는 토큰(예: "8")은 매칭표에서 찾을 필요 없이 그대로 통과
+  if (/^\d+$/.test(inner)) {
+    return (openParen ? "(" : "") + inner + (closeParen ? ")" : "");
+  }
   const hangul = await _lookupToken(inner, env);
   if (hangul === null) return null;
   return (openParen ? "(" : "") + hangul + (closeParen ? ")" : "");
