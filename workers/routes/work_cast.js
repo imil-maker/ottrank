@@ -1,3 +1,6 @@
+/* 2026-08-04 rev.5 — work_cast.js (앞부분 번역이 한글 3글자 이상 나오면, 뒤에 막히는 토큰이
+   있어도 거기서 끊고 성공 처리하도록 변경 — "Kim Hyun Seok [2018 - serial killer]"처럼
+   이름 뒤에 부가설명이 붙는 경우, 이름만 번역되면 충분하다고 판단) */
 /* 2026-08-04 rev.4 — work_cast.js ("[Panelist]"처럼 대괄호가 단어에 붙어 매칭 실패하던 문제
    수정 — 쪼개기 전에 대괄호 제거 */
 /* 2026-08-04 rev.3 — work_cast.js ("Bak's"처럼 어퍼스트로피로 붙은 's가 통째로 한 토큰이 되어
@@ -36,11 +39,24 @@ async function _translateName(rawName, env) {
     )
   );
 
+  // [2026-08-04 신규] 앞에서부터 순서대로 이어붙이다가 막히는 토큰이 나오면 거기서 멈춤.
+  // 거기까지 이어붙인 한글이 이미 3글자 이상이면(=사람 이름 정도는 나온 걸로 판단) 그걸로
+  // 성공 처리하고 나머지(예: "[2018 - serial killer]" 같은 부가설명)는 그냥 버림.
+  let hangul = "";
+  let stopIndex = tokens.length;
+  for (let i = 0; i < tokens.length; i++) {
+    if (!results[i]) { stopIndex = i; break; }
+    hangul += results[i].hangul;
+  }
+  const fullMatch = stopIndex === tokens.length;
+  if (fullMatch || hangul.length >= 3) {
+    return { ok: true, hangul };
+  }
+
   const failedTokens = tokens.filter((t, i) => !results[i]);
   if (failedTokens.length > 0) {
     return { ok: false, tokens: failedTokens };
   }
-  const hangul = results.map((r) => r.hangul).join("");
   return { ok: true, hangul };
 }
 
