@@ -1,3 +1,10 @@
+/* 2026-08-04 rev.22 — work_cast.js ("Man-soo"처럼 단어 뒤에 하이픈이 바로 붙어있으면(예:
+   "Man-"), romanization_map에서 그 단어 자체("man")가 아니라 하이픈 붙은 전용 항목("man-")을
+   먼저 찾아보도록 수정 — 예전에는 cast_name_overrides에 "Man-"/"man-"을 등록해서 구분하려
+   했는데, 예외표는 하이픈을 구분자로 없애버리는 구조라 "man"과 충돌했음(35/65번 삭제,
+   romanization_map에 "man-"→"만" 신규 등록으로 이전). 원문에서 실제로 하이픈이 바로
+   뒤따르는 토큰만 이 우선조회 대상이 되도록 rev.16의 구분자 정보(공백/하이픈 강제 처리 전
+   원본)를 그대로 활용) */
 /* 2026-08-04 rev.21 — work_cast.js (rev.20에서 예외문구 비교할 때 양쪽 다 괄호를 벗겨버려서,
    괄호 없는 "young"(→영, 이름음절)까지 "(young)"(→어린시절) 예외에 걸려버리던 문제 수정 —
    "young"과 "(young)"은 서로 다른 의미라 구분돼야 함. 괄호를 벗기지 않고 있는 그대로(괄호
@@ -93,8 +100,16 @@ async function _trySegment(token, env) {
   return null;
 }
 
-// 순수 로마자 토큰(괄호 없는 상태) 하나 번역 — 통째 매칭 우선, 안 되면 분해 시도
-async function _lookupToken(token, env) {
+// 순수 로마자 토큰(괄호 없는 상태) 하나 번역 — [rev.22] hyphenSuffix가 true면(원문에서 이
+// 토큰 바로 뒤에 하이픈이 있었으면) "단어-" 항목을 먼저 찾아보고, 없으면 원래처럼 통째
+// 매칭 → 분해 순서로 진행
+async function _lookupToken(token, env, hyphenSuffix) {
+  if (hyphenSuffix) {
+    const hyphenRow = await env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
+      .bind(token + "-")
+      .first();
+    if (hyphenRow) return hyphenRow.hangul;
+  }
   const row = await env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
     .bind(token)
     .first();
@@ -104,7 +119,7 @@ async function _lookupToken(token, env) {
 
 // [2026-08-04 신규] 토큰 하나를 처리 — 괄호로 감싸져 있으면(예: "(voice)") 괄호는 유지하고
 // 안쪽 내용만 번역해서 다시 괄호로 감싸 반환. 괄호 없으면 토큰 자체를 번역.
-async function _translateToken(rawToken, env) {
+async function _translateToken(rawToken, env, hyphenSuffix) {
   const openParen = rawToken.startsWith("(");
   const closeParen = rawToken.endsWith(")");
   const inner = rawToken.replace(/^\(/, "").replace(/\)$/, "");
@@ -113,7 +128,7 @@ async function _translateToken(rawToken, env) {
   if (/^\d+$/.test(inner)) {
     return (openParen ? "(" : "") + inner + (closeParen ? ")" : "");
   }
-  const hangul = await _lookupToken(inner, env);
+  const hangul = await _lookupToken(inner, env, hyphenSuffix);
   if (hangul === null) return null;
   return (openParen ? "(" : "") + hangul + (closeParen ? ")" : "");
 }
@@ -121,11 +136,13 @@ async function _translateToken(rawToken, env) {
 // [rev.16] 토큰 배열 하나를 이어붙여 번역 — delimTypes[i]는 tokens[i]와 tokens[i+1] 사이의
 // 원문 구분자 종류('space' | 'hyphen'). 4글자 이상일 때 'space' 자리만 띄우고 'hyphen'
 // 자리(이름 음절 구분용)는 그대로 붙여써서 원문 구분을 재현함.
-async function _translateTokenSequence(tokens, delimTypes, env) {
+// [rev.22] hyphenFlags[i]가 true면 tokens[i]는 원문에서 바로 뒤에 하이픈이 붙어있던
+// 토큰이라, 조회할 때 "단어-" 전용 항목을 우선 찾아봄("Man-"→"만" vs "man"→"남자" 구분).
+async function _translateTokenSequence(tokens, delimTypes, hyphenFlags, env) {
   if (tokens.length === 0) return { ok: true, hangul: "" };
 
   const results = await Promise.all(
-    tokens.map((t) => _translateToken(t.toLowerCase(), env))
+    tokens.map((t, i) => _translateToken(t.toLowerCase(), env, hyphenFlags && hyphenFlags[i]))
   );
 
   // 앞에서부터 순서대로 이어붙이다가 막히는 토큰이 나오면 거기서 멈춤. 거기까지 이어붙인
@@ -240,6 +257,11 @@ async function _translateName(rawName, env) {
   }
   if (tokens.length === 0) return { ok: false, tokens: [] };
 
+  // [rev.22] 's 강제처리(아래)로 delimTypes가 바뀌기 전에, "이 토큰 바로 뒤에 실제로
+  // 하이픈이 있었는지"를 hyphenFlags로 미리 스냅샷 떠둠(조회용, 화면 띄어쓰기용 delimTypes와
+  // 별개로 유지)
+  const hyphenFlags = tokens.map((_, i) => delimTypes[i] === "hyphen");
+
   // [rev.18/19] 's는 "Bak's"처럼 항상 앞 이름에 그대로 붙어야 하는 소유격 — 별도 토큰으로
   // 분리하기 위해 넣었던 공백은 실제 띄어쓰기가 아님. 's가 나오면 그 앞에 있는 이름 전체
   // (여러 단어로 쪼개져 있어도 전부)를 붙여쓰기(hyphen)로 강제해서 "영탁 의 엄마"가 아니라
@@ -259,11 +281,13 @@ async function _translateName(rawName, env) {
   if (span) {
     const beforeTokens = tokens.slice(0, span.startIdx);
     const beforeDelims = delimTypes.slice(0, Math.max(span.startIdx - 1, 0));
+    const beforeFlags = hyphenFlags.slice(0, span.startIdx);
     const afterTokens = tokens.slice(span.endIdx);
     const afterDelims = delimTypes.slice(span.endIdx);
+    const afterFlags = hyphenFlags.slice(span.endIdx);
     const [beforeR, afterR] = await Promise.all([
-      _translateTokenSequence(beforeTokens, beforeDelims, env),
-      _translateTokenSequence(afterTokens, afterDelims, env),
+      _translateTokenSequence(beforeTokens, beforeDelims, beforeFlags, env),
+      _translateTokenSequence(afterTokens, afterDelims, afterFlags, env),
     ]);
     if (beforeR.ok && afterR.ok) {
       const parts = [beforeR.hangul, span.hangul, afterR.hangul].filter(Boolean);
@@ -277,7 +301,7 @@ async function _translateName(rawName, env) {
   }
 
   // 예외문구 매칭이 없으면 기존처럼 전체를 토큰별로 번역
-  return await _translateTokenSequence(tokens, delimTypes, env);
+  return await _translateTokenSequence(tokens, delimTypes, hyphenFlags, env);
 }
 
 // [2026-08-04 신규] 배치 실행 공용 함수 — retryFailed=false면 "한 번도 시도 안 한 것"만,
