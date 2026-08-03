@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-04 rev.4 — admin_cast.html (work_cast.js rev.8의 after_id 커서 연동 — 배치 반복
+     실행 시 처리한 지점 이후만 계속 조회하도록 해서, 같은 미매칭 30건을 무한 재조회하던
+     문제 해결) -->
 <!-- 2026-08-04 rev.3 — admin_cast.html ("예외 직접 등록" 카드 신규 — 배치 리스트에 없는 이미
      처리된 이름도 영어/한글 직접 입력해서 cast_name_overrides에 바로 등록 가능 -->
 <!-- 2026-08-04 rev.2 — admin_cast.html (① 자동번역 배치를 반복실행 방식으로 변경 — 남은 게
@@ -191,6 +194,7 @@ async function startBatch(){
   document.getElementById('batchBtn').style.display = 'none';
   document.getElementById('stopBtn').style.display = 'inline-block';
   let totalOk = 0, totalFail = 0, rounds = 0;
+  let afterId = 0; // [2026-08-04 신규] id 커서 — 처리한 지점 이후만 계속 조회(무한반복 방지)
 
   while(batchRunning){
     let data;
@@ -198,7 +202,7 @@ async function startBatch(){
       const res = await fetch(`${API}/admin/cast/translate-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
-        body: JSON.stringify({ limit: 30 }),
+        body: JSON.stringify({ limit: 30, after_id: afterId }),
       });
       data = await res.json();
       if(!res.ok || !data.ok) throw new Error(data.message || res.status);
@@ -210,6 +214,7 @@ async function startBatch(){
     rounds++;
     totalOk += data.succeeded.length;
     totalFail += data.failed.length;
+    afterId = data.last_id; // [2026-08-04 신규] 다음 회차는 이 지점 이후만 조회
     document.getElementById('batchRemain').textContent = `남은 미번역: ${data.remaining}건`;
     document.getElementById('batchProgress').textContent =
       `${rounds}회 실행 · 누적 성공 ${totalOk}건 · 누적 미매칭 ${totalFail}건`;
@@ -217,9 +222,9 @@ async function startBatch(){
     renderCastList('succeededBox', 'succeededList', data.succeeded, true);
     renderCastList('failedBox', 'failedList', data.failed, false);
 
-    // 이번 회차에 처리 대상 자체가 없었으면(성공+실패 둘 다 0) 더 반복할 게 없다는 뜻 → 종료
+    // 이번 회차에 조회된 행 자체가 없었으면(성공+실패 둘 다 0) id 끝까지 다 훑었다는 뜻 → 종료
     if(data.succeeded.length === 0 && data.failed.length === 0){
-      showToast('✅ 남은 미번역 없음 — 완료');
+      showToast('✅ 끝까지 확인 완료 (남은 미매칭은 위 목록 참고)');
       break;
     }
     await new Promise(r => setTimeout(r, 300)); // 너무 빠르게 연달아 치지 않도록 살짝 텀
