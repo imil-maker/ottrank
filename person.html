@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-03 rev.13 — person.html (job_manual 타이틀 반영 버그 수정 — loadWikiTest가 await
+     없이 백그라운드로 도는 구조라, ⑦번 SEO 블록이 위키 데이터(job_manual) 도착 전에 자동판별값
+     으로 먼저 타이틀을 만들어버려서 "셰프 김도윤"→"배우 김도윤"으로 되돌아가던 문제. job_manual이
+     늦게 도착하면 저장해둔 seoUpdateArgs로 타이틀/메타를 한 번 더 재계산하도록 수정) -->
 <!-- 2026-08-03 rev.12 — person.html (persons.job_manual 오버라이드 반영 — 관리자가 "프로필생성"
      탭에서 직접 입력한 직업이 있으면 자동판별(배우/감독/작가) 대신 그 값을 SEO 타이틀/설명/
      키워드에 우선 사용. loadWikiTest가 manual.job_manual을 personJobManual 전역값으로 채워둠.
@@ -1159,6 +1163,10 @@ let personEnName = '';
 // [2026-08-03 신규] 관리자가 persons.job_manual에 직접 입력해둔 직업(자유 텍스트).
 // loadWikiTest가 채워줌 — 값이 있으면 SEO 타이틀에서 자동판별(배우/감독/작가) 대신 우선 사용.
 let personJobManual = '';
+// [2026-08-03 신규] updateSEO()에 마지막으로 넘긴 인자 저장 — job_manual이 SEO 계산보다
+// 늦게 도착하는 경우(loadWikiTest가 await 없이 백그라운드로 돌아서 대부분 이 경우임),
+// 도착한 시점에 이 값들로 타이틀/메타를 한 번 더 정확하게 재계산하기 위함.
+let seoUpdateArgs = null;
 let personSocialRowHtml = '';
 function renderPersonNameEl(){
   const nameEl = document.getElementById('personName');
@@ -1411,6 +1419,13 @@ async function loadWikiTest(personId){
       // personJobManual을 참조하므로, 여기서 전역값만 채워두면 됨(다른 값들처럼
       // 즉시 화면을 다시 그릴 필요는 없음 — 타이틀은 아직 안 만들어졌을 수도 있어서).
       personJobManual = manual.job_manual || '';
+      // [2026-08-03 신규] loadWikiTest는 await 없이 백그라운드로 돌기 때문에, 대부분
+      // ⑦번 SEO 블록이 이미 자동판별값으로 타이틀을 만든 뒤에 이 코드가 실행됨.
+      // seoUpdateArgs가 이미 채워져 있다(=SEO가 한 번 실행됐다)면, 방금 받은
+      // personJobManual로 타이틀/메타를 다시 정확하게 덮어씀.
+      if(seoUpdateArgs && personJobManual){
+        updateSEO(seoUpdateArgs.name, seoUpdateArgs.desc, seoUpdateArgs.imgUrl, personJobManual, seoUpdateArgs.instaId, seoUpdateArgs.enName);
+      }
       const merged = {
         birthday: manual.birthday || tmdbMeta.birthday || '',
         deathday: tmdbMeta.deathday, // 사망일은 TMDB 전용 — 수동 보완 대상 아님
@@ -2472,6 +2487,9 @@ async function initPage(){
     const seoDesc = bio
       ? `${seoNameLabel} - ${bio.slice(0, 110).replace(/\n/g,' ')}...`
       : `${seoNameLabel} 필모그래피와 프로필을 오뜨랑에서 확인하세요.`;
+    // [2026-08-03 신규] job_manual이 이 시점 이후 늦게 도착할 경우(대부분) loadWikiTest가
+    // 이 값들을 그대로 재사용해서 타이틀을 다시 계산할 수 있도록 저장해둠.
+    seoUpdateArgs = { name: displayName, desc: seoDesc, imgUrl: profileImgUrl, instaId: ext.instagram_id, enName };
     updateSEO(displayName, seoDesc, profileImgUrl, jobLabel, ext.instagram_id, enName);
 
     /* ⑧ 필모그래피 */
