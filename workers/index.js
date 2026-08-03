@@ -1,3 +1,5 @@
+/* 2026-08-03 rev.15 — index.js (/admin/persons/job-manual* 라우팅 추가 — 직업 수동입력
+   저장 API가 12번 관리자 캐치올보다 앞에서 처리되도록 화이트리스트 확장) */
 /* 2026-08-03 rev.14 — index.js (/person-sns-links/:id 공개 조회 라우팅 추가 — person.html에서
    관리자가 등록한 SNS 링크 노출용, admin-persons.js의 handlePersonSnsLinksPublic 위임) */
 /* 2026-08-03 rev.13 — index.js (/admin/persons/sns-links* 라우팅 추가 — 인물 SNS 링크
@@ -199,7 +201,8 @@ export default {
       path.startsWith("/admin/persons/mbti-naver") ||
       path.startsWith("/admin/persons/featured-works") ||
       path.startsWith("/admin/persons/videos") ||
-      path.startsWith("/admin/persons/sns-links")
+      path.startsWith("/admin/persons/sns-links") ||
+      path.startsWith("/admin/persons/job-manual")
     )) {
       res = await handleAdminPersons(path, request, env, url, headers);
     }
