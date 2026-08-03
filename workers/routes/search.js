@@ -1,3 +1,5 @@
+/* 2026-08-03 rev.9 — search.js (/persons/search 응답에 job_manual 추가 — 헤더 검색 드롭다운이
+   배우/감독 자동판별 대신 관리자 수동입력 직업을 우선 표시할 수 있도록 함) */
 /* 2026-08-02 rev.8 — search.js (OTT 미서비스 작품 감점(-7점) 신설 — work_ott에 등록이 하나도
    없는 작품은 총점에서 7점 차감. work_ott 전체 tmdb_id를 쿼리 1번으로 미리 가져와서 후보별로
    따로 조회하지 않으므로 속도 영향 없음. 100개 컷 전 시점(scoreMap 계산)에서 반영) */
@@ -396,7 +398,7 @@ export async function handleSearch(path, request, env, url, headers) {
     try {
       const likeTerm = _escapeLikeTerm(q) + "%";
       const { results } = await env.DB.prepare(`
-        SELECT tmdb_id, name, name_ko, profile_path, job, popularity
+        SELECT tmdb_id, name, name_ko, profile_path, job, job_manual, popularity
         FROM persons
         WHERE (name_ko LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\')
         ORDER BY popularity DESC
@@ -409,6 +411,7 @@ export async function handleSearch(path, request, env, url, headers) {
         name: (p.name_ko && p.name_ko.trim()) ? p.name_ko : p.name,
         profile_path: p.profile_path,
         job: p.job,
+        job_manual: p.job_manual || null,
       }));
 
       return new Response(JSON.stringify({ ok: true, data, has_more: hasMore }), { headers });
