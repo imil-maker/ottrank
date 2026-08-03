@@ -1,3 +1,7 @@
+/* 2026-08-04 rev.17 — work_cast.js (POST /admin/cast/override-save에 cast_id(선택) 추가 —
+   성공/미매칭 리스트에서 "예외등록" 누르면 예외표 등록만 되고 그 배역 자체의 저장값은
+   안 고쳐지던 문제 수정. cast_id 있으면 예외표 등록과 동시에 work_cast.character_name_ko도
+   바로 갱신(source='manual')) */
 /* 2026-08-04 rev.16 — work_cast.js ("Secretary Sun-hee"처럼 설명단어+사람이름이 섞인 경우,
    rev.15가 공백/하이픈 구분 없이 모든 토큰 사이에 무조건 띄어쓰기를 넣어서 "비서 선 희"처럼
    이름 음절까지 쪼개버리던 문제 수정 — 원문에서 공백으로 나뉜 자리만 띄어쓰고, 하이픈으로
@@ -368,7 +372,9 @@ export async function handleWorkCast(path, request, env, url, headers) {
     }
 
     // ── POST /admin/cast/override-save ────────────────────────
-    // body: { original, hangul } — "Sam Kim"→"샘킴" 같은 통째 예외 등록/수정
+    // body: { original, hangul, cast_id? } — "Sam Kim"→"샘킴" 같은 통째 예외 등록/수정.
+    // [rev.17] cast_id가 같이 오면(성공/미매칭 리스트에서 등록한 경우), 예외표 등록과
+    // 동시에 해당 work_cast 행의 character_name_ko도 바로 이 값으로 갱신함.
     if (path === "/admin/cast/override-save" && request.method === "POST") {
       if (!_checkAuth(request, env)) {
         return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -376,13 +382,24 @@ export async function handleWorkCast(path, request, env, url, headers) {
       const body = await request.json().catch(() => ({}));
       const original = (body.original || "").trim();
       const hangul = (body.hangul || "").trim();
+      const castId = parseInt(body.cast_id);
       if (!original || !hangul) {
         return new Response(JSON.stringify({ ok: false, message: "original과 hangul이 필요해요" }), { status: 400, headers });
       }
-      await env.DB.prepare(
-        `INSERT INTO cast_name_overrides (original, hangul) VALUES (?, ?)
-         ON CONFLICT(original) DO UPDATE SET hangul = excluded.hangul`
-      ).bind(original, hangul).run();
+      const stmts = [
+        env.DB.prepare(
+          `INSERT INTO cast_name_overrides (original, hangul) VALUES (?, ?)
+           ON CONFLICT(original) DO UPDATE SET hangul = excluded.hangul`
+        ).bind(original, hangul),
+      ];
+      if (castId) {
+        stmts.push(
+          env.DB.prepare(
+            `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'manual' WHERE id = ?`
+          ).bind(hangul, castId)
+        );
+      }
+      await env.DB.batch(stmts);
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
