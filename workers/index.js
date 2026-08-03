@@ -1,3 +1,4 @@
+/* 2026-08-04 rev.16 — index.js (/admin/cast* 라우팅 추가 — 배역명 한글화 신규 파일 work_cast.js) */
 /* 2026-08-03 rev.15 — index.js (/admin/persons/job-manual* 라우팅 추가 — 직업 수동입력
    저장 API가 12번 관리자 캐치올보다 앞에서 처리되도록 화이트리스트 확장) */
 /* 2026-08-03 rev.14 — index.js (/person-sns-links/:id 공개 조회 라우팅 추가 — person.html에서
@@ -74,6 +75,7 @@ import { handleRelationship } from "./routes/relationship.js";
 import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomProfilePublic, handleAdminPersonManualCredits, handlePersonSnsLinksPublic } from "./routes/admin-persons.js";
 import { handleBoxofficeAdmin } from "./routes/boxoffice-admin.js";
 import { handleAdminSeason } from "./routes/admin-season.js";
+import { handleWorkCast } from "./routes/work_cast.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -205,6 +207,12 @@ export default {
       path.startsWith("/admin/persons/job-manual")
     )) {
       res = await handleAdminPersons(path, request, env, url, headers);
+    }
+
+    // 3-5-1. 배역명 한글화 — work_cast.js 신규(2026-08-04), admin.js 안 건드림
+    //        /admin/cast/*는 12번 관리자 캐치올보다 반드시 앞에 있어야 함(동일 패턴)
+    if (!res && path.startsWith("/admin/cast")) {
+      res = await handleWorkCast(path, request, env, url, headers);
     }
 
     // 3-6. 대표작(featured works) 공개 조회 — person.html에서 비로그인 방문자도 호출하는
