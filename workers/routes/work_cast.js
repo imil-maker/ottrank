@@ -1,3 +1,5 @@
+/* 2026-08-04 rev.9 — work_cast.js ("Jang 'Woo-gi' Wook"처럼 닉네임을 감싸는 작은따옴표 때문에
+   매칭 실패하던 문제 수정 — 토큰 앞뒤 따옴표를 벗겨냄. "'s"(의) 토큰은 그대로 보호) */
 /* 2026-08-04 rev.8 — work_cast.js (① self/himself/herself 규칙을 코드에 반영 — work_cast.name
    (배우이름) 그대로 사용, SQL 임시처리 대신 배치 돌릴 때마다 자동 적용됨 ② 속도개선 — 행별
    번역/2조각분해 조회를 순차 대기 대신 Promise.all로 병렬 처리, UPDATE도 env.DB.batch()로
@@ -81,7 +83,11 @@ async function _translateName(rawName, env) {
   // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
   const symbolsCleaned = rawName.replace(/[^A-Za-z0-9\s\-'()]/g, "");
   const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
-  const tokens = normalized.split(/[\s\-]+/).filter(Boolean);
+  const tokens = normalized.split(/[\s\-]+/).filter(Boolean).map((t) => {
+    // [2026-08-04 신규] "'Woo-gi'"처럼 닉네임을 감싸는 따옴표는 벗겨냄. "'s" 토큰 자체는 보호.
+    if (t === "'s") return t;
+    return t.replace(/^'+/, "").replace(/'+$/, "");
+  }).filter(Boolean);
   if (tokens.length === 0) return { ok: false, tokens: [] };
 
   const results = await Promise.all(
