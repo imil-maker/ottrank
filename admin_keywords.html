@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-03 rev.13 — admin_keywords.html ("프로필 생성" 탭 프로필 저장(💾 저장) 버튼을
+     페이지 맨 아래에서 수상내역과 직업(수동입력) 사이로 위치 이동 -->
 <!-- 2026-08-03 rev.12 — admin_keywords.html ("프로필 생성" 탭에 직업(수동입력) 입력칸 신규 추가
      — 배우/감독/작가 자동판별 3분류에 안 맞는 인물(가수/방송인/제작자 등)용 오버라이드.
      admin-persons.js rev.12의 job-manual-set API로 저장, rev.13의 sns-links 응답에 실려오는
@@ -2869,6 +2871,11 @@ function pgRenderDetail(data){
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);padding:8px 10px;resize:vertical;box-sizing:border-box">${escapeHtmlPm(w.awards_text || '')}</textarea>
     </div>
 
+    <!-- [2026-08-03 이동] 프로필 저장 버튼 — 수상내역과 직업(수동입력) 사이로 위치 변경.
+         이 버튼은 프로필/필모(봇용)/학력/데뷔작/수상내역까지만 저장(pgSave). 그 아래
+         직업/MBTI/SNS는 각자 별도 저장 버튼을 가진 독립 항목이라 이 버튼과 무관. -->
+    <button class="btn-primary" onclick="pgSave(${person.tmdb_id})" style="margin-bottom:16px;padding:10px 20px;font-size:14px">💾 저장</button>
+
     <!-- [2026-08-03 신규] 직업(수동입력) — 배우/감독/작가 자동판별 3분류에 안 맞는 인물
          (가수/방송인/제작자 등)을 위한 오버라이드. 입력해두면 인물페이지 SEO/SSR
          제목·설명·키워드에서 자동판별 대신 이 값을 우선 사용함. 비워두고 저장하면 해제. -->
@@ -2909,8 +2916,6 @@ function pgRenderDetail(data){
       </div>
       <div id="pgSnsAddStatus" style="font-size:12px;margin-top:8px"></div>
     </div>
-
-    <button class="btn-primary" onclick="pgSave(${person.tmdb_id})" style="margin-top:10px;padding:10px 20px;font-size:14px">💾 저장</button>
   `;
 }
 
