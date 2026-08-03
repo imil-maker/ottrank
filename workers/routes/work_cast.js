@@ -1,3 +1,8 @@
+/* 2026-08-04 rev.14 — work_cast.js (cast_name_overrides 예외등록 로직 개편 — ① 대소문자
+   구분 없이 비교하도록 수정("middle School" 등록해놨는데 "Middle School"은 안 걸리던 문제)
+   ② 배역명 전체가 예외문구와 완전히 같을 때만 적용하던 것을, 배역명 "일부"에 예외문구가
+   포함돼 있어도 그 부분만 바꿔치기하도록 확장("middle School girl" → "중학교" + 나머지는
+   기존 토큰번역으로 "소녀" → 공백으로 이어붙여 "중학교 소녀") */
 /* 2026-08-04 rev.13 — work_cast.js (숫자만 있는 토큰(예: "8")은 romanization_map 조회 없이
    그대로 통과시키도록 수정 — "Student 8" 같은 배역명이 숫자에서 막혀 미매칭 처리되던 문제 해결) */
 /* 2026-08-04 rev.12 — work_cast.js (속도개선 — 행별 번역을 완전 순차 대신 "5개씩 묶어서
@@ -83,27 +88,10 @@ async function _translateToken(rawToken, env) {
   return (openParen ? "(" : "") + hangul + (closeParen ? ")" : "");
 }
 
-// [신규] 배역명 문자열 하나를 번역 — ① 통째 예외표(cast_name_overrides) 먼저 확인,
-// 있으면 그대로 사용(음절 매칭 안 함). ② 없으면 기호 정리(괄호는 유지, 그 외 기호는
-// 전부 제거) 후 공백/하이픈으로 쪼개서 토큰별로 번역
-async function _translateName(rawName, env) {
-  const override = await env.DB.prepare(
-    `SELECT hangul FROM cast_name_overrides WHERE original = ?`
-  ).bind(rawName).first();
-  if (override) {
-    return { ok: true, hangul: override.hangul };
-  }
-
-  // 괄호( )는 유지, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거.
-  // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
-  const symbolsCleaned = rawName.replace(/[^A-Za-z0-9\s\-'()]/g, "");
-  const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
-  const tokens = normalized.split(/[\s\-]+/).filter(Boolean).map((t) => {
-    // [2026-08-04 신규] "'Woo-gi'"처럼 닉네임을 감싸는 따옴표는 벗겨냄. "'s" 토큰 자체는 보호.
-    if (t === "'s") return t;
-    return t.replace(/^'+/, "").replace(/'+$/, "");
-  }).filter(Boolean);
-  if (tokens.length === 0) return { ok: false, tokens: [] };
+// [rev.14] 토큰 배열 하나를 이어붙여 번역 — 기존 _translateName 안에 있던 로직을 재사용
+// 가능하게 분리함(예외문구 앞/뒤 남는 토큰들도 이 함수로 번역)
+async function _translateTokenSequence(tokens, env) {
+  if (tokens.length === 0) return { ok: true, hangul: "" };
 
   const results = await Promise.all(
     tokens.map((t) => _translateToken(t.toLowerCase(), env))
@@ -128,6 +116,89 @@ async function _translateName(rawName, env) {
     return { ok: false, tokens: failedTokens };
   }
   return { ok: true, hangul };
+}
+
+// [rev.14] 소문자로 정리된 토큰 배열(tokensLower) 안에서, cast_name_overrides에 등록된
+// 문구(여러 단어일 수 있음)와 연속으로 일치하는 가장 긴 구간을 찾음. 대소문자 무시.
+// 찾으면 { startIdx, endIdx, hangul } 반환(endIdx는 배타적), 없으면 null.
+async function _findOverrideSpan(tokensLower, env) {
+  const { results } = await env.DB.prepare(
+    `SELECT original, hangul FROM cast_name_overrides`
+  ).all();
+  if (!results || results.length === 0) return null;
+
+  const overridePhrases = results.map((r) => ({
+    tokens: r.original.toLowerCase().split(/[\s\-]+/).filter(Boolean),
+    hangul: r.hangul,
+  }));
+
+  let best = null;
+  for (let start = 0; start < tokensLower.length; start++) {
+    for (const ov of overridePhrases) {
+      const len = ov.tokens.length;
+      if (len === 0 || start + len > tokensLower.length) continue;
+      let match = true;
+      for (let k = 0; k < len; k++) {
+        if (tokensLower[start + k] !== ov.tokens[k]) { match = false; break; }
+      }
+      if (match && (!best || len > best.endIdx - best.startIdx)) {
+        best = { startIdx: start, endIdx: start + len, hangul: ov.hangul };
+      }
+    }
+  }
+  return best;
+}
+
+// [신규] 배역명 문자열 하나를 번역 — ① 통째 예외표(cast_name_overrides) 먼저 확인(대소문자
+// 무시), 완전히 일치하면 그대로 사용. ② 완전히 일치하는 게 없으면, 기호 정리(괄호는 유지,
+// 그 외 기호는 전부 제거) 후 공백/하이픈으로 쪼개서 토큰화. ③ [rev.14] 쪼갠 토큰들 안에
+// 예외문구(여러 단어)와 일치하는 구간이 있으면 그 부분만 바꿔치고, 앞/뒤 남는 토큰은 기존
+// 방식대로 번역해서 공백으로 이어붙임("middle School girl" → "중학교" + " " + "소녀").
+// ④ 예외문구 매칭이 아예 없으면 기존처럼 전체를 토큰별로 번역(공백 없이 이어붙임).
+async function _translateName(rawName, env) {
+  const overrideFull = await env.DB.prepare(
+    `SELECT hangul FROM cast_name_overrides WHERE LOWER(original) = LOWER(?)`
+  ).bind(rawName).first();
+  if (overrideFull) {
+    return { ok: true, hangul: overrideFull.hangul };
+  }
+
+  // 괄호( )는 유지, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거.
+  // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
+  const symbolsCleaned = rawName.replace(/[^A-Za-z0-9\s\-'()]/g, "");
+  const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
+  const tokens = normalized.split(/[\s\-]+/).filter(Boolean).map((t) => {
+    // [2026-08-04 신규] "'Woo-gi'"처럼 닉네임을 감싸는 따옴표는 벗겨냄. "'s" 토큰 자체는 보호.
+    if (t === "'s") return t;
+    return t.replace(/^'+/, "").replace(/'+$/, "");
+  }).filter(Boolean);
+  if (tokens.length === 0) return { ok: false, tokens: [] };
+
+  // [rev.14] 토큰 안에서 예외문구 부분매칭 구간을 찾아봄(괄호 벗기고 소문자로 비교)
+  const tokensLower = tokens.map((t) =>
+    t.replace(/^\(/, "").replace(/\)$/, "").toLowerCase()
+  );
+  const span = await _findOverrideSpan(tokensLower, env);
+  if (span) {
+    const beforeTokens = tokens.slice(0, span.startIdx);
+    const afterTokens = tokens.slice(span.endIdx);
+    const [beforeR, afterR] = await Promise.all([
+      _translateTokenSequence(beforeTokens, env),
+      _translateTokenSequence(afterTokens, env),
+    ]);
+    if (beforeR.ok && afterR.ok) {
+      const parts = [beforeR.hangul, span.hangul, afterR.hangul].filter(Boolean);
+      return { ok: true, hangul: parts.join(" ") };
+    }
+    const failedTokens = [
+      ...(beforeR.ok ? [] : beforeR.tokens),
+      ...(afterR.ok ? [] : afterR.tokens),
+    ];
+    return { ok: false, tokens: failedTokens };
+  }
+
+  // 예외문구 매칭이 없으면 기존처럼 전체를 토큰별로 번역
+  return await _translateTokenSequence(tokens, env);
 }
 
 // [2026-08-04 신규] 배치 실행 공용 함수 — retryFailed=false면 "한 번도 시도 안 한 것"만,
