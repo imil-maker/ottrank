@@ -1,3 +1,6 @@
+/* 2026-08-04 rev.7 — work_cast.js (분해 로직을 "정확히 2조각"으로 제한 — 재귀적으로 여러
+   조각 시도하던 방식이 "Reason"→"레아손"처럼 일반 영어 단어까지 억지로 끼워맞추는 문제가
+   있어서, 앞+뒤 둘 다 매칭표에 있는 딱 2음절짜리 케이스("Munju"→문+주)만 구제하도록 축소) */
 /* 2026-08-04 rev.6 — work_cast.js (① 기호 처리 방식 전면 개편 — 괄호( )는 유지하고 안쪽도
    번역, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거하는 방식으로 통일(마침표/대괄호
    전용 처리 제거) ② "Munju"처럼 음절 경계 없이 붙은 토큰을 앞에서부터 긴 조각 우선으로
@@ -17,21 +20,20 @@
       ③ GET /admin/cast/search: 영어 배역명 검색(작품명·배우명·현재 번역상태 같이 반환) */
 import { _checkAuth } from "../utils/authUtils.js";
 
-// [2026-08-04 신규] "Munju"(문+주)처럼 음절 경계 없이 붙어있어서 통째로는 매칭표에 없는
-// 토큰을, 앞에서부터 "가장 긴 조각 우선"으로 쪼개서 romanization_map 조각들의 조합으로
-// 완전히 커버되면 그 결과를 반환. 하나라도 안 맞아떨어지면 null(실패).
-async function _trySegment(token, env, maxLen = 8) {
-  if (token.length === 0) return "";
-  const limit = Math.min(maxLen, token.length);
-  for (let len = limit; len >= 1; len--) {
-    const piece = token.slice(0, len);
-    const row = await env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
-      .bind(piece)
-      .first();
-    if (row) {
-      const rest = await _trySegment(token.slice(len), env, maxLen);
-      if (rest !== null) return row.hangul + rest;
-    }
+// [2026-08-04 신규] "Munju"(문+주)처럼 딱 2음절이 붙어있는 케이스만 조심스럽게 구제.
+// 여러 조각으로 자유롭게 재귀 분해하면 "Reason"→"레아손"처럼 엉뚱한 영어 단어까지
+// 억지로 끼워맞춰지는 문제가 있어서, "정확히 2조각(앞+뒤 둘 다 매칭표에 있어야 함)"으로만
+// 제한. 3조각 이상 분해는 시도하지 않음.
+async function _trySegment(token, env) {
+  if (token.length < 2) return null;
+  for (let i = token.length - 1; i >= 1; i--) {
+    const first = token.slice(0, i);
+    const second = token.slice(i);
+    const [row1, row2] = await Promise.all([
+      env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(first).first(),
+      env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(second).first(),
+    ]);
+    if (row1 && row2) return row1.hangul + row2.hangul;
   }
   return null;
 }
