@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-03 rev.12 — admin_keywords.html ("프로필 생성" 탭에 직업(수동입력) 입력칸 신규 추가
+     — 배우/감독/작가 자동판별 3분류에 안 맞는 인물(가수/방송인/제작자 등)용 오버라이드.
+     admin-persons.js rev.12의 job-manual-set API로 저장, rev.13의 sns-links 응답에 실려오는
+     job_manual 값으로 pgLoadSns가 자동으로 채워줌(MBTI와 동일 패턴)) -->
 <!-- 2026-08-03 rev.11 — admin_keywords.html ("프로필 생성" 탭에 SNS 링크(인스타/유튜브/X,
      여러 개 등록·삭제) + MBTI 입력칸 신규 추가. admin-persons.js rev.10의
      sns-links/sns-links-add/sns-links-:id, 기존 mbti-naver-set API 연동) -->
@@ -2865,6 +2869,19 @@ function pgRenderDetail(data){
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);padding:8px 10px;resize:vertical;box-sizing:border-box">${escapeHtmlPm(w.awards_text || '')}</textarea>
     </div>
 
+    <!-- [2026-08-03 신규] 직업(수동입력) — 배우/감독/작가 자동판별 3분류에 안 맞는 인물
+         (가수/방송인/제작자 등)을 위한 오버라이드. 입력해두면 인물페이지 SEO/SSR
+         제목·설명·키워드에서 자동판별 대신 이 값을 우선 사용함. 비워두고 저장하면 해제. -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px">
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">직업(수동입력)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">비워두면 자동판별(배우/감독/작가) 그대로 사용해요. 입력하면 이 값이 SEO/검색결과에 우선 노출돼요.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="pgFieldJob" placeholder="예: 가수, 방송인, 제작자" maxlength="20"
+          style="width:200px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;box-sizing:border-box">
+        <button class="btn-secondary" onclick="pgSaveJob(${person.tmdb_id})" style="padding:8px 16px;font-size:13px">저장</button>
+      </div>
+    </div>
+
     <!-- [2026-08-03 신규] MBTI — 기존 mbti-naver-set API 재사용, 저장 즉시 반영 -->
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px">
       <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">MBTI</div>
@@ -2996,6 +3013,9 @@ async function pgLoadSns(tmdbId){
     pgRenderSnsList(data.items || [], tmdbId);
     const mbtiInput = document.getElementById('pgFieldMbti');
     if(mbtiInput) mbtiInput.value = data.mbti_naver || '';
+    // [2026-08-03 신규] 직업(수동입력) — 같은 응답에 실려오는 job_manual로 채움
+    const jobInput = document.getElementById('pgFieldJob');
+    if(jobInput) jobInput.value = data.job_manual || '';
   }catch(e){
     listEl.innerHTML = `<span style="color:var(--accent)">네트워크 오류: ${escapeHtmlPm(e.message)}</span>`;
   }
@@ -3077,6 +3097,26 @@ async function pgSaveMbti(tmdbId){
     showToast(`✅ MBTI 저장됨${data.mbti ? `: ${data.mbti}` : ''}`);
   }catch(e){
     showToast(`❌ MBTI 저장 실패: ${e.message}`);
+  }
+}
+
+// [2026-08-03 신규] 직업(수동입력) 저장 — mbti-naver-set과 동일 패턴,
+// 대상 API만 job-manual-set. 빈 값으로 저장하면 해제(자동판별로 복귀).
+async function pgSaveJob(tmdbId){
+  const input = document.getElementById('pgFieldJob');
+  const job   = input.value.trim();
+  try{
+    const res  = await fetch(`${API}/admin/persons/job-manual-set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, job_manual: job }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    input.value = data.job_manual || '';
+    showToast(`✅ 직업 저장됨${data.job_manual ? `: ${data.job_manual}` : ' (해제됨)'}`);
+  }catch(e){
+    showToast(`❌ 직업 저장 실패: ${e.message}`);
   }
 }
 
