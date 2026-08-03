@@ -1,3 +1,8 @@
+/* 2026-08-04 rev.8 — work_cast.js (① self/himself/herself 규칙을 코드에 반영 — work_cast.name
+   (배우이름) 그대로 사용, SQL 임시처리 대신 배치 돌릴 때마다 자동 적용됨 ② 속도개선 — 행별
+   번역/2조각분해 조회를 순차 대기 대신 Promise.all로 병렬 처리, UPDATE도 env.DB.batch()로
+   한번에 ③ id 커서(after_id) 도입 — 같은 회차 안에서 미매칭 30건을 무한 재조회하던 버그
+   수정, 응답에 last_id 추가) */
 /* 2026-08-04 rev.7 — work_cast.js (분해 로직을 "정확히 2조각"으로 제한 — 재귀적으로 여러
    조각 시도하던 방식이 "Reason"→"레아손"처럼 일반 영어 단어까지 억지로 끼워맞추는 문제가
    있어서, 앞+뒤 둘 다 매칭표에 있는 딱 2음절짜리 케이스("Munju"→문+주)만 구제하도록 축소) */
@@ -26,16 +31,18 @@ import { _checkAuth } from "../utils/authUtils.js";
 // 제한. 3조각 이상 분해는 시도하지 않음.
 async function _trySegment(token, env) {
   if (token.length < 2) return null;
-  for (let i = token.length - 1; i >= 1; i--) {
+  const splitPoints = [];
+  for (let i = token.length - 1; i >= 1; i--) splitPoints.push(i);
+  const pairs = await Promise.all(splitPoints.map(async (i) => {
     const first = token.slice(0, i);
     const second = token.slice(i);
     const [row1, row2] = await Promise.all([
       env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(first).first(),
       env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(second).first(),
     ]);
-    if (row1 && row2) return row1.hangul + row2.hangul;
-  }
-  return null;
+    return (row1 && row2) ? row1.hangul + row2.hangul : null;
+  }));
+  return pairs.find((p) => p !== null) ?? null;
 }
 
 // 순수 로마자 토큰(괄호 없는 상태) 하나 번역 — 통째 매칭 우선, 안 되면 분해 시도
@@ -105,14 +112,18 @@ async function _translateName(rawName, env) {
 export async function handleWorkCast(path, request, env, url, headers) {
   try {
     // ── POST /admin/cast/translate-batch ──────────────────────
-    // body: { limit? }  기본 30, 최대 100
-    // 대상: work_cast 중 character_name_ko가 아직 비어있고, 해당 작품이 한국작품인 것만
+    // body: { limit?, after_id? }  기본 30, 최대 100
+    // 대상: work_cast 중 character_name_ko가 아직 비어있고, 해당 작품이 한국작품인 것만.
+    // [2026-08-04 신규] after_id 커서 — id 오름차순으로 처리하면서, 화면(admin_cast.html)이
+    // "마지막으로 처리한 id"를 넘겨주면 그 이후 것만 조회. 실패(미매칭)한 것도 이번 커서를
+    // 지나치므로 같은 회차 안에서 무한히 같은 30건을 재시도하던 문제가 해결됨.
     if (path === "/admin/cast/translate-batch" && request.method === "POST") {
       if (!_checkAuth(request, env)) {
         return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
       }
       const body = await request.json().catch(() => ({}));
       const limit = Math.min(parseInt(body.limit) || 30, 100);
+      const afterId = parseInt(body.after_id) || 0;
 
       const { results } = await env.DB.prepare(
         `SELECT wc.id, wc.character_name, wc.name AS actor_name, w.title_ko
@@ -121,18 +132,37 @@ export async function handleWorkCast(path, request, env, url, headers) {
          WHERE w.original_language = 'ko'
            AND wc.character_name_ko IS NULL
            AND wc.character_name IS NOT NULL AND wc.character_name != ''
+           AND wc.id > ?
+         ORDER BY wc.id ASC
          LIMIT ?`
-      ).bind(limit).all();
+      ).bind(afterId, limit).all();
 
+      const rows = results || [];
       const succeeded = [];
       const failed = [];
+      let lastId = afterId;
 
-      for (const row of results || []) {
-        const r = await _translateName(row.character_name, env);
+      // [2026-08-04 신규] self/himself/herself는 음절 매칭 대신 work_cast.name(배우 이름을
+      // 그대로 사용. 배우 이름 자체가 비어있으면 실패로 표시. ── 속도 개선: 행별 번역을
+      // 순서대로 기다리지 않고 한꺼번에 병렬 처리.
+      const translations = await Promise.all(rows.map(async (row) => {
+        if (/self|himself|herself/i.test(row.character_name)) {
+          if (row.actor_name) return { ok: true, hangul: row.actor_name };
+          return { ok: false, tokens: ["(배우 한글이름 없음)"] };
+        }
+        return await _translateName(row.character_name, env);
+      }));
+
+      const updateStmts = [];
+      rows.forEach((row, i) => {
+        if (row.id > lastId) lastId = row.id;
+        const r = translations[i];
         if (r.ok) {
-          await env.DB.prepare(
-            `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'auto' WHERE id = ?`
-          ).bind(r.hangul, row.id).run();
+          updateStmts.push(
+            env.DB.prepare(
+              `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'auto' WHERE id = ?`
+            ).bind(r.hangul, row.id)
+          );
           succeeded.push({
             id: row.id, work: row.title_ko, actor: row.actor_name,
             original: row.character_name, translated: r.hangul,
@@ -143,6 +173,9 @@ export async function handleWorkCast(path, request, env, url, headers) {
             original: row.character_name, missing_tokens: r.tokens,
           });
         }
+      });
+      if (updateStmts.length > 0) {
+        await env.DB.batch(updateStmts);
       }
 
       // 이번 배치 대상이 됐던 전체 미번역 건수(진행률 참고용)
@@ -154,7 +187,7 @@ export async function handleWorkCast(path, request, env, url, headers) {
       ).first();
 
       return new Response(JSON.stringify({
-        ok: true, succeeded, failed, remaining: remainRow?.cnt || 0,
+        ok: true, succeeded, failed, remaining: remainRow?.cnt || 0, last_id: lastId,
       }), { headers });
     }
 
