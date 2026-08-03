@@ -1911,9 +1911,9 @@ function updateSEO(name, desc, imgUrl, jobLabel, instaId, enName){
   // [2026-08-03 추가] 작가는 "집필작"
   const workLabel = job === '감독' ? '연출' : (job === '작가' ? '집필' : '출연');
   const nameLabel = enName ? `${name}(${enName})` : name;
-  // [2026-08-03 변경] "배우 {이름}" 검색 패턴 매칭을 위해 직업명을 이름 앞으로 이동
-  // (기존엔 "{이름} ... | {직업} 프로필 | 오뜨랑"으로 직업명이 뒤에 떨어져 있었음)
-  const t = `${job} ${nameLabel} 프로필·${workLabel}작·필모그래피·나이 | 오뜨랑`;
+  // [2026-08-03 변경] 관리자 지정 순서 — 직업명은 이름 앞, 그 뒤로 "프로필·필모그래피·
+  // {활동}작·나이" 순서 고정 (프로필-필모그래피-출연작 순)
+  const t = `${job} ${nameLabel} 프로필·필모그래피·${workLabel}작·나이 | 오뜨랑`;
 
   // keywords: 이름 변형 + 인스타 키워드 포함 (두번째 이름 있으면 그 변형도 함께)
   const kw = [
