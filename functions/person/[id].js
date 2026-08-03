@@ -1,3 +1,7 @@
+/* 2026-08-03 rev.8 — functions/person/[id].js (persons.job_manual 오버라이드 반영 — 관리자가
+   직접 입력한 직업이 있으면 자동판별(배우/감독/작가) 대신 그 값을 title/description/
+   keywords/JSON-LD jobTitle에 우선 사용. workLabel(출연작/연출작/집필작)도 dept가 아니라
+   최종 jobLabel 기준으로 재계산 — job_manual 커스텀 직업은 항상 "출연작"으로 자연스럽게 떨어짐) */
 /* 2026-08-03 rev.7 — functions/person/[id].js ("배우 {이름}" 검색 패턴 대응: ① known_for_department
    'Writing'을 "작가"(집필작)로 3번째 분류 추가(그 외 Production/Sound 등은 기존대로 배우) ②
    title에서 jobLabel(배우/감독/작가)을 이름 바로 앞으로 이동 — "{이름} ... | {직업} 정보 | 오뜨랑"
@@ -76,11 +80,17 @@ export async function onRequest(context) {
         const dept      = data.known_for_department || '';
         /* [2026-08-03 신규] "작가" 3번째 분류 추가 — known_for_department가 'Writing'이면
            작가로 분류. "작가 {이름}" 검색 패턴 대응 목적. 그 외(Production/Sound 등)는
-           기존과 동일하게 배우로 처리(오분류 위험 있어 이번엔 보류) */
-        const jobLabel  = dept === 'Directing' ? '감독' : (dept === 'Writing' ? '작가' : '배우');
+           기존과 동일하게 배우로 처리(오분류 위험 있어 이번엔 보류)
+           [2026-08-03 재수정] 관리자가 persons.job_manual에 직접 입력해둔 값이 있으면
+           이 자동판별(배우/감독/작가)보다 무조건 우선함 — 가수/방송인/제작자 등 3분류에
+           안 맞는 인물을 위한 오버라이드. job_manual은 아래 D1 조회 이후에 값이 확정되므로,
+           일단 자동판별값으로 초기화해두고 D1 조회 후 override 적용(아래 참고). */
+        let jobLabel  = dept === 'Directing' ? '감독' : (dept === 'Writing' ? '작가' : '배우');
         /* [2026-07-31 신규] 감독은 "출연작"이 아니라 "연출작"이 맞는 표현이라 분기.
-           [2026-08-03 추가] 작가는 "집필작". title/description/keywords 3곳에서 공통으로 사용 */
-        const workLabel = dept === 'Directing' ? '연출' : (dept === 'Writing' ? '집필' : '출연');
+           [2026-08-03 추가] 작가는 "집필작". title/description/keywords 3곳에서 공통으로 사용
+           [2026-08-03 재수정] dept가 아니라 최종 jobLabel 기준으로 계산 — job_manual
+           오버라이드가 적용된 뒤에도(가수/방송인 등) 항상 "출연작"으로 자연스럽게 떨어지도록.
+           이 한 줄은 D1 조회 이후, jobLabel이 최종 확정된 다음으로 옮겨서 다시 계산함(아래 참고). */
 
         /* [2026-07-27 신규] 인스타 계정 여부 — title에 "·인스타" 추가할지 판단에 필요해서
            앞으로 끌어옴(기존엔 파일 뒷부분 sameAs 만들 때만 썼음). external_ids를
@@ -102,12 +112,16 @@ export async function onRequest(context) {
         if (env.DB) {
           try {
             const wikiRow = await env.DB.prepare(
-              `SELECT w.bio_summary, w.auto_filmography_text, p.korean_confirmed, p.name_ko, p.mbti_naver
+              `SELECT w.bio_summary, w.auto_filmography_text, p.korean_confirmed, p.name_ko, p.mbti_naver, p.job_manual
                FROM persons p LEFT JOIN person_wiki_cache w ON w.tmdb_person_id = p.tmdb_id
                WHERE p.tmdb_id = ?`
             ).bind(personId).first();
 
             if (wikiRow && wikiRow.name_ko) name = wikiRow.name_ko; // DB 이름 우선(있을 때만)
+            // [2026-08-03 신규] job_manual 오버라이드 — 값이 있으면 자동판별(배우/감독/작가) 대신
+            // 이 값을 최종 직업으로 사용. title/description/keywords/JSON-LD 전부 이 시점 이후
+            // 값을 참조하므로 여기서 한 번만 덮어쓰면 됨.
+            if (wikiRow && wikiRow.job_manual) jobLabel = wikiRow.job_manual;
             // [2026-07-27 신규] MBTI 확정 여부만 판단 — person-wiki.js와 동일한 기준
             // (값 있고, "공개안함" 확정이 아닐 때만 확정으로 취급). 실제 타입 값은 여기서
             // 변수에도 안 담음 — SSR이 절대 값을 노출하지 않게 하기 위함.
@@ -136,6 +150,11 @@ export async function onRequest(context) {
           }
         }
         ssrDisplayName = name; // [2026-07-27 신규] 여기까지 오면 name은 최종 확정값(DB name_ko 우선, 없으면 TMDB 자동탐색)
+
+        /* [2026-08-03 신규] workLabel — jobLabel이 최종 확정(job_manual 오버라이드 반영)된
+           뒤 여기서 계산. "감독"→연출작, "작가"→집필작, 그 외(배우 및 모든 job_manual
+           커스텀 직업)는 전부 "출연작"으로 자연스럽게 떨어짐. */
+        const workLabel = jobLabel === '감독' ? '연출' : (jobLabel === '작가' ? '집필' : '출연');
 
         if (!bioSource) bioSource = data.biography || '';
 
