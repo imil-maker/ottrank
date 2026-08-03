@@ -1,3 +1,6 @@
+/* 2026-08-03 rev.12 — admin-persons.js (직업 수동입력 저장 API 신규:
+   POST /admin/persons/job-manual-set — persons.job_manual 컬럼에 자유 텍스트 저장.
+   빈 문자열 저장 시 해제(자동판별로 복귀). mbti-naver-set과 동일 패턴) */
 /* 2026-08-03 rev.11 — admin-persons.js (공개 조회 함수 신규: GET /person-sns-links/:tmdb_id —
    person.html에서 인증 없이 호출, 관리자가 등록한 SNS 링크를 화면에 노출하기 위함.
    person-custom-profile과 동일한 공개조회 패턴) */
@@ -450,6 +453,38 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       ).bind(mbtiRaw || null, mbtiRaw ? "manual" : null, tmdbId).run();
 
       return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, mbti: mbtiRaw || null, source: mbtiRaw ? "manual" : null }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── POST /admin/persons/job-manual-set ─────────────────────────
+  // [2026-08-03 신규] 직업 수동 입력(자유 텍스트) 저장 — 배우/감독/작가 3분류에
+  // 안 맞는 인물(가수/방송인/제작자 등)을 위한 오버라이드값. mbti-naver-set과
+  // 동일한 패턴이나 대상 컬럼만 job_manual. 빈 문자열로 저장하면 해제(자동판별로 복귀).
+  // persons에 행이 아직 없는 인물(TMDB에만 있고 우리 DB 미등록)이어도 바로 저장되도록
+  // INSERT ON CONFLICT 사용(like_count 저장 패턴과 동일).
+  if (path === "/admin/persons/job-manual-set" && request.method === "POST") {
+    if (!_checkAuth(request, env)) {
+      return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+    }
+    try {
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      const jobManual = (body.job_manual || "").trim();
+      if (!tmdbId) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id가 필요해요" }), { status: 400, headers });
+      }
+      if (jobManual.length > 20) {
+        return new Response(JSON.stringify({ ok: false, message: "직업은 20자 이내로 입력해주세요" }), { status: 400, headers });
+      }
+
+      await env.DB.prepare(
+        `INSERT INTO persons (tmdb_id, job_manual) VALUES (?, ?)
+         ON CONFLICT(tmdb_id) DO UPDATE SET job_manual = excluded.job_manual`
+      ).bind(tmdbId, jobManual || null).run();
+
+      return new Response(JSON.stringify({ ok: true, tmdb_id: tmdbId, job_manual: jobManual || null }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
