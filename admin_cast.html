@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-04 rev.3 — admin_cast.html ("예외 직접 등록" 카드 신규 — 배치 리스트에 없는 이미
+     처리된 이름도 영어/한글 직접 입력해서 cast_name_overrides에 바로 등록 가능 -->
 <!-- 2026-08-04 rev.2 — admin_cast.html (① 자동번역 배치를 반복실행 방식으로 변경 — 남은 게
      있으면 멈춤 누를 때까지 계속 이어서 처리, 진행률(누적 성공/미매칭) 표시 ② 성공/미매칭
      리스트에 "예외등록" 버튼 추가 — cast_name_overrides에 바로 저장(work_cast.js rev.2 연동)
@@ -103,6 +105,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div id="failedBox" style="display:none;margin-top:16px">
         <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:6px">⚠️ 미매칭</div>
         <div id="failedList" style="border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>예외 직접 등록</h2>
+      <p class="desc">"Sam Kim → 샘킴"처럼 음절 매칭 대신 통째로 예외 처리할 이름을 바로 등록해요. 이미 저장은 안 건드리니, 기존에 잘못 채워진 배역이 있으면 아래 검색으로 따로 고쳐주세요.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input class="form-input" id="ovOriginal" placeholder="영어 원문 (예: Sam Kim)" style="flex:1;min-width:160px">
+        <input class="form-input" id="ovHangul" placeholder="한글 (예: 샘킴)" style="flex:1;min-width:120px">
+        <button class="btn-secondary" onclick="saveOverrideDirect()">저장</button>
       </div>
     </div>
 
@@ -252,6 +264,26 @@ function renderCastList(boxId, listId, items, isSuccess){
       </div>`;
   }).join('');
   list.innerHTML = rowsHtml + list.innerHTML; // 최신 회차가 위로 쌓이도록
+}
+
+async function saveOverrideDirect(){
+  const original = document.getElementById('ovOriginal').value.trim();
+  const hangul = document.getElementById('ovHangul').value.trim();
+  if(!original || !hangul){ showToast('❌ 영어 원문과 한글을 둘 다 입력해주세요'); return; }
+  try{
+    const res = await fetch(`${API}/admin/cast/override-save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ original, hangul }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast(`✅ 예외 등록됨: ${original} → ${hangul}`);
+    document.getElementById('ovOriginal').value = '';
+    document.getElementById('ovHangul').value = '';
+  }catch(e){
+    showToast(`❌ 실패: ${e.message}`);
+  }
 }
 
 async function saveOverride(original, inputId){
