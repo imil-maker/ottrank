@@ -1,3 +1,5 @@
+/* 2026-08-03 rev.13 — admin-persons.js (sns-links GET 응답에 job_manual도 같이 실어보냄 —
+   "프로필 생성" 화면이 SNS 목록 조회 API 하나로 SNS+MBTI+직업을 한 번에 채우도록 함) */
 /* 2026-08-03 rev.12 — admin-persons.js (직업 수동입력 저장 API 신규:
    POST /admin/persons/job-manual-set — persons.job_manual 컬럼에 자유 텍스트 저장.
    빈 문자열 저장 시 해제(자동판별로 복귀). mbti-naver-set과 동일 패턴) */
@@ -829,14 +831,17 @@ export async function handleAdminPersons(path, request, env, url, headers) {
       ).bind(personId).all();
 
       // mbti_naver도 같이 조회해서 응답에 실어보냄(위 설명 참고)
+      // [2026-08-03 신규] job_manual도 같은 방식으로 같이 실어보냄 — "프로필 생성" 화면이
+      // 이 API 하나만 호출해서 SNS+MBTI+직업을 한 번에 채우도록 하기 위함(admin.js 안 건드림).
       const personRow = await env.DB.prepare(
-        `SELECT mbti_naver FROM persons WHERE tmdb_id = ?`
+        `SELECT mbti_naver, job_manual FROM persons WHERE tmdb_id = ?`
       ).bind(personId).first();
 
       return new Response(JSON.stringify({
         ok: true,
         items: results || [],
         mbti_naver: (personRow && personRow.mbti_naver) || "",
+        job_manual: (personRow && personRow.job_manual) || "",
       }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
