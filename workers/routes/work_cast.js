@@ -1,3 +1,12 @@
+/* 2026-08-04 rev.21 — work_cast.js (rev.20에서 예외문구 비교할 때 양쪽 다 괄호를 벗겨버려서,
+   괄호 없는 "young"(→영, 이름음절)까지 "(young)"(→어린시절) 예외에 걸려버리던 문제 수정 —
+   "young"과 "(young)"은 서로 다른 의미라 구분돼야 함. 괄호를 벗기지 않고 있는 그대로(괄호
+   포함) 비교하도록 되돌려서, 배역명에 괄호가 있을 때만 괄호 있는 예외문구와 매칭되게 함) */
+/* 2026-08-04 rev.20 — work_cast.js (_findOverrideSpan이 예외문구 비교할 때 괄호를 안 벗겨서,
+   "(young)"으로 등록해둔 예외가 배역명 안의 "(Young)"과 매칭 안 되던 문제 수정 — 배역명
+   토큰(tokensLower)은 이미 괄호를 벗기고 비교하는데 예외문구 쪽만 괄호 포함 상태로 비교하고
+   있었음. 예외문구 토큰도 동일하게 괄호 벗겨서 비교하도록 통일(치환값 자체는 괄호 그대로
+   유지되어 "(어린시절)"처럼 정상 출력됨)) */
 /* 2026-08-04 rev.19 — work_cast.js (rev.18은 's 바로 앞 토큰 하나만 붙여썼는데, 이름이
    여러 단어로 쪼개진 경우(예: "Kim Min Jun's Mother")는 's 앞의 이름 전체를 다 붙여야 함 —
    's 앞에 있는 모든 구분자를 붙여쓰기(hyphen)로 강제 처리) */
@@ -243,10 +252,9 @@ async function _translateName(rawName, env) {
     }
   }
 
-  // [rev.14] 토큰 안에서 예외문구 부분매칭 구간을 찾아봄(괄호 벗기고 소문자로 비교)
-  const tokensLower = tokens.map((t) =>
-    t.replace(/^\(/, "").replace(/\)$/, "").toLowerCase()
-  );
+  // [rev.21] 예외문구 부분매칭 구간을 찾아봄 — 괄호는 벗기지 않고 그대로(소문자만) 비교해서
+  // "young"(이름음절)과 "(young)"(예외문구)이 서로 다른 것으로 구분되도록 함
+  const tokensLower = tokens.map((t) => t.toLowerCase());
   const span = await _findOverrideSpan(tokensLower, env);
   if (span) {
     const beforeTokens = tokens.slice(0, span.startIdx);
