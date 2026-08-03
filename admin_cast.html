@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-04 rev.2 — admin_cast.html (① 자동번역 배치를 반복실행 방식으로 변경 — 남은 게
+     있으면 멈춤 누를 때까지 계속 이어서 처리, 진행률(누적 성공/미매칭) 표시 ② 성공/미매칭
+     리스트에 "예외등록" 버튼 추가 — cast_name_overrides에 바로 저장(work_cast.js rev.2 연동)
+     ③ 상단에 키워드/영상/어드민 링크 추가) -->
 <!-- 2026-08-04 rev.1 — admin_cast.html (신규 — 배역명(character_name) 한글화 전용 어드민 화면.
      ① "자동번역 배치 실행" 버튼: romanization_map으로 미번역 배역 자동매칭, 성공/미매칭 리스트 표시
      ② 영어 배역명 검색 + 한글 수동입력/저장. work_cast.js rev.1 API 연동) -->
@@ -74,14 +78,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 </div>
 
 <div id="mainWrap" style="display:none">
-  <div class="header"><h1>🎭 배역 관리 — 한글 번역</h1></div>
+  <div class="header">
+    <h1>🎭 배역 관리 — 한글 번역</h1>
+    <div>
+      <a href="/admin_keywords.html" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--gold);font-size:12px;font-family:var(--sans);white-space:nowrap;margin-right:8px;text-decoration:none;display:inline-block">키워드</a>
+      <a href="/admin_videos.html" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--gold);font-size:12px;font-family:var(--sans);white-space:nowrap;margin-right:8px;text-decoration:none;display:inline-block">영상</a>
+      <a href="/admin.html" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--gold);font-size:12px;font-family:var(--sans);white-space:nowrap;text-decoration:none;display:inline-block">← 어드민</a>
+    </div>
+  </div>
   <div class="wrap">
 
     <div class="card">
       <h2>자동번역 배치</h2>
       <p class="desc">아직 한글이 안 채워진 한국작품 배역명을, 로마자 매칭표(romanization_map)로 자동 변환 시도해요. 미매칭된 건 어떤 음절에서 막혔는지 보여줘요 — 그 음절을 매칭표에 추가한 뒤 버튼을 다시 누르면 재시도됩니다.</p>
-      <button class="btn-primary" id="batchBtn" onclick="runBatch()">▶ 자동번역 배치 실행</button>
+      <button class="btn-primary" id="batchBtn" onclick="startBatch()">▶ 자동번역 배치 실행</button>
+      <button class="btn-secondary" id="stopBtn" onclick="stopBatch()" style="display:none">⏹ 멈춤</button>
       <span id="batchRemain" style="font-size:12px;color:var(--muted);margin-left:10px"></span>
+      <div id="batchProgress" style="font-size:12px;color:var(--muted2);margin-top:8px"></div>
 
       <div id="succeededBox" style="display:none;margin-top:16px">
         <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:6px">✅ 성공</div>
@@ -154,58 +167,108 @@ function escHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
-/* ══ 자동번역 배치 ══ */
-async function runBatch(){
-  const btn = document.getElementById('batchBtn');
-  btn.disabled = true; btn.textContent = '처리 중...';
-  try{
-    const res = await fetch(`${API}/admin/cast/translate-batch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
-      body: JSON.stringify({ limit: 30 }),
-    });
-    const data = await res.json();
-    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+/* ══ 자동번역 배치 — 남은 게 있으면 멈춤 누를 때까지 계속 반복 ══ */
+let batchRunning = false;
 
+function stopBatch(){
+  batchRunning = false;
+}
+
+async function startBatch(){
+  batchRunning = true;
+  document.getElementById('batchBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = 'inline-block';
+  let totalOk = 0, totalFail = 0, rounds = 0;
+
+  while(batchRunning){
+    let data;
+    try{
+      const res = await fetch(`${API}/admin/cast/translate-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+        body: JSON.stringify({ limit: 30 }),
+      });
+      data = await res.json();
+      if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    }catch(e){
+      showToast(`❌ 오류: ${e.message}`);
+      break;
+    }
+
+    rounds++;
+    totalOk += data.succeeded.length;
+    totalFail += data.failed.length;
     document.getElementById('batchRemain').textContent = `남은 미번역: ${data.remaining}건`;
+    document.getElementById('batchProgress').textContent =
+      `${rounds}회 실행 · 누적 성공 ${totalOk}건 · 누적 미매칭 ${totalFail}건`;
 
-    const sBox = document.getElementById('succeededBox');
-    const sList = document.getElementById('succeededList');
-    if(data.succeeded.length){
-      sBox.style.display = 'block';
-      sList.innerHTML = data.succeeded.map(r => `
+    renderCastList('succeededBox', 'succeededList', data.succeeded, true);
+    renderCastList('failedBox', 'failedList', data.failed, false);
+
+    // 이번 회차에 처리 대상 자체가 없었으면(성공+실패 둘 다 0) 더 반복할 게 없다는 뜻 → 종료
+    if(data.succeeded.length === 0 && data.failed.length === 0){
+      showToast('✅ 남은 미번역 없음 — 완료');
+      break;
+    }
+    await new Promise(r => setTimeout(r, 300)); // 너무 빠르게 연달아 치지 않도록 살짝 텀
+  }
+
+  batchRunning = false;
+  document.getElementById('batchBtn').style.display = 'inline-block';
+  document.getElementById('stopBtn').style.display = 'none';
+}
+
+function renderCastList(boxId, listId, items, isSuccess){
+  const box = document.getElementById(boxId);
+  const list = document.getElementById(listId);
+  if(!items.length){
+    if(!list.innerHTML) box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'block';
+  const rowsHtml = items.map(r => {
+    const uid = `ov-${boxId}-${Math.random().toString(36).slice(2,8)}`;
+    if(isSuccess){
+      return `
         <div class="result-row">
           <span class="tag tag-work">${escHtml(r.work||'')}</span>
           <span class="tag tag-actor">${escHtml(r.actor||'')}</span>
           <span>${escHtml(r.original)}</span>
           <span class="arrow">→</span>
           <span class="ok-text">${escHtml(r.translated)}</span>
-        </div>`).join('');
-    } else {
-      sBox.style.display = 'none';
+          <input class="form-input" id="${uid}" placeholder="틀렸으면 여기 고쳐서 예외등록" style="width:140px;padding:4px 8px;font-size:12px">
+          <button class="btn-secondary" style="padding:4px 10px;font-size:11px" onclick="saveOverride('${escHtml(r.original).replace(/'/g,"\\'")}','${uid}')">예외등록</button>
+        </div>`;
     }
+    return `
+      <div class="result-row">
+        <span class="tag tag-work">${escHtml(r.work||'')}</span>
+        <span class="tag tag-actor">${escHtml(r.actor||'')}</span>
+        <span>${escHtml(r.original)}</span>
+        <span class="fail-text">막힌 음절:</span>
+        ${r.missing_tokens.map(t => `<span class="missing-token">${escHtml(t)}</span>`).join('')}
+        <input class="form-input" id="${uid}" placeholder="한글 직접입력해서 예외등록" style="width:140px;padding:4px 8px;font-size:12px">
+        <button class="btn-secondary" style="padding:4px 10px;font-size:11px" onclick="saveOverride('${escHtml(r.original).replace(/'/g,"\\'")}','${uid}')">예외등록</button>
+      </div>`;
+  }).join('');
+  list.innerHTML = rowsHtml + list.innerHTML; // 최신 회차가 위로 쌓이도록
+}
 
-    const fBox = document.getElementById('failedBox');
-    const fList = document.getElementById('failedList');
-    if(data.failed.length){
-      fBox.style.display = 'block';
-      fList.innerHTML = data.failed.map(r => `
-        <div class="result-row">
-          <span class="tag tag-work">${escHtml(r.work||'')}</span>
-          <span class="tag tag-actor">${escHtml(r.actor||'')}</span>
-          <span>${escHtml(r.original)}</span>
-          <span class="fail-text">막힌 음절:</span>
-          ${r.missing_tokens.map(t => `<span class="missing-token">${escHtml(t)}</span>`).join('')}
-        </div>`).join('');
-    } else {
-      fBox.style.display = 'none';
-    }
-
-    showToast(`✅ 성공 ${data.succeeded.length}건 · ⚠️ 미매칭 ${data.failed.length}건`);
+async function saveOverride(original, inputId){
+  const input = document.getElementById(inputId);
+  const hangul = input.value.trim();
+  if(!hangul){ showToast('❌ 한글을 입력해주세요'); return; }
+  try{
+    const res = await fetch(`${API}/admin/cast/override-save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ original, hangul }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast(`✅ 예외 등록됨: ${original} → ${hangul}`);
   }catch(e){
-    showToast(`❌ 오류: ${e.message}`);
-  }finally{
-    btn.disabled = false; btn.textContent = '▶ 자동번역 배치 실행';
+    showToast(`❌ 예외등록 실패: ${e.message}`);
   }
 }
 
