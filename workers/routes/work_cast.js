@@ -1,3 +1,8 @@
+/* 2026-08-04 rev.18 — work_cast.js ("Young-tak's Mother" → "영탁 의 엄마"처럼 소유격 's가
+   붙는 자리까지 rev.15의 4글자 이상 띄어쓰기 규칙이 적용되던 문제 수정 — 's는 원래 별도
+   토큰으로 분리하기 위해 앞에 공백을 강제로 넣어놨던 내부 처리였을 뿐, 실제로는 항상 앞
+   단어에 그대로 붙어야 함. 's 앞 구분자를 무조건 hyphen(붙여쓰기) 취급하도록 수정
+   ("영탁의 엄마")) */
 /* 2026-08-04 rev.17 — work_cast.js (POST /admin/cast/override-save에 cast_id(선택) 추가 —
    성공/미매칭 리스트에서 "예외등록" 누르면 예외표 등록만 되고 그 배역 자체의 저장값은
    안 고쳐지던 문제 수정. cast_id 있으면 예외표 등록과 동시에 work_cast.character_name_ko도
@@ -222,6 +227,15 @@ async function _translateName(rawName, env) {
     }
   }
   if (tokens.length === 0) return { ok: false, tokens: [] };
+
+  // [rev.18] 's는 "Bak's"처럼 항상 앞 단어에 그대로 붙어야 하는 소유격이라, 별도 토큰으로
+  // 분리하기 위해 앞에 넣었던 공백은 실제 띄어쓰기가 아님 — 's 앞 구분자는 무조건 붙여쓰기
+  // (hyphen 취급)로 강제해서 "영탁 의 엄마"가 아니라 "영탁의 엄마"가 되도록 함.
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === "'s" && i > 0) {
+      delimTypes[i - 1] = "hyphen";
+    }
+  }
 
   // [rev.14] 토큰 안에서 예외문구 부분매칭 구간을 찾아봄(괄호 벗기고 소문자로 비교)
   const tokensLower = tokens.map((t) =>
