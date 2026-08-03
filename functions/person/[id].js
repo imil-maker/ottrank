@@ -1,3 +1,8 @@
+/* 2026-08-03 rev.7 — functions/person/[id].js ("배우 {이름}" 검색 패턴 대응: ① known_for_department
+   'Writing'을 "작가"(집필작)로 3번째 분류 추가(그 외 Production/Sound 등은 기존대로 배우) ②
+   title에서 jobLabel(배우/감독/작가)을 이름 바로 앞으로 이동 — "{이름} ... | {직업} 정보 | 오뜨랑"
+   → "{직업} {이름} 프로필·{활동}작·필모그래피 | 오뜨랑". "배우 {이름}"처럼 직업+이름이 붙어서
+   검색되는 패턴에 title이 정확히 매칭되도록 하기 위함 ③ keywords에 "{직업} {이름}" 조합 추가 보강) */
 /* 2026-07-31 rev.6 — functions/person/[id].js (감독인 경우 title/description/keywords에서
    "출연작"이 아니라 "연출작"으로 표시되도록 workLabel 분기 추가 — known_for_department가
    'Directing'일 때만 "연출", 그 외(배우)는 기존과 동일하게 "출연". title/description/
@@ -67,12 +72,15 @@ export async function onRequest(context) {
         let   name      = koName || data.name || '';
         const enName    = koName ? data.name : '';
 
-        /* 대표 직업 (배우/감독) */
+        /* 대표 직업 (배우/감독/작가) */
         const dept      = data.known_for_department || '';
-        const jobLabel  = dept === 'Directing' ? '감독' : '배우';
+        /* [2026-08-03 신규] "작가" 3번째 분류 추가 — known_for_department가 'Writing'이면
+           작가로 분류. "작가 {이름}" 검색 패턴 대응 목적. 그 외(Production/Sound 등)는
+           기존과 동일하게 배우로 처리(오분류 위험 있어 이번엔 보류) */
+        const jobLabel  = dept === 'Directing' ? '감독' : (dept === 'Writing' ? '작가' : '배우');
         /* [2026-07-31 신규] 감독은 "출연작"이 아니라 "연출작"이 맞는 표현이라 분기.
-           title/description/keywords 3곳에서 공통으로 사용 */
-        const workLabel = dept === 'Directing' ? '연출' : '출연';
+           [2026-08-03 추가] 작가는 "집필작". title/description/keywords 3곳에서 공통으로 사용 */
+        const workLabel = dept === 'Directing' ? '연출' : (dept === 'Writing' ? '집필' : '출연');
 
         /* [2026-07-27 신규] 인스타 계정 여부 — title에 "·인스타" 추가할지 판단에 필요해서
            앞으로 끌어옴(기존엔 파일 뒷부분 sameAs 만들 때만 썼음). external_ids를
@@ -159,7 +167,10 @@ export async function onRequest(context) {
         let titleExtras = '';
         if (instaId) titleExtras += '·인스타';
         if (hasMbti) titleExtras += '·MBTI';
-        seoTitle = `${name} 프로필·${workLabel}작·필모그래피${titleExtras} | ${jobLabel} 정보 | 오뜨랑`;
+        /* [2026-08-03 변경] "배우 {이름}" 검색 패턴에 정확히 매칭되도록 직업명을 이름
+           바로 앞으로 이동. 기존엔 "{이름} ... | {직업} 정보 | 오뜨랑"으로 직업명이 뒤에
+           떨어져 있어서 "배우 {이름}" 구(phrase) 검색에 약했음. */
+        seoTitle = `${jobLabel} ${name} 프로필·${workLabel}작·필모그래피${titleExtras} | 오뜨랑`;
 
         /* description */
         const worksSnippet = topWorks.length
@@ -173,6 +184,7 @@ export async function onRequest(context) {
         /* keywords */
         seoKeywords = [
           name,
+          `${jobLabel} ${name}`, // [2026-08-03 신규] "배우 {이름}" 검색 패턴 보강
           `${name} 드라마`,
           `${name} 영화`,
           `${name} 나이`,
