@@ -1,3 +1,7 @@
+/* 2026-08-04 rev.12 — work_cast.js (속도개선 — 행별 번역을 완전 순차 대신 "5개씩 묶어서
+   동시처리"로 변경. 완전 동시(rev.8)는 D1 과부하로 멈춘 적 있고, 완전 순차(rev.10)는
+   안전하지만 느려서, 절충안으로 5개 단위 청크만 Promise.all 병렬 처리하고 청크끼리는
+   순서대로 진행하도록 함) */
 /* 2026-08-04 rev.11 — work_cast.js (work_cast.character_name_ko_attempted 컬럼 연동 —
    실패하면 attempted=1로 표시해두고, /admin/cast/translate-batch는 "한 번도 시도 안 한 것"만,
    신규 /admin/cast/retry-failed는 "예전에 실패한 것"만 대상으로 분리. 배치 반복할 때마다
@@ -147,15 +151,25 @@ async function _runBatch(env, { afterId, limit, retryFailed }) {
   const failed = [];
   let lastId = afterId;
 
+  // [rev.12] 5개씩 묶어서 동시 처리 — 청크 안에서는 병렬, 청크끼리는 순차로 진행해서
+  // D1에 한 번에 몰리는 요청 수를 5건 단위로 제한함(완전 동시는 과부하 위험, 완전 순차는 느림)
+  const CHUNK_SIZE = 5;
   const translations = [];
-  for (const row of rows) {
-    if (/self|himself|herself/i.test(row.character_name)) {
-      translations.push(row.actor_name
-        ? { ok: true, hangul: row.actor_name }
-        : { ok: false, tokens: ["(배우 한글이름 없음)"] });
-    } else {
-      translations.push(await _translateName(row.character_name, env));
-    }
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + CHUNK_SIZE);
+    const chunkResults = await Promise.all(
+      chunk.map((row) => {
+        if (/self|himself|herself/i.test(row.character_name)) {
+          return Promise.resolve(
+            row.actor_name
+              ? { ok: true, hangul: row.actor_name }
+              : { ok: false, tokens: ["(배우 한글이름 없음)"] }
+          );
+        }
+        return _translateName(row.character_name, env);
+      })
+    );
+    translations.push(...chunkResults);
   }
 
   const updateStmts = [];
