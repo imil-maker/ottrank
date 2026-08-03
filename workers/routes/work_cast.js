@@ -1,3 +1,6 @@
+/* 2026-08-04 rev.19 — work_cast.js (rev.18은 's 바로 앞 토큰 하나만 붙여썼는데, 이름이
+   여러 단어로 쪼개진 경우(예: "Kim Min Jun's Mother")는 's 앞의 이름 전체를 다 붙여야 함 —
+   's 앞에 있는 모든 구분자를 붙여쓰기(hyphen)로 강제 처리) */
 /* 2026-08-04 rev.18 — work_cast.js ("Young-tak's Mother" → "영탁 의 엄마"처럼 소유격 's가
    붙는 자리까지 rev.15의 4글자 이상 띄어쓰기 규칙이 적용되던 문제 수정 — 's는 원래 별도
    토큰으로 분리하기 위해 앞에 공백을 강제로 넣어놨던 내부 처리였을 뿐, 실제로는 항상 앞
@@ -228,12 +231,15 @@ async function _translateName(rawName, env) {
   }
   if (tokens.length === 0) return { ok: false, tokens: [] };
 
-  // [rev.18] 's는 "Bak's"처럼 항상 앞 단어에 그대로 붙어야 하는 소유격이라, 별도 토큰으로
-  // 분리하기 위해 앞에 넣었던 공백은 실제 띄어쓰기가 아님 — 's 앞 구분자는 무조건 붙여쓰기
-  // (hyphen 취급)로 강제해서 "영탁 의 엄마"가 아니라 "영탁의 엄마"가 되도록 함.
+  // [rev.18/19] 's는 "Bak's"처럼 항상 앞 이름에 그대로 붙어야 하는 소유격 — 별도 토큰으로
+  // 분리하기 위해 넣었던 공백은 실제 띄어쓰기가 아님. 's가 나오면 그 앞에 있는 이름 전체
+  // (여러 단어로 쪼개져 있어도 전부)를 붙여쓰기(hyphen)로 강제해서 "영탁 의 엄마"가 아니라
+  // "영탁의 엄마"가 되도록 함.
   for (let i = 0; i < tokens.length; i++) {
     if (tokens[i] === "'s" && i > 0) {
-      delimTypes[i - 1] = "hyphen";
+      for (let k = 0; k < i; k++) {
+        delimTypes[k] = "hyphen";
+      }
     }
   }
 
