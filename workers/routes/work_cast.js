@@ -1,3 +1,7 @@
+/* 2026-08-04 rev.6 — work_cast.js (① 기호 처리 방식 전면 개편 — 괄호( )는 유지하고 안쪽도
+   번역, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거하는 방식으로 통일(마침표/대괄호
+   전용 처리 제거) ② "Munju"처럼 음절 경계 없이 붙은 토큰을 앞에서부터 긴 조각 우선으로
+   분해 시도하는 _trySegment 신규 — romanization_map 조합으로 재구성 가능하면 매칭 성공 처리) */
 /* 2026-08-04 rev.5 — work_cast.js (앞부분 번역이 한글 3글자 이상 나오면, 뒤에 막히는 토큰이
    있어도 거기서 끊고 성공 처리하도록 변경 — "Kim Hyun Seok [2018 - serial killer]"처럼
    이름 뒤에 부가설명이 붙는 경우, 이름만 번역되면 충분하다고 판단) */
@@ -13,8 +17,49 @@
       ③ GET /admin/cast/search: 영어 배역명 검색(작품명·배우명·현재 번역상태 같이 반환) */
 import { _checkAuth } from "../utils/authUtils.js";
 
+// [2026-08-04 신규] "Munju"(문+주)처럼 음절 경계 없이 붙어있어서 통째로는 매칭표에 없는
+// 토큰을, 앞에서부터 "가장 긴 조각 우선"으로 쪼개서 romanization_map 조각들의 조합으로
+// 완전히 커버되면 그 결과를 반환. 하나라도 안 맞아떨어지면 null(실패).
+async function _trySegment(token, env, maxLen = 8) {
+  if (token.length === 0) return "";
+  const limit = Math.min(maxLen, token.length);
+  for (let len = limit; len >= 1; len--) {
+    const piece = token.slice(0, len);
+    const row = await env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
+      .bind(piece)
+      .first();
+    if (row) {
+      const rest = await _trySegment(token.slice(len), env, maxLen);
+      if (rest !== null) return row.hangul + rest;
+    }
+  }
+  return null;
+}
+
+// 순수 로마자 토큰(괄호 없는 상태) 하나 번역 — 통째 매칭 우선, 안 되면 분해 시도
+async function _lookupToken(token, env) {
+  const row = await env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
+    .bind(token)
+    .first();
+  if (row) return row.hangul;
+  return await _trySegment(token, env);
+}
+
+// [2026-08-04 신규] 토큰 하나를 처리 — 괄호로 감싸져 있으면(예: "(voice)") 괄호는 유지하고
+// 안쪽 내용만 번역해서 다시 괄호로 감싸 반환. 괄호 없으면 토큰 자체를 번역.
+async function _translateToken(rawToken, env) {
+  const openParen = rawToken.startsWith("(");
+  const closeParen = rawToken.endsWith(")");
+  const inner = rawToken.replace(/^\(/, "").replace(/\)$/, "");
+  if (!inner) return null;
+  const hangul = await _lookupToken(inner, env);
+  if (hangul === null) return null;
+  return (openParen ? "(" : "") + hangul + (closeParen ? ")" : "");
+}
+
 // [신규] 배역명 문자열 하나를 번역 — ① 통째 예외표(cast_name_overrides) 먼저 확인,
-// 있으면 그대로 사용(음절 매칭 안 함). 없으면 기존처럼 공백/하이픈 쪼개서 romanization_map 조회
+// 있으면 그대로 사용(음절 매칭 안 함). ② 없으면 기호 정리(괄호는 유지, 그 외 기호는
+// 전부 제거) 후 공백/하이픈으로 쪼개서 토큰별로 번역
 async function _translateName(rawName, env) {
   const override = await env.DB.prepare(
     `SELECT hangul FROM cast_name_overrides WHERE original = ?`
@@ -23,37 +68,32 @@ async function _translateName(rawName, env) {
     return { ok: true, hangul: override.hangul };
   }
 
-  // [2026-08-04 신규] "Bak's"처럼 어퍼스트로피로 붙은 's는 별도 토큰으로 떼어냄
-  // (그래야 romanization_map에 등록해둔 "'s"→"의" 항목이 매칭됨)
-  // [2026-08-04 신규] "[Panelist]"처럼 대괄호가 단어에 붙어있으면 매칭 실패하므로 제거
-  const bracketsRemoved = rawName.replace(/[\[\]]/g, "");
-  const normalized = bracketsRemoved.replace(/'s\b/gi, " 's");
+  // 괄호( )는 유지, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거.
+  // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
+  const symbolsCleaned = rawName.replace(/[^A-Za-z0-9\s\-'()]/g, "");
+  const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
   const tokens = normalized.split(/[\s\-]+/).filter(Boolean);
   if (tokens.length === 0) return { ok: false, tokens: [] };
 
   const results = await Promise.all(
-    tokens.map((t) =>
-      env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
-        .bind(t.toLowerCase())
-        .first()
-    )
+    tokens.map((t) => _translateToken(t.toLowerCase(), env))
   );
 
-  // [2026-08-04 신규] 앞에서부터 순서대로 이어붙이다가 막히는 토큰이 나오면 거기서 멈춤.
-  // 거기까지 이어붙인 한글이 이미 3글자 이상이면(=사람 이름 정도는 나온 걸로 판단) 그걸로
-  // 성공 처리하고 나머지(예: "[2018 - serial killer]" 같은 부가설명)는 그냥 버림.
+  // 앞에서부터 순서대로 이어붙이다가 막히는 토큰이 나오면 거기서 멈춤. 거기까지 이어붙인
+  // 한글이 이미 3글자 이상이면(=사람 이름 정도는 나온 걸로 판단) 그걸로 성공 처리하고
+  // 나머지(예: "[2018 - serial killer]" 같은 부가설명)는 그냥 버림.
   let hangul = "";
   let stopIndex = tokens.length;
   for (let i = 0; i < tokens.length; i++) {
-    if (!results[i]) { stopIndex = i; break; }
-    hangul += results[i].hangul;
+    if (results[i] === null) { stopIndex = i; break; }
+    hangul += results[i];
   }
   const fullMatch = stopIndex === tokens.length;
   if (fullMatch || hangul.length >= 3) {
     return { ok: true, hangul };
   }
 
-  const failedTokens = tokens.filter((t, i) => !results[i]);
+  const failedTokens = tokens.filter((t, i) => results[i] === null);
   if (failedTokens.length > 0) {
     return { ok: false, tokens: failedTokens };
   }
