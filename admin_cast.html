@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<!-- 2026-08-04 rev.1 — admin_cast.html (신규 — 배역명(character_name) 한글화 전용 어드민 화면.
+     ① "자동번역 배치 실행" 버튼: romanization_map으로 미번역 배역 자동매칭, 성공/미매칭 리스트 표시
+     ② 영어 배역명 검색 + 한글 수동입력/저장. work_cast.js rev.1 API 연동) -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>배역 관리 | 오뜨랑 Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0c10;--bg2:#13131a;--bg3:#1a1a24;--card:#16161f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);
+  --text:#ededf0;--muted:#7a7a96;--muted2:#a0a0bc;
+  --accent:#e63946;--gold:#f0b429;--green:#34d399;--red:#e63946;
+  --sans:'Noto Sans KR',sans-serif;--mono:'DM Mono',monospace;
+  --r:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh}
+
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:40px;width:360px;text-align:center}
+.login-box h2{font-size:20px;font-weight:700;margin-bottom:8px}
+.login-box p{font-size:13px;color:var(--muted);margin-bottom:24px}
+.login-input{width:100%;padding:10px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;margin-bottom:12px}
+.login-input:focus{border-color:var(--border2)}
+.login-btn{width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.login-err{font-size:13px;color:var(--accent);margin-top:10px;display:none}
+
+.header{padding:16px 24px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:16px;font-weight:700}
+.wrap{max-width:900px;margin:0 auto;padding:24px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+.card h2{font-size:15px;font-weight:700;margin-bottom:6px}
+.card p.desc{font-size:12px;color:var(--muted);margin-bottom:14px}
+
+.btn-primary{padding:10px 20px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-primary:disabled{opacity:.5;cursor:default}
+.btn-secondary{padding:10px 16px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:14px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn-secondary:hover{background:var(--bg3);color:var(--text)}
+.form-input{padding:10px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:var(--sans);outline:none}
+.form-input:focus{border-color:var(--border2)}
+
+.result-row{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.result-row:last-child{border-bottom:none}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.tag-work{color:var(--muted2)}
+.tag-actor{color:var(--gold)}
+.arrow{color:var(--muted)}
+.ok-text{color:var(--green);font-weight:600}
+.fail-text{color:var(--accent)}
+.missing-token{font-family:var(--mono);font-size:11px;background:var(--bg3);padding:2px 6px;border-radius:4px;color:var(--accent)}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px 20px;
+  font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:999}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <h2>배역 관리</h2>
+    <p>관리자 인증이 필요합니다</p>
+    <input class="login-input" id="secretInput" type="password" placeholder="관리자 비밀번호"
+      onkeydown="if(event.key==='Enter') doLogin()">
+    <button class="login-btn" onclick="doLogin()">확인</button>
+    <div class="login-err" id="loginErr">비밀번호가 올바르지 않습니다</div>
+  </div>
+</div>
+
+<div id="mainWrap" style="display:none">
+  <div class="header"><h1>🎭 배역 관리 — 한글 번역</h1></div>
+  <div class="wrap">
+
+    <div class="card">
+      <h2>자동번역 배치</h2>
+      <p class="desc">아직 한글이 안 채워진 한국작품 배역명을, 로마자 매칭표(romanization_map)로 자동 변환 시도해요. 미매칭된 건 어떤 음절에서 막혔는지 보여줘요 — 그 음절을 매칭표에 추가한 뒤 버튼을 다시 누르면 재시도됩니다.</p>
+      <button class="btn-primary" id="batchBtn" onclick="runBatch()">▶ 자동번역 배치 실행</button>
+      <span id="batchRemain" style="font-size:12px;color:var(--muted);margin-left:10px"></span>
+
+      <div id="succeededBox" style="display:none;margin-top:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:6px">✅ 성공</div>
+        <div id="succeededList" style="border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto"></div>
+      </div>
+      <div id="failedBox" style="display:none;margin-top:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:6px">⚠️ 미매칭</div>
+        <div id="failedList" style="border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>영어 배역명 검색 · 수동 수정</h2>
+      <p class="desc">영어 배역명 앞부분으로 검색해서, 바로 한글을 입력/수정할 수 있어요.</p>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="castSearchInput" placeholder="예: Detective, Kang..." style="flex:1"
+          onkeydown="if(event.key==='Enter'){ event.preventDefault(); runCastSearch(); }">
+        <button class="btn-secondary" onclick="runCastSearch()">검색</button>
+      </div>
+      <div id="castSearchResults" style="margin-top:14px;border:1px solid var(--border);border-radius:8px"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+let ADMIN_SECRET = '';
+
+function doLogin(){
+  const val = document.getElementById('secretInput').value.trim();
+  if(!val) return;
+  ADMIN_SECRET = val;
+  verifySecret();
+}
+async function verifySecret(){
+  try{
+    const res = await fetch(`${API}/admin/rankings?limit=1`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    if(res.ok){
+      localStorage.setItem('admin_token', ADMIN_SECRET);
+      document.getElementById('loginWrap').style.display = 'none';
+      document.getElementById('mainWrap').style.display = 'block';
+    } else {
+      document.getElementById('loginErr').style.display = 'block';
+      ADMIN_SECRET = '';
+    }
+  }catch(e){
+    document.getElementById('loginErr').style.display = 'block';
+  }
+}
+(function init(){
+  const stored = localStorage.getItem('admin_token');
+  if(stored){
+    ADMIN_SECRET = stored;
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('mainWrap').style.display = 'block';
+  }
+})();
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function escHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+/* ══ 자동번역 배치 ══ */
+async function runBatch(){
+  const btn = document.getElementById('batchBtn');
+  btn.disabled = true; btn.textContent = '처리 중...';
+  try{
+    const res = await fetch(`${API}/admin/cast/translate-batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ limit: 30 }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+
+    document.getElementById('batchRemain').textContent = `남은 미번역: ${data.remaining}건`;
+
+    const sBox = document.getElementById('succeededBox');
+    const sList = document.getElementById('succeededList');
+    if(data.succeeded.length){
+      sBox.style.display = 'block';
+      sList.innerHTML = data.succeeded.map(r => `
+        <div class="result-row">
+          <span class="tag tag-work">${escHtml(r.work||'')}</span>
+          <span class="tag tag-actor">${escHtml(r.actor||'')}</span>
+          <span>${escHtml(r.original)}</span>
+          <span class="arrow">→</span>
+          <span class="ok-text">${escHtml(r.translated)}</span>
+        </div>`).join('');
+    } else {
+      sBox.style.display = 'none';
+    }
+
+    const fBox = document.getElementById('failedBox');
+    const fList = document.getElementById('failedList');
+    if(data.failed.length){
+      fBox.style.display = 'block';
+      fList.innerHTML = data.failed.map(r => `
+        <div class="result-row">
+          <span class="tag tag-work">${escHtml(r.work||'')}</span>
+          <span class="tag tag-actor">${escHtml(r.actor||'')}</span>
+          <span>${escHtml(r.original)}</span>
+          <span class="fail-text">막힌 음절:</span>
+          ${r.missing_tokens.map(t => `<span class="missing-token">${escHtml(t)}</span>`).join('')}
+        </div>`).join('');
+    } else {
+      fBox.style.display = 'none';
+    }
+
+    showToast(`✅ 성공 ${data.succeeded.length}건 · ⚠️ 미매칭 ${data.failed.length}건`);
+  }catch(e){
+    showToast(`❌ 오류: ${e.message}`);
+  }finally{
+    btn.disabled = false; btn.textContent = '▶ 자동번역 배치 실행';
+  }
+}
+
+/* ══ 검색 + 수동 저장 ══ */
+async function runCastSearch(){
+  const q = document.getElementById('castSearchInput').value.trim();
+  const box = document.getElementById('castSearchResults');
+  if(!q){ box.innerHTML = ''; return; }
+  box.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--muted)">검색 중...</div>';
+  try{
+    const res = await fetch(`${API}/admin/cast/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    if(!data.data.length){
+      box.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--muted)">결과 없음</div>';
+      return;
+    }
+    box.innerHTML = data.data.map(r => `
+      <div class="result-row">
+        <span class="tag tag-work">${escHtml(r.title_ko||'')}</span>
+        <span class="tag tag-actor">${escHtml(r.actor_name||'')}</span>
+        <span style="min-width:140px">${escHtml(r.character_name)}</span>
+        <input class="form-input" style="flex:1;min-width:120px;padding:6px 10px;font-size:13px"
+          id="castKo-${r.id}" value="${escHtml(r.character_name_ko||'')}" placeholder="한글 배역명">
+        <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="saveCastKo(${r.id})">저장</button>
+        ${r.character_name_ko_source ? `<span class="tag" style="font-size:10px">${r.character_name_ko_source}</span>` : ''}
+      </div>`).join('');
+  }catch(e){
+    box.innerHTML = `<div style="padding:14px;font-size:13px;color:var(--accent)">오류: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function saveCastKo(id){
+  const input = document.getElementById(`castKo-${id}`);
+  const ko = input.value.trim();
+  if(!ko){ showToast('❌ 한글 배역명을 입력해주세요'); return; }
+  try{
+    const res = await fetch(`${API}/admin/cast/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ id, character_name_ko: ko }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast('✅ 저장됨');
+  }catch(e){
+    showToast(`❌ 저장 실패: ${e.message}`);
+  }
+}
+</script>
+</body>
+</html>
