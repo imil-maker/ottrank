@@ -1,3 +1,6 @@
+/* 2026-08-04 rev.10 — work_cast.js (rev.8의 병렬처리가 D1에 순간적으로 요청이 너무 많이
+   몰려서 배치가 아예 멈추는 문제를 일으켜서, 안정성 위해 행별 처리·2조각 분해 둘 다
+   순차 처리로 되돌림. UPDATE는 env.DB.batch()로 모아서 쓰는 것만 유지) */
 /* 2026-08-04 rev.9 — work_cast.js ("Jang 'Woo-gi' Wook"처럼 닉네임을 감싸는 작은따옴표 때문에
    매칭 실패하던 문제 수정 — 토큰 앞뒤 따옴표를 벗겨냄. "'s"(의) 토큰은 그대로 보호) */
 /* 2026-08-04 rev.8 — work_cast.js (① self/himself/herself 규칙을 코드에 반영 — work_cast.name
@@ -33,18 +36,16 @@ import { _checkAuth } from "../utils/authUtils.js";
 // 제한. 3조각 이상 분해는 시도하지 않음.
 async function _trySegment(token, env) {
   if (token.length < 2) return null;
-  const splitPoints = [];
-  for (let i = token.length - 1; i >= 1; i--) splitPoints.push(i);
-  const pairs = await Promise.all(splitPoints.map(async (i) => {
+  for (let i = token.length - 1; i >= 1; i--) {
     const first = token.slice(0, i);
     const second = token.slice(i);
     const [row1, row2] = await Promise.all([
       env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(first).first(),
       env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(second).first(),
     ]);
-    return (row1 && row2) ? row1.hangul + row2.hangul : null;
-  }));
-  return pairs.find((p) => p !== null) ?? null;
+    if (row1 && row2) return row1.hangul + row2.hangul;
+  }
+  return null;
 }
 
 // 순수 로마자 토큰(괄호 없는 상태) 하나 번역 — 통째 매칭 우선, 안 되면 분해 시도
@@ -151,13 +152,18 @@ export async function handleWorkCast(path, request, env, url, headers) {
       // [2026-08-04 신규] self/himself/herself는 음절 매칭 대신 work_cast.name(배우 이름을
       // 그대로 사용. 배우 이름 자체가 비어있으면 실패로 표시. ── 속도 개선: 행별 번역을
       // 순서대로 기다리지 않고 한꺼번에 병렬 처리.
-      const translations = await Promise.all(rows.map(async (row) => {
+      // [2026-08-04 신규] 행 30개를 한꺼번에 동시 처리하면 D1에 순간적으로 너무 많은
+      // 요청이 몰려서 배치 자체가 멈추는 문제가 있어서, 안정성 위해 다시 순서대로 처리
+      const translations = [];
+      for (const row of rows) {
         if (/self|himself|herself/i.test(row.character_name)) {
-          if (row.actor_name) return { ok: true, hangul: row.actor_name };
-          return { ok: false, tokens: ["(배우 한글이름 없음)"] };
+          translations.push(row.actor_name
+            ? { ok: true, hangul: row.actor_name }
+            : { ok: false, tokens: ["(배우 한글이름 없음)"] });
+        } else {
+          translations.push(await _translateName(row.character_name, env));
         }
-        return await _translateName(row.character_name, env);
-      }));
+      }
 
       const updateStmts = [];
       rows.forEach((row, i) => {
