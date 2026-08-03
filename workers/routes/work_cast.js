@@ -1,3 +1,5 @@
+/* 2026-08-04 rev.3 — work_cast.js ("Bak's"처럼 어퍼스트로피로 붙은 's가 통째로 한 토큰이 되어
+   매칭 실패하던 문제 수정 — 쪼개기 전에 "'s" 앞에 공백을 넣어 별도 토큰으로 분리 */
 /* 2026-08-04 rev.2 — work_cast.js (cast_name_overrides 예외표 신규 연동 — 음절 쪼개기 전에
    통째 이름 예외 먼저 확인. POST /admin/cast/override-save 신규(예외 등록/수정)) */
 /* 2026-08-04 rev.1 — work_cast.js (신규 — 배역명(character_name) 한글화 전용 어드민 API.
@@ -16,7 +18,10 @@ async function _translateName(rawName, env) {
     return { ok: true, hangul: override.hangul };
   }
 
-  const tokens = rawName.split(/[\s\-]+/).filter(Boolean);
+  // [2026-08-04 신규] "Bak's"처럼 어퍼스트로피로 붙은 's는 별도 토큰으로 떼어냄
+  // (그래야 romanization_map에 등록해둔 "'s"→"의" 항목이 매칭됨)
+  const normalized = rawName.replace(/'s\b/gi, " 's");
+  const tokens = normalized.split(/[\s\-]+/).filter(Boolean);
   if (tokens.length === 0) return { ok: false, tokens: [] };
 
   const results = await Promise.all(
