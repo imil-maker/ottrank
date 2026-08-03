@@ -1,12 +1,21 @@
+/* 2026-08-04 rev.2 — work_cast.js (cast_name_overrides 예외표 신규 연동 — 음절 쪼개기 전에
+   통째 이름 예외 먼저 확인. POST /admin/cast/override-save 신규(예외 등록/수정)) */
 /* 2026-08-04 rev.1 — work_cast.js (신규 — 배역명(character_name) 한글화 전용 어드민 API.
    ① POST /admin/cast/translate-batch: 미번역 한국작품 배역을 romanization_map으로 자동매칭,
       성공/실패 리스트 반환 ② POST /admin/cast/save: 관리자 수동 입력 저장(source=manual)
       ③ GET /admin/cast/search: 영어 배역명 검색(작품명·배우명·현재 번역상태 같이 반환) */
 import { _checkAuth } from "../utils/authUtils.js";
 
-// [신규] 배역명 문자열 하나를 공백/하이픈 기준으로 쪼개서, romanization_map 조회 결과로
-// 전부 치환 가능하면 합쳐서 반환, 하나라도 실패하면 null(원본 유지)
+// [신규] 배역명 문자열 하나를 번역 — ① 통째 예외표(cast_name_overrides) 먼저 확인,
+// 있으면 그대로 사용(음절 매칭 안 함). 없으면 기존처럼 공백/하이픈 쪼개서 romanization_map 조회
 async function _translateName(rawName, env) {
+  const override = await env.DB.prepare(
+    `SELECT hangul FROM cast_name_overrides WHERE original = ?`
+  ).bind(rawName).first();
+  if (override) {
+    return { ok: true, hangul: override.hangul };
+  }
+
   const tokens = rawName.split(/[\s\-]+/).filter(Boolean);
   if (tokens.length === 0) return { ok: false, tokens: [] };
 
@@ -80,6 +89,25 @@ export async function handleWorkCast(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, succeeded, failed, remaining: remainRow?.cnt || 0,
       }), { headers });
+    }
+
+    // ── POST /admin/cast/override-save ────────────────────────
+    // body: { original, hangul } — "Sam Kim"→"샘킴" 같은 통째 예외 등록/수정
+    if (path === "/admin/cast/override-save" && request.method === "POST") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+      }
+      const body = await request.json().catch(() => ({}));
+      const original = (body.original || "").trim();
+      const hangul = (body.hangul || "").trim();
+      if (!original || !hangul) {
+        return new Response(JSON.stringify({ ok: false, message: "original과 hangul이 필요해요" }), { status: 400, headers });
+      }
+      await env.DB.prepare(
+        `INSERT INTO cast_name_overrides (original, hangul) VALUES (?, ?)
+         ON CONFLICT(original) DO UPDATE SET hangul = excluded.hangul`
+      ).bind(original, hangul).run();
+      return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
     // ── POST /admin/cast/save ─────────────────────────────────
