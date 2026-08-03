@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-03 rev.12 — person.html (persons.job_manual 오버라이드 반영 — 관리자가 "프로필생성"
+     탭에서 직접 입력한 직업이 있으면 자동판별(배우/감독/작가) 대신 그 값을 SEO 타이틀/설명/
+     키워드에 우선 사용. loadWikiTest가 manual.job_manual을 personJobManual 전역값으로 채워둠.
+     필모그래피 정렬(tier)에는 영향 없음 — 커스텀 직업은 배우와 동일하게 취급됨) -->
 <!-- 2026-08-03 rev.11 — person.html ("배우 {이름}" 검색 패턴 대응, [id].js SSR(rev.7)과 동일 기준:
      ① known_for_department 'Writing'을 "작가"(집필작)로 3번째 분류 추가 ② updateSEO() 타이틀에서
      직업명(배우/감독/작가)을 이름 바로 앞으로 이동 ③ keywords에 "{직업} {이름}" 조합 추가 ④ 대표작
@@ -1152,6 +1156,9 @@ let personEnNameHtml = '';
 // [2026-07-28 신규] 위키 DB 이름 적용 시 "메인 이름과 보조 이름이 같아지는지" 비교하기 위해
 // 괄호 안 보조 이름의 순수 텍스트(HTML 태그 없이)도 따로 기억해둠.
 let personEnName = '';
+// [2026-08-03 신규] 관리자가 persons.job_manual에 직접 입력해둔 직업(자유 텍스트).
+// loadWikiTest가 채워줌 — 값이 있으면 SEO 타이틀에서 자동판별(배우/감독/작가) 대신 우선 사용.
+let personJobManual = '';
 let personSocialRowHtml = '';
 function renderPersonNameEl(){
   const nameEl = document.getElementById('personName');
@@ -1400,6 +1407,10 @@ async function loadWikiTest(personId){
     // 위키 매칭 여부(json.data)와 무관하게 항상 처리 — early return 전에 실행.
     const manual = json.manual;
     if(manual){
+      // [2026-08-03 신규] 직업(수동입력) — SEO 타이틀 계산은 아래 ⑦번 블록에서
+      // personJobManual을 참조하므로, 여기서 전역값만 채워두면 됨(다른 값들처럼
+      // 즉시 화면을 다시 그릴 필요는 없음 — 타이틀은 아직 안 만들어졌을 수도 있어서).
+      personJobManual = manual.job_manual || '';
       const merged = {
         birthday: manual.birthday || tmdbMeta.birthday || '',
         deathday: tmdbMeta.deathday, // 사망일은 TMDB 전용 — 수동 보완 대상 아님
@@ -2454,7 +2465,8 @@ async function initPage(){
       ? customProfilePath
       : (data.profile_path ? `https://poster.ottrank.kr/tmdb-img/w342${data.profile_path}` : '');
     // [2026-08-03 신규] "작가" 3번째 분류 추가 — [id].js SSR과 동일 기준
-    const jobLabel = data.known_for_department === 'Directing' ? '감독' : (data.known_for_department === 'Writing' ? '작가' : '배우');
+    // [2026-08-03 재수정] personJobManual(관리자 수동입력)이 있으면 자동판별보다 우선.
+    const jobLabel = personJobManual || (data.known_for_department === 'Directing' ? '감독' : (data.known_for_department === 'Writing' ? '작가' : '배우'));
     // [2026-07-20 신규] 두번째 이름(영문명/본명 등)이 있으면 설명에도 "이름(두번째이름)"로 병기
     const seoNameLabel = enName ? `${displayName}(${enName})` : displayName;
     const seoDesc = bio
