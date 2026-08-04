@@ -1,3 +1,7 @@
+/* 2026-08-05 rev.37 — work_cast.js (POST /admin/cast/refresh-work 신규 — 작품 하나의
+   출연진을 TMDB에서 다시 불러와 갱신. 한 번 저장된 뒤 TMDB가 갱신돼도(배우 추가 등) 우리
+   DB가 안 따라가던 문제 해결용. 기존 한글 배역명은 person_tmdb_id 기준으로 보존, 감독
+   3명/외국작품 10명 캡은 videos.js의 _saveCastForWork와 동일 규칙 유지) */
 /* 2026-08-05 rev.36 — work_cast.js (GET /admin/cast/by-work — TMDB ID 숫자 검색 추가.
    숫자만 입력하면 title_ko 대신 tmdb_id 정확히 일치로 찾음 — 제목이 비어있거나 이상하게
    저장돼서 제목 검색으로 안 걸리던 작품도 찾을 수 있게) */
@@ -649,8 +653,87 @@ async function _runBatchForWork(env, { tmdbId, mediaType }) {
   return { ok: true, succeeded, failed };
 }
 
+// [2026-08-05 신규] 작품 하나의 출연진을 TMDB에서 다시 불러와 갱신 — 한 번 저장된 뒤로는
+// TMDB가 갱신돼도(신규 배우 추가 등) 우리 DB가 자동으로 안 따라가는 문제 해결용 관리자 도구.
+// videos.js의 _saveCastForWork와 같은 규칙(감독 3명 캡, 외국작품 10명 캡)을 그대로 따르되,
+// 기존에 저장돼 있던 한글 배역명(character_name_ko)은 person_tmdb_id 기준으로 그대로
+// 이어붙여서 보존함(단순 삭제 후 재저장하면 번역해둔 게 전부 날아가므로 반드시 필요).
+async function _refreshWorkCast(env, { tmdbId, mediaType }) {
+  const w = await env.DB.prepare("SELECT original_language FROM works WHERE tmdb_id = ?").bind(tmdbId).first();
+  const castCap = w?.original_language === "ko" ? Infinity : 10;
+  const endpoint = mediaType === "tv" ? "aggregate_credits" : "credits";
+  const resp = await fetch(
+    `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/${endpoint}?api_key=${env.TMDB_API_KEY}&language=ko-KR`
+  );
+  if (!resp.ok) throw new Error("TMDB 조회 실패");
+  const data = await resp.json();
+
+  const directors = (data.crew || []).filter(p => p.job === "Director" || p.department === "Directing").slice(0, 3);
+  const castList = (data.cast || []).slice(0, castCap);
+  if (!directors.length && !castList.length) throw new Error("TMDB에서 출연진 정보를 찾지 못했어요");
+
+  // 기존 한글 배역명 보존용 — person_tmdb_id 기준(한 작품에 같은 사람이 두 번 나오는 경우는 드묾)
+  const { results: oldRows } = await env.DB.prepare(
+    `SELECT person_tmdb_id, character_name_ko, character_name_ko_source, character_name_ko_attempted
+     FROM work_cast WHERE tmdb_id = ? AND media_type = ? AND role = 'cast'`
+  ).bind(tmdbId, mediaType).all();
+  const oldKoMap = new Map();
+  (oldRows || []).forEach(r => oldKoMap.set(r.person_tmdb_id, r));
+
+  const stmts = [
+    env.DB.prepare("DELETE FROM work_cast WHERE tmdb_id = ? AND media_type = ?").bind(tmdbId, mediaType),
+  ];
+  directors.forEach((p, idx) => {
+    stmts.push(env.DB.prepare(`
+      INSERT INTO work_cast (tmdb_id, media_type, person_tmdb_id, name, role, character_name, profile_path, billing_order)
+      VALUES (?, ?, ?, ?, 'director', NULL, ?, ?)
+    `).bind(tmdbId, mediaType, p.id, p.name || "", p.profile_path || null, idx));
+  });
+  castList.forEach((p, idx) => {
+    const characterName = mediaType === "tv"
+      ? ((p.roles && p.roles[0] && p.roles[0].character) || "")
+      : (p.character || "");
+    const order = (p.order !== undefined && p.order !== null) ? p.order : idx;
+    const old = oldKoMap.get(p.id);
+    stmts.push(env.DB.prepare(`
+      INSERT INTO work_cast (tmdb_id, media_type, person_tmdb_id, name, role, character_name,
+        character_name_ko, character_name_ko_source, character_name_ko_attempted, profile_path, billing_order)
+      VALUES (?, ?, ?, ?, 'cast', ?, ?, ?, ?, ?, ?)
+    `).bind(
+      tmdbId, mediaType, p.id, p.name || "", characterName,
+      old?.character_name_ko || null, old?.character_name_ko_source || null, old?.character_name_ko_attempted || null,
+      p.profile_path || null, order
+    ));
+  });
+  stmts.push(env.DB.prepare("UPDATE works SET cast_synced_at = ? WHERE tmdb_id = ?").bind(new Date().toISOString(), tmdbId));
+
+  await env.DB.batch(stmts);
+  return { directors: directors.length, cast: castList.length };
+}
+
 export async function handleWorkCast(path, request, env, url, headers) {
   try {
+    // ── POST /admin/cast/refresh-work ───────────────────────────
+    // body: { tmdb_id, media_type } — 그 작품 출연진을 TMDB에서 다시 불러와 통째로 갱신.
+    // 한글 배역명은 person_tmdb_id 기준으로 보존됨(위 _refreshWorkCast 참고).
+    if (path === "/admin/cast/refresh-work" && request.method === "POST") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+      }
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      const mediaType = (body.media_type || "").trim();
+      if (!tmdbId || !mediaType) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id와 media_type이 필요해요" }), { status: 400, headers });
+      }
+      try {
+        const result = await _refreshWorkCast(env, { tmdbId, mediaType });
+        return new Response(JSON.stringify({ ok: true, ...result }), { headers });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+      }
+    }
+
     // ── POST /admin/cast/translate-work ─────────────────────────
     // body: { tmdb_id, media_type }  — 작품 하나 지정해서 그 작품의 미번역 배역만 자동번역
     // 시도. 결과는 D1에 저장하지 않고 그대로 돌려주기만 함(화면에서 확인 후 "전체 저장" 필요).
