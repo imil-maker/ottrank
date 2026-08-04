@@ -1,3 +1,11 @@
+/* 2026-08-04 rev.24 — work_cast.js (속도개선 — 지금까지 배역 한 명 번역할 때마다 단어 하나
+   하나를 매번 D1에 물어봤고(안 풀리는 단어는 2조각 분해까지 시도하며 최대 수십 번), 예외
+   등록표도 매번 통째로 다시 불러왔음. 배치 시작할 때 romanization_map(3,300여개)과
+   cast_name_overrides(90여개)를 딱 한 번만 통째로 가져와 메모리(Map)에 올려두고, 이후
+   30명(5명씩 묶음) 처리하는 동안은 D1 안 거치고 메모리에서만 조회하도록 전면 개편. 관련
+   함수들(_trySegment, _lookupToken, _translateToken, _translateTokenSequence,
+   _findRawOverrideMatch, _translatePlainSegment, _translateName)이 env 대신 미리 불러온
+   dicts(romanMap, overrides)를 받도록 시그니처 변경) */
 /* 2026-08-04 rev.23 — work_cast.js (cast_name_overrides 매칭 방식 전면 개편 — 예전엔 배역명을
    기호 정리+토큰화한 뒤에 비교해서, 하이픈처럼 토큰 구분자로 쓰이는 기호가 낀 예외문구
    ("Man-" 등)는 등록해도 매칭이 안 됐음(rev.22에서 이 케이스만 코드로 별도 처리해야 했음).
@@ -89,44 +97,38 @@
       ③ GET /admin/cast/search: 영어 배역명 검색(작품명·배우명·현재 번역상태 같이 반환) */
 import { _checkAuth } from "../utils/authUtils.js";
 
-// [2026-08-04 신규] "Munju"(문+주)처럼 딱 2음절이 붙어있는 케이스만 조심스럽게 구제.
+// [2026-08-04 신규/rev.24] "Munju"(문+주)처럼 딱 2음절이 붙어있는 케이스만 조심스럽게 구제.
 // 여러 조각으로 자유롭게 재귀 분해하면 "Reason"→"레아손"처럼 엉뚱한 영어 단어까지
 // 억지로 끼워맞춰지는 문제가 있어서, "정확히 2조각(앞+뒤 둘 다 매칭표에 있어야 함)"으로만
-// 제한. 3조각 이상 분해는 시도하지 않음.
-async function _trySegment(token, env) {
+// 제한. 3조각 이상 분해는 시도하지 않음. [rev.24] romanMap은 미리 불러온 Map — D1 조회 없음.
+function _trySegment(token, romanMap) {
   if (token.length < 2) return null;
   for (let i = token.length - 1; i >= 1; i--) {
     const first = token.slice(0, i);
     const second = token.slice(i);
-    const [row1, row2] = await Promise.all([
-      env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(first).first(),
-      env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`).bind(second).first(),
-    ]);
-    if (row1 && row2) return row1.hangul + row2.hangul;
+    const h1 = romanMap.get(first);
+    const h2 = romanMap.get(second);
+    if (h1 !== undefined && h2 !== undefined) return h1 + h2;
   }
   return null;
 }
 
 // 순수 로마자 토큰(괄호 없는 상태) 하나 번역 — [rev.22] hyphenSuffix가 true면(원문에서 이
 // 토큰 바로 뒤에 하이픈이 있었으면) "단어-" 항목을 먼저 찾아보고, 없으면 원래처럼 통째
-// 매칭 → 분해 순서로 진행
-async function _lookupToken(token, env, hyphenSuffix) {
+// 매칭 → 분해 순서로 진행. [rev.24] romanMap(Map)에서 바로 조회 — D1 조회 없음.
+function _lookupToken(token, romanMap, hyphenSuffix) {
   if (hyphenSuffix) {
-    const hyphenRow = await env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
-      .bind(token + "-")
-      .first();
-    if (hyphenRow) return hyphenRow.hangul;
+    const hyphenHangul = romanMap.get(token + "-");
+    if (hyphenHangul !== undefined) return hyphenHangul;
   }
-  const row = await env.DB.prepare(`SELECT hangul FROM romanization_map WHERE roman = ?`)
-    .bind(token)
-    .first();
-  if (row) return row.hangul;
-  return await _trySegment(token, env);
+  const hangul = romanMap.get(token);
+  if (hangul !== undefined) return hangul;
+  return _trySegment(token, romanMap);
 }
 
 // [2026-08-04 신규] 토큰 하나를 처리 — 괄호로 감싸져 있으면(예: "(voice)") 괄호는 유지하고
 // 안쪽 내용만 번역해서 다시 괄호로 감싸 반환. 괄호 없으면 토큰 자체를 번역.
-async function _translateToken(rawToken, env, hyphenSuffix) {
+function _translateToken(rawToken, romanMap, hyphenSuffix) {
   const openParen = rawToken.startsWith("(");
   const closeParen = rawToken.endsWith(")");
   const inner = rawToken.replace(/^\(/, "").replace(/\)$/, "");
@@ -135,7 +137,7 @@ async function _translateToken(rawToken, env, hyphenSuffix) {
   if (/^\d+$/.test(inner)) {
     return (openParen ? "(" : "") + inner + (closeParen ? ")" : "");
   }
-  const hangul = await _lookupToken(inner, env, hyphenSuffix);
+  const hangul = _lookupToken(inner, romanMap, hyphenSuffix);
   if (hangul === null) return null;
   return (openParen ? "(" : "") + hangul + (closeParen ? ")" : "");
 }
@@ -145,11 +147,12 @@ async function _translateToken(rawToken, env, hyphenSuffix) {
 // 자리(이름 음절 구분용)는 그대로 붙여써서 원문 구분을 재현함.
 // [rev.22] hyphenFlags[i]가 true면 tokens[i]는 원문에서 바로 뒤에 하이픈이 붙어있던
 // 토큰이라, 조회할 때 "단어-" 전용 항목을 우선 찾아봄("Man-"→"만" vs "man"→"남자" 구분).
-async function _translateTokenSequence(tokens, delimTypes, hyphenFlags, env) {
+// [rev.24] romanMap은 미리 불러온 Map — D1 조회 없이 동기로 처리.
+function _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap) {
   if (tokens.length === 0) return { ok: true, hangul: "" };
 
-  const results = await Promise.all(
-    tokens.map((t, i) => _translateToken(t.toLowerCase(), env, hyphenFlags && hyphenFlags[i]))
+  const results = tokens.map((t, i) =>
+    _translateToken(t.toLowerCase(), romanMap, hyphenFlags && hyphenFlags[i])
   );
 
   // 앞에서부터 순서대로 이어붙이다가 막히는 토큰이 나오면 거기서 멈춤. 거기까지 이어붙인
@@ -189,15 +192,13 @@ async function _translateTokenSequence(tokens, delimTypes, hyphenFlags, env) {
 // [rev.23] cast_name_overrides에 등록된 문구를 배역명 원문(rawName) 그대로 — 기호 하나도
 // 지우지 않고 대소문자만 무시 — 부분매칭. 여러 개 걸리면 가장 긴 문구를 우선 채택.
 // 찾으면 { start, end, hangul } 반환(end는 배타적, 원문 인덱스 기준), 없으면 null.
-async function _findRawOverrideMatch(rawName, env) {
-  const { results } = await env.DB.prepare(
-    `SELECT original, hangul FROM cast_name_overrides`
-  ).all();
-  if (!results || results.length === 0) return null;
+// [rev.24] overrides는 미리 불러온 배열 — D1 조회 없이 동기로 처리.
+function _findRawOverrideMatch(rawName, overrides) {
+  if (!overrides || overrides.length === 0) return null;
 
   const lowerName = rawName.toLowerCase();
   let best = null;
-  for (const r of results) {
+  for (const r of overrides) {
     const needle = r.original.toLowerCase();
     if (!needle) continue;
     const idx = lowerName.indexOf(needle);
@@ -211,7 +212,8 @@ async function _findRawOverrideMatch(rawName, env) {
 
 // [rev.23] 예외문구 없이 순수 토큰 번역만 수행 — 기존 _translateName 본문에 있던 토큰화+
 // 번역 로직을 재사용 가능하게 분리(예외문구 앞/뒤로 남는 원문 조각도 이 함수로 각각 번역)
-async function _translatePlainSegment(rawSegment, env) {
+// [rev.24] romanMap은 미리 불러온 Map — D1 조회 없이 동기로 처리.
+function _translatePlainSegment(rawSegment, romanMap) {
   const trimmed = rawSegment.trim();
   if (!trimmed) return { ok: true, hangul: "" };
 
@@ -264,7 +266,7 @@ async function _translatePlainSegment(rawSegment, env) {
     }
   }
 
-  return await _translateTokenSequence(tokens, delimTypes, hyphenFlags, env);
+  return _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap);
 }
 
 // [신규/rev.23] 배역명 문자열 하나를 번역 — ① cast_name_overrides에서 원문(rawName) 그대로
@@ -273,15 +275,14 @@ async function _translatePlainSegment(rawSegment, env) {
 // 원문에 실제 공백이 있었으면 그 자리만 띄우고(하이픈처럼 공백이 없던 자리는 그대로 붙임)
 // 이어붙임("Go Man-geun" → "고 만근", "middle School girl" → "중학교 소녀").
 // ② 매칭이 아예 없으면 전체를 _translatePlainSegment로 번역.
-async function _translateName(rawName, env) {
-  const match = await _findRawOverrideMatch(rawName, env);
+// [rev.24] dicts = { romanMap, overrides } — 배치 시작할 때 미리 불러온 것. D1 조회 없음.
+function _translateName(rawName, dicts) {
+  const match = _findRawOverrideMatch(rawName, dicts.overrides);
   if (match) {
     const rawPrefix = rawName.slice(0, match.start);
     const rawSuffix = rawName.slice(match.end);
-    const [beforeR, afterR] = await Promise.all([
-      _translatePlainSegment(rawPrefix, env),
-      _translatePlainSegment(rawSuffix, env),
-    ]);
+    const beforeR = _translatePlainSegment(rawPrefix, dicts.romanMap);
+    const afterR = _translatePlainSegment(rawSuffix, dicts.romanMap);
     if (beforeR.ok && afterR.ok) {
       const leftSep = match.start > 0 ? rawName[match.start - 1] : null;
       const rightSep = match.end < rawName.length ? rawName[match.end] : null;
@@ -302,56 +303,65 @@ async function _translateName(rawName, env) {
     return { ok: false, tokens: failedTokens };
   }
 
-  return await _translatePlainSegment(rawName, env);
+  return _translatePlainSegment(rawName, dicts.romanMap);
+}
+
+// [rev.24] 배치 시작할 때 romanization_map·cast_name_overrides를 딱 한 번만 통째로 불러와
+// 메모리에 올려둠 — 이후 배역 하나하나 번역할 때 D1을 더 이상 거치지 않도록 함
+async function _loadDicts(env) {
+  const [romanResult, overrideResult] = await Promise.all([
+    env.DB.prepare(`SELECT roman, hangul FROM romanization_map`).all(),
+    env.DB.prepare(`SELECT original, hangul FROM cast_name_overrides`).all(),
+  ]);
+  const romanMap = new Map();
+  for (const row of romanResult.results || []) {
+    romanMap.set(row.roman.toLowerCase(), row.hangul);
+  }
+  return { romanMap, overrides: overrideResult.results || [] };
 }
 
 // [2026-08-04 신규] 배치 실행 공용 함수 — retryFailed=false면 "한 번도 시도 안 한 것"만,
 // true면 "예전에 실패해서 character_name_ko_attempted=1로 표시된 것"만 대상으로 함.
 // 실패하면 character_name_ko_attempted=1로 표시해둬서, 다음부터 "자동번역배치"(미시도용)
 // 에는 안 걸리고 "미매칭 재시도" 버튼에서만 다시 만나도록 분리함.
+// [rev.24] 대상 목록 조회와 동시에 매칭표/예외표를 한 번만 불러오고(_loadDicts), 그 이후
+// 번역은 D1 조회 없이 메모리에서 동기로 처리 — 예전 5개씩 청크 병렬처리(rev.12)는 D1 왕복이
+// 없어져서 더 이상 필요 없어짐(청크 로직 제거, 그냥 한 번에 map)
 async function _runBatch(env, { afterId, limit, retryFailed }) {
   const attemptedCond = retryFailed
     ? "wc.character_name_ko_attempted = 1"
     : "wc.character_name_ko_attempted IS NULL";
 
-  const { results } = await env.DB.prepare(
-    `SELECT wc.id, wc.character_name, wc.name AS actor_name, w.title_ko
-     FROM work_cast wc
-     JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
-     WHERE w.original_language = 'ko'
-       AND wc.character_name_ko IS NULL
-       AND ${attemptedCond}
-       AND wc.character_name IS NOT NULL AND wc.character_name != ''
-       AND wc.id > ?
-     ORDER BY wc.id ASC
-     LIMIT ?`
-  ).bind(afterId, limit).all();
+  const [{ results }, dicts] = await Promise.all([
+    env.DB.prepare(
+      `SELECT wc.id, wc.character_name, wc.name AS actor_name, w.title_ko
+       FROM work_cast wc
+       JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
+       WHERE w.original_language = 'ko'
+         AND wc.character_name_ko IS NULL
+         AND ${attemptedCond}
+         AND wc.character_name IS NOT NULL AND wc.character_name != ''
+         AND wc.id > ?
+       ORDER BY wc.id ASC
+       LIMIT ?`
+    ).bind(afterId, limit).all(),
+    _loadDicts(env),
+  ]);
 
   const rows = results || [];
   const succeeded = [];
   const failed = [];
   let lastId = afterId;
 
-  // [rev.12] 5개씩 묶어서 동시 처리 — 청크 안에서는 병렬, 청크끼리는 순차로 진행해서
-  // D1에 한 번에 몰리는 요청 수를 5건 단위로 제한함(완전 동시는 과부하 위험, 완전 순차는 느림)
-  const CHUNK_SIZE = 5;
-  const translations = [];
-  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-    const chunk = rows.slice(i, i + CHUNK_SIZE);
-    const chunkResults = await Promise.all(
-      chunk.map((row) => {
-        if (/self|himself|herself/i.test(row.character_name)) {
-          return Promise.resolve(
-            row.actor_name
-              ? { ok: true, hangul: row.actor_name }
-              : { ok: false, tokens: ["(배우 한글이름 없음)"] }
-          );
-        }
-        return _translateName(row.character_name, env);
-      })
-    );
-    translations.push(...chunkResults);
-  }
+  // [rev.24] 매칭표/예외표가 이미 메모리에 있어서 D1 왕복 없이 동기로 바로 처리
+  const translations = rows.map((row) => {
+    if (/self|himself|herself/i.test(row.character_name)) {
+      return row.actor_name
+        ? { ok: true, hangul: row.actor_name }
+        : { ok: false, tokens: ["(배우 한글이름 없음)"] };
+    }
+    return _translateName(row.character_name, dicts);
+  });
 
   const updateStmts = [];
   rows.forEach((row, i) => {
