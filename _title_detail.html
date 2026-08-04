@@ -1,3 +1,5 @@
+<!-- 2026-08-05 rev.15 — _title_detail.html (출연진 카드 — 배역명에 "self"가 들어간 경우도
+     "역" 표기 안 붙이도록 확장, 본인이름 일치 조건과 함께 적용) -->
 <!-- 2026-08-05 rev.14 — _title_detail.html (출연진 카드 — 배역명이 배우 본인 이름과 같으면
      (예능 본인출연) "역" 표기 안 붙이도록 수정) -->
 <!-- 2026-08-05 rev.13 — _title_detail.html (출연진 배역명 점 색상을 연두색(#c3e65a)으로 변경,
@@ -3317,8 +3319,10 @@ async function loadTmdb(){
       // 배우 카드 렌더
       document.getElementById('castScroll').innerHTML=cast.map(p=>{
         const charText = p.character||p.roles?.[0]?.character||'';
-        // [2026-08-05 신규] 배역명이 배우 본인 이름과 같으면(예능 본인출연) "역" 안 붙임
-        const isSelfRole = charText.trim().toLowerCase() === (p.name||'').trim().toLowerCase();
+        // [2026-08-05 신규] 배역명이 배우 본인 이름과 같거나(예능 본인출연), "self"가 들어간
+        // 경우(Self, Self - Host, Self (archive footage) 등)도 "역" 안 붙임
+        const isSelfRole = charText.trim().toLowerCase() === (p.name||'').trim().toLowerCase()
+          || /self/i.test(charText);
         const roleHtml = charText ? `<span class="cast-role-dot"></span>${charText}${isSelfRole?'':' 역'}` : '';
         return `
         <a class="cast-card" href="${personUrl(p.id)}">
