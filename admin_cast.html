@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.15 — admin_cast.html ("작품별 배역 보기" — TMDB ID 숫자 검색 지원(제목이
+     비어있는 작품도 찾을 수 있음, work_cast.js rev.36 사용), 결과 제목 옆에 TMDB ID·미디어
+     타입 항상 표시(제목없음 작품 식별용), 안내문구/placeholder 갱신) -->
 <!-- 2026-08-05 rev.14 — admin_cast.html ("인물별 배역 보기" 탭 신규 추가 — 인물 이름(한글/영어)
      또는 TMDB ID로 검색, work_cast.js rev.35의 GET /admin/cast/by-person 사용. 인물별로
      구역 나눠서 출연작 전체 표시, 입력/저장은 기존 saveCastKo() 재사용. "전체 저장" 버튼을
@@ -203,9 +206,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div id="workTabPanel" style="display:none">
       <div class="card">
         <h2>작품명 검색 · 전체 배역 보기</h2>
-        <p class="desc">작품명을 입력하면(제목에 포함되기만 해도 검색돼요, 최대 10개 작품) 그 작품들에 등록된 배역이 전부 나와요. 각 배역 옆에서 바로 한글을 입력/수정할 수 있고, 다 입력한 뒤 "전체 저장"을 누르면 한 번에 저장돼요.</p>
+        <p class="desc">작품명(포함되기만 해도 검색돼요) 또는 TMDB ID 숫자를 입력하면(최대 10개 작품) 그 작품들에 등록된 배역이 전부 나와요. 제목이 비어있는 작품은 TMDB ID로 찾아주세요. 각 배역 옆에서 바로 한글을 입력/수정할 수 있고, 다 입력한 뒤 "전체 저장"을 누르면 한 번에 저장돼요.</p>
         <div style="display:flex;gap:8px">
-          <input class="form-input" id="workSearchInput" placeholder="예: 모범택시, 빈센조..." style="flex:1"
+          <input class="form-input" id="workSearchInput" placeholder="예: 모범택시, 빈센조, 12345... (TMDB ID)" style="flex:1"
             onkeydown="if(event.key==='Enter'){ event.preventDefault(); runWorkSearch(); }">
           <button class="btn-secondary" onclick="runWorkSearch()">검색</button>
         </div>
@@ -532,7 +535,8 @@ async function runWorkSearch(){
     box.innerHTML = data.data.map(w => `
       <div class="work-group">
         <div class="work-group-title">
-          ${escHtml(w.title_ko||'')}${w.year?` <span class="work-group-year">(${w.year})</span>`:''}
+          ${escHtml(w.title_ko||'(제목없음)')}${w.year?` <span class="work-group-year">(${w.year})</span>`:''}
+          <span class="work-group-year">TMDB ${w.tmdb_id} · ${w.media_type}</span>
           ${w.cast.length ? `<button class="btn-secondary" style="padding:3px 10px;font-size:11px;margin-left:8px" id="translateBtn-${w.tmdb_id}-${w.media_type}" onclick="translateWorkCast(${w.tmdb_id},'${w.media_type}',this)">🤖 자동번역</button>` : ''}
         </div>
         <div class="work-group-box">
