@@ -1,3 +1,7 @@
+/* 2026-08-05 rev.34 — work_cast.js (POST /admin/cast/translate-work 신규 — "작품별 배역
+   보기"에서 작품 하나를 지정해 그 작품의 미번역 배역만 자동번역 시도. partialMode=true로
+   최대한 채워보되, D1에는 저장하지 않고 결과만 반환(화면 확인 후 "전체 저장"으로 별도 저장
+   하기로 관리자와 합의)) */
 /* 2026-08-05 rev.33 — work_cast.js (POST /admin/cast/save-bulk 신규 — 여러 배역의 한글
    배역명을 한 번에 저장. env.DB.batch()로 UPDATE 일괄 처리, 최대 300개, 빈 값/유효하지
    않은 id는 조용히 걸러냄. admin_cast.html "작품별 배역 보기" 탭 "전체 저장" 버튼에서 사용) */
@@ -597,8 +601,67 @@ async function _runBatch(env, { afterId, limit, retryFailed }) {
   return { ok: true, succeeded, failed, remaining: remainRow?.cnt || 0, last_id: lastId };
 }
 
+// [2026-08-05 신규] "작품별 배역 보기"에서 작품 하나를 지정해서 그 작품의 미번역 배역만
+// 자동번역 — 커서 페이지네이션 없이 그 작품 것만 한 번에 처리. attempted 플래그와 무관하게
+// (예전에 실패했던 것도 포함) character_name_ko가 비어있는 건 전부 시도함. partialMode=true로
+// 돌려서(미매칭 재시도와 동일 방식) 최대한 채워보고, 결과는 저장하지 않고 돌려주기만 함 —
+// 화면에서 확인 후 "전체 저장"을 눌러야 실제로 저장되도록 관리자와 합의된 방식.
+async function _runBatchForWork(env, { tmdbId, mediaType }) {
+  const [{ results }, dicts] = await Promise.all([
+    env.DB.prepare(
+      `SELECT wc.id, wc.character_name, wc.name AS actor_name
+       FROM work_cast wc
+       WHERE wc.tmdb_id = ? AND wc.media_type = ? AND wc.role = 'cast'
+         AND wc.character_name_ko IS NULL
+         AND wc.character_name IS NOT NULL AND wc.character_name != ''
+       ORDER BY wc.billing_order ASC
+       LIMIT 300`
+    ).bind(tmdbId, mediaType).all(),
+    _loadDicts(env),
+  ]);
+
+  const rows = results || [];
+  const succeeded = [];
+  const failed = [];
+
+  rows.forEach((row) => {
+    let r;
+    if (/self|himself|herself/i.test(row.character_name)) {
+      r = row.actor_name
+        ? { ok: true, hangul: row.actor_name }
+        : { ok: false, tokens: ["(배우 한글이름 없음)"] };
+    } else {
+      r = _translateName(row.character_name, dicts, true); // partialMode=true — 최대한 채워보고 결과는 저장 안 함
+    }
+    if (r.ok) {
+      succeeded.push({ id: row.id, actor: row.actor_name, original: row.character_name, translated: r.hangul });
+    } else {
+      failed.push({ id: row.id, actor: row.actor_name, original: row.character_name, missing_tokens: r.tokens });
+    }
+  });
+
+  return { ok: true, succeeded, failed };
+}
+
 export async function handleWorkCast(path, request, env, url, headers) {
   try {
+    // ── POST /admin/cast/translate-work ─────────────────────────
+    // body: { tmdb_id, media_type }  — 작품 하나 지정해서 그 작품의 미번역 배역만 자동번역
+    // 시도. 결과는 D1에 저장하지 않고 그대로 돌려주기만 함(화면에서 확인 후 "전체 저장" 필요).
+    if (path === "/admin/cast/translate-work" && request.method === "POST") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+      }
+      const body = await request.json().catch(() => ({}));
+      const tmdbId = parseInt(body.tmdb_id);
+      const mediaType = (body.media_type || "").trim();
+      if (!tmdbId || !mediaType) {
+        return new Response(JSON.stringify({ ok: false, message: "tmdb_id와 media_type이 필요해요" }), { status: 400, headers });
+      }
+      const result = await _runBatchForWork(env, { tmdbId, mediaType });
+      return new Response(JSON.stringify(result), { headers });
+    }
+
     // ── POST /admin/cast/translate-batch ──────────────────────
     // body: { limit?, after_id? }  기본 30, 최대 100
     // "한 번도 시도 안 한 것"만 대상(character_name_ko_attempted가 아직 NULL인 것)
