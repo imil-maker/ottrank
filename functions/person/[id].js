@@ -1,3 +1,8 @@
+/* 2026-08-05 rev.9 — functions/person/[id].js (대표작 목록에 한글 배역명 반영 — "제목"만
+   나가던 것을 "제목(배역명 역)" 형태로 확장. work_cast를 D1에서 직접 조회(추가 API 호출
+   없음), 한글 있으면 한글 없으면 TMDB 영어 배역명 폴백. 감독/작가 크레딧은 배역 없어 제목만
+   유지. 빈 배역명/본인이름과 동일/"self" 포함 시엔 "역" 생략(화면 person.html과 동일 규칙).
+   description 문장과 JSON-LD knowsAbout 둘 다 topWorks를 그대로 재사용하므로 자동 반영됨) */
 /* 2026-08-03 rev.8 — functions/person/[id].js (persons.job_manual 오버라이드 반영 — 관리자가
    직접 입력한 직업이 있으면 자동판별(배우/감독/작가) 대신 그 값을 title/description/
    keywords/JSON-LD jobTitle에 우선 사용. workLabel(출연작/연출작/집필작)도 dept가 아니라
@@ -161,9 +166,27 @@ export async function onRequest(context) {
         /* 약력 앞 100자 */
         const bio       = bioSource.slice(0, 100).replace(/\n/g, ' ');
 
-        /* 출연작 상위 3개 (최신순) */
+        /* [2026-08-05 신규] 이 배우의 한글 배역명 미리 가져옴 — person.html이 화면에서 쓰는
+           GET /works/person-cast-ko와 동일한 데이터를, 여기선 D1을 직접 조회해서 재사용
+           (SSR이라 이미 D1 바인딩이 있고, 추가 API 호출 없이 바로 붙일 수 있음). */
+        let castKoMap = new Map();
+        if (env.DB) {
+          try {
+            const { results: koRows } = await env.DB.prepare(
+              `SELECT tmdb_id, media_type, character_name_ko FROM work_cast
+               WHERE person_tmdb_id = ? AND role = 'cast'
+                 AND character_name_ko IS NOT NULL AND character_name_ko != ''`
+            ).bind(personId).all();
+            (koRows || []).forEach(r => castKoMap.set(`${r.tmdb_id}_${r.media_type}`, r.character_name_ko));
+          } catch (e) { /* 실패해도 아래에서 영어 배역명으로 폴백되므로 조용히 무시 */ }
+        }
+
+        /* 출연작 상위 3개 (최신순) — [2026-08-05 수정] 제목만이 아니라 "제목(배역명 역)"
+           형태로 확장. 한글 배역명 있으면 그거, 없으면 TMDB 영어 배역명 그대로(화면과 동일
+           원칙). 감독/작가 등 크레딧(job)에는 배역이 없으니 제목만. 빈 배역명/본인이름과
+           동일/"self" 포함 시엔 "역"을 안 붙이는 것도 화면(person.html)과 동일하게 적용. */
         const credits   = data.combined_credits || {};
-        const topWorks  = [...(credits.cast || []), ...(credits.crew || [])]
+        const topWorks  = [...(credits.cast || []).map(w => ({ ...w, __isCast: true })), ...(credits.crew || [])]
           .filter(w => w.poster_path)
           .sort((a, b) => {
             const da = a.release_date || a.first_air_date || '0000';
@@ -171,7 +194,17 @@ export async function onRequest(context) {
             return db.localeCompare(da);
           })
           .slice(0, 3)
-          .map(w => w.title || w.name || '')
+          .map(w => {
+            const title = w.title || w.name || '';
+            if (!title) return '';
+            if (!w.__isCast) return title; // 연출/작가 크레딧엔 배역 없음
+            const koRole = castKoMap.get(`${w.id}_${w.media_type}`);
+            const roleRaw = koRole || w.character || '';
+            const isSelfRole = !roleRaw
+              || roleRaw.trim().toLowerCase() === name.trim().toLowerCase()
+              || /self/i.test(roleRaw);
+            return isSelfRole ? title : `${title}(${roleRaw} 역)`;
+          })
           .filter(Boolean);
 
         /* 프로필 이미지 */
