@@ -1,3 +1,6 @@
+/* 2026-08-05 rev.33 — work_cast.js (POST /admin/cast/save-bulk 신규 — 여러 배역의 한글
+   배역명을 한 번에 저장. env.DB.batch()로 UPDATE 일괄 처리, 최대 300개, 빈 값/유효하지
+   않은 id는 조용히 걸러냄. admin_cast.html "작품별 배역 보기" 탭 "전체 저장" 버튼에서 사용) */
 /* 2026-08-05 rev.32 — work_cast.js (GET /admin/cast/by-work 신규 — 작품명 검색(포함매칭,
    언어제한 없음, 최대 10개 작품)으로 그 작품들의 배역 전체를 그룹으로 반환. 작품당 배역
    조회는 env.DB.batch()로 한 번에 처리. admin_cast.html 신규 탭 "작품별 배역 보기"에서 사용) */
@@ -672,6 +675,37 @@ export async function handleWorkCast(path, request, env, url, headers) {
         `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'manual' WHERE id = ?`
       ).bind(ko, id).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
+    }
+
+    // ── POST /admin/cast/save-bulk ──────────────────────────────
+    // [2026-08-05 신규] 여러 배역을 한 번에 저장 — "작품별 배역 보기"에서 하나씩 저장 버튼
+    // 누르기 번거로운 문제 해결. body: { items: [{id, character_name_ko}, ...] }
+    if (path === "/admin/cast/save-bulk" && request.method === "POST") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+      }
+      const body = await request.json().catch(() => ({}));
+      const items = Array.isArray(body.items) ? body.items : [];
+      // id 유효 + 한글 값이 실제로 있는 것만 골라냄 (한 화면에 있던 빈 입력칸까지 저장 시도하지 않도록)
+      const valid = items
+        .map(it => ({ id: parseInt(it.id), ko: (it.character_name_ko || "").trim() }))
+        .filter(it => it.id && it.ko);
+      if (!valid.length) {
+        return new Response(JSON.stringify({ ok: false, message: "저장할 항목이 없어요" }), { status: 400, headers });
+      }
+      if (valid.length > 300) {
+        return new Response(JSON.stringify({ ok: false, message: "한 번에 최대 300개까지 저장할 수 있어요" }), { status: 400, headers });
+      }
+      try {
+        await env.DB.batch(
+          valid.map(it => env.DB.prepare(
+            `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'manual' WHERE id = ?`
+          ).bind(it.ko, it.id))
+        );
+        return new Response(JSON.stringify({ ok: true, updated: valid.length }), { headers });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+      }
     }
 
     // ── GET /admin/cast/by-work?q=... ───────────────────────────
