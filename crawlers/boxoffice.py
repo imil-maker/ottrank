@@ -1,5 +1,11 @@
 """극장 박스오피스 크롤러 - KOBIS(영화진흥위원회) 오픈API 직접 연동
 ────────────────────────────────────────────────────────────────
+2026-08-04 rev.3 — boxoffice.py (boxoffice_stats.target_date 컬럼 신규 저장 — 지금까지
+  date 컬럼엔 "크롤링을 실행한 날"이 저장되고 있었는데, 상세페이지에서 "이게 실제로 며칠
+  순위인지"를 보여주려면 KOBIS에 요청할 때 쓴 실제 집계일(target_dt, 항상 어제)이 필요함.
+  _fetch_kobis_daily()가 이미 계산해둔 target_dt를 반환하도록 수정하고, 저장 함수까지
+  그대로 넘겨서 target_date 컬럼(YYYY-MM-DD 형식으로 변환)에 저장. date 컬럼(크롤링 저장일)
+  은 기존 그대로 안 건드림)
 2026-08-02 rev.2 — boxoffice.py (KOBIS 접속 타임아웃 시 즉시 포기하지 않고
   5초 간격으로 최대 3번까지 그 자리에서 재시도하도록 수정 — 하루 3회 스케줄
   중 한 회차가 통째로 실패해도 몇 초 안에 자체 복구되도록 함. 재시도 로직만
@@ -56,18 +62,20 @@ def _get_target_dt() -> str:
     return yesterday.strftime("%Y%m%d")
 
 
-def _fetch_kobis_daily() -> list[dict]:
+def _fetch_kobis_daily() -> tuple[str, list[dict]]:
     """
-    KOBIS 일별 박스오피스 API 호출 → 파싱된 리스트 반환
-    실패/데이터 미확정 시 빈 리스트 반환 → 크롤러는 조용히 스킵하고
-    같은 날 다음 회차가 재시도하도록 함 (하루 4회 스케줄 중 몇 회가
+    KOBIS 일별 박스오피스 API 호출 → (target_dt, 파싱된 리스트) 반환
+    실패/데이터 미확정 시 (target_dt, 빈 리스트) 반환 → 크롤러는 조용히 스킵하고
+    같은 날 다음 회차가 재시도하도록 함 (하루 5회 스케줄 중 몇 회가
     유실돼도 targetDt=어제 고정이라 자동으로 채워짐)
+    [rev.3] target_dt도 같이 반환 — boxoffice_stats.target_date 저장에 사용
     """
+    target_dt = _get_target_dt()
+
     if not KOBIS_API_KEY:
         print("  [박스오피스] KOBIS_API_KEY 없음 → 스킵")
-        return []
+        return target_dt, []
 
-    target_dt = _get_target_dt()
     params = {
         "key": KOBIS_API_KEY,
         "targetDt": target_dt,
@@ -95,18 +103,18 @@ def _fetch_kobis_daily() -> list[dict]:
 
     if data is None:
         print(f"  [박스오피스] {MAX_ATTEMPTS}번 모두 실패 → 이번 회차는 스킵")
-        return []
+        return target_dt, []
 
     # KOBIS는 키 오류/날짜 형식 오류 시 boxOfficeResult 대신 faultInfo를 반환
     if "faultInfo" in data:
         fault = data["faultInfo"]
         print(f"  [박스오피스] KOBIS API 오류 응답: {fault.get('message', '알 수 없음')}")
-        return []
+        return target_dt, []
 
     raw_list = data.get("boxOfficeResult", {}).get("dailyBoxOfficeList", [])
     if not raw_list:
         print(f"  [박스오피스] {target_dt} 데이터 없음(아직 미확정 가능) → 스킵")
-        return []
+        return target_dt, []
 
     parsed = []
     for item in raw_list:
@@ -131,7 +139,7 @@ def _fetch_kobis_daily() -> list[dict]:
             continue
 
     print(f"  [박스오피스] KOBIS {target_dt} — {len(parsed)}개 수집")
-    return parsed
+    return target_dt, parsed
 
 
 # ══════════════════════════════════════════════════════════════
@@ -168,20 +176,24 @@ def _save_boxoffice_ranking(conn: sqlite3.Connection, rank: int, title_ko: str, 
     conn.commit()
 
 
-def _save_boxoffice_stats(conn: sqlite3.Connection, tmdb_id: int, item: dict, crawl_date: str):
+def _save_boxoffice_stats(conn: sqlite3.Connection, tmdb_id: int, item: dict, crawl_date: str, target_date: str):
     """
     boxoffice_stats 테이블에 관객수/매출/스크린수 등 상세 지표 저장
     tmdb_id 매칭에 성공한 작품만 저장 (매칭 실패 작품은 어느 상세페이지에
     연결할지 알 수 없으므로 저장하지 않음)
     UNIQUE(tmdb_id, date) 기준 UPSERT — 같은 날 여러 회차가 돌아도 최신값으로 덮어씀
+    [rev.3] target_date — 실제 이 지표가 집계된 날짜(KOBIS targetDt, 항상 어제).
+    crawl_date(date 컬럼, 크롤링 실행일)와는 별개로 저장 — 상세페이지에서
+    "몇 월 며칠 순위인지" 정확히 보여주는 용도
     """
     conn.execute("""
         INSERT INTO boxoffice_stats
-            (tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+            (tmdb_id, movie_cd, date, target_date, rank, rank_inten, rank_old_and_new,
              audi_cnt, audi_acc, audi_change, sales_amt, sales_share, scrn_cnt, show_cnt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id, date) DO UPDATE SET
             movie_cd         = excluded.movie_cd,
+            target_date      = excluded.target_date,
             rank             = excluded.rank,
             rank_inten       = excluded.rank_inten,
             rank_old_and_new = excluded.rank_old_and_new,
@@ -193,7 +205,7 @@ def _save_boxoffice_stats(conn: sqlite3.Connection, tmdb_id: int, item: dict, cr
             scrn_cnt         = excluded.scrn_cnt,
             show_cnt         = excluded.show_cnt
     """, (
-        tmdb_id, item["movie_cd"], crawl_date,
+        tmdb_id, item["movie_cd"], crawl_date, target_date,
         item["rank"], item["rank_inten"], item["rank_old_and_new"],
         item["audi_cnt"], item["audi_acc"], item["audi_change"],
         item["sales_amt"], item["sales_share"], item["scrn_cnt"], item["show_cnt"],
@@ -207,13 +219,15 @@ def _save_boxoffice_stats(conn: sqlite3.Connection, tmdb_id: int, item: dict, cr
 
 async def run(conn):
     print("\n[박스오피스] KOBIS 오픈API 수집 중...")
-    items = _fetch_kobis_daily()
+    target_dt, items = _fetch_kobis_daily()
 
     if not items:
         print("  [박스오피스] 처리할 데이터 없음")
         return
 
     crawl_date = get_today()
+    # [rev.3] target_dt는 "yyyymmdd"(KOBIS 요청용) → date 컬럼과 동일한 "YYYY-MM-DD" 형식으로 변환
+    target_date = f"{target_dt[0:4]}-{target_dt[4:6]}-{target_dt[6:8]}"
 
     for item in items:
         rank     = item["rank"]
@@ -247,7 +261,7 @@ async def run(conn):
 
         # boxoffice_stats는 tmdb_id 확보된 작품만 저장
         if tmdb_data and tmdb_data.get("tmdb_id"):
-            _save_boxoffice_stats(conn, tmdb_data["tmdb_id"], item, crawl_date)
+            _save_boxoffice_stats(conn, tmdb_data["tmdb_id"], item, crawl_date, target_date)
 
     print(f"  [박스오피스] {len(items)}개 처리 완료")
 
