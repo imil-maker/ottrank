@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.9 — admin_cast.html (배역 검색이 영어(character_name)만 되던 것을
+     한글(character_name_ko)도 같이 검색되게 한 work_cast.js rev.31에 맞춰 카드 제목/설명/
+     placeholder 문구 갱신. 검색 로직 자체는 백엔드에서만 바뀜, 이 파일은 문구만 수정) -->
 <!-- 2026-08-04 rev.8 — admin_cast.html ("📋 미매칭 목록 보기" 버튼 신규 — 번역 재시도(오래
      걸림) 없이, 지금 미매칭으로 남아있는 배역만 빠르게 조회. work_cast.js rev.25의
      GET /admin/cast/unmatched-list 사용, "더 보기"로 다음 페이지 이어서 조회) -->
@@ -149,10 +152,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     </div>
 
     <div class="card">
-      <h2>영어 배역명 검색 · 수동 수정</h2>
-      <p class="desc">영어 배역명 앞부분으로 검색해서, 바로 한글을 입력/수정할 수 있어요.</p>
+      <h2>배역명 검색 · 수동 수정</h2>
+      <p class="desc">영어·한글 배역명 앞부분으로 검색해서, 바로 한글을 입력/수정할 수 있어요. (검색 결과에 작품명이 같이 나오니, 같은 배역명이 여러 작품에 있어도 작품별로 구분해서 수정할 수 있어요)</p>
       <div style="display:flex;gap:8px">
-        <input class="form-input" id="castSearchInput" placeholder="예: Detective, Kang..." style="flex:1"
+        <input class="form-input" id="castSearchInput" placeholder="예: Detective, Kang, 형사..." style="flex:1"
           onkeydown="if(event.key==='Enter'){ event.preventDefault(); runCastSearch(); }">
         <button class="btn-secondary" onclick="runCastSearch()">검색</button>
       </div>
