@@ -1,3 +1,6 @@
+/* 2026-08-05 rev.32 — work_cast.js (GET /admin/cast/by-work 신규 — 작품명 검색(포함매칭,
+   언어제한 없음, 최대 10개 작품)으로 그 작품들의 배역 전체를 그룹으로 반환. 작품당 배역
+   조회는 env.DB.batch()로 한 번에 처리. admin_cast.html 신규 탭 "작품별 배역 보기"에서 사용) */
 /* 2026-08-05 rev.31 — work_cast.js (GET /admin/cast/search — 영어(character_name)만 검색되던
    것을 한글(character_name_ko)도 같이 검색되도록 확장. OR 조건으로 둘 중 하나만 앞부분
    일치해도 결과에 포함. 이미 결과 행마다 작품명(title_ko)이 같이 나와서 작품별 구분/수정은
@@ -669,6 +672,51 @@ export async function handleWorkCast(path, request, env, url, headers) {
         `UPDATE work_cast SET character_name_ko = ?, character_name_ko_source = 'manual' WHERE id = ?`
       ).bind(ko, id).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
+    }
+
+    // ── GET /admin/cast/by-work?q=... ───────────────────────────
+    // [2026-08-05 신규] 작품명 검색(포함 매칭, 언어 제한 없음) → 최대 10개 작품, 각 작품의
+    // 배역 전체를 그룹으로 묶어서 반환. 배역명 검색과 반대 방향(작품 기준으로 훑어보기용).
+    if (path === "/admin/cast/by-work" && request.method === "GET") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+      }
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
+      }
+      try {
+        const worksRes = await env.DB.prepare(
+          `SELECT tmdb_id, media_type, title_ko, release_date
+           FROM works
+           WHERE title_ko LIKE ? ESCAPE '\\'
+           ORDER BY release_date DESC
+           LIMIT 10`
+        ).bind(`%${q}%`).all();
+        const works = worksRes.results || [];
+        if (!works.length) {
+          return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
+        }
+        // 작품별로 배역 목록을 한 번에(batch) 조회 — 작품 최대 10개라 쿼리도 최대 10개로 제한됨
+        const castResults = await env.DB.batch(
+          works.map(w => env.DB.prepare(
+            `SELECT id, character_name, character_name_ko, character_name_ko_source, name AS actor_name
+             FROM work_cast
+             WHERE tmdb_id = ? AND media_type = ? AND role = 'cast'
+             ORDER BY billing_order ASC`
+          ).bind(w.tmdb_id, w.media_type))
+        );
+        const data = works.map((w, i) => ({
+          tmdb_id: w.tmdb_id,
+          media_type: w.media_type,
+          title_ko: w.title_ko,
+          year: (w.release_date || "").slice(0, 4),
+          cast: castResults[i].results || [],
+        }));
+        return new Response(JSON.stringify({ ok: true, data }), { headers });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+      }
     }
 
     // ── GET /admin/cast/search?q=... ──────────────────────────
