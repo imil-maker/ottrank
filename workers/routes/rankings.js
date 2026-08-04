@@ -1,3 +1,7 @@
+/* 2026-08-04 rev.5 — rankings.js (/rankings/boxoffice-stats/:tmdb_id — 날짜 상관없이 "가장
+   최근 1건"을 무조건 반환하던 문제 수정. 개봉 전 시사회 데이터처럼 오래된 기록 하나만 있으면
+   몇 주가 지나도 계속 그 값이 상세페이지에 남아있었음. 최근 3일 이내 데이터만 대상으로
+   제한하고, 그 안에서 가장 최근 것을 반환하도록 WHERE 조건 추가) */
 /* 2026-07-28 rev.4 — rankings.js (/rankings/history — rank<=10 제한 추가, 티빙 등 순위 상한 없던 플랫폼도 진짜 TOP10만 카운트되게 수정) */
 /* ══════════════════════════════════════════════════════════════
    랭킹 관련 API 라우트
@@ -739,9 +743,9 @@ export async function handleRankings(path, request, env, url, headers) {
   }
 
   // ── GET /rankings/boxoffice-stats/:tmdb_id ───────────────────
-  // 작품 상세페이지용 — 해당 작품의 가장 최근 KOBIS 박스오피스 지표 1건
-  // (2026-07-19 신설) boxoffice_stats는 tmdb_id+date UNIQUE라 ORDER BY date DESC LIMIT 1로
-  // 자동으로 인덱스를 탐 (별도 인덱스 추가 불필요 — 유니크 제약이 인덱스 역할)
+  // 작품 상세페이지용 — 해당 작품의 "최근 3일 이내" KOBIS 박스오피스 지표 중 가장 최근 1건
+  // (2026-07-19 신설, 2026-08-04 rev.5 — 3일 이내 조건 추가: 오래된 시사회 데이터 하나만
+  // 있으면 몇 주가 지나도 계속 보이던 문제 수정)
   if (path.startsWith("/rankings/boxoffice-stats/") && request.method === "GET") {
     const tmdb_id = parseInt(path.split("/rankings/boxoffice-stats/")[1]);
     if (!tmdb_id) {
@@ -754,6 +758,7 @@ export async function handleRankings(path, request, env, url, headers) {
                scrn_cnt, show_cnt
         FROM boxoffice_stats
         WHERE tmdb_id = ?
+          AND date >= date('now', 'localtime', '-3 days')
         ORDER BY date DESC
         LIMIT 1
       `).bind(tmdb_id).all();
