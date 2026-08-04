@@ -182,6 +182,7 @@ function rt(i,s,t){if(!s.length)return i.slice(0,t).map((c,d)=>({...c,rank:d+1})
                scrn_cnt, show_cnt
         FROM boxoffice_stats
         WHERE tmdb_id = ?
+          AND date >= date('now', 'localtime', '-3 days')
         ORDER BY date DESC
         LIMIT 1
       `).bind(r).all();return new Response(JSON.stringify({ok:!0,data:o[0]||null}),{headers:e})}catch(o){return new Response(JSON.stringify({ok:!1,message:o.message}),{status:500,headers:e})}}if(i.startsWith("/rankings/manual/")&&s.method==="GET"){let r=parseInt(i.split("/rankings/manual/")[1]);if(!r)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:e});try{let{results:o}=await t.DB.prepare(`
