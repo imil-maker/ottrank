@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.12 — admin_cast.html ("작품별 배역 보기" 각 작품 제목 옆에 "🤖 자동번역"
+     버튼 신규 — work_cast.js rev.34의 POST /admin/cast/translate-work 사용. 번역 결과는
+     입력칸에만 채워지고 저장은 안 됨(자동번역이 완벽하지 않아 확인 후 "전체 저장"으로
+     별도 저장하기로 합의)) -->
 <!-- 2026-08-05 rev.11 — admin_cast.html ("작품별 배역 보기" 탭에 "💾 전체 저장" 버튼 신규 —
      화면에 입력해둔 한글 배역명을 한 번씩 저장 안 눌러도, 한 번에 전부 저장. work_cast.js
      rev.33의 POST /admin/cast/save-bulk 사용. 빈 입력칸은 조용히 걸러내고 전송) -->
@@ -485,7 +489,10 @@ async function runWorkSearch(){
     }
     box.innerHTML = data.data.map(w => `
       <div class="work-group">
-        <div class="work-group-title">${escHtml(w.title_ko||'')}${w.year?` <span class="work-group-year">(${w.year})</span>`:''}</div>
+        <div class="work-group-title">
+          ${escHtml(w.title_ko||'')}${w.year?` <span class="work-group-year">(${w.year})</span>`:''}
+          ${w.cast.length ? `<button class="btn-secondary" style="padding:3px 10px;font-size:11px;margin-left:8px" id="translateBtn-${w.tmdb_id}-${w.media_type}" onclick="translateWorkCast(${w.tmdb_id},'${w.media_type}',this)">🤖 자동번역</button>` : ''}
+        </div>
         <div class="work-group-box">
           ${w.cast.length ? w.cast.map(r => `
             <div class="result-row">
@@ -501,6 +508,32 @@ async function runWorkSearch(){
     saveBar.style.display = data.data.some(w => w.cast.length) ? 'block' : 'none';
   }catch(e){
     box.innerHTML = `<div style="padding:14px;font-size:13px;color:var(--accent)">오류: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function translateWorkCast(tmdbId, mediaType, btn){
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '번역 중...';
+  try{
+    const res = await fetch(`${API}/admin/cast/translate-work`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, media_type: mediaType }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    // 성공한 것만 화면 입력칸에 채워줌 — 저장은 안 됨, "전체 저장"을 따로 눌러야 저장됨
+    (data.succeeded||[]).forEach(r => {
+      const inp = document.getElementById(`castKo-${r.id}`);
+      if(inp) inp.value = r.translated;
+    });
+    showToast(`✅ ${data.succeeded.length}개 번역됨, ⚠️ ${data.failed.length}개 미매칭 — 확인 후 전체 저장을 눌러주세요`);
+  }catch(e){
+    showToast(`❌ 번역 실패: ${e.message}`);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 
