@@ -1955,14 +1955,18 @@ ${D.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
              FROM work_cast wc
              JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
              WHERE wc.person_tmdb_id = ? AND wc.role = 'cast'
-             ORDER BY w.release_date DESC`).bind(u.person_tmdb_id))),l=c.map((u,w)=>({person_tmdb_id:u.person_tmdb_id,name:u.name_ko||u.actor_name,works:(_[w].results||[]).map(E=>({id:E.id,title_ko:E.title_ko,year:(E.release_date||"").slice(0,4),character_name:E.character_name,character_name_ko:E.character_name_ko,character_name_ko_source:E.character_name_ko_source}))}));return new Response(JSON.stringify({ok:!0,data:l}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(i==="/admin/cast/by-work"&&s.method==="GET"){if(!h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});let n=(f.searchParams.get("q")||"").trim();if(!n)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:e});try{let o=(await t.DB.prepare(`SELECT tmdb_id, media_type, title_ko, release_date
-           FROM works
-           WHERE title_ko LIKE ? ESCAPE '\\'
-           ORDER BY release_date DESC
-           LIMIT 10`).bind(`%${n}%`).all()).results||[];if(!o.length)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:e});let c=await t.DB.batch(o.map(l=>t.DB.prepare(`SELECT id, character_name, character_name_ko, character_name_ko_source, name AS actor_name
+             ORDER BY w.release_date DESC`).bind(u.person_tmdb_id))),l=c.map((u,w)=>({person_tmdb_id:u.person_tmdb_id,name:u.name_ko||u.actor_name,works:(_[w].results||[]).map(E=>({id:E.id,title_ko:E.title_ko,year:(E.release_date||"").slice(0,4),character_name:E.character_name,character_name_ko:E.character_name_ko,character_name_ko_source:E.character_name_ko_source}))}));return new Response(JSON.stringify({ok:!0,data:l}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(i==="/admin/cast/by-work"&&s.method==="GET"){if(!h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});let n=(f.searchParams.get("q")||"").trim();if(!n)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:e});try{let c=(/^\d+$/.test(n)?await t.DB.prepare(`SELECT tmdb_id, media_type, title_ko, release_date
+               FROM works
+               WHERE tmdb_id = ?
+               ORDER BY release_date DESC
+               LIMIT 10`).bind(parseInt(n)).all():await t.DB.prepare(`SELECT tmdb_id, media_type, title_ko, release_date
+               FROM works
+               WHERE title_ko LIKE ? ESCAPE '\\'
+               ORDER BY release_date DESC
+               LIMIT 10`).bind(`%${n}%`).all()).results||[];if(!c.length)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:e});let _=await t.DB.batch(c.map(u=>t.DB.prepare(`SELECT id, character_name, character_name_ko, character_name_ko_source, name AS actor_name
              FROM work_cast
              WHERE tmdb_id = ? AND media_type = ? AND role = 'cast'
-             ORDER BY billing_order ASC`).bind(l.tmdb_id,l.media_type))),_=o.map((l,u)=>({tmdb_id:l.tmdb_id,media_type:l.media_type,title_ko:l.title_ko,year:(l.release_date||"").slice(0,4),cast:c[u].results||[]}));return new Response(JSON.stringify({ok:!0,data:_}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(i==="/admin/cast/search"&&s.method==="GET"){if(!h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});let n=(f.searchParams.get("q")||"").trim();if(!n)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:e});let{results:d}=await t.DB.prepare(`SELECT wc.id, wc.character_name, wc.character_name_ko, wc.character_name_ko_source,
+             ORDER BY billing_order ASC`).bind(u.tmdb_id,u.media_type))),l=c.map((u,w)=>({tmdb_id:u.tmdb_id,media_type:u.media_type,title_ko:u.title_ko,year:(u.release_date||"").slice(0,4),cast:_[w].results||[]}));return new Response(JSON.stringify({ok:!0,data:l}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(i==="/admin/cast/search"&&s.method==="GET"){if(!h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});let n=(f.searchParams.get("q")||"").trim();if(!n)return new Response(JSON.stringify({ok:!0,data:[]}),{headers:e});let{results:d}=await t.DB.prepare(`SELECT wc.id, wc.character_name, wc.character_name_ko, wc.character_name_ko_source,
                 wc.name AS actor_name, w.title_ko
          FROM work_cast wc
          JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
