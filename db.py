@@ -1,5 +1,8 @@
 """
 오뜨랑 DB + TMDB 매칭 모듈 v3
+# 2026-08-04 rev.5 — db.py (boxoffice_stats에 target_date 컬럼 추가 — 실제 박스오피스 집계일
+#   저장용(date 컬럼은 크롤링 저장일로 그대로 유지). CREATE TABLE에 반영 + 기존 로컬
+#   rankings.db에도 자동으로 컬럼 추가되도록 migrations 목록에 ALTER TABLE 추가)
 # 2026-08-02 rev.4 — db.py (안전장치 추가: lookup_works/lookup_works_by_tmdb_id가 시즌
 #   컬럼 조회 실패(sqlite3.OperationalError, 배포 순서 꼬여서 sync_works.py 마이그레이션이
 #   아직 안 돈 경우 등) 시 예외로 죽지 않고 예전 컬럼만으로 폴백 — 크롤링/랭킹 업데이트
@@ -195,12 +198,15 @@ def init_db() -> sqlite3.Connection:
     # boxoffice_stats 테이블 (KOBIS 박스오피스 상세 지표 — 관객수/매출/스크린수 등)
     # tmdb_id + date 유니크 → 하루에 한 작품당 한 줄, 최신순 조회 시 자동 인덱싱
     # ⚠️ D1(Cloudflare)에는 동일 구조로 이미 마이그레이션 적용 완료 (2026-07-18)
+    # target_date: 실제 이 지표가 집계된 날짜(KOBIS targetDt, 항상 어제) — date(크롤링
+    # 저장일)와는 별개. 2026-08-04 D1에 마이그레이션 적용 완료
     conn.execute("""
         CREATE TABLE IF NOT EXISTS boxoffice_stats (
             id                INTEGER PRIMARY KEY AUTOINCREMENT,
             tmdb_id           INTEGER NOT NULL,
             movie_cd          TEXT,
             date              TEXT NOT NULL,
+            target_date       TEXT,
             rank              INTEGER,
             rank_inten        INTEGER,
             rank_old_and_new  TEXT,
@@ -238,6 +244,7 @@ def init_db() -> sqlite3.Connection:
         "ALTER TABLE works ADD COLUMN confidence_score INTEGER DEFAULT 100",
         "ALTER TABLE works ADD COLUMN first_matched_date TEXT",
         "ALTER TABLE works ADD COLUMN keywords TEXT DEFAULT ''",
+        "ALTER TABLE boxoffice_stats ADD COLUMN target_date TEXT",
     ]
     for sql in migrations:
         try:
