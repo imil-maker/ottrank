@@ -1,3 +1,6 @@
+/* 2026-08-05 rev.35 — work_cast.js (GET /admin/cast/by-person 신규 — 인물 이름(한글/영어)
+   또는 TMDB ID 숫자로 검색해서 그 배우들이 맡은 배역 전체를 작품별로 반환. by-work의 인물
+   버전, 최대 10명, persons.name_ko와 LEFT JOIN해서 한글 이름으로도 검색 가능) */
 /* 2026-08-05 rev.34 — work_cast.js (POST /admin/cast/translate-work 신규 — "작품별 배역
    보기"에서 작품 하나를 지정해 그 작품의 미번역 배역만 자동번역 시도. partialMode=true로
    최대한 채워보되, D1에는 저장하지 않고 결과만 반환(화면 확인 후 "전체 저장"으로 별도 저장
@@ -766,6 +769,69 @@ export async function handleWorkCast(path, request, env, url, headers) {
           ).bind(it.ko, it.id))
         );
         return new Response(JSON.stringify({ ok: true, updated: valid.length }), { headers });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+      }
+    }
+
+    // ── GET /admin/cast/by-person?q=... ─────────────────────────
+    // [2026-08-05 신규] 인물 이름(한글/영어) 또는 TMDB ID 숫자로 검색 → 최대 10명, 그 배우들이
+    // 맡았던 배역 전체를 작품별로 묶어서 반환. 작품명 검색(by-work)의 인물 버전.
+    // 숫자만 입력하면 TMDB ID 정확히 일치로 찾고, 그 외엔 이름 포함매칭(영어/한글 둘 다).
+    if (path === "/admin/cast/by-person" && request.method === "GET") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+      }
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) {
+        return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
+      }
+      try {
+        const isId = /^\d+$/.test(q);
+        const personsRes = isId
+          ? await env.DB.prepare(
+              `SELECT DISTINCT wc.person_tmdb_id, wc.name AS actor_name, p.name_ko
+               FROM work_cast wc
+               LEFT JOIN persons p ON p.tmdb_id = wc.person_tmdb_id
+               WHERE wc.role = 'cast' AND wc.person_tmdb_id = ?
+               LIMIT 10`
+            ).bind(parseInt(q)).all()
+          : await env.DB.prepare(
+              `SELECT DISTINCT wc.person_tmdb_id, wc.name AS actor_name, p.name_ko
+               FROM work_cast wc
+               LEFT JOIN persons p ON p.tmdb_id = wc.person_tmdb_id
+               WHERE wc.role = 'cast' AND (wc.name LIKE ? ESCAPE '\\' OR p.name_ko LIKE ? ESCAPE '\\')
+               LIMIT 10`
+            ).bind(`%${q}%`, `%${q}%`).all();
+
+        const persons = personsRes.results || [];
+        if (!persons.length) {
+          return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
+        }
+        // 인물별로 출연작 전체(작품명 포함)를 한 번에(batch) 조회
+        const worksResults = await env.DB.batch(
+          persons.map(p => env.DB.prepare(
+            `SELECT wc.id, wc.character_name, wc.character_name_ko, wc.character_name_ko_source,
+                    w.title_ko, w.release_date
+             FROM work_cast wc
+             JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
+             WHERE wc.person_tmdb_id = ? AND wc.role = 'cast'
+             ORDER BY w.release_date DESC`
+          ).bind(p.person_tmdb_id))
+        );
+        const data = persons.map((p, i) => ({
+          person_tmdb_id: p.person_tmdb_id,
+          name: p.name_ko || p.actor_name,
+          works: (worksResults[i].results || []).map(r => ({
+            id: r.id,
+            title_ko: r.title_ko,
+            year: (r.release_date || "").slice(0, 4),
+            character_name: r.character_name,
+            character_name_ko: r.character_name_ko,
+            character_name_ko_source: r.character_name_ko_source,
+          })),
+        }));
+        return new Response(JSON.stringify({ ok: true, data }), { headers });
       } catch (e) {
         return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
       }
