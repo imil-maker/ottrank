@@ -1,3 +1,6 @@
+<!-- 2026-08-05 rev.11 — admin.html (회원 관리 리스트 페이지네이션 추가 —
+     50명씩 페이지 나눠서 표시, 표 아래 페이지 번호 버튼(후기 관리와 동일 패턴),
+     검색/새로고침 시 1페이지로 복귀. admin.js total 응답 반영) -->
 <!-- 2026-08-04 rev.10 — admin.html (works 관리 탭 옆에 🎭 배역 관리 탭 신규 추가,
      admin_cast.html로 이동하는 링크 연결) -->
 <!-- 2026-08-02 rev.9 — admin.html (버그1 근본수정 — 랭킹 수정모달 오픈 시
@@ -967,6 +970,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         </tbody>
       </table>
     </div>
+    <div class="filter-tabs" id="userPagination" style="margin-top:14px"></div>
   </div>
 
   <!-- 서브패널 2: 등급 설정 (기존 gradeSection 내용을 그대로 이동) -->
@@ -3952,18 +3956,22 @@ async function saveAllGrades() {
 // ════════════════════════════════════════════════════
 // 회원 관리
 // ════════════════════════════════════════════════════
-async function loadUsers(search = '') {
+const USER_ADMIN_LIMIT = 50;
+async function loadUsers(page = 1) {
   const el = document.getElementById('usersTableBody');
   el.innerHTML = '<tr><td colspan="11" class="loading">불러오는 중...</td></tr>';
   try {
-    const q = search || document.getElementById('userSearchInp')?.value.trim() || '';
-    const url = `${API}/admin/users?page=1` + (q ? `&q=${encodeURIComponent(q)}` : '');
+    const q = document.getElementById('userSearchInp')?.value.trim() || '';
+    const url = `${API}/admin/users?page=${page}` + (q ? `&q=${encodeURIComponent(q)}` : '');
     const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     const json = await res.json();
     const data = json.data || [];
-    document.getElementById('userStat').textContent = `${data.length}명 표시`;
+    const total = json.total ?? data.length;
+    document.getElementById('userStat').textContent = `총 ${total}명`;
     if (!data.length) {
-      el.innerHTML = '<tr><td colspan="11" class="empty">회원 없음</td></tr>'; return;
+      el.innerHTML = '<tr><td colspan="11" class="empty">회원 없음</td></tr>';
+      document.getElementById('userPagination').innerHTML = '';
+      return;
     }
     el.innerHTML = data.map(u => `
       <tr>
@@ -3989,14 +3997,24 @@ async function loadUsers(search = '') {
         </td>
       </tr>
     `).join('');
+    renderUserPagination(page, total);
   } catch(e) {
     el.innerHTML = `<tr><td colspan="11" class="empty">오류: ${e.message}</td></tr>`;
   }
 }
 
+function renderUserPagination(curPage, total) {
+  const el = document.getElementById('userPagination');
+  const totalPages = Math.ceil(total / USER_ADMIN_LIMIT);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = Array.from({ length: totalPages }, (_, i) => i + 1)
+    .map(p => `<button class="ftab${p === curPage ? ' on' : ''}" onclick="loadUsers(${p})">${p}</button>`)
+    .join('');
+}
+
 function searchUsers(q) {
   clearTimeout(userSearchTimer);
-  userSearchTimer = setTimeout(() => loadUsers(q), 400);
+  userSearchTimer = setTimeout(() => loadUsers(1), 400);
 }
 
 function _providerLabel(p) {
