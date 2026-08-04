@@ -1,3 +1,7 @@
+/* 2026-08-04 rev.25 — work_cast.js (GET /admin/cast/unmatched-list 신규 — 번역을 다시 시도하지
+   않고, 지금 character_name_ko_attempted=1이면서 아직 안 채워진 미매칭 배역을 조회만 하는
+   API. 재시도 버튼은 실제로 번역을 다시 돌리느라 오래 걸리는데, "지금 뭐가 막혀있는지만 빨리
+   보고 싶다"는 요청으로 신설 — id 커서 페이지네이션(after_id/limit)) */
 /* 2026-08-04 rev.24 — work_cast.js (속도개선 — 지금까지 배역 한 명 번역할 때마다 단어 하나
    하나를 매번 D1에 물어봤고(안 풀리는 단어는 2조각 분해까지 시도하며 최대 수십 번), 예외
    등록표도 매번 통째로 다시 불러왔음. 배치 시작할 때 romanization_map(3,300여개)과
@@ -505,6 +509,44 @@ export async function handleWorkCast(path, request, env, url, headers) {
       ).bind(q + "%").all();
 
       return new Response(JSON.stringify({ ok: true, data: results || [] }), { headers });
+    }
+
+    // ── GET /admin/cast/unmatched-list?after_id=&limit= ────────
+    // 번역을 다시 시도하지 않고, 지금 미매칭으로 남아있는 배역만 빠르게 조회.
+    // (예전에 실패해서 attempted=1로 표시됐고, 아직 character_name_ko가 안 채워진 것)
+    if (path === "/admin/cast/unmatched-list" && request.method === "GET") {
+      if (!_checkAuth(request, env)) {
+        return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
+      }
+      const limit = Math.min(parseInt(url.searchParams.get("limit")) || 50, 100);
+      const afterId = parseInt(url.searchParams.get("after_id")) || 0;
+
+      const { results } = await env.DB.prepare(
+        `SELECT wc.id, wc.character_name AS original, wc.name AS actor, w.title_ko AS work
+         FROM work_cast wc
+         JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
+         WHERE w.original_language = 'ko' AND wc.character_name_ko IS NULL
+           AND wc.character_name_ko_attempted = 1
+           AND wc.character_name IS NOT NULL AND wc.character_name != ''
+           AND wc.id > ?
+         ORDER BY wc.id ASC
+         LIMIT ?`
+      ).bind(afterId, limit).all();
+
+      const lastId = results.length ? results[results.length - 1].id : afterId;
+
+      const remainRow = await env.DB.prepare(
+        `SELECT COUNT(*) AS cnt FROM work_cast wc
+         JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
+         WHERE w.original_language = 'ko' AND wc.character_name_ko IS NULL
+           AND wc.character_name_ko_attempted = 1
+           AND wc.character_name IS NOT NULL AND wc.character_name != ''
+           AND wc.id > ?`
+      ).bind(lastId).first();
+
+      return new Response(JSON.stringify({
+        ok: true, items: results || [], last_id: lastId, remaining: remainRow?.cnt || 0,
+      }), { headers });
     }
 
     return new Response(JSON.stringify({ ok: false, message: "Not found" }), { status: 404, headers });
