@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.15 — person.html (필모그래피 배역명 한글 연결 — ① loadPersonCastKo()
+     신규, 기존 병렬 fetch 목록에 같이 실행(로딩속도 영향 없음) ② personCastKoMap 전역 변수
+     신규, videos.js rev.14의 GET /works/person-cast-ko 결과 저장 ③ workCardHtml()에서
+     한글 배역명이 있으면 우선 사용, 없으면 기존처럼 TMDB 영어 원문 그대로 폴백) -->
 <!-- 2026-08-05 rev.14 — person.html (관련영상 SEO 작업 — ① 신규 JSON-LD(VideoObject) 추가
      (이미 화면에 쓰는 영상 목록 재사용, 추가 API 호출 없음, uploadDate는 데이터 없어 의도적 생략)
      ② 영상 재생 모달(personVideoFrame)에 title 속성이 고정 문구였던 걸 클릭한 영상 제목으로
@@ -1139,6 +1143,9 @@ let allCredits   = [];   // 전체 (중복제거 + 정렬 완료)
 let actCredits   = [];   // 출연
 let directCredits= [];   // 연출
 let currentTab   = 'all';
+// [2026-08-05 신규] 한글 배역명 Map — key: `${tmdb_id}_${media_type}`, value: character_name_ko.
+// loadPersonCastKo()가 채워줌, workCardHtml()에서 영어 배역명 대신 우선 사용.
+let personCastKoMap = new Map();
 // [2026-07-20 수정] 고정값 대신 화면 폭 기준으로 모바일(640px 이하) 20개 / PC 30개
 function getPageSize(){ return window.innerWidth <= 640 ? 20 : 30; }
 let shownCount   = 0;
@@ -1631,7 +1638,12 @@ function escHtml(str){
 /* ── 작품 카드 HTML ── */
 function workCardHtml(item){
   const titleRaw = item.title || item.name || '제목 없음';
-  const roleRaw  = item.character || item.job || '';
+  // [2026-08-05 신규] 한글 배역명 우선 사용 — work_cast에 번역된 값이 있으면 그걸 쓰고,
+  // 없으면 기존처럼 TMDB 원문(영어 배역명/직책)을 그대로 씀. media_type을 모르면(빈 값)
+  // 매칭 키를 만들 수 없으니 조회 자체를 건너뜀(기존 동작과 동일하게 폴백).
+  const koKey    = item.media_type ? `${item.id}_${item.media_type}` : null;
+  const koRole   = koKey ? personCastKoMap.get(koKey) : null;
+  const roleRaw  = koRole || item.character || item.job || '';
   const title    = escHtml(titleRaw);
   const role     = escHtml(roleRaw);
   const year     = (item.release_date||item.first_air_date||'').slice(0,4);
@@ -1725,6 +1737,22 @@ async function loadCustomProfileImage(personId){
   } catch(e) {
     return null;
   }
+}
+
+/* [2026-08-05 신규] 필모그래피(TMDB 실시간)에 한글 배역명을 병합하기 위한 조회 — 공개 API,
+   인증 불필요. work_cast에 저장된 한글 배역명만 {tmdb_id, media_type} 키의 Map으로 돌려줌.
+   실패해도 조용히 빈 Map 반환(기존처럼 영어 배역명 그대로 보이는 것으로 폴백). */
+async function loadPersonCastKo(personId){
+  const map = new Map();
+  try {
+    const res = await fetch(`${OTTRANK_API}/works/person-cast-ko?person_id=${personId}`);
+    if(!res.ok) return map;
+    const data = await res.json();
+    if(data.ok && data.data){
+      data.data.forEach(row => map.set(`${row.tmdb_id}_${row.media_type}`, row.character_name_ko));
+    }
+  } catch(e) { /* 조용히 빈 Map — 영어 배역명 그대로 폴백 */ }
+  return map;
 }
 
 /* [2026-08-03 신규] 관리자가 "프로필 생성" 탭에서 등록한 SNS 링크(인스타/유튜브/X) 조회 —
@@ -2335,13 +2363,17 @@ async function initPage(){
 
   try{
     /* ① TMDB Person + external_ids + combined_credits 한 번에 호출
-       [2026-07-29 수정] 관리자 지정 대표이미지 조회를 병렬로 같이 실행(추가 대기시간 없음) */
-    const [res, customProfilePath, customSnsLinks] = await Promise.all([
+       [2026-07-29 수정] 관리자 지정 대표이미지 조회를 병렬로 같이 실행(추가 대기시간 없음)
+       [2026-08-05 수정] 한글 배역명 조회도 같이 병렬 실행 — 필모그래피(TMDB)가 오는 시간
+       안에 같이 끝나서 로딩속도에 영향 없음 */
+    const [res, customProfilePath, customSnsLinks, castKoRows] = await Promise.all([
       fetch(`${TMDB_PROXY}/person/${personId}?language=ko-KR&append_to_response=external_ids,combined_credits`),
       loadCustomProfileImage(personId),
       loadCustomSnsLinks(personId), // [2026-08-03 신규]
+      loadPersonCastKo(personId), // [2026-08-05 신규]
     ]);
     const data = await res.json();
+    personCastKoMap = castKoRows || new Map(); // [2026-08-05 신규]
 
     if(!data || !data.id){
       document.getElementById('pageLoading').innerHTML =
