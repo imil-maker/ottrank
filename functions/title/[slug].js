@@ -1,3 +1,8 @@
+/* 2026-08-05 rev.4 — functions/title/[slug].js (박스오피스 정보 SSR 프리필 신규 추가 —
+   영화만 해당, rankings.js의 GET /rankings/boxoffice-stats/:tmdb_id와 동일 기준(최근 3일
+   이내 데이터만)으로 boxoffice_stats를 D1에서 직접 조회, 추가 API 호출 없음. 순위/일 관객수/
+   누적 관객수/전일대비 증감/스크린수를 텍스트로 채움 — 기존엔 자바스크립트 실행 안 하는
+   봇에게 이 정보가 전혀 안 보였음) */
 /* 2026-08-05 rev.3 — functions/title/[slug].js (출연진 SEO 개선 — ① 출연진 조회를
    JSON-LD 블록보다 앞으로 옮겨서 같은 조회 결과를 화면용 HTML과 JSON-LD 양쪽에 재사용(추가
    D1 조회 없음) ② 한글 배역명(character_name_ko) 반영 — 있으면 한글, 없으면 기존처럼 영어
@@ -286,6 +291,53 @@ export async function onRequestGet(context) {
             } catch (e) {
               // 출연진 조회 실패해도 나머지 프리필(제목/줄거리/평점/관계도)엔 영향 없게 조용히 무시
             }
+          }
+
+          // [2026-08-05 신규] 박스오피스 정보 프리필 — 영화만 해당, rankings.js의
+          // GET /rankings/boxoffice-stats/:tmdb_id와 동일 기준(최근 3일 이내 데이터만)으로
+          // D1을 직접 조회(추가 API 호출 없음). 자바스크립트를 실행하지 않는 봇에게는 지금까지
+          // "박스오피스 순위/관객수" 정보가 전혀 안 보였음 — 화면(loadBoxofficeInfo)이 매번
+          // 실시간으로 채우는 구조라 SSR 쪽엔 손도 안 대고 있었던 부분. 화면 아이콘(ti 폰트)
+          // 없이 텍스트로만 채움 — 봇이 읽는 용도라 아이콘은 의미 없고, 자바스크립트가 로드되면
+          // 어차피 화면용 완전한 버전(아이콘 포함)으로 다시 덮어씀.
+          try {
+            if (row.media_type === "movie") {
+              const bo = await env.DB.prepare(
+                `SELECT rank, audi_cnt, audi_acc, audi_change, scrn_cnt, target_date, date
+                 FROM boxoffice_stats
+                 WHERE tmdb_id = ? AND date >= date('now','-3 days')
+                 ORDER BY date DESC LIMIT 1`
+              ).bind(parsed.tmdb_id).first();
+              if (bo && bo.rank) {
+                const boDateRaw = bo.target_date || bo.date;
+                const [by, bm, bd] = boDateRaw.split("-").map(Number);
+                const boDateObj = new Date(Date.UTC(by, bm - 1, bd));
+                const boWeekdays = ["일", "월", "화", "수", "목", "금", "토"];
+                const boSub = `${bm}/${bd}(${boWeekdays[boDateObj.getUTCDay()]}) 기준 ${bo.rank}위`;
+                const boRows = [
+                  bo.audi_cnt != null ? `일 관객수 ${Number(bo.audi_cnt).toLocaleString()}명` : null,
+                  bo.audi_acc != null ? `누적 관객수 ${Number(bo.audi_acc).toLocaleString()}명` : null,
+                  bo.audi_change != null ? `전일대비 관객 ${bo.audi_change >= 0 ? "+" : ""}${bo.audi_change}%` : null,
+                  bo.scrn_cnt != null ? `상영 스크린수 ${Number(bo.scrn_cnt).toLocaleString()}개` : null,
+                ].filter(Boolean);
+                if (boRows.length) {
+                  html = html.replace(
+                    '<span class="bo-info-rank-chip" id="boxofficeInfoSub"></span>',
+                    `<span class="bo-info-rank-chip" id="boxofficeInfoSub">${escText(boSub)}</span>`
+                  );
+                  html = html.replace(
+                    '<div class="bo-info-list" id="boxofficeInfoList"></div>',
+                    `<div class="bo-info-list" id="boxofficeInfoList">${boRows.map(t => `<div class="bo-info-row">${escText(t)}</div>`).join("")}</div>`
+                  );
+                  html = html.replace(
+                    '<div class="boxoffice-info-box" id="boxofficeInfoBox" style="display:none">',
+                    '<div class="boxoffice-info-box" id="boxofficeInfoBox">'
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            // 박스오피스 조회 실패해도 나머지 프리필엔 영향 없게 조용히 무시
           }
 
           // [2026-07-26 신규] 구조화 데이터(JSON-LD) 프리필 — 기존엔 <script id="ldJson">{}</script>로
