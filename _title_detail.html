@@ -1,3 +1,6 @@
+<!-- 2026-08-04 rev.9 — _title_detail.html (박스오피스 정보 박스의 "오늘 N위" 표기를
+     "M/D(요일) 기준 N위"로 변경 — 실제 데이터 날짜(d.date)를 그대로 반영해서, 오늘이 아닌
+     날짜의 데이터가 남아있어도 헷갈리지 않도록 함) -->
 <!-- 2026-08-04 rev.8 — _title_detail.html ("지금 보러가기" 극장링크 표시 조건 수정 — 랭킹
      1순위 플랫폼(WORK.platform)이 'boxoffice'일 때만 극장링크(THEATER_BARS)를 보여주던 걸,
      다른 OTT가 실수로 같이 랭킹에 잘못 연결돼 있으면 그게 1순위로 뽑혀서 극장링크가 아예
@@ -2825,7 +2828,14 @@ async function loadBoxofficeInfo(){
         <span class="bo-info-value${cls?' '+cls:''}">${value}</span>
       </div>`).join('');
 
-    document.getElementById('boxofficeInfoSub').textContent = `오늘 ${d.rank}위`;
+    // [rev.9] "오늘 N위" 대신 실제 데이터 날짜 기준 "M/D(요일) 기준 N위"로 표시.
+    // new Date(문자열+시간대)로 만들면 브라우저 로컬 타임존에 따라 요일이 하루 밀릴 수 있어서,
+    // 날짜 문자열(YYYY-MM-DD)을 직접 숫자로 쪼개 UTC 기준으로 안전하게 계산함
+    const boWeekdays = ['일','월','화','수','목','금','토'];
+    const [boY, boM, boD] = d.date.split('-').map(Number);
+    const boDateObj = new Date(Date.UTC(boY, boM - 1, boD));
+    const boDateLabel = `${boM}/${boD}(${boWeekdays[boDateObj.getUTCDay()]})`;
+    document.getElementById('boxofficeInfoSub').textContent = `${boDateLabel} 기준 ${d.rank}위`;
     const boxofficeInfoBox = document.getElementById('boxofficeInfoBox');
     boxofficeInfoBox.style.display = 'block';
     // [2026-07-19 추가] 박스오피스 박스가 실제로 뜰 때만 보러가기와 50:50 분할
