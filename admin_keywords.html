@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.14 — admin_keywords.html (관계도 매칭 리스트 — "✏️ 작품 수정" 옆에
+     "🎭 배역 번역 관리" 링크 신규 추가. admin_cast.html의 "작품별 배역 보기" 탭으로 작품명을
+     쿼리파라미터(?work=)로 넘겨서 바로 그 작품 검색 결과가 뜨도록 연결(admin_cast.html
+     rev.13에서 해당 파라미터 처리 추가 필요)) -->
 <!-- 2026-08-03 rev.13 — admin_keywords.html ("프로필 생성" 탭 프로필 저장(💾 저장) 버튼을
      페이지 맨 아래에서 수상내역과 직업(수동입력) 사이로 위치 이동 -->
 <!-- 2026-08-03 rev.12 — admin_keywords.html ("프로필 생성" 탭에 직업(수동입력) 입력칸 신규 추가
@@ -5047,6 +5051,7 @@ function rcRenderList(){
     const titleUrl = `/title/1-${linkYear}${it.tmdb_id}`;
     const editUrl  = `/admin.html?edit_tmdb=${it.tmdb_id}&media_type=${it.media_type}`
       + `&title=${encodeURIComponent(it.title || '')}&poster=${encodeURIComponent(it.poster_path || '')}`;
+    const castUrl  = `/admin_cast.html?work=${encodeURIComponent(it.title || '')}`;
     return `
     <div id="rcRow-${it.tmdb_id}-${it.media_type}" style="display:flex;align-items:center;gap:14px;padding:12px 10px;border-bottom:1px solid var(--border)">
       <a href="${titleUrl}" target="_blank" title="작품페이지 열기">
@@ -5057,6 +5062,7 @@ function rcRenderList(){
         <a href="${titleUrl}" target="_blank" style="color:var(--text);text-decoration:none">${escapeAttrPm(it.title || '(제목없음)')}</a>
         ${it.in_hot100 ? '<span style="margin-left:6px;font-size:11px;color:var(--gold);font-family:var(--mono)">🔥랭킹중</span>' : ''}
         <a href="${editUrl}" target="_blank" style="margin-left:8px;font-size:11px;color:#7ec8e3;text-decoration:none">✏️ 작품 수정</a>
+        <a href="${castUrl}" target="_blank" style="margin-left:8px;font-size:11px;color:#c3e65a;text-decoration:none">🎭 배역 번역 관리</a>
       </div>
       <button class="btn-secondary" onclick="rcSearchGoogle('${escapeAttrPm(it.title||'').replace(/'/g,"\\'")}')" style="padding:6px 14px;white-space:nowrap;font-size:12px">🔍 구글에서 찾기</button>
       <label style="padding:6px 14px;white-space:nowrap;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted2)">
