@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.16 — admin_cast.html ("작품별 배역 보기" 각 작품에 "🔄 TMDB에서 다시
+     불러오기" 버튼 신규 — work_cast.js rev.37의 POST /admin/cast/refresh-work 사용. 확인창
+     후 실행, 성공하면 검색 목록 자동 새로고침. 한글 배역명은 보존되지만 저장 안 한 화면상의
+     수정 중인 값은 사라짐을 확인창에 안내) -->
 <!-- 2026-08-05 rev.15 — admin_cast.html ("작품별 배역 보기" — TMDB ID 숫자 검색 지원(제목이
      비어있는 작품도 찾을 수 있음, work_cast.js rev.36 사용), 결과 제목 옆에 TMDB ID·미디어
      타입 항상 표시(제목없음 작품 식별용), 안내문구/placeholder 갱신) -->
@@ -538,6 +542,7 @@ async function runWorkSearch(){
           ${escHtml(w.title_ko||'(제목없음)')}${w.year?` <span class="work-group-year">(${w.year})</span>`:''}
           <span class="work-group-year">TMDB ${w.tmdb_id} · ${w.media_type}</span>
           ${w.cast.length ? `<button class="btn-secondary" style="padding:3px 10px;font-size:11px;margin-left:8px" id="translateBtn-${w.tmdb_id}-${w.media_type}" onclick="translateWorkCast(${w.tmdb_id},'${w.media_type}',this)">🤖 자동번역</button>` : ''}
+          <button class="btn-secondary" style="padding:3px 10px;font-size:11px;margin-left:6px" id="refreshBtn-${w.tmdb_id}-${w.media_type}" onclick="refreshWorkCast(${w.tmdb_id},'${w.media_type}',this)">🔄 TMDB에서 다시 불러오기</button>
         </div>
         <div class="work-group-box">
           ${w.cast.length ? w.cast.map(r => `
@@ -593,6 +598,28 @@ async function runPersonSearch(){
     saveBar.style.display = data.data.some(p => p.works.length) ? 'block' : 'none';
   }catch(e){
     box.innerHTML = `<div style="padding:14px;font-size:13px;color:var(--accent)">오류: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function refreshWorkCast(tmdbId, mediaType, btn){
+  if(!confirm('이 작품 출연진을 TMDB에서 다시 불러올까요?\n(입력해둔 한글 배역명은 보존되지만, 아직 "전체 저장"을 안 누른 화면상의 수정 중인 값은 사라져요)')) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '불러오는 중...';
+  try{
+    const res = await fetch(`${API}/admin/cast/refresh-work`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_SECRET}` },
+      body: JSON.stringify({ tmdb_id: tmdbId, media_type: mediaType }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    showToast(`✅ 다시 불러옴 (감독 ${data.directors}명, 출연 ${data.cast}명)`);
+    runWorkSearch(); // 목록 전체를 새로 불러와서 갱신된 출연진 반영
+  }catch(e){
+    showToast(`❌ 실패: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 
