@@ -177,7 +177,7 @@ function rt(i,s,t){if(!s.length)return i.slice(0,t).map((c,d)=>({...c,rank:d+1})
             )
           ORDER BY r.rank ASC
         `).bind(r.platform,r.category_slot,r.platform,r.category_slot).all();c=E}let u=rt(c,d,o);return new Response(JSON.stringify({ok:!0,data:{platform:r.platform,category_slot:r.category_slot,display_name:r.display_name,items:u.map(E=>({rank:E.rank,title_ko:E.title_ko,title_en:E.title_en,tmdb_id:E.tmdb_id,poster_path:E.poster_path,genre:E.genre,tmdb_rating:E.tmdb_rating,release_year:E.release_year,media_type:E.media_type||null}))}}),{headers:e})}catch(r){return new Response(JSON.stringify({ok:!1,message:r.message}),{status:500,headers:e})}if(i.startsWith("/rankings/boxoffice-stats/")&&s.method==="GET"){let r=parseInt(i.split("/rankings/boxoffice-stats/")[1]);if(!r)return new Response(JSON.stringify({ok:!1,message:"tmdb_id required"}),{status:400,headers:e});try{let{results:o}=await t.DB.prepare(`
-        SELECT tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+        SELECT tmdb_id, movie_cd, date, target_date, rank, rank_inten, rank_old_and_new,
                audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
                scrn_cnt, show_cnt
         FROM boxoffice_stats
