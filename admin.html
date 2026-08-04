@@ -1,3 +1,5 @@
+<!-- 2026-08-04 rev.10 — admin.html (works 관리 탭 옆에 🎭 배역 관리 탭 신규 추가,
+     admin_cast.html로 이동하는 링크 연결) -->
 <!-- 2026-08-02 rev.9 — admin.html (버그1 근본수정 — 랭킹 수정모달 오픈 시
      window._editCurrentSeason을 r.season으로 미리 채우던 걸 null로 변경. 시즌 입력칸을
      안 건드려도 "방금 포스터 조회함"으로 착각해서 저장 시 기본 포스터로 덮어쓰던 사고의
@@ -244,6 +246,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="page-tab"     onclick="switchPage('categories',this)">⚙️ 카테고리 관리</button>
     <button class="page-tab"     onclick="switchPage('manual',this)">✏️ 수동 랭킹 관리</button>
     <button class="page-tab"     onclick="switchPage('works',this)">🎬 works 관리</button>
+    <button class="page-tab"     onclick="location.href='/admin_cast.html'">🎭 배역 관리</button>
     <button class="page-tab"     onclick="switchPage('reaction',this)">📋 게시물 관리</button>
     <button class="page-tab"     onclick="switchPage('users',this)">👥 회원 관리</button>
     <button class="page-tab"     onclick="switchPage('contents',this)">🎞️ 예고편/신작 관리</button>
