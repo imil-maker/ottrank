@@ -1,3 +1,5 @@
+<!-- 2026-08-05 rev.14 — _title_detail.html (출연진 카드 — 배역명이 배우 본인 이름과 같으면
+     (예능 본인출연) "역" 표기 안 붙이도록 수정) -->
 <!-- 2026-08-05 rev.13 — _title_detail.html (출연진 배역명 점 색상을 연두색(#c3e65a)으로 변경,
      배역명 뒤에 " 역" 글자 추가) -->
 <!-- 2026-08-05 rev.12 — _title_detail.html (출연진 카드 배역명 스타일 개선 — ① 한글 글자가
@@ -3313,7 +3315,12 @@ async function loadTmdb(){
         </a>`).join('');
 
       // 배우 카드 렌더
-      document.getElementById('castScroll').innerHTML=cast.map(p=>`
+      document.getElementById('castScroll').innerHTML=cast.map(p=>{
+        const charText = p.character||p.roles?.[0]?.character||'';
+        // [2026-08-05 신규] 배역명이 배우 본인 이름과 같으면(예능 본인출연) "역" 안 붙임
+        const isSelfRole = charText.trim().toLowerCase() === (p.name||'').trim().toLowerCase();
+        const roleHtml = charText ? `<span class="cast-role-dot"></span>${charText}${isSelfRole?'':' 역'}` : '';
+        return `
         <a class="cast-card" href="${personUrl(p.id)}">
           <div class="cast-photo">
             ${p.profile_path
@@ -3323,8 +3330,8 @@ async function loadTmdb(){
             <div class="cast-photo-ph" style="${p.profile_path?'display:none':'display:flex'}">${(p.name||'?')[0]}</div>
           </div>
           <div class="cast-name">${p.name}</div>
-          <div class="cast-role">${(p.character||p.roles?.[0]?.character) ? `<span class="cast-role-dot"></span>${p.character||p.roles?.[0]?.character} 역` : ''}</div>
-        </a>`).join('');
+          <div class="cast-role">${roleHtml}</div>
+        </a>`;}).join('');
 
       // 화살표 초기 상태 + 스크롤 이벤트 연결
       setTimeout(()=>{
