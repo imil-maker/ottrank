@@ -1,3 +1,9 @@
+/* 2026-08-04 rev.28 — work_cast.js (미매칭 재시도(partialMode) 한정 — 배역명에 예외등록
+   문구가 낀 경우("Biru (segment "I Saw You")"), 예외문구 앞/뒤 중 한쪽이라도 완전히
+   실패하면 beforeR.ok && afterR.ok 조건에 걸려 앞쪽 성공분(Biru)까지 통째로 버려지던
+   문제. partialMode에서는 실패한 쪽만 원문 그대로 대체해서 쓰고, 성공한 쪽(앞부분+
+   예외등록문구)은 번역된 채로 저장하도록 분기 추가. 일반 자동번역 배치 버튼은 기존
+   동작(전체 실패 처리) 그대로 유지) */
 /* 2026-08-04 rev.27 — work_cast.js (둥근따옴표(’, U+2019 등) 정규화 추가 — "Cha Do Hyun’s"처럼
    일반 따옴표(')가 아니라 둥근 스마트따옴표가 쓰인 경우, 기존 코드가 이를 인식 못 해서
    "Hyun's"가 "Hyuns"라는 한 단어로 뭉쳐버리고 매칭 실패하던 문제. _translatePlainSegment
@@ -350,9 +356,10 @@ function _translateName(rawName, dicts, partialMode) {
     const rawSuffix = rawName.slice(match.end);
     const beforeR = _translatePlainSegment(rawPrefix, dicts.romanMap, partialMode);
     const afterR = _translatePlainSegment(rawSuffix, dicts.romanMap, partialMode);
+    const leftSep = match.start > 0 ? rawName[match.start - 1] : null;
+    const rightSep = match.end < rawName.length ? rawName[match.end] : null;
+
     if (beforeR.ok && afterR.ok) {
-      const leftSep = match.start > 0 ? rawName[match.start - 1] : null;
-      const rightSep = match.end < rawName.length ? rawName[match.end] : null;
       let hangul = "";
       if (beforeR.hangul) {
         hangul += beforeR.hangul + (leftSep === " " ? " " : "");
@@ -363,6 +370,26 @@ function _translateName(rawName, dicts, partialMode) {
       }
       return { ok: true, hangul };
     }
+
+    // [신규] partialMode(미매칭 재시도)에서는, 예외등록 문구(match) 앞/뒤 중 한쪽이
+    // 완전히 실패해도 통째로 버리지 않음 — 성공한 쪽은 번역된 걸로, 실패한 쪽은 원문
+    // 그대로 붙여서 최소한 match(예외등록된 부분)와 성공한 쪽은 살려서 저장.
+    // 예: "Biru (segment "I Saw You")" — "I Saw You"가 실패해도 "Biru"랑 "segment"
+    // 번역된 건 살아남음.
+    if (partialMode) {
+      const beforeHangul = beforeR.ok ? beforeR.hangul : rawPrefix.trim();
+      const afterHangul = afterR.ok ? afterR.hangul : rawSuffix.trim();
+      let hangul = "";
+      if (beforeHangul) {
+        hangul += beforeHangul + (leftSep === " " ? " " : "");
+      }
+      hangul += match.hangul;
+      if (afterHangul) {
+        hangul += (rightSep === " " ? " " : "") + afterHangul;
+      }
+      return { ok: true, hangul };
+    }
+
     const failedTokens = [
       ...(beforeR.ok ? [] : beforeR.tokens),
       ...(afterR.ok ? [] : afterR.tokens),
