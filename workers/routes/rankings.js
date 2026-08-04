@@ -1,3 +1,6 @@
+/* 2026-08-04 rev.6 — rankings.js (/rankings/boxoffice-stats/:tmdb_id 응답에 target_date
+   컬럼 추가 — 상세페이지에서 "실제 며칠 순위인지" 정확히 표시하기 위함. 3일 이내 판단
+   기준은 date(크롤링 저장일) 그대로 유지) */
 /* 2026-08-04 rev.5 — rankings.js (/rankings/boxoffice-stats/:tmdb_id — 날짜 상관없이 "가장
    최근 1건"을 무조건 반환하던 문제 수정. 개봉 전 시사회 데이터처럼 오래된 기록 하나만 있으면
    몇 주가 지나도 계속 그 값이 상세페이지에 남아있었음. 최근 3일 이내 데이터만 대상으로
@@ -745,7 +748,9 @@ export async function handleRankings(path, request, env, url, headers) {
   // ── GET /rankings/boxoffice-stats/:tmdb_id ───────────────────
   // 작품 상세페이지용 — 해당 작품의 "최근 3일 이내" KOBIS 박스오피스 지표 중 가장 최근 1건
   // (2026-07-19 신설, 2026-08-04 rev.5 — 3일 이내 조건 추가: 오래된 시사회 데이터 하나만
-  // 있으면 몇 주가 지나도 계속 보이던 문제 수정)
+  // 있으면 몇 주가 지나도 계속 보이던 문제 수정, 2026-08-04 rev.6 — target_date 컬럼도 함께
+  // 응답에 포함 — 화면에서 "실제 며칠 순위인지" 표시하는 용도. 3일 판단 기준(date, 크롤링
+  // 저장일)은 그대로 유지, target_date는 표시용으로만 추가된 것)
   if (path.startsWith("/rankings/boxoffice-stats/") && request.method === "GET") {
     const tmdb_id = parseInt(path.split("/rankings/boxoffice-stats/")[1]);
     if (!tmdb_id) {
@@ -753,7 +758,7 @@ export async function handleRankings(path, request, env, url, headers) {
     }
     try {
       const { results } = await env.DB.prepare(`
-        SELECT tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+        SELECT tmdb_id, movie_cd, date, target_date, rank, rank_inten, rank_old_and_new,
                audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
                scrn_cnt, show_cnt
         FROM boxoffice_stats
