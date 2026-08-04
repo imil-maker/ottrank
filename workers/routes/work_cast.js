@@ -1,3 +1,7 @@
+/* 2026-08-05 rev.31 — work_cast.js (GET /admin/cast/search — 영어(character_name)만 검색되던
+   것을 한글(character_name_ko)도 같이 검색되도록 확장. OR 조건으로 둘 중 하나만 앞부분
+   일치해도 결과에 포함. 이미 결과 행마다 작품명(title_ko)이 같이 나와서 작품별 구분/수정은
+   기존 그대로 정상 동작(변경 없음)) */
 /* 2026-08-04 rev.30 — work_cast.js (대괄호 partialMode 버그 수정 — 앞/안/뒤 셋 다 매칭표에
    하나도 안 걸려도 "성공"으로 잘못 처리되던 문제. "[Barista]"처럼 진짜 번역할 게 하나도
    없으면(셋 다 매칭 실패) 미매칭으로 남기고, 최소 하나라도 실제 번역된 게 있을 때만
@@ -668,7 +672,7 @@ export async function handleWorkCast(path, request, env, url, headers) {
     }
 
     // ── GET /admin/cast/search?q=... ──────────────────────────
-    // 영어 배역명(character_name) 검색 — 앞부분 일치, 최대 50건
+    // 배역명 검색 — 영어(character_name)/한글(character_name_ko) 둘 다 앞부분 일치로 매칭, 최대 50건
     if (path === "/admin/cast/search" && request.method === "GET") {
       if (!_checkAuth(request, env)) {
         return new Response(JSON.stringify({ ok: false, message: "Unauthorized" }), { status: 401, headers });
@@ -682,10 +686,11 @@ export async function handleWorkCast(path, request, env, url, headers) {
                 wc.name AS actor_name, w.title_ko
          FROM work_cast wc
          JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
-         WHERE w.original_language = 'ko' AND wc.character_name LIKE ? ESCAPE '\\'
+         WHERE w.original_language = 'ko'
+           AND (wc.character_name LIKE ? ESCAPE '\\' OR wc.character_name_ko LIKE ? ESCAPE '\\')
          ORDER BY wc.billing_order ASC
          LIMIT 50`
-      ).bind(q + "%").all();
+      ).bind(q + "%", q + "%").all();
 
       return new Response(JSON.stringify({ ok: true, data: results || [] }), { headers });
     }
