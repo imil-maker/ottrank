@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.13 — admin_cast.html (?work=작품명 쿼리파라미터 지원 신규 — 로그인 후
+     이 값이 있으면 "작품별 배역 보기" 탭으로 자동 이동 + 그 작품명으로 자동 검색. 
+     admin_keywords.html "관계도 매칭"의 "🎭 배역 번역 관리" 링크에서 사용) -->
 <!-- 2026-08-05 rev.12 — admin_cast.html ("작품별 배역 보기" 각 작품 제목 옆에 "🤖 자동번역"
      버튼 신규 — work_cast.js rev.34의 POST /admin/cast/translate-work 사용. 번역 결과는
      입력칸에만 채워지고 저장은 안 됨(자동번역이 완벽하지 않아 확인 후 "전체 저장"으로
@@ -232,6 +235,7 @@ async function verifySecret(){
       localStorage.setItem('admin_token', ADMIN_SECRET);
       document.getElementById('loginWrap').style.display = 'none';
       document.getElementById('mainWrap').style.display = 'block';
+      _applyWorkParamIfAny();
     } else {
       document.getElementById('loginErr').style.display = 'block';
       ADMIN_SECRET = '';
@@ -246,8 +250,22 @@ async function verifySecret(){
     ADMIN_SECRET = stored;
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('mainWrap').style.display = 'block';
+    _applyWorkParamIfAny();
   }
 })();
+
+// [2026-08-05 신규] admin_keywords.html "관계도 매칭"의 "🎭 배역 번역 관리" 링크에서
+// ?work=작품명 으로 넘어오면, "작품별 배역 보기" 탭으로 바로 이동하고 그 작품명으로 자동 검색.
+function _applyWorkParamIfAny(){
+  const work = new URLSearchParams(location.search).get('work');
+  if(!work) return;
+  switchCastTab('bywork');
+  const inp = document.getElementById('workSearchInput');
+  if(inp){
+    inp.value = work;
+    runWorkSearch();
+  }
+}
 
 function showToast(msg){
   const t = document.getElementById('toast');
