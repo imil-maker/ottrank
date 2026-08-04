@@ -1937,9 +1937,10 @@ ${D.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
                 wc.name AS actor_name, w.title_ko
          FROM work_cast wc
          JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
-         WHERE w.original_language = 'ko' AND wc.character_name LIKE ? ESCAPE '\\'
+         WHERE w.original_language = 'ko'
+           AND (wc.character_name LIKE ? ESCAPE '\\' OR wc.character_name_ko LIKE ? ESCAPE '\\')
          ORDER BY wc.billing_order ASC
-         LIMIT 50`).bind(r+"%").all();return new Response(JSON.stringify({ok:!0,data:d||[]}),{headers:e})}if(i==="/admin/cast/unmatched-list"&&s.method==="GET"){if(!h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});let r=Math.min(parseInt(f.searchParams.get("limit"))||50,100),d=parseInt(f.searchParams.get("after_id"))||0,{results:o}=await t.DB.prepare(`SELECT wc.id, wc.character_name AS original, wc.name AS actor, w.title_ko AS work
+         LIMIT 50`).bind(r+"%",r+"%").all();return new Response(JSON.stringify({ok:!0,data:d||[]}),{headers:e})}if(i==="/admin/cast/unmatched-list"&&s.method==="GET"){if(!h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});let r=Math.min(parseInt(f.searchParams.get("limit"))||50,100),d=parseInt(f.searchParams.get("after_id"))||0,{results:o}=await t.DB.prepare(`SELECT wc.id, wc.character_name AS original, wc.name AS actor, w.title_ko AS work
          FROM work_cast wc
          JOIN works w ON w.tmdb_id = wc.tmdb_id AND w.media_type = wc.media_type
          WHERE w.original_language = 'ko' AND wc.character_name_ko IS NULL
