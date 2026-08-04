@@ -1,3 +1,8 @@
+/* 2026-08-04 rev.27 — work_cast.js (둥근따옴표(’, U+2019 등) 정규화 추가 — "Cha Do Hyun’s"처럼
+   일반 따옴표(')가 아니라 둥근 스마트따옴표가 쓰인 경우, 기존 코드가 이를 인식 못 해서
+   "Hyun's"가 "Hyuns"라는 한 단어로 뭉쳐버리고 매칭 실패하던 문제. _translatePlainSegment
+   시작 시 둥근따옴표를 전부 일반 따옴표로 바꿔치기해서, 이후 's 분리/붙여쓰기 로직이
+   그대로 정상 적용되도록 수정) */
 /* 2026-08-04 rev.26 — work_cast.js (3가지 수정 — ① "↻ 미매칭 재시도" 버튼에서만: 앞부분부터
    번역하다 막히면 3글자 이상이어야 인정하던 기준을 없애고, 막힌 지점부터 끝까지 원문(영어)
    그대로 이어붙여 저장(예: "Kang Detective"→"강 Detective"). "▶ 자동번역 배치 실행" 버튼은
@@ -270,7 +275,9 @@ function _findRawOverrideMatch(rawName, overrides) {
 // 번역 로직을 재사용 가능하게 분리(예외문구 앞/뒤로 남는 원문 조각도 이 함수로 각각 번역)
 // [rev.24] romanMap은 미리 불러온 Map — D1 조회 없이 동기로 처리.
 function _translatePlainSegment(rawSegment, romanMap, partialMode) {
-  const trimmed = rawSegment.trim();
+  // [신규] 둥근따옴표(’, U+2019 등)를 일반 작은따옴표(')로 통일 — 안 그러면 "Hyun's"의
+  // 's가 앞 단어에 안 붙고("Hyuns"로 뭉쳐서 매칭 실패) 't까지 다 밀려버림.
+  const trimmed = rawSegment.trim().replace(/[\u2018\u2019\u02BC]/g, "'");
   if (!trimmed) return { ok: true, hangul: "" };
 
   // 괄호( )는 유지, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거.
