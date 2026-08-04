@@ -1,3 +1,6 @@
+<!-- 2026-08-04 rev.10 — _title_detail.html (박스오피스 정보 박스 "M/D(요일) 기준 N위" 표시가
+     d.date(크롤링 저장일) 기준이었던 걸 d.target_date(실제 집계일)로 변경 — rankings.js
+     rev.6에서 API 응답에 target_date가 추가돼서 이제 정확한 날짜를 쓸 수 있음) -->
 <!-- 2026-08-04 rev.9 — _title_detail.html (박스오피스 정보 박스의 "오늘 N위" 표기를
      "M/D(요일) 기준 N위"로 변경 — 실제 데이터 날짜(d.date)를 그대로 반영해서, 오늘이 아닌
      날짜의 데이터가 남아있어도 헷갈리지 않도록 함) -->
@@ -2832,7 +2835,7 @@ async function loadBoxofficeInfo(){
     // new Date(문자열+시간대)로 만들면 브라우저 로컬 타임존에 따라 요일이 하루 밀릴 수 있어서,
     // 날짜 문자열(YYYY-MM-DD)을 직접 숫자로 쪼개 UTC 기준으로 안전하게 계산함
     const boWeekdays = ['일','월','화','수','목','금','토'];
-    const [boY, boM, boD] = d.date.split('-').map(Number);
+    const [boY, boM, boD] = (d.target_date || d.date).split('-').map(Number);
     const boDateObj = new Date(Date.UTC(boY, boM - 1, boD));
     const boDateLabel = `${boM}/${boD}(${boWeekdays[boDateObj.getUTCDay()]})`;
     document.getElementById('boxofficeInfoSub').textContent = `${boDateLabel} 기준 ${d.rank}위`;
