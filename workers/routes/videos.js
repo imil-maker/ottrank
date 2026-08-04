@@ -1,3 +1,6 @@
+/* 2026-08-05 rev.14 — videos.js (GET /works/person-cast-ko 신규 — 인물페이지 필모그래피용,
+   특정 배우의 한글 배역명 전체를 {tmdb_id, media_type, character_name_ko}로 일괄 반환.
+   "/works/"로 시작해서 index.js 라우팅 수정 없이 이 파일로 바로 들어옴) */
 /* 2026-08-05 rev.13 — videos.js (GET /works/:tmdb_id/cast — 한글 배역명(character_name_ko)
    화면 연결. SELECT에 character_name_ko 추가, 있으면 그걸 character 필드값으로 응답, 없으면
    기존처럼 영어(character_name) 그대로. 응답 필드명(character)은 그대로라 프론트 수정 불필요 —
@@ -887,6 +890,30 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const data = {};
       results.forEach(r => { data[r.tmdb_id] = r.poster_path; });
       return new Response(JSON.stringify({ ok: true, data }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /works/person-cast-ko?person_id=... ─────────────────
+  // [2026-08-05 신규] 공개 API — 인물페이지 필모그래피용. 이 배우가 출연한 작품들 중
+  // 한글 배역명(character_name_ko)이 채워진 것만 {tmdb_id, media_type, character_name_ko}
+  // 형태로 전부 돌려줌. 인물페이지 필모그래피는 TMDB에서 실시간으로 받아오는 구조라
+  // work_cast를 거치지 않으므로, 화면에서 TMDB 응답과 tmdb_id+media_type으로 매칭해서
+  // 병합함. "/works/"로 시작해야 index.js 라우팅 수정 없이 이 파일로 바로 들어옴.
+  if (path === "/works/person-cast-ko" && request.method === "GET") {
+    const personId = parseInt(url.searchParams.get("person_id"));
+    if (!personId) {
+      return new Response(JSON.stringify({ ok: false, message: "person_id가 필요해요" }), { status: 400, headers });
+    }
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT tmdb_id, media_type, character_name_ko
+         FROM work_cast
+         WHERE person_tmdb_id = ? AND role = 'cast'
+           AND character_name_ko IS NOT NULL AND character_name_ko != ''`
+      ).bind(personId).all();
+      return new Response(JSON.stringify({ ok: true, data: results || [] }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
