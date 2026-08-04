@@ -1,3 +1,8 @@
+<!-- 2026-08-04 rev.8 — _title_detail.html ("지금 보러가기" 극장링크 표시 조건 수정 — 랭킹
+     1순위 플랫폼(WORK.platform)이 'boxoffice'일 때만 극장링크(THEATER_BARS)를 보여주던 걸,
+     다른 OTT가 실수로 같이 랭킹에 잘못 연결돼 있으면 그게 1순위로 뽑혀서 극장링크가 아예
+     안 뜨는 문제가 있었음. WORK_PLATFORMS(해당 작품의 전체 랭킹 목록) 안에 boxoffice가
+     하나라도 있으면 순서 상관없이 무조건 극장링크를 보여주도록 변경) -->
 <!-- 2026-08-02 rev.7 — _title_detail.html (works/register 요청에 season_hint/season_poster_hint
      추가 — 이미 받아온 det.seasons에서 시즌0 제외 최신시즌+포스터만 뽑아 보냄, 추가 TMDB
      호출 없음. 백엔드는 신규 등록일 때만 사용(videos.js 다음 작업 예정). 그 외 로직은 안 건드림) -->
@@ -4643,8 +4648,10 @@ async function loadWatchProviders(){
   const seen = new Set();
   const finalList = [];
 
-  // boxoffice category01 → 극장 링크 3개
-  const isCategory01 = WORK.platform === 'boxoffice' && WORK_CATEGORY_SLOT === 'category01';
+  // [rev.8] boxoffice 랭킹이 "1순위(WORK.platform)"일 때만 극장 링크를 보여주던 걸,
+  // 다른 OTT가 실수로 같이 랭킹에 붙어서 그게 1순위로 뽑혀도 boxoffice가 목록 어딘가에
+  // 있기만 하면 무조건 극장 링크가 뜨도록 변경(순서 무관)
+  const isCategory01 = (WORK_PLATFORMS || []).some(p => p.platform === 'boxoffice');
   if(isCategory01){
     renderOttTab(null, null, THEATER_BARS);
     return;
