@@ -1,3 +1,7 @@
+<!-- 2026-08-05 rev.11 — _title_detail.html (관련영상 SEO 작업 — ① JSON-LD에 VideoObject 배열
+     신규 추가(allYtVideos 재사용, 추가 API 호출 없음, uploadDate는 데이터 없어 의도적 생략)
+     ② 영상 재생 모달(ytFrame2)에 title 속성 누락 수정 ③ 영상 제목의 alt/title 텍스트가
+     이스케이프 없이 그대로 들어가던 버그 수정(따옴표 포함 제목 시 깨지던 문제)) -->
 <!-- 2026-08-04 rev.10 — _title_detail.html (박스오피스 정보 박스 "M/D(요일) 기준 N위" 표시가
      d.date(크롤링 저장일) 기준이었던 걸 d.target_date(실제 집계일)로 변경 — rankings.js
      rev.6에서 API 응답에 target_date가 추가돼서 이제 정확한 날짜를 쓸 수 있음) -->
@@ -2448,9 +2452,31 @@ function updateSEO(title,overview,posterUrl,platform,rank){
       'reviewRating':{'@type':'Rating','ratingValue':parseFloat(WORK.imdbRating),'bestRating':10,'worstRating':0},
     }];
   }
-  const ldEl=document.getElementById('ldJson');if(ldEl)ldEl.textContent=JSON.stringify(ld);
+  // [2026-08-05 신규] 관련영상(VideoObject)은 updateSEO()보다 늦게 도착하는 경우가 많아서,
+  // 여기서 바로 안 쓰고 _ldBase에 저장해뒀다가 _applyVideoLd()에서 영상 유무와 합쳐서 최종 반영함.
+  _ldBase=ld;
+  _applyVideoLd();
 }
 function setMeta(id,attr,val){const el=document.getElementById(id);if(!el)return;if(attr==='textContent')el.textContent=val;else el.setAttribute(attr,val);}
+
+// [2026-08-05 신규] 관련영상 구조화 데이터(VideoObject) — 이미 화면(썸네일/제목)에 쓰고 있는
+// allYtVideos를 그대로 재사용, 추가 API 호출 없음. uploadDate는 저장된 값이 없어 의도적으로 생략.
+let _ldBase=null;
+function _applyVideoLd(){
+  if(!_ldBase)return;
+  const ld=Object.assign({},_ldBase);
+  if(allYtVideos&&allYtVideos.length){
+    ld.video=allYtVideos.map(v=>({
+      '@type':'VideoObject',
+      'name':v.name||WORK.title||'',
+      'description':v.name||WORK.title||'',
+      'thumbnailUrl':`https://img.youtube.com/vi/${v.key}/hqdefault.jpg`,
+      'embedUrl':`https://www.youtube.com/embed/${v.key}`,
+      'contentUrl':`https://www.youtube.com/watch?v=${v.key}`,
+    }));
+  }
+  const ldEl=document.getElementById('ldJson');if(ldEl)ldEl.textContent=JSON.stringify(ld);
+}
 
 /* == Rank Row == */
 function renderRankRow(platforms){
@@ -3416,6 +3442,7 @@ async function loadTitleVideos(){
 function renderYtPage(page){
   ytPage=page;
   const total=allYtVideos.length;
+  _applyVideoLd(); // 영상 목록이 갱신될 때마다 구조화 데이터(JSON-LD)도 함께 갱신
   const subtitleEl=document.getElementById('ytSubtitle');
   const ytSectionEl=document.getElementById('ytSectionWrap');
   if(!total){
@@ -3452,16 +3479,18 @@ function renderYtPage(page){
       <div class="modal-head"><span class="modal-ttl" id="ytModalTitle2"></span><button class="modal-close" onclick="closePlayer2()">✕</button></div>
       <div class="yt-player-wrap"><iframe id="ytFrame2" src="" allowfullscreen allow="autoplay;encrypted-media"></iframe></div>
     </div>
-    <div class="yt-grid${slice.length===1?' single':''}">${slice.map(v=>`
-      <div class="yt-card" onclick="openPlayer2('${v.key}','${(v.name||'').replace(/'/g,"\\'")}')">
+    <div class="yt-grid${slice.length===1?' single':''}">${slice.map(v=>{
+      const safeName=_hesc(v.name||'').replace(/'/g,"\\'");
+      return `
+      <div class="yt-card" onclick="openPlayer2('${v.key}','${safeName}')">
         <div class="yt-thumb">
-          <img src="https://img.youtube.com/vi/${v.key}/mqdefault.jpg" alt="${v.name||''}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <img src="https://img.youtube.com/vi/${v.key}/mqdefault.jpg" alt="${_hesc(v.name||'')}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="yt-thumb-ph" style="display:none"><i class="ti ti-brand-youtube" style="font-size:26px"></i></div>
           <div class="yt-play"><div class="yt-play-icon"><i class="ti ti-player-play" style="font-size:13px"></i></div></div>
           ${(v.type==='Trailer'||v.type==='Teaser')?`<div class="yt-badge">${v.type}</div>`:''}
         </div>
-        <div class="yt-info"><div class="yt-title">${v.name||''}</div></div>
-      </div>`).join('')}</div>`;
+        <div class="yt-info"><div class="yt-title">${_hesc(v.name||'')}</div></div>
+      </div>`;}).join('')}</div>`;
 
   const pgEl=document.getElementById('ytPagination');
   if(totalPages<=1){pgEl.style.display='none';return;}
@@ -3471,6 +3500,7 @@ function renderYtPage(page){
 function openPlayer2(id,title){
   document.getElementById('ytModalTitle2').textContent=title;
   document.getElementById('ytFrame2').src=`https://www.youtube.com/embed/${id}?autoplay=1`;
+  document.getElementById('ytFrame2').title=title||'유튜브 영상';
   document.getElementById('ytModal2').classList.add('show');
   document.getElementById('ytModal2').scrollIntoView({behavior:'smooth',block:'start'});
 }
