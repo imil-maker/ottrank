@@ -1,3 +1,12 @@
+/* 2026-08-04 rev.26 — work_cast.js (3가지 수정 — ① "↻ 미매칭 재시도" 버튼에서만: 앞부분부터
+   번역하다 막히면 3글자 이상이어야 인정하던 기준을 없애고, 막힌 지점부터 끝까지 원문(영어)
+   그대로 이어붙여 저장(예: "Kang Detective"→"강 Detective"). "▶ 자동번역 배치 실행" 버튼은
+   기존 동작 그대로 유지. ② 괄호 버그 수정: 배역명 정리 과정(symbolsCleaned)이 한글까지
+   지워버려서 "Kyeong-soo (경수)"의 괄호 안 "경수"가 사라지고 빈 "()"만 남아 미매칭 처리되던
+   문제 — 정리 과정에 한글(가-힣) 허용 추가, _translateToken에 "이미 한글인 토큰은 매칭표
+   조회 없이 그대로 통과" 분기 추가. ③ 괄호 앞부분 번역 결과와 괄호 안 내용이 같으면
+   중복이니 괄호 쪽 제거(예: "경수 (경수)"가 아니라 "경수"만 저장) — 하이픈으로 여러
+   토큰으로 쪼개진 이름("Kyeong-soo"→"경"+"수")도 앞쪽 전체를 이어붙여서 비교하도록 처리) */
 /* 2026-08-04 rev.25 — work_cast.js (GET /admin/cast/unmatched-list 신규 — 번역을 다시 시도하지
    않고, 지금 character_name_ko_attempted=1이면서 아직 안 채워진 미매칭 배역을 조회만 하는
    API. 재시도 버튼은 실제로 번역을 다시 돌리느라 오래 걸리는데, "지금 뭐가 막혀있는지만 빨리
@@ -137,6 +146,11 @@ function _translateToken(rawToken, romanMap, hyphenSuffix) {
   const closeParen = rawToken.endsWith(")");
   const inner = rawToken.replace(/^\(/, "").replace(/\)$/, "");
   if (!inner) return null;
+  // [신규] 이미 한글인 토큰(예: 괄호 안 "경수")은 로마자 매칭표에 애초에 없으니 조회 없이
+  // 그대로 통과. "Kyeong-soo (경수)"의 "(경수)"가 여기 해당.
+  if (/^[가-힣]+$/.test(inner)) {
+    return (openParen ? "(" : "") + inner + (closeParen ? ")" : "");
+  }
   // [rev.13] 숫자만 있는 토큰(예: "8")은 매칭표에서 찾을 필요 없이 그대로 통과
   if (/^\d+$/.test(inner)) {
     return (openParen ? "(" : "") + inner + (closeParen ? ")" : "");
@@ -152,7 +166,11 @@ function _translateToken(rawToken, romanMap, hyphenSuffix) {
 // [rev.22] hyphenFlags[i]가 true면 tokens[i]는 원문에서 바로 뒤에 하이픈이 붙어있던
 // 토큰이라, 조회할 때 "단어-" 전용 항목을 우선 찾아봄("Man-"→"만" vs "man"→"남자" 구분).
 // [rev.24] romanMap은 미리 불러온 Map — D1 조회 없이 동기로 처리.
-function _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap) {
+// [신규] partialMode(=true일 때, "미매칭 재시도" 버튼에서만 사용): 앞부분이 막히기 전까지
+// 이미 3글자 이상이라는 조건 없이, 막힌 지점부터 끝까지는 원문(영어) 그대로 이어붙여서
+// 저장. "▶ 자동번역 배치 실행"(partialMode=false)에서는 기존 동작(3글자 미만이면 실패
+// 처리) 그대로 유지.
+function _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap, partialMode) {
   if (tokens.length === 0) return { ok: true, hangul: "" };
 
   const results = tokens.map((t, i) =>
@@ -168,21 +186,55 @@ function _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap) {
     if (results[i] === null) { stopIndex = i; break; }
     pieces.push(results[i]);
   }
-  const concatenated = pieces.join("");
+
+  // [신규] 바로 앞 조각이 괄호 안 내용과 똑같으면(예: "경수" 다음에 "(경수)") 중복이니
+  // 괄호 조각과 그 앞 구분자를 제거. "Kyeong-soo (경수)" → "경수 (경수)"가 아니라 "경수"만.
+  // (원본 pieces/delimTypes는 아래 partialMode 꼬리 이어붙이기에서 그대로 써야 하므로,
+  // 복사본에서만 dedup 처리)
+  const dedupPieces = pieces.slice();
+  const dedupDelims = delimTypes.slice(0, pieces.length - 1);
+  for (let i = dedupPieces.length - 1; i >= 1; i--) {
+    const m = /^\((.+)\)$/.exec(dedupPieces[i]);
+    if (m && dedupPieces.slice(0, i).join("") === m[1]) {
+      dedupPieces.splice(i, 1);
+      dedupDelims.splice(i - 1, 1);
+    }
+  }
+
+  const concatenated = dedupPieces.join("");
   const fullMatch = stopIndex === tokens.length;
   if (fullMatch || concatenated.length >= 3) {
     let hangul;
     if (concatenated.length >= 4) {
       // [rev.15/16] 4글자 이상이면 설명형 배역명으로 보고, 원문에서 공백이었던 자리만
       // 띄어씀. 하이픈이었던 자리(이름 음절 구분용)는 그대로 붙여씀.
-      hangul = pieces.reduce((acc, piece, i) => {
+      hangul = dedupPieces.reduce((acc, piece, i) => {
         if (i === 0) return piece;
-        const delim = delimTypes[i - 1];
+        const delim = dedupDelims[i - 1];
         return acc + (delim === "space" ? " " : "") + piece;
       }, "");
     } else {
       hangul = concatenated;
     }
+    return { ok: true, hangul };
+  }
+
+  // [신규] 미매칭 재시도(partialMode)에서만: 앞부분이 최소 한 토큰이라도 번역됐으면
+  // (3글자 기준 없이) 그걸 인정하고, 막힌 지점부터 끝까지는 원문 토큰을 구분자 살려서
+  // 그대로 이어붙임. 예: "Kang Detective" → "강 Detective"
+  if (partialMode && pieces.length > 0) {
+    let hangul = dedupPieces.reduce((acc, piece, i) => {
+      if (i === 0) return piece;
+      const delim = dedupDelims[i - 1];
+      return acc + (delim === "space" ? " " : "") + piece;
+    }, "");
+    const remainderRaw = tokens.slice(stopIndex).reduce((acc, t, idx) => {
+      if (idx === 0) return t;
+      const delim = delimTypes[stopIndex + idx - 1];
+      return acc + (delim === "space" ? " " : "") + t;
+    }, "");
+    const sepBeforeRemainder = delimTypes[stopIndex - 1] === "space" ? " " : "";
+    hangul += sepBeforeRemainder + remainderRaw;
     return { ok: true, hangul };
   }
 
@@ -217,13 +269,17 @@ function _findRawOverrideMatch(rawName, overrides) {
 // [rev.23] 예외문구 없이 순수 토큰 번역만 수행 — 기존 _translateName 본문에 있던 토큰화+
 // 번역 로직을 재사용 가능하게 분리(예외문구 앞/뒤로 남는 원문 조각도 이 함수로 각각 번역)
 // [rev.24] romanMap은 미리 불러온 Map — D1 조회 없이 동기로 처리.
-function _translatePlainSegment(rawSegment, romanMap) {
+function _translatePlainSegment(rawSegment, romanMap, partialMode) {
   const trimmed = rawSegment.trim();
   if (!trimmed) return { ok: true, hangul: "" };
 
   // 괄호( )는 유지, 그 외 기호(마침표·대괄호·물음표·콤마 등)는 전부 제거.
+  // [신규] 한글(가-힣)도 지우지 않고 유지 — 배역명에 "Kyeong-soo (경수)"처럼 이미 한글이
+  // 괄호 안에 들어있는 경우, 예전엔 여기서 한글이 통째로 지워져서 빈 "()"만 남고 그게
+  // 매칭 실패로 떴었음(막힌 음절: "()"). 한글을 살려두면 아래 _translateToken에서
+  // "이미 한글인 토큰"으로 판별해 그대로 통과시킬 수 있음.
   // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
-  const symbolsCleaned = trimmed.replace(/[^A-Za-z0-9\s\-'()]/g, "");
+  const symbolsCleaned = trimmed.replace(/[^A-Za-z0-9가-힣\s\-'()]/g, "");
   const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
 
   // [rev.16] 공백/하이픈 구분자를 캡처 그룹으로 살려서 쪼갬 — 짝수 인덱스는 토큰,
@@ -270,7 +326,7 @@ function _translatePlainSegment(rawSegment, romanMap) {
     }
   }
 
-  return _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap);
+  return _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap, partialMode);
 }
 
 // [신규/rev.23] 배역명 문자열 하나를 번역 — ① cast_name_overrides에서 원문(rawName) 그대로
@@ -280,13 +336,13 @@ function _translatePlainSegment(rawSegment, romanMap) {
 // 이어붙임("Go Man-geun" → "고 만근", "middle School girl" → "중학교 소녀").
 // ② 매칭이 아예 없으면 전체를 _translatePlainSegment로 번역.
 // [rev.24] dicts = { romanMap, overrides } — 배치 시작할 때 미리 불러온 것. D1 조회 없음.
-function _translateName(rawName, dicts) {
+function _translateName(rawName, dicts, partialMode) {
   const match = _findRawOverrideMatch(rawName, dicts.overrides);
   if (match) {
     const rawPrefix = rawName.slice(0, match.start);
     const rawSuffix = rawName.slice(match.end);
-    const beforeR = _translatePlainSegment(rawPrefix, dicts.romanMap);
-    const afterR = _translatePlainSegment(rawSuffix, dicts.romanMap);
+    const beforeR = _translatePlainSegment(rawPrefix, dicts.romanMap, partialMode);
+    const afterR = _translatePlainSegment(rawSuffix, dicts.romanMap, partialMode);
     if (beforeR.ok && afterR.ok) {
       const leftSep = match.start > 0 ? rawName[match.start - 1] : null;
       const rightSep = match.end < rawName.length ? rawName[match.end] : null;
@@ -307,7 +363,7 @@ function _translateName(rawName, dicts) {
     return { ok: false, tokens: failedTokens };
   }
 
-  return _translatePlainSegment(rawName, dicts.romanMap);
+  return _translatePlainSegment(rawName, dicts.romanMap, partialMode);
 }
 
 // [rev.24] 배치 시작할 때 romanization_map·cast_name_overrides를 딱 한 번만 통째로 불러와
@@ -364,7 +420,7 @@ async function _runBatch(env, { afterId, limit, retryFailed }) {
         ? { ok: true, hangul: row.actor_name }
         : { ok: false, tokens: ["(배우 한글이름 없음)"] };
     }
-    return _translateName(row.character_name, dicts);
+    return _translateName(row.character_name, dicts, retryFailed);
   });
 
   const updateStmts = [];
