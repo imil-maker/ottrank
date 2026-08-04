@@ -1,3 +1,7 @@
+/* 2026-08-04 rev.30 — work_cast.js (대괄호 partialMode 버그 수정 — 앞/안/뒤 셋 다 매칭표에
+   하나도 안 걸려도 "성공"으로 잘못 처리되던 문제. "[Barista]"처럼 진짜 번역할 게 하나도
+   없으면(셋 다 매칭 실패) 미매칭으로 남기고, 최소 하나라도 실제 번역된 게 있을 때만
+   성공 처리하도록 수정) */
 /* 2026-08-04 rev.29 — work_cast.js (2가지 수정 — ① 대괄호 "[...]"는 소괄호와 똑같이 안쪽
    내용을 정상적으로 번역 시도(매칭표에 있으면 번역됨), 대괄호 기호만 유지. 앞/뒤 텍스트와
    대괄호 안쪽을 각각 따로(재귀) 번역해서 합치는 방식으로 처리 — 대괄호까지 한 토큰
@@ -412,7 +416,12 @@ function _translateName(rawName, dicts, partialMode) {
       if (afterB.hangul) hangul += (rightSepB === " " ? " " : "") + afterB.hangul;
       return { ok: true, hangul };
     }
-    if (partialMode) {
+    // [신규] partialMode라도, 앞/안/뒤 셋 중 실제로 번역된 게 하나도 없으면(즉 전부
+    // 원문 그대로일 뿐이면) 성공 처리하지 않고 미매칭으로 남김. "[Barista]"처럼 매칭표에
+    // 아무 단어도 없는 경우까지 "성공"으로 잘못 표시되던 문제 방지.
+    const hasRealTranslationB =
+      (beforeB.ok && beforeB.hangul) || (afterB.ok && afterB.hangul) || innerB.ok;
+    if (partialMode && hasRealTranslationB) {
       const beforeHangulB = beforeB.ok ? beforeB.hangul : rawPrefix.trim();
       const afterHangulB = afterB.ok ? afterB.hangul : rawSuffix.trim();
       const innerHangulB = innerB.ok ? innerB.hangul : innerContent.trim();
