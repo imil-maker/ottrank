@@ -1,3 +1,8 @@
+/* 2026-08-05 rev.3 — functions/title/[slug].js (출연진 SEO 개선 — ① 출연진 조회를
+   JSON-LD 블록보다 앞으로 옮겨서 같은 조회 결과를 화면용 HTML과 JSON-LD 양쪽에 재사용(추가
+   D1 조회 없음) ② 한글 배역명(character_name_ko) 반영 — 있으면 한글, 없으면 기존처럼 영어
+   원문(화면 API인 GET /works/:tmdb_id/cast와 동일 원칙) ③ JSON-LD에 actor(characterName
+   포함)/director 신규 추가 — 기존엔 출연진 구조화 데이터가 아예 없었음) */
 /* 2026-08-01 rev.2 — functions/title/[slug].js (parseSlugForSeo가 season도 같이 파싱하도록
    확장, TV(media_type='tv')이고 시즌2 이상일 때만 <title>/og·twitter title/JSON-LD name에
    " 시즌N" 추가. 영화는 시즌 개념이 없어서 안 붙임, 시즌1은 그대로 유지) */
@@ -216,12 +221,81 @@ export async function onRequestGet(context) {
             );
           }
 
+          // [2026-07-26 신규, 2026-08-05 수정] 출연진/감독 프리필 — work_cast에 저장된 값이 있으면
+          // 봇이 자바스크립트를 실행하지 않아도 인물페이지(/person/{id}) 링크를 미리 볼 수 있음.
+          // 화면(방문자)은 잠시 뒤 자바스크립트가 TMDB 실시간 데이터로 그대로 덮어쓰므로 사람 눈엔
+          // 차이가 없음 — 이 프리필은 오직 "JS를 실행하지 않는 봇"을 위한 것. 페이지 크기/속도를
+          // 위해 배우는 상위 30명까지만 심음(화면은 여전히 전체 다 보여줌, _title_detail.html은
+          // 안 건드림). [2026-08-05] 조회 위치를 구조화 데이터(JSON-LD) 블록보다 앞으로 옮겨서
+          // 같은 조회 결과를 actor/director 구조화 데이터에도 재사용(추가 D1 조회 없음). 한글
+          // 배역명(character_name_ko)이 있으면 그걸 쓰고 없으면 기존처럼 영어 원문으로 폴백
+          // (화면 API인 GET /works/:tmdb_id/cast와 동일한 원칙).
+          let directors = [];
+          let castList = [];
+          if (row.media_type) {
+            try {
+              const { results: castRows } = await env.DB.prepare(`
+                SELECT person_tmdb_id, name, role, character_name, character_name_ko, profile_path
+                FROM work_cast
+                WHERE tmdb_id = ? AND media_type = ?
+                ORDER BY billing_order ASC
+              `).bind(parsed.tmdb_id, row.media_type).all();
+
+              directors = (castRows || []).filter(p => p.role === "director").slice(0, 3);
+              castList  = (castRows || []).filter(p => p.role === "cast").slice(0, 30);
+
+              if (directors.length || castList.length) {
+                const IMG_PROFILE = "https://poster.ottrank.kr/tmdb-img/w185";
+
+                const directorHtml = directors.map(p => `
+                  <a class="director-chip" href="/person/${p.person_tmdb_id}">
+                    <div class="director-photo">${p.profile_path
+                      ? `<img src="${IMG_PROFILE}${escAttr(p.profile_path)}" alt="${escAttr(p.name || "")}" loading="lazy">`
+                      : `<div class="director-photo-ph">${escText((p.name || "?")[0])}</div>`}
+                    </div>
+                    <div class="director-info">
+                      <span class="director-name">${escText(p.name || "")}</span>
+                      <span class="director-label">감독</span>
+                    </div>
+                  </a>`).join("");
+
+                const castHtml = castList.map(p => `
+                  <a class="cast-card" href="/person/${p.person_tmdb_id}">
+                    <div class="cast-photo">
+                      ${p.profile_path
+                        ? `<img src="${IMG_PROFILE}${escAttr(p.profile_path)}" alt="${escAttr(p.name || "")}" loading="lazy">`
+                        : `<div class="cast-photo-ph">${escText((p.name || "?")[0])}</div>`}
+                    </div>
+                    <div class="cast-name">${escText(p.name || "")}</div>
+                    <div class="cast-role">${escText(p.character_name_ko || p.character_name || "")}</div>
+                  </a>`).join("");
+
+                html = html.replace(
+                  '<div class="director-row" id="directorRow"></div>',
+                  `<div class="director-row" id="directorRow">${directorHtml}</div>`
+                );
+                html = html.replace(
+                  '<div class="cast-scroll" id="castScroll"></div>',
+                  `<div class="cast-scroll" id="castScroll">${castHtml}</div>`
+                );
+                html = html.replace(
+                  '<div class="cast-section" id="castSection" style="display:none">',
+                  '<div class="cast-section" id="castSection">'
+                );
+              }
+            } catch (e) {
+              // 출연진 조회 실패해도 나머지 프리필(제목/줄거리/평점/관계도)엔 영향 없게 조용히 무시
+            }
+          }
+
           // [2026-07-26 신규] 구조화 데이터(JSON-LD) 프리필 — 기존엔 <script id="ldJson">{}</script>로
           // 완전히 비어있는 채로 나가서, 자바스크립트를 실행하지 않는 봇에겐 구조화 데이터가 아예
           // 없는 것과 같았음. D1에 있는 값만으로 우선 채워서 최소한의 구조화 데이터가 항상 나가게 함
           // (자바스크립트가 로드되면 평점 개수 등을 포함한 더 완전한 값으로 덮어씀 — 화면 동작 그대로).
           // TMDB aggregateRating은 투표수(vote_count)가 D1에 없어서 넣지 않음 — ratingCount 없이
           // 넣으면 구조화 데이터 오류로 잡힐 수 있어, 값이 확실한 IMDb 평점(review 형태, 개수 불필요)만 포함.
+          // [2026-08-05 신규] actor/director — 위에서 이미 조회해둔 castList/directors 재사용,
+          // 한글 배역명(characterName)도 함께 포함.
           try {
             const ldType = row.media_type === "movie" ? "Movie" : "TVSeries";
             const ld = {
@@ -246,6 +320,16 @@ export async function onRequestGet(context) {
                   "reviewRating": { "@type": "Rating", "ratingValue": imdbNum, "bestRating": 10, "worstRating": 0 },
                 }];
               }
+            }
+            if (directors.length) {
+              ld.director = directors.map(p => ({ "@type": "Person", "name": p.name || "" }));
+            }
+            if (castList.length) {
+              ld.actor = castList.map(p => ({
+                "@type": "Person",
+                "name": p.name || "",
+                "characterName": p.character_name_ko || p.character_name || undefined,
+              }));
             }
             html = html.replace(
               '<script id="ldJson" type="application/ld+json">{}</script>',
@@ -292,66 +376,6 @@ export async function onRequestGet(context) {
             }
           }
 
-          // [2026-07-26 신규] 출연진/감독 프리필 — work_cast에 저장된 값이 있으면 봇이 자바스크립트를
-          // 실행하지 않아도 인물페이지(/person/{id}) 링크를 미리 볼 수 있음. 화면(방문자)은 잠시 뒤
-          // 자바스크립트가 TMDB 실시간 데이터로 그대로 덮어쓰므로 사람 눈엔 차이가 없음 — 이 프리필은
-          // 오직 "JS를 실행하지 않는 봇"을 위한 것. 페이지 크기/속도를 위해 배우는 상위 30명까지만
-          // 심음(화면은 여전히 전체 다 보여줌, _title_detail.html은 안 건드림).
-          if (row.media_type) {
-            try {
-              const { results: castRows } = await env.DB.prepare(`
-                SELECT person_tmdb_id, name, role, character_name, profile_path
-                FROM work_cast
-                WHERE tmdb_id = ? AND media_type = ?
-                ORDER BY billing_order ASC
-              `).bind(parsed.tmdb_id, row.media_type).all();
-
-              const directors = (castRows || []).filter(p => p.role === "director").slice(0, 3);
-              const castList  = (castRows || []).filter(p => p.role === "cast").slice(0, 30);
-
-              if (directors.length || castList.length) {
-                const IMG_PROFILE = "https://poster.ottrank.kr/tmdb-img/w185";
-
-                const directorHtml = directors.map(p => `
-                  <a class="director-chip" href="/person/${p.person_tmdb_id}">
-                    <div class="director-photo">${p.profile_path
-                      ? `<img src="${IMG_PROFILE}${escAttr(p.profile_path)}" alt="${escAttr(p.name || "")}" loading="lazy">`
-                      : `<div class="director-photo-ph">${escText((p.name || "?")[0])}</div>`}
-                    </div>
-                    <div class="director-info">
-                      <span class="director-name">${escText(p.name || "")}</span>
-                      <span class="director-label">감독</span>
-                    </div>
-                  </a>`).join("");
-
-                const castHtml = castList.map(p => `
-                  <a class="cast-card" href="/person/${p.person_tmdb_id}">
-                    <div class="cast-photo">
-                      ${p.profile_path
-                        ? `<img src="${IMG_PROFILE}${escAttr(p.profile_path)}" alt="${escAttr(p.name || "")}" loading="lazy">`
-                        : `<div class="cast-photo-ph">${escText((p.name || "?")[0])}</div>`}
-                    </div>
-                    <div class="cast-name">${escText(p.name || "")}</div>
-                    <div class="cast-role">${escText(p.character_name || "")}</div>
-                  </a>`).join("");
-
-                html = html.replace(
-                  '<div class="director-row" id="directorRow"></div>',
-                  `<div class="director-row" id="directorRow">${directorHtml}</div>`
-                );
-                html = html.replace(
-                  '<div class="cast-scroll" id="castScroll"></div>',
-                  `<div class="cast-scroll" id="castScroll">${castHtml}</div>`
-                );
-                html = html.replace(
-                  '<div class="cast-section" id="castSection" style="display:none">',
-                  '<div class="cast-section" id="castSection">'
-                );
-              }
-            } catch (e) {
-              // 출연진 조회 실패해도 나머지 프리필(제목/줄거리/평점/관계도)엔 영향 없게 조용히 무시
-            }
-          }
         }
       }
     }
