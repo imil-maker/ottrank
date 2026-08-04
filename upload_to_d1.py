@@ -1,4 +1,8 @@
 """
+2026-08-04 rev.3 — upload_to_d1.py (upload_boxoffice_stats()가 target_date 컬럼을 SELECT/
+INSERT 양쪽 다 빠뜨리고 있던 문제 수정 — INSERT OR REPLACE라서 로컬 DB엔 target_date 값이
+있어도 D1엔 매번 그 컬럼 없이 통째로 덮어써져서 결과적으로 D1에서는 계속 빈 값으로 남았음.
+SELECT에 target_date 추가, INSERT 문에도 컬럼/값 추가)
 2026-08-02 rev.2 — upload_to_d1.py (upload_works()가 시즌 관련 컬럼(season,
 season_poster_path, season_source, season_checked_at, season_new_available)을
 D1로 안 올리고 있던 문제 수정. db.py의 _check_season_update()가 로컬에 써둔 값이
@@ -507,7 +511,7 @@ def upload_boxoffice_stats(conn: sqlite3.Connection) -> int:
     """
     try:
         rows = conn.execute("""
-            SELECT tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+            SELECT tmdb_id, movie_cd, date, target_date, rank, rank_inten, rank_old_and_new,
                    audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
                    scrn_cnt, show_cnt
             FROM boxoffice_stats
@@ -520,15 +524,15 @@ def upload_boxoffice_stats(conn: sqlite3.Connection) -> int:
 
     sql_list = []
     for row in rows:
-        (tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new,
+        (tmdb_id, movie_cd, date, target_date, rank, rank_inten, rank_old_and_new,
          audi_cnt, audi_acc, audi_change, sales_amt, sales_share,
          scrn_cnt, show_cnt) = row
         sql_list.append(
             f"INSERT OR REPLACE INTO boxoffice_stats "
-            f"(tmdb_id, movie_cd, date, rank, rank_inten, rank_old_and_new, "
+            f"(tmdb_id, movie_cd, date, target_date, rank, rank_inten, rank_old_and_new, "
             f"audi_cnt, audi_acc, audi_change, sales_amt, sales_share, "
             f"scrn_cnt, show_cnt) "
-            f"VALUES ({tmdb_id}, {esc(movie_cd)}, {esc(date)}, "
+            f"VALUES ({tmdb_id}, {esc(movie_cd)}, {esc(date)}, {esc(target_date)}, "
             f"{rank if rank is not None else 'NULL'}, "
             f"{rank_inten if rank_inten is not None else 'NULL'}, "
             f"{esc(rank_old_and_new)}, "
