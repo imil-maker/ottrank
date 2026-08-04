@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.14 — admin_cast.html ("인물별 배역 보기" 탭 신규 추가 — 인물 이름(한글/영어)
+     또는 TMDB ID로 검색, work_cast.js rev.35의 GET /admin/cast/by-person 사용. 인물별로
+     구역 나눠서 출연작 전체 표시, 입력/저장은 기존 saveCastKo() 재사용. "전체 저장" 버튼을
+     saveAllCastKo() → saveAllCastKoIn(containerId)로 일반화해서 작품별/인물별 탭 둘 다 재사용) -->
 <!-- 2026-08-05 rev.13 — admin_cast.html (?work=작품명 쿼리파라미터 지원 신규 — 로그인 후
      이 값이 있으면 "작품별 배역 보기" 탭으로 자동 이동 + 그 작품명으로 자동 검색. 
      admin_keywords.html "관계도 매칭"의 "🎭 배역 번역 관리" 링크에서 사용) -->
@@ -138,6 +142,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="tab-bar">
       <button class="tab-btn on" id="tabBtn-translate" onclick="switchCastTab('translate')">🈺 번역 관리</button>
       <button class="tab-btn" id="tabBtn-bywork" onclick="switchCastTab('bywork')">🎬 작품별 배역 보기</button>
+      <button class="tab-btn" id="tabBtn-byperson" onclick="switchCastTab('byperson')">🙂 인물별 배역 보기</button>
     </div>
 
     <div id="translateTabPanel">
@@ -206,10 +211,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         </div>
         <div id="workSearchResults" style="margin-top:16px"></div>
         <div id="workSaveAllBar" style="display:none;margin-top:14px;text-align:right">
-          <button class="btn-primary" id="saveAllBtn" onclick="saveAllCastKo()">💾 전체 저장</button>
+          <button class="btn-primary" id="saveAllBtn" onclick="saveAllCastKoIn('workSearchResults')">💾 전체 저장</button>
         </div>
       </div>
     </div>
+
+    <div id="personTabPanel" style="display:none">
+      <div class="card">
+        <h2>인물 검색 · 출연작 배역 전체 보기</h2>
+        <p class="desc">배우 이름(한글·영어 둘 다 검색돼요, 포함되기만 해도 검색됨) 또는 TMDB ID 숫자를 입력하면, 그 배우가 맡았던 배역이 출연작별로 전부 나와요. 각 배역 옆에서 바로 한글을 입력/수정할 수 있어요.</p>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="personSearchInput" placeholder="예: 이병헌, Lee Byung-hun, 1231... (TMDB ID)" style="flex:1"
+            onkeydown="if(event.key==='Enter'){ event.preventDefault(); runPersonSearch(); }">
+          <button class="btn-secondary" onclick="runPersonSearch()">검색</button>
+        </div>
+        <div id="personSearchResults" style="margin-top:16px"></div>
+        <div id="personSaveAllBar" style="display:none;margin-top:14px;text-align:right">
+          <button class="btn-primary" id="personSaveAllBtn" onclick="saveAllCastKoIn('personSearchResults')">💾 전체 저장</button>
+        </div>
+      </div>
+    </div>
+
 
   </div>
 </div>
@@ -483,8 +505,10 @@ async function runCastSearch(){
 function switchCastTab(tab){
   document.getElementById('tabBtn-translate').classList.toggle('on', tab==='translate');
   document.getElementById('tabBtn-bywork').classList.toggle('on', tab==='bywork');
+  document.getElementById('tabBtn-byperson').classList.toggle('on', tab==='byperson');
   document.getElementById('translateTabPanel').style.display = tab==='translate' ? '' : 'none';
   document.getElementById('workTabPanel').style.display = tab==='bywork' ? '' : 'none';
+  document.getElementById('personTabPanel').style.display = tab==='byperson' ? '' : 'none';
 }
 
 /* ══ 작품명 검색 → 작품별 배역 전체 보기 ══ */
@@ -529,6 +553,45 @@ async function runWorkSearch(){
   }
 }
 
+/* ══ 인물 검색(이름/TMDB ID) → 출연작 배역 전체 보기 ══ */
+async function runPersonSearch(){
+  const q = document.getElementById('personSearchInput').value.trim();
+  const box = document.getElementById('personSearchResults');
+  const saveBar = document.getElementById('personSaveAllBar');
+  if(!q){ box.innerHTML = ''; saveBar.style.display = 'none'; return; }
+  box.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--muted)">검색 중...</div>';
+  saveBar.style.display = 'none';
+  try{
+    const res = await fetch(`${API}/admin/cast/by-person?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.message || res.status);
+    if(!data.data.length){
+      box.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--muted)">결과 없음</div>';
+      return;
+    }
+    box.innerHTML = data.data.map(p => `
+      <div class="work-group">
+        <div class="work-group-title">${escHtml(p.name||'(이름없음)')} <span class="work-group-year">(TMDB ${p.person_tmdb_id})</span></div>
+        <div class="work-group-box">
+          ${p.works.length ? p.works.map(r => `
+            <div class="result-row">
+              <span class="tag tag-work">${escHtml(r.title_ko||'')}${r.year?` (${r.year})`:''}</span>
+              <span style="min-width:140px">${escHtml(r.character_name||'')}</span>
+              <input class="form-input" style="flex:1;min-width:120px;padding:6px 10px;font-size:13px"
+                id="castKo-${r.id}" value="${escHtml(r.character_name_ko||'')}" placeholder="한글 배역명">
+              <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="saveCastKo(${r.id})">저장</button>
+              ${r.character_name_ko_source ? `<span class="tag" style="font-size:10px">${r.character_name_ko_source}</span>` : ''}
+            </div>`).join('') : '<div style="padding:14px;font-size:13px;color:var(--muted)">출연작 없음</div>'}
+        </div>
+      </div>`).join('');
+    saveBar.style.display = data.data.some(p => p.works.length) ? 'block' : 'none';
+  }catch(e){
+    box.innerHTML = `<div style="padding:14px;font-size:13px;color:var(--accent)">오류: ${escHtml(e.message)}</div>`;
+  }
+}
+
 async function translateWorkCast(tmdbId, mediaType, btn){
   btn.disabled = true;
   const original = btn.textContent;
@@ -555,8 +618,9 @@ async function translateWorkCast(tmdbId, mediaType, btn){
   }
 }
 
-async function saveAllCastKo(){
-  const inputs = document.querySelectorAll('#workSearchResults input[id^="castKo-"]');
+const _SAVE_ALL_BTN_MAP = { workSearchResults: 'saveAllBtn', personSearchResults: 'personSaveAllBtn' };
+async function saveAllCastKoIn(containerId){
+  const inputs = document.querySelectorAll(`#${containerId} input[id^="castKo-"]`);
   const items = [];
   inputs.forEach(inp => {
     const id = parseInt(inp.id.replace('castKo-',''));
@@ -564,7 +628,7 @@ async function saveAllCastKo(){
     if(id && val) items.push({ id, character_name_ko: val });
   });
   if(!items.length){ showToast('❌ 저장할 한글 배역명이 없어요'); return; }
-  const btn = document.getElementById('saveAllBtn');
+  const btn = document.getElementById(_SAVE_ALL_BTN_MAP[containerId]);
   btn.disabled = true;
   const original = btn.textContent;
   btn.textContent = '저장 중...';
