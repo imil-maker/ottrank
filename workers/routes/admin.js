@@ -1,3 +1,5 @@
+// 2026-08-05 rev.12 — admin.js (GET /admin/users 응답에 total/page/limit 추가 —
+// 회원 관리 리스트 페이지네이션 지원용 전체 회원수 COUNT 쿼리 신규 추가, 기존 검색 조건 동일 적용)
 // 2026-08-02 rev.11 — admin.js (POST /admin/rankings 시즌 포스터 근본 수정:
 // ① season_poster_path 있으면 TMDB 기본 포스터 대신 무조건 그걸 사용(크롤링이 매일
 // 포스터를 시즌1로 되돌리던 버그의 근본 원인 수정) ② 이 작품이 works에 처음 생기는
@@ -6438,6 +6440,13 @@ export async function handleAdmin(path, request, env, url, headers) {
       const offset = (page - 1) * limit;
       const search = url.searchParams.get("q") || "";
 
+      // 전체 회원수 카운트 (페이지네이션용) — 검색어 있으면 검색 조건도 동일하게 적용
+      let countQuery = `SELECT COUNT(*) as total FROM users u`;
+      const countParams = [];
+      if (search) { countQuery += " WHERE u.nickname LIKE ?"; countParams.push(`%${search}%`); }
+      const countRow = await env.DB.prepare(countQuery).bind(...countParams).first();
+      const total = countRow?.total || 0;
+
       let query = `
         SELECT u.id, u.nickname, u.provider, u.grade, u.total_likes_received,
           u.created_at, u.last_login, u.ott_points,
@@ -6454,7 +6463,7 @@ export async function handleAdmin(path, request, env, url, headers) {
       params.push(limit, offset);
 
       const { results } = await env.DB.prepare(query).bind(...params).all();
-      return new Response(JSON.stringify({ ok: true, data: results }), { headers });
+      return new Response(JSON.stringify({ ok: true, data: results, total, page, limit }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
