@@ -1,3 +1,12 @@
+/* 2026-08-04 rev.29 — work_cast.js (2가지 수정 — ① 대괄호 "[...]"는 소괄호와 똑같이 안쪽
+   내용을 정상적으로 번역 시도(매칭표에 있으면 번역됨), 대괄호 기호만 유지. 앞/뒤 텍스트와
+   대괄호 안쪽을 각각 따로(재귀) 번역해서 합치는 방식으로 처리 — 대괄호까지 한 토큰
+   묶음으로 취급하면 글자 수가 늘어나며 "4글자 이상 띄어쓰기" 규칙이 잘못 걸려 "Jang Guk
+   Han"같은 실제 이름까지 "장 국 한"처럼 음절이 벌어지는 부작용이 있어서, 이름 부분은
+   원래 로직대로 따로 처리. ② _findRawOverrideMatch에 단어 경계 체크 추가 — "man"이
+   예외등록돼 있어도 "Commander"/"Department" 안에 낀 "man"은 더 이상 안 걸리고,
+   "Delivery Man"처럼 진짜 독립된 단어일 때만 매칭(Com남자der, Depart남자들t 같은 결과
+   방지)) */
 /* 2026-08-04 rev.28 — work_cast.js (미매칭 재시도(partialMode) 한정 — 배역명에 예외등록
    문구가 낀 경우("Biru (segment "I Saw You")"), 예외문구 앞/뒤 중 한쪽이라도 완전히
    실패하면 beforeR.ok && afterR.ok 조건에 걸려 앞쪽 성공분(Biru)까지 통째로 버려지던
@@ -152,23 +161,35 @@ function _lookupToken(token, romanMap, hyphenSuffix) {
 
 // [2026-08-04 신규] 토큰 하나를 처리 — 괄호로 감싸져 있으면(예: "(voice)") 괄호는 유지하고
 // 안쪽 내용만 번역해서 다시 괄호로 감싸 반환. 괄호 없으면 토큰 자체를 번역.
+// [신규] 대괄호 "[ ]"도 소괄호와 완전히 동일하게 처리 — 안쪽 내용은 정상적으로 번역
+// 시도하고, 대괄호 기호만 유지해서 다시 감쌈("[Chairman]" → "[회장]").
 function _translateToken(rawToken, romanMap, hyphenSuffix) {
   const openParen = rawToken.startsWith("(");
   const closeParen = rawToken.endsWith(")");
-  const inner = rawToken.replace(/^\(/, "").replace(/\)$/, "");
+  const openBracket = rawToken.startsWith("[");
+  const closeBracket = rawToken.endsWith("]");
+  let inner = rawToken;
+  if (openParen) inner = inner.replace(/^\(/, "");
+  if (closeParen) inner = inner.replace(/\)$/, "");
+  if (openBracket) inner = inner.replace(/^\[/, "");
+  if (closeBracket) inner = inner.replace(/\]$/, "");
   if (!inner) return null;
+  const wrap = (s) =>
+    (openParen ? "(" : "") + (openBracket ? "[" : "") +
+    s +
+    (closeBracket ? "]" : "") + (closeParen ? ")" : "");
   // [신규] 이미 한글인 토큰(예: 괄호 안 "경수")은 로마자 매칭표에 애초에 없으니 조회 없이
   // 그대로 통과. "Kyeong-soo (경수)"의 "(경수)"가 여기 해당.
   if (/^[가-힣]+$/.test(inner)) {
-    return (openParen ? "(" : "") + inner + (closeParen ? ")" : "");
+    return wrap(inner);
   }
   // [rev.13] 숫자만 있는 토큰(예: "8")은 매칭표에서 찾을 필요 없이 그대로 통과
   if (/^\d+$/.test(inner)) {
-    return (openParen ? "(" : "") + inner + (closeParen ? ")" : "");
+    return wrap(inner);
   }
   const hangul = _lookupToken(inner, romanMap, hyphenSuffix);
   if (hangul === null) return null;
-  return (openParen ? "(" : "") + hangul + (closeParen ? ")" : "");
+  return wrap(hangul);
 }
 
 // [rev.16] 토큰 배열 하나를 이어붙여 번역 — delimTypes[i]는 tokens[i]와 tokens[i+1] 사이의
@@ -256,8 +277,15 @@ function _translateTokenSequence(tokens, delimTypes, hyphenFlags, romanMap, part
   return { ok: true, hangul: concatenated };
 }
 
+// [신규] 문자 하나가 "단어를 이루는 글자"(영문/숫자/한글)인지 판별 — 경계 체크용
+function _isWordChar(ch) {
+  return ch !== undefined && /[A-Za-z0-9가-힣]/.test(ch);
+}
+
 // [rev.23] cast_name_overrides에 등록된 문구를 배역명 원문(rawName) 그대로 — 기호 하나도
 // 지우지 않고 대소문자만 무시 — 부분매칭. 여러 개 걸리면 가장 긴 문구를 우선 채택.
+// [신규] 단어 경계에서만 매칭 — "man"이 등록돼 있어도 "Commander"나 "Department" 안에
+// 낀 "man"은 안 걸리고, "Delivery Man"처럼 진짜 독립된 단어일 때만 걸림.
 // 찾으면 { start, end, hangul } 반환(end는 배타적, 원문 인덱스 기준), 없으면 null.
 // [rev.24] overrides는 미리 불러온 배열 — D1 조회 없이 동기로 처리.
 function _findRawOverrideMatch(rawName, overrides) {
@@ -268,10 +296,19 @@ function _findRawOverrideMatch(rawName, overrides) {
   for (const r of overrides) {
     const needle = r.original.toLowerCase();
     if (!needle) continue;
-    const idx = lowerName.indexOf(needle);
-    if (idx === -1) continue;
-    if (!best || needle.length > best.original.length) {
-      best = { start: idx, end: idx + needle.length, hangul: r.hangul, original: r.original };
+    let searchFrom = 0;
+    while (true) {
+      const idx = lowerName.indexOf(needle, searchFrom);
+      if (idx === -1) break;
+      const beforeChar = idx > 0 ? lowerName[idx - 1] : undefined;
+      const afterChar = idx + needle.length < lowerName.length ? lowerName[idx + needle.length] : undefined;
+      if (!_isWordChar(beforeChar) && !_isWordChar(afterChar)) {
+        if (!best || needle.length > best.original.length) {
+          best = { start: idx, end: idx + needle.length, hangul: r.hangul, original: r.original };
+        }
+        break;
+      }
+      searchFrom = idx + 1;
     }
   }
   return best;
@@ -292,7 +329,7 @@ function _translatePlainSegment(rawSegment, romanMap, partialMode) {
   // 매칭 실패로 떴었음(막힌 음절: "()"). 한글을 살려두면 아래 _translateToken에서
   // "이미 한글인 토큰"으로 판별해 그대로 통과시킬 수 있음.
   // 어퍼스트로피 's는 "Bak's"처럼 붙어오므로 별도 토큰으로 분리(앞에 공백 삽입).
-  const symbolsCleaned = trimmed.replace(/[^A-Za-z0-9가-힣\s\-'()]/g, "");
+  const symbolsCleaned = trimmed.replace(/[^A-Za-z0-9가-힣\s\-'()\[\]]/g, "");
   const normalized = symbolsCleaned.replace(/'s\b/gi, " 's");
 
   // [rev.16] 공백/하이픈 구분자를 캡처 그룹으로 살려서 쪼갬 — 짝수 인덱스는 토큰,
@@ -350,6 +387,49 @@ function _translatePlainSegment(rawSegment, romanMap, partialMode) {
 // ② 매칭이 아예 없으면 전체를 _translatePlainSegment로 번역.
 // [rev.24] dicts = { romanMap, overrides } — 배치 시작할 때 미리 불러온 것. D1 조회 없음.
 function _translateName(rawName, dicts, partialMode) {
+  // [신규] 대괄호 "[...]"는 앞/뒤 텍스트와 안쪽 내용을 각각 따로(재귀적으로) 번역한 뒤
+  // "[안쪽번역]" 형태로 다시 합침. 대괄호를 포함해서 통째로 토큰화하면 글자 수가 늘어나며
+  // rev.15/16의 "4글자 이상이면 띄어쓰기" 규칙이 잘못 걸려 "Jang Guk Han"같은 실제
+  // 이름까지 "장 국 한"처럼 음절이 벌어지는 부작용이 있어서, 이름 부분은 원래 로직대로
+  // 따로 처리하고 대괄호 안쪽만 별도로 번역해 붙임.
+  const bracketMatch = /\[([^\]]*)\]/.exec(rawName);
+  if (bracketMatch) {
+    const bStart = bracketMatch.index;
+    const bEnd = bStart + bracketMatch[0].length;
+    const innerContent = bracketMatch[1];
+    const rawPrefix = rawName.slice(0, bStart);
+    const rawSuffix = rawName.slice(bEnd);
+    const beforeB = _translateName(rawPrefix, dicts, partialMode);
+    const afterB = _translateName(rawSuffix, dicts, partialMode);
+    const innerB = _translateName(innerContent, dicts, partialMode);
+    const leftSepB = bStart > 0 ? rawName[bStart - 1] : null;
+    const rightSepB = bEnd < rawName.length ? rawName[bEnd] : null;
+
+    if (beforeB.ok && afterB.ok && innerB.ok) {
+      let hangul = "";
+      if (beforeB.hangul) hangul += beforeB.hangul + (leftSepB === " " ? " " : "");
+      hangul += `[${innerB.hangul}]`;
+      if (afterB.hangul) hangul += (rightSepB === " " ? " " : "") + afterB.hangul;
+      return { ok: true, hangul };
+    }
+    if (partialMode) {
+      const beforeHangulB = beforeB.ok ? beforeB.hangul : rawPrefix.trim();
+      const afterHangulB = afterB.ok ? afterB.hangul : rawSuffix.trim();
+      const innerHangulB = innerB.ok ? innerB.hangul : innerContent.trim();
+      let hangul = "";
+      if (beforeHangulB) hangul += beforeHangulB + (leftSepB === " " ? " " : "");
+      hangul += `[${innerHangulB}]`;
+      if (afterHangulB) hangul += (rightSepB === " " ? " " : "") + afterHangulB;
+      return { ok: true, hangul };
+    }
+    const failedTokensB = [
+      ...(beforeB.ok ? [] : beforeB.tokens || []),
+      ...(innerB.ok ? [] : innerB.tokens || []),
+      ...(afterB.ok ? [] : afterB.tokens || []),
+    ];
+    return { ok: false, tokens: failedTokensB };
+  }
+
   const match = _findRawOverrideMatch(rawName, dicts.overrides);
   if (match) {
     const rawPrefix = rawName.slice(0, match.start);
