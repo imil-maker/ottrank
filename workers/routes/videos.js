@@ -1,3 +1,7 @@
+/* 2026-08-05 rev.13 — videos.js (GET /works/:tmdb_id/cast — 한글 배역명(character_name_ko)
+   화면 연결. SELECT에 character_name_ko 추가, 있으면 그걸 character 필드값으로 응답, 없으면
+   기존처럼 영어(character_name) 그대로. 응답 필드명(character)은 그대로라 프론트 수정 불필요 —
+   아직 우리 DB(work_cast)에 없는 작품은 기존처럼 TMDB 폴백 그대로 영향 없음) */
 /* 2026-08-02 rev.12 — videos.js (GET /works/poster-map 신규 — tmdb_id 여러 개를 한 번에
    조회해 works.poster_path를 돌려주는 배치 API. person.html 필모그래피가 TMDB 원본
    포스터를 그대로 쓰던 문제를 화면 그리기 전에 미리 우리 DB 값으로 바꿔치기하기 위함
@@ -900,7 +904,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     const mediaType = url.searchParams.get("media_type") || "";
     try {
       const { results } = await env.DB.prepare(`
-        SELECT person_tmdb_id, name, role, character_name, profile_path
+        SELECT person_tmdb_id, name, role, character_name, character_name_ko, profile_path
         FROM work_cast
         WHERE tmdb_id = ? AND media_type = ?
         ORDER BY billing_order ASC
@@ -913,8 +917,9 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       const directors = results.filter(p => p.role === "director").map(p => ({
         id: p.person_tmdb_id, name: p.name, profile_path: p.profile_path,
       }));
+      // 한글 배역명(character_name_ko)이 있으면 그걸 쓰고, 아직 번역 전이면 기존처럼 영어 원문(character_name)을 그대로 씀
       const cast = results.filter(p => p.role === "cast").map(p => ({
-        id: p.person_tmdb_id, name: p.name, profile_path: p.profile_path, character: p.character_name,
+        id: p.person_tmdb_id, name: p.name, profile_path: p.profile_path, character: p.character_name_ko || p.character_name,
       }));
 
       return new Response(JSON.stringify({ ok: true, data: { directors, cast } }), { headers });
