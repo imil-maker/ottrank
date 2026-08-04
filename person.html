@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.17 — person.html (필모그래피 카드 — 배역명에 "self"가 들어간 경우도
+     "역" 표기 안 붙이도록 확장, 본인이름 일치 조건과 함께 적용) -->
 <!-- 2026-08-05 rev.16 — person.html (필모그래피 카드 배역명 뒤에 "역" 표기 추가 — 배역(캐릭터)
      일 때만 적용, 감독 등 직책(job)에는 안 붙임. 배역명이 없거나 본인 이름과 같으면(예능
      본인출연) "역"도 안 붙임) -->
@@ -1650,8 +1652,9 @@ function workCardHtml(item){
   const roleRaw  = koRole || item.character || item.job || '';
   const title    = escHtml(titleRaw);
   // [2026-08-05 신규] 배역명 뒤에 "역" 표기 — 배역(캐릭터)일 때만, 빈 배역명이거나 배역명이
-  // 본인 이름과 같으면(예능 본인출연) 안 붙임. 대소문자/앞뒤공백 무시하고 비교.
-  const isSelfRole = roleRaw.trim().toLowerCase() === (personDisplayName||'').trim().toLowerCase();
+  // 본인 이름과 같거나(예능 본인출연), "self"가 들어간 경우(Self, Self - Host 등)도 안 붙임.
+  const isSelfRole = roleRaw.trim().toLowerCase() === (personDisplayName||'').trim().toLowerCase()
+    || /self/i.test(roleRaw);
   const role     = (roleRaw && isCharacterRole && !isSelfRole) ? `${escHtml(roleRaw)} 역` : escHtml(roleRaw);
   const year     = (item.release_date||item.first_air_date||'').slice(0,4);
   const rating   = item.vote_average ? item.vote_average.toFixed(1).replace(/\.0$/,'') : ''; // [2026-07-20 신규]
