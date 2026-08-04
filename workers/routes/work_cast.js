@@ -1,3 +1,6 @@
+/* 2026-08-05 rev.36 — work_cast.js (GET /admin/cast/by-work — TMDB ID 숫자 검색 추가.
+   숫자만 입력하면 title_ko 대신 tmdb_id 정확히 일치로 찾음 — 제목이 비어있거나 이상하게
+   저장돼서 제목 검색으로 안 걸리던 작품도 찾을 수 있게) */
 /* 2026-08-05 rev.35 — work_cast.js (GET /admin/cast/by-person 신규 — 인물 이름(한글/영어)
    또는 TMDB ID 숫자로 검색해서 그 배우들이 맡은 배역 전체를 작품별로 반환. by-work의 인물
    버전, 최대 10명, persons.name_ko와 LEFT JOIN해서 한글 이름으로도 검색 가능) */
@@ -849,13 +852,25 @@ export async function handleWorkCast(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
       }
       try {
-        const worksRes = await env.DB.prepare(
-          `SELECT tmdb_id, media_type, title_ko, release_date
-           FROM works
-           WHERE title_ko LIKE ? ESCAPE '\\'
-           ORDER BY release_date DESC
-           LIMIT 10`
-        ).bind(`%${q}%`).all();
+        // [2026-08-05 신규] 숫자만 입력하면 TMDB ID 정확히 일치로 찾음 — 제목이 비어있거나
+        // 이상하게 저장돼서 제목 검색으로 안 걸리는 작품도 찾을 수 있게. media_type이 movie/tv
+        // 둘 다일 수 있어 정확한 id 하나로는 여러 건(같은 id, 다른 media_type) 나올 수 있음.
+        const isId = /^\d+$/.test(q);
+        const worksRes = isId
+          ? await env.DB.prepare(
+              `SELECT tmdb_id, media_type, title_ko, release_date
+               FROM works
+               WHERE tmdb_id = ?
+               ORDER BY release_date DESC
+               LIMIT 10`
+            ).bind(parseInt(q)).all()
+          : await env.DB.prepare(
+              `SELECT tmdb_id, media_type, title_ko, release_date
+               FROM works
+               WHERE title_ko LIKE ? ESCAPE '\\'
+               ORDER BY release_date DESC
+               LIMIT 10`
+            ).bind(`%${q}%`).all();
         const works = worksRes.results || [];
         if (!works.length) {
           return new Response(JSON.stringify({ ok: true, data: [] }), { headers });
