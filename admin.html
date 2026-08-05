@@ -1,3 +1,7 @@
+<!-- 2026-08-06 rev.13 — admin.html (랭킹관리에 "🟡 티빙 매칭대기" 배지 신규 추가 —
+     GET /admin/tving/pending 조회해서 개수 표시, 클릭 시 순위/제목/티빙코드 목록 패널.
+     여기서 바로 연결은 안 하고 "코드 복사" 버튼만 제공 — 관리자가 "➕ 추가" 모달에서
+     직접 작품 찾아 붙여넣는 흐름 그대로 유지) -->
 <!-- 2026-08-06 rev.12 — admin.html (랭킹 추가/수정 모달에 "티빙 코드" 입력창 신규 —
      티빙 플랫폼일 때만 표시. 값 입력/수정하면 저장 시 해당 tmdb_id 작품에 자동 동기화되어
      다음 크롤링부터 자동매칭됨. 작품이 틀렸든 코드가 틀렸든 이 입력창 하나로 다 해결) -->
@@ -298,6 +302,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="ftab" onclick="setFilter('boxoffice',this)">박스오피스</button>
     <button class="ftab" id="btnNoTmdb" style="margin-left:auto;border-color:rgba(247,129,113,.3);color:var(--red)" onclick="setFilter('no_tmdb',this)">⚠ TMDB없음 <span id="noTmdbCount"></span></button>
     <button class="ftab" id="btnNewMatch" style="border-color:rgba(52,211,153,.3);color:var(--green)" onclick="setFilter('new_match',this)">🆕 신규매칭 <span id="newMatchCount"></span></button>
+    <button class="ftab" id="btnTvingPending" style="border-color:rgba(240,180,41,.35);color:var(--gold)" onclick="openTvingPendingPanel()">🟡 티빙 매칭대기 <span id="tvingPendingCount"></span></button>
   </div>
   <div class="table-wrap">
     <table>
@@ -1001,6 +1006,21 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
+</div>
+
+<!-- [2026-08-06 신규] 티빙 매칭대기 목록 — 자동 매칭 실패한 항목들을 보여주기만 함
+     (여기서 바로 연결 안 함, "➕ 추가" 모달에서 티빙코드 입력해서 수동 연결) -->
+<div class="overlay" id="tvingPendingOverlay" onclick="if(event.target===this)closeTvingPendingPanel()">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:520px">
+    <h3>🟡 티빙 매칭대기</h3>
+    <p style="font-size:12px;color:var(--muted);margin:-8px 0 12px">
+      자동 매칭에 실패한 항목이에요. "➕ 추가"로 작품을 찾아 넣을 때, 아래 티빙코드를 같이 입력하면 다음부터는 자동으로 매칭돼요.
+    </p>
+    <div id="tvingPendingList" style="max-height:400px;overflow-y:auto"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <button class="btn-sm" onclick="closeTvingPendingPanel()">닫기</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="editOverlay" onclick="if(event.target===this)closeModal()">
@@ -2387,6 +2407,7 @@ async function loadData() {
     const noTmdbCnt = allData.filter(r => !r.tmdb_id).length;
     document.getElementById('noTmdbCount').textContent = noTmdbCnt > 0 ? `(${noTmdbCnt})` : '';
     loadNewMatchCount(date);
+    loadTvingPendingCount(); // [2026-08-06 신규]
     // [2026-07-31 수정] 예전엔 무조건 '전체' 탭으로 리셋됐음 — 작품/랭킹 수정 후 저장할 때마다
     // 이 함수가 다시 호출되는데, 보고 있던 OTT 탭(예: 웨이브)에서 계속 작업 중이었다면 매번
     // '전체'로 튕겨나가서 불편했음. 지금 보고 있던 탭을 그대로 유지하도록 변경.
@@ -4836,6 +4857,54 @@ async function deleteCheckedWorks() {
 // 신규매칭 (new_match) 기능
 // ════════════════════════════════════════════════════
 let newMatchIds = new Set(); // 신규매칭 tmdb_id 목록
+
+// [2026-08-06 신규] 티빙 매칭대기 목록 — 자동 매칭 실패한 항목 개수/목록 조회
+let tvingPendingData = [];
+async function loadTvingPendingCount() {
+  if (!token) return;
+  try {
+    const res = await fetch(`${API}/admin/tving/pending`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    tvingPendingData = json.items || [];
+    const count = tvingPendingData.length;
+    document.getElementById('tvingPendingCount').textContent = count > 0 ? `(${count})` : '';
+  } catch (e) {
+    // 조회 실패해도 랭킹관리 본 기능엔 영향 없게 조용히 무시
+  }
+}
+
+function openTvingPendingPanel() {
+  const listEl = document.getElementById('tvingPendingList');
+  if (!tvingPendingData.length) {
+    listEl.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0">매칭 대기 중인 항목이 없어요 🎉</p>';
+  } else {
+    listEl.innerHTML = tvingPendingData
+      .sort((a, b) => a.rank - b.rank)
+      .map(p => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+          <span class="rank-num" style="width:28px">${p.rank}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(p.title)}</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${p.tving_code}</div>
+          </div>
+          <button class="btn-sm" onclick="copyTvingCode('${p.tving_code}')">코드 복사</button>
+        </div>
+      `).join('');
+  }
+  document.getElementById('tvingPendingOverlay').classList.add('show');
+}
+
+function closeTvingPendingPanel() {
+  document.getElementById('tvingPendingOverlay').classList.remove('show');
+}
+
+function copyTvingCode(code) {
+  navigator.clipboard.writeText(code)
+    .then(() => showToast(`코드 복사됨: ${code}`, 'ok'))
+    .catch(() => showToast('복사 실패 — 직접 선택해서 복사해주세요', 'err'));
+}
 
 async function loadNewMatchCount(date) {
   if (!date || !token) return;
