@@ -1,3 +1,9 @@
+/* 2026-08-06 rev.16 — videos.js (POST /works/register — release_year가 아예 저장 안 되고
+   있던 문제 수정. TMDB 추가 호출 없이 이미 저장하는 release_date 앞 4자리로 파생해서 같이
+   저장, release_date와 동일하게 항상 최신값으로 맞춤) */
+/* 2026-08-06 rev.15 — videos.js (POST /works/:tmdb_id/detail-sync 신규 — 런타임/관람등급을
+   방문마다 TMDB 실시간 조회만 하고 저장은 안 하던 문제 수정. 프론트가 화면에 쓴 값을 그대로
+   받아서 비어있을 때만 채움, TMDB 재조회 없음) */
 /* 2026-08-05 rev.14 — videos.js (GET /works/person-cast-ko 신규 — 인물페이지 필모그래피용,
    특정 배우의 한글 배역명 전체를 {tmdb_id, media_type, character_name_ko}로 일괄 반환.
    "/works/"로 시작해서 index.js 라우팅 수정 없이 이 파일로 바로 들어옴) */
@@ -621,6 +627,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       // tmdb_rating은 0도 유효한 값이므로 ?? 사용 (|| 사용 시 0이 null로 사라지는 버그 재발 방지)
       const ratingVal      = tmdb_rating ?? null;
       const releaseDateVal = release_date || null;
+      // [2026-08-06 신규] release_year — TMDB를 추가로 부를 필요 없이 release_date 앞 4자리로
+      // 파생. 이 API가 releaseDateVal을 저장할 때 항상 같이 계산해서 저장(release_date와
+      // 마찬가지로 "보호 대상 아님" — 매번 최신값으로 맞춤).
+      const releaseYearVal = releaseDateVal ? parseInt(releaseDateVal.slice(0, 4)) || null : null;
       const nowIso         = new Date().toISOString(); // rating_updated_at은 서버 시각 기준(클라이언트 시각 신뢰 안 함)
 
       // [2026-07-19 추가] 신규 작품 등록 시 softcore 키워드 자동 성인물 판별
@@ -767,10 +777,10 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
       await env.DB.prepare(`
         INSERT INTO works (
           tmdb_id, tmdb_id_real, title_ko, title_en, poster_path, media_type, genre, original_language,
-          tmdb_rating, release_date, rating_updated_at, match_source, keywords, adult_flag,
+          tmdb_rating, release_date, release_year, rating_updated_at, match_source, keywords, adult_flag,
           season, season_poster_path, season_source, season_checked_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           -- media_type: title_en과 달리 "보호 대상 아님" — 확신 있는 값(NULL 아님)이 오면 항상 최신화.
           -- movie/tv tmdb_id가 우연히 겹쳐 한 번 잘못 저장돼도, 이후 신뢰 가능한 값이 들어오면
@@ -812,6 +822,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
           -- 0은 NULL이 아니므로 COALESCE가 정상값으로 그대로 반영함
           tmdb_rating = COALESCE(excluded.tmdb_rating, works.tmdb_rating),
           release_date = COALESCE(excluded.release_date, works.release_date),
+          release_year = COALESCE(excluded.release_year, works.release_year),
           -- rating_updated_at: 이 등록 요청이 들어온 시점 = 방문자가 TMDB를 조회해온 시점이므로
           -- 매 호출마다 무조건 최신 시각으로 갱신 (신작 1일 / 구작 5일 주기 판단의 기준값)
           rating_updated_at = excluded.rating_updated_at
@@ -832,6 +843,7 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
         original_language || null,
         ratingVal,
         releaseDateVal,
+        releaseYearVal,
         nowIso,
         keywordsVal,
         adultFlagVal,
@@ -973,6 +985,36 @@ export async function handleVideos(path, request, env, ctx, url, headers) {
     })());
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
+  // ── POST /works/:tmdb_id/detail-sync ────────────────────────
+  // [2026-08-06 신규] 런타임(상영시간)·관람등급 — 작품페이지가 방문마다 TMDB에서 실시간으로
+  // 받아와 화면에 표시만 하고 저장은 안 하던 값들. 프론트가 이미 화면에 쓴 값을 그대로
+  // 보내면, 비어있을 때만(COALESCE) 채워넣음 — 둘 다 시간이 지나도 안 바뀌는 정적인
+  // 값이라 한 번만 채우면 됨. TMDB 재조회 없이 클라이언트가 이미 받아온 값을 그대로 신뢰
+  // (cast처럼 복잡한 구조가 아니라 숫자/짧은문자열 단순값이라 검증만 하고 바로 저장).
+  if (/^\/works\/\d+\/detail-sync$/.test(path) && request.method === "POST") {
+    const tmdbId = parseInt(path.match(/^\/works\/(\d+)\/detail-sync$/)[1]);
+    const body   = await request.json().catch(() => ({}));
+
+    const runtime = Number.isInteger(body.runtime) && body.runtime > 0 && body.runtime < 1000
+      ? body.runtime : null;
+    const ageRating = (typeof body.age_rating === "string" && body.age_rating.length <= 10)
+      ? body.age_rating : null;
+
+    if (runtime === null && ageRating === null) {
+      return new Response(JSON.stringify({ ok: true, skipped: true }), { headers });
+    }
+
+    ctx.waitUntil(
+      env.DB.prepare(`
+        UPDATE works SET
+          runtime    = COALESCE(runtime, ?),
+          age_rating = COALESCE(age_rating, ?)
+        WHERE tmdb_id = ?
+      `).bind(runtime, ageRating, tmdbId).run()
+    );
+    return new Response(JSON.stringify({ ok: true }), { headers });
+  }
+
   // 공개 API — 작품 상세페이지 "비슷한 취향의 작품" 섹션에서 최우선 후보로 사용
   // TMDB엔 없는 국내 예능 세부장르(works.variety_genre, 관리자 큐레이션)가 겹치는 작품을 찾아
   // 매칭 % 까지 서버에서 계산해서 내려줌 — 프론트는 받은 숫자를 뱃지에 그대로 사용
