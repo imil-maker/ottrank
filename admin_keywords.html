@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.16 — admin_keywords.html (관계도 매칭 탭 — 후보 목록 페이지당 개수를
+     10개 → 30개로 변경, RC_LIMIT=30) -->
 <!-- 2026-08-05 rev.15 — admin_keywords.html (관계도 매칭 탭 — "릴리즈순 / 최신등록순" 정렬 전환
      버튼 신규 추가. relationship.js rev.7의 candidates ?sort= 파라미터와 연동, 기본값은 릴리즈순
      (기존 동작과 동일)) -->
@@ -5014,7 +5016,7 @@ async function saveMpdMbti(tmdbId, btn){
    관리자가 직접 찾아서 업로드하는 방식(relationship.js와 짝을 이룸)
 ══════════════════════════════════════════════════════ */
 let rcPage    = 1;
-const RC_LIMIT = 10;
+const RC_LIMIT = 30;
 let rcHasMore = false;
 let rcItems   = [];
 let rcSort    = 'release'; // [2026-08-05 신규] 'release'(릴리즈순, 기본) | 'registered'(최신등록순)
