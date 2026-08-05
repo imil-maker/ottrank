@@ -1,3 +1,6 @@
+/* 2026-08-05 rev.7 — relationship.js (candidates에 ?sort=release|registered 파라미터 추가 —
+   기본값은 release(기존과 동일, 방영일 최신순). registered면 first_matched_date DESC로 정렬 —
+   관리자가 "우리 DB에 최근 등록된 순서"로도 후보 목록을 볼 수 있게 함) */
 /* 2026-07-25 rev.6 — relationship.js (candidates 응답에 release_year 추가 — 어드민에서 작품페이지 링크 생성용) */
 /* ══════════════════════════════════════════════════════════════
    relationship.js — 등장인물 관계도 (2026-07-25 신설)
@@ -81,6 +84,11 @@ export async function handleRelationship(path, request, env, url, headers) {
       const limit  = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "10", 10), 1), 30);
       const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
       const offset = (page - 1) * limit;
+      // [2026-08-05 신규] sort=release(기본, 방영일 최신순) | sort=registered(우리 DB 등록 최신순)
+      const sortMode = url.searchParams.get("sort") === "registered" ? "registered" : "release";
+      const orderBy = sortMode === "registered"
+        ? "w.first_matched_date DESC"
+        : "COALESCE(w.release_date, w.release_year || '-01-01') DESC";
 
       // 관계도가 이미 있는 작품(work_tmdb_id + work_media_type 조합)은 후보에서 제외.
       // HOT100 여부(hs.total_score)는 더 이상 정렬에 안 쓰고, 화면에 "🔥랭킹중" 배지
@@ -100,7 +108,7 @@ export async function handleRelationship(path, request, env, url, headers) {
             SELECT 1 FROM relationship_charts rc
             WHERE rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
           )
-        ORDER BY COALESCE(w.release_date, w.release_year || '-01-01') DESC
+        ORDER BY ${orderBy}
         LIMIT ? OFFSET ?
       `;
       const { results } = await env.DB.prepare(sql).bind(limit + 1, offset).all();
