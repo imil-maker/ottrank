@@ -1,3 +1,7 @@
+/* 2026-08-06 rev.5 — tving.js (버그수정 — rankings.category 컬럼에 SLOT("category01")을
+   그대로 넣고 있어서 관리자 화면 TMDB 링크가 항상 movie로 연결되던 문제. works.media_type을
+   같이 조회해서 실제 값(tv/movie)을 저장하도록 수정, 못 찾으면 'tv'로 폴백(이 카테고리 자체가
+   "오늘의 TV 시리즈"라 대부분 tv). 자동 매칭·수동 매칭(pending/match) 둘 다 수정) */
 /* 2026-08-06 rev.4 — tving.js (rankings.updated_at 컬럼 신규 반영 — 저장할 때마다 갱신
    시각 기록. 관리자모드에서 "마지막 갱신 시각" 표시용) */
 /* 2026-08-06 rev.3 — tving.js (매칭 대기 4건 원인 분석 결과 반영 — 띄어쓰기/"시즌" 글자
@@ -83,13 +87,13 @@ export async function handleTving(path, request, env, url, headers) {
 
         // ① tving_code로 이미 연결된 작품인지 확인
         let matched = await env.DB.prepare(
-          "SELECT tmdb_id, poster_path FROM works WHERE tving_code = ?"
+          "SELECT tmdb_id, poster_path, media_type FROM works WHERE tving_code = ?"
         ).bind(tving_code).first();
 
         // ② 제목으로 우리 works에서 검색
         if (!matched) {
           matched = await env.DB.prepare(
-            "SELECT tmdb_id, poster_path FROM works WHERE title_ko = ? LIMIT 1"
+            "SELECT tmdb_id, poster_path, media_type FROM works WHERE title_ko = ? LIMIT 1"
           ).bind(title).first();
         }
 
@@ -98,7 +102,7 @@ export async function handleTving(path, request, env, url, headers) {
         if (!matched) {
           const normTitle = _normalizeTitle(title);
           matched = await env.DB.prepare(`
-            SELECT tmdb_id, poster_path FROM works
+            SELECT tmdb_id, poster_path, media_type FROM works
             WHERE REPLACE(REPLACE(title_ko, ' ', ''), '시즌', '') = ?
             LIMIT 1
           `).bind(normTitle).first();
@@ -107,7 +111,7 @@ export async function handleTving(path, request, env, url, headers) {
         // ④ TMDB 제목 검색
         if (!matched) {
           const tmdbHit = await _searchTmdbByTitle(env, title);
-          if (tmdbHit) matched = { tmdb_id: tmdbHit.tmdb_id, poster_path: tmdbHit.poster_path || null };
+          if (tmdbHit) matched = { tmdb_id: tmdbHit.tmdb_id, poster_path: tmdbHit.poster_path || null, media_type: tmdbHit.media_type || null };
         }
 
         // ⑤ [2026-08-06 신규] 정규화한 제목으로 TMDB 재검색 (④가 실패했을 때만)
@@ -115,7 +119,7 @@ export async function handleTving(path, request, env, url, headers) {
           const normTitle = _normalizeTitle(title);
           if (normTitle !== title) {
             const tmdbHit2 = await _searchTmdbByTitle(env, normTitle);
-            if (tmdbHit2) matched = { tmdb_id: tmdbHit2.tmdb_id, poster_path: tmdbHit2.poster_path || null };
+            if (tmdbHit2) matched = { tmdb_id: tmdbHit2.tmdb_id, poster_path: tmdbHit2.poster_path || null, media_type: tmdbHit2.media_type || null };
           }
         }
 
@@ -125,7 +129,14 @@ export async function handleTving(path, request, env, url, headers) {
             "UPDATE works SET tving_code = ? WHERE tmdb_id = ? AND (tving_code IS NULL OR tving_code != ?)"
           ).bind(tving_code, matched.tmdb_id, tving_code).run();
 
-          matchedRows.push({ rank, tmdb_id: matched.tmdb_id, title_ko: title, poster_path: matched.poster_path || null });
+          matchedRows.push({
+            rank, tmdb_id: matched.tmdb_id, title_ko: title,
+            poster_path: matched.poster_path || null,
+            // [2026-08-06 버그수정] category 컬럼에 SLOT("category01")을 그대로 넣고 있어서
+            // 관리자 화면 TMDB 링크가 항상 movie로 연결되던 문제 — 실제 media_type 사용,
+            // 못 찾으면 이 카테고리(오늘의 TV 시리즈)의 기본값인 'tv'로 폴백
+            media_type: matched.media_type || 'tv',
+          });
 
           // 매칭됐으니 혹시 대기 목록에 같은 코드가 남아있었다면 정리
           await env.DB.prepare(
@@ -147,7 +158,7 @@ export async function handleTving(path, request, env, url, headers) {
           env.DB.prepare(`
             INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto', datetime('now'))
-          `).bind(PLATFORM, SLOT, SLOT, today, r.rank, r.tmdb_id, r.title_ko, r.poster_path)
+          `).bind(PLATFORM, SLOT, r.media_type, today, r.rank, r.tmdb_id, r.title_ko, r.poster_path)
         );
         await env.DB.batch(stmts);
       }
@@ -214,14 +225,14 @@ export async function handleTving(path, request, env, url, headers) {
       ).bind(pending.tving_code, tmdb_id).run();
 
       const workRow = await env.DB.prepare(
-        "SELECT poster_path FROM works WHERE tmdb_id = ?"
+        "SELECT poster_path, media_type FROM works WHERE tmdb_id = ?"
       ).bind(tmdb_id).first();
 
       const today = _todayKST();
       await env.DB.prepare(`
         INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto', datetime('now'))
-      `).bind(PLATFORM, SLOT, SLOT, today, pending.rank, tmdb_id, pending.title, workRow?.poster_path || null).run();
+      `).bind(PLATFORM, SLOT, workRow?.media_type || 'tv', today, pending.rank, tmdb_id, pending.title, workRow?.poster_path || null).run();
 
       await env.DB.prepare(
         "DELETE FROM tving_pending_matches WHERE id = ?"
