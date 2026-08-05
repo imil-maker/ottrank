@@ -1,3 +1,6 @@
+/* 2026-08-06 rev.2 — tving.js (포스터 안 뜨던 버그 수정 — 랭킹 저장 시 poster_path를
+   전혀 안 채우고 있었음. 매칭된 작품의 poster_path를 같이 조회해서 rankings.poster_path에
+   저장하도록 수정. 수동 매칭(POST /admin/tving/pending/:id/match)도 동일하게 수정) */
 /* 2026-08-06 rev.1 — tving.js (신규 파일) — 티빙 category01 자동 랭킹 수집 전용.
    PC(관리자님 컴퓨터)에서 Playwright로 추출한 오늘의 티빙 TOP20 목록을 받아서:
    ① tving_code로 이미 연결된 작품인지 먼저 확인 ② 없으면 제목으로 우리 works에서 검색
@@ -37,7 +40,7 @@ async function _searchTmdbByTitle(env, title) {
     const data = await res.json();
     const hit = (data.results || []).find(r => r.media_type === "tv" || r.media_type === "movie");
     if (!hit) return null;
-    return { tmdb_id: hit.id, media_type: hit.media_type };
+    return { tmdb_id: hit.id, media_type: hit.media_type, poster_path: hit.poster_path || null };
   } catch (e) {
     return null;
   }
@@ -68,20 +71,20 @@ export async function handleTving(path, request, env, url, headers) {
 
         // ① tving_code로 이미 연결된 작품인지 확인
         let matched = await env.DB.prepare(
-          "SELECT tmdb_id FROM works WHERE tving_code = ?"
+          "SELECT tmdb_id, poster_path FROM works WHERE tving_code = ?"
         ).bind(tving_code).first();
 
         // ② 제목으로 우리 works에서 검색
         if (!matched) {
           matched = await env.DB.prepare(
-            "SELECT tmdb_id FROM works WHERE title_ko = ? LIMIT 1"
+            "SELECT tmdb_id, poster_path FROM works WHERE title_ko = ? LIMIT 1"
           ).bind(title).first();
         }
 
         // ③ TMDB 제목 검색
         if (!matched) {
           const tmdbHit = await _searchTmdbByTitle(env, title);
-          if (tmdbHit) matched = { tmdb_id: tmdbHit.tmdb_id };
+          if (tmdbHit) matched = { tmdb_id: tmdbHit.tmdb_id, poster_path: tmdbHit.poster_path || null };
         }
 
         if (matched) {
@@ -90,7 +93,7 @@ export async function handleTving(path, request, env, url, headers) {
             "UPDATE works SET tving_code = ? WHERE tmdb_id = ? AND (tving_code IS NULL OR tving_code != ?)"
           ).bind(tving_code, matched.tmdb_id, tving_code).run();
 
-          matchedRows.push({ rank, tmdb_id: matched.tmdb_id, title_ko: title });
+          matchedRows.push({ rank, tmdb_id: matched.tmdb_id, title_ko: title, poster_path: matched.poster_path || null });
 
           // 매칭됐으니 혹시 대기 목록에 같은 코드가 남아있었다면 정리
           await env.DB.prepare(
@@ -110,9 +113,9 @@ export async function handleTving(path, request, env, url, headers) {
       if (matchedRows.length) {
         const stmts = matchedRows.map(r =>
           env.DB.prepare(`
-            INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, is_manual, source_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto')
-          `).bind(PLATFORM, SLOT, SLOT, today, r.rank, r.tmdb_id, r.title_ko)
+            INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto')
+          `).bind(PLATFORM, SLOT, SLOT, today, r.rank, r.tmdb_id, r.title_ko, r.poster_path)
         );
         await env.DB.batch(stmts);
       }
@@ -178,11 +181,15 @@ export async function handleTving(path, request, env, url, headers) {
         "UPDATE works SET tving_code = ? WHERE tmdb_id = ?"
       ).bind(pending.tving_code, tmdb_id).run();
 
+      const workRow = await env.DB.prepare(
+        "SELECT poster_path FROM works WHERE tmdb_id = ?"
+      ).bind(tmdb_id).first();
+
       const today = _todayKST();
       await env.DB.prepare(`
-        INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, is_manual, source_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto')
-      `).bind(PLATFORM, SLOT, SLOT, today, pending.rank, tmdb_id, pending.title).run();
+        INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto')
+      `).bind(PLATFORM, SLOT, SLOT, today, pending.rank, tmdb_id, pending.title, workRow?.poster_path || null).run();
 
       await env.DB.prepare(
         "DELETE FROM tving_pending_matches WHERE id = ?"
