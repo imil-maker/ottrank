@@ -1,3 +1,7 @@
+// 2026-08-06 rev.14 — admin.js (랭킹 추가/수정(POST /admin/rankings, POST /admin/fix)에
+// tving_code 파라미터 추가 — 관리자모드에서 티빙코드를 직접 입력/수정 가능하게 함.
+// 저장 시 해당 tmdb_id 작품에 동기화(_syncTvingCode 헬퍼, 이 코드를 갖고 있던 다른 작품이
+// 있으면 먼저 떼어냄). 작품만 틀렸거나 코드만 틀린 경우 둘 다 이 하나의 규칙으로 해결됨)
 // 2026-08-06 rev.13 — admin.js (PATCH /admin/rankings/reorder 버그 수정 — "순위 저장" 시
 // 플랫폼 구분 없이 무조건 오늘 날짜로 덮어쓰던 문제. 이제 "티빙 + category01"일 때만
 // 오늘 날짜로 갱신·수동고정하고, 다른 플랫폼/카테고리는 요청받은 date를 그대로 유지)
@@ -338,6 +342,19 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
   }
 
+// [2026-08-06 신규] 티빙코드 동기화 — 랭킹 수정/추가 모달에 입력된 티빙코드를
+// 그 시점의 tmdb_id에 붙인다. 이 코드를 갖고 있던 다른 작품이 있으면 먼저 떼어내서
+// (같은 코드가 두 작품에 동시에 붙는 상황 방지) 최신 입력값이 항상 정답이 되게 함.
+async function _syncTvingCode(env, tmdb_id, tving_code) {
+  if (!tving_code) return; // 빈 값이면 건드리지 않음(관리자가 명시적으로 지우고 싶을 때는 별도 처리 필요)
+  await env.DB.prepare(
+    "UPDATE works SET tving_code = NULL WHERE tving_code = ? AND tmdb_id != ?"
+  ).bind(tving_code, tmdb_id).run();
+  await env.DB.prepare(
+    "UPDATE works SET tving_code = ? WHERE tmdb_id = ?"
+  ).bind(tving_code, tmdb_id).run();
+}
+
   // ── POST /admin/rankings ─────────────────────────────────────
   // 랭킹 카테고리 섹션에 작품 신규 추가
   // works upsert → rankings INSERT → title_map upsert
@@ -348,7 +365,7 @@ export async function handleAdmin(path, request, env, url, headers) {
     try {
       const body = await request.json();
       const { platform, category_slot, date, tmdb_id, rank,
-              title_ko, title_en, media_type, is_manual } = body;
+              title_ko, title_en, media_type, is_manual, tving_code } = body;
 
       if (!platform || !category_slot || !date || !tmdb_id || !title_ko) {
         return new Response(JSON.stringify({
@@ -490,19 +507,24 @@ export async function handleAdmin(path, request, env, url, headers) {
         INSERT INTO rankings
           (platform, category_slot, category, date, rank, tmdb_id,
            title_ko, title_en, poster_path, release_year, genre, tmdb_rating,
-           is_manual, source_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           is_manual, source_name, tving_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         platform, category_slot, category_slot, date,
         -(finalRank), parseInt(tmdb_id),
         finalTitleKo || "", finalTitleEn || "", finalPoster,
         finalYear, finalGenre, finalRating,
-        is_manual ? 1 : 0, category_slot
+        is_manual ? 1 : 0, category_slot, tving_code || null
       ).run();
 
       await env.DB.prepare(
         "UPDATE rankings SET rank = ? WHERE platform = ? AND category_slot = ? AND date = ? AND rank = ?"
       ).bind(finalRank, platform, category_slot, date, -(finalRank)).run();
+
+      // [2026-08-06 신규] 티빙코드가 입력됐으면 이 작품에 동기화 (다음 크롤링부터 자동매칭)
+      if (tving_code) {
+        await _syncTvingCode(env, parseInt(tmdb_id), tving_code);
+      }
 
       // ⑤ title_map upsert
       if (finalTitleEn && finalTitleKo) {
@@ -563,7 +585,7 @@ export async function handleAdmin(path, request, env, url, headers) {
     }
     try {
       const body = await request.json();
-      const { id, tmdb_id, title_ko, title_en, delete_duplicates, media_type } = body;
+      const { id, tmdb_id, title_ko, title_en, delete_duplicates, media_type, tving_code } = body;
       // 시즌 번호 + 프론트에서 직접 전송한 시즌 포스터 (rankings에만 저장, works 건드리지 않음)
       const season          = body.season !== undefined ? body.season : undefined;
       const frontPosterPath = body.poster_path || null; // 시즌 포스터 (프론트에서 전송)
@@ -626,6 +648,7 @@ export async function handleAdmin(path, request, env, url, headers) {
             title_en    = COALESCE(?, title_en),
             poster_path = COALESCE(?, poster_path),
             season      = ${seasonBind !== undefined ? '?' : 'season'},
+            tving_code  = ${tving_code !== undefined ? '?' : 'tving_code'},
             is_manual   = 1
         WHERE id = ?
       `).bind(
@@ -633,6 +656,7 @@ export async function handleAdmin(path, request, env, url, headers) {
           tmdb_id ? parseInt(tmdb_id) : null,
           finalTitleKo, finalTitleEn, finalPoster,
           ...(seasonBind !== undefined ? [seasonBind] : []),
+          ...(tving_code !== undefined ? [tving_code || null] : []),
           parseInt(id),
         ]
       ).run();
@@ -673,6 +697,11 @@ export async function handleAdmin(path, request, env, url, headers) {
           parseInt(tmdb_id), finalTitleKo || "", finalTitleEn || "", worksPoserPath, mediaTypeVal,
           finalTitleKo || null, finalTitleEn || null, worksPoserPath, mediaTypeVal
         ).run();
+
+        // [2026-08-06 신규] 티빙코드가 입력됐으면 이 작품에 동기화(다른 작품이 갖고 있었으면 떼어냄)
+        if (tving_code) {
+          await _syncTvingCode(env, parseInt(tmdb_id), tving_code);
+        }
       }
 
       // ③ title_map 저장
