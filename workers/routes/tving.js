@@ -1,3 +1,6 @@
+/* 2026-08-06 rev.3 — tving.js (매칭 대기 4건 원인 분석 결과 반영 — 띄어쓰기/"시즌" 글자
+   표기 차이로 제목 완전일치에 실패하던 문제. 공백+"시즌" 글자만 제거(숫자는 유지)한
+   정규화 비교 단계를 우리 DB 검색과 TMDB 검색 양쪽에 추가) */
 /* 2026-08-06 rev.2 — tving.js (포스터 안 뜨던 버그 수정 — 랭킹 저장 시 poster_path를
    전혀 안 채우고 있었음. 매칭된 작품의 poster_path를 같이 조회해서 rankings.poster_path에
    저장하도록 수정. 수동 매칭(POST /admin/tving/pending/:id/match)도 동일하게 수정) */
@@ -28,6 +31,13 @@ function _todayKST() {
 function _extractTvingCode(url) {
   const m = String(url || "").match(/\/contents\/([A-Za-z0-9]+)/);
   return m ? m[1] : null;
+}
+
+// [2026-08-06 신규] 한글 제목 표기 차이(띄어쓰기, "시즌" 글자 유무) 흡수용 정규화.
+// 숫자는 그대로 둠 — TMDB는 "하트시그널5"처럼 숫자를 붙여쓰지만 "시즌"이라는 단어 자체를
+// 안 쓰기 때문에, 숫자까지 지우면 오히려 안 맞음(예: 심야괴담회6 vs 심야괴담회 매칭 실패).
+function _normalizeTitle(s) {
+  return String(s || "").replace(/\s+/g, "").replace(/시즌/g, "");
 }
 
 // TMDB 제목 검색 — 여러 매체(tv/movie)를 한글 제목으로 검색해서 가장 그럴듯한 첫 결과 반환
@@ -81,10 +91,30 @@ export async function handleTving(path, request, env, url, headers) {
           ).bind(title).first();
         }
 
-        // ③ TMDB 제목 검색
+        // ③ [2026-08-06 신규] 공백·"시즌" 글자만 지우고(숫자는 유지) 비교 —
+        //    "하트시그널 시즌5" ↔ "하트시그널5", "언니네 산지직송3" ↔ "언니네 산지직송 3" 매칭용
+        if (!matched) {
+          const normTitle = _normalizeTitle(title);
+          matched = await env.DB.prepare(`
+            SELECT tmdb_id, poster_path FROM works
+            WHERE REPLACE(REPLACE(title_ko, ' ', ''), '시즌', '') = ?
+            LIMIT 1
+          `).bind(normTitle).first();
+        }
+
+        // ④ TMDB 제목 검색
         if (!matched) {
           const tmdbHit = await _searchTmdbByTitle(env, title);
           if (tmdbHit) matched = { tmdb_id: tmdbHit.tmdb_id, poster_path: tmdbHit.poster_path || null };
+        }
+
+        // ⑤ [2026-08-06 신규] 정규화한 제목으로 TMDB 재검색 (④가 실패했을 때만)
+        if (!matched) {
+          const normTitle = _normalizeTitle(title);
+          if (normTitle !== title) {
+            const tmdbHit2 = await _searchTmdbByTitle(env, normTitle);
+            if (tmdbHit2) matched = { tmdb_id: tmdbHit2.tmdb_id, poster_path: tmdbHit2.poster_path || null };
+          }
         }
 
         if (matched) {
