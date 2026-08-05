@@ -1,3 +1,9 @@
+<!-- 2026-08-06 rev.14 — admin.html (3가지 수정: ① "➕ 추가" 시 UNIQUE 제약 충돌 버그 수정 —
+     화면 행 개수로 순위를 잘못 계산해서 보내던 걸 제거하고 서버의 정확한 MAX(rank)+1
+     계산에 맡김(빈 순위가 있을 때 특히 문제였음) ② "🆕 신규매칭"을 필터탭에서 툴바
+     (박스오피스 업로드 옆)로 이동, "🟡 티빙 매칭대기"를 그 자리로 이동 ③ 수정모달에서
+     텍스트 드래그 선택이 모달 밖에서 끝나면 의도치 않게 닫히던 버그 수정 —
+     mousedown+mouseup 둘 다 오버레이 자체일 때만 닫히도록 변경) -->
 <!-- 2026-08-06 rev.13 — admin.html (랭킹관리에 "🟡 티빙 매칭대기" 배지 신규 추가 —
      GET /admin/tving/pending 조회해서 개수 표시, 클릭 시 순위/제목/티빙코드 목록 패널.
      여기서 바로 연결은 안 하고 "코드 복사" 버튼만 제공 — 관리자가 "➕ 추가" 모달에서
@@ -290,6 +296,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
       style="border-color:rgba(240,180,41,.4);color:var(--gold)">
       📸 박스오피스 업로드
     </button>
+    <!-- [2026-08-06 이동] 필터탭에서 툴바로 위치 변경 — 관리자님 요청 -->
+    <button class="btn-load" id="btnNewMatch" style="border-color:rgba(52,211,153,.3);color:var(--green)" onclick="setFilter('new_match',this)">🆕 신규매칭 <span id="newMatchCount"></span></button>
     <span class="stat" id="statTxt"></span>
   </div>
   <div class="filter-tabs" id="filterTabs">
@@ -301,7 +309,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="ftab" onclick="setFilter('wavve',this)">웨이브</button>
     <button class="ftab" onclick="setFilter('boxoffice',this)">박스오피스</button>
     <button class="ftab" id="btnNoTmdb" style="margin-left:auto;border-color:rgba(247,129,113,.3);color:var(--red)" onclick="setFilter('no_tmdb',this)">⚠ TMDB없음 <span id="noTmdbCount"></span></button>
-    <button class="ftab" id="btnNewMatch" style="border-color:rgba(52,211,153,.3);color:var(--green)" onclick="setFilter('new_match',this)">🆕 신규매칭 <span id="newMatchCount"></span></button>
     <button class="ftab" id="btnTvingPending" style="border-color:rgba(240,180,41,.35);color:var(--gold)" onclick="openTvingPendingPanel()">🟡 티빙 매칭대기 <span id="tvingPendingCount"></span></button>
   </div>
   <div class="table-wrap">
@@ -1023,7 +1030,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
-<div class="overlay" id="editOverlay" onclick="if(event.target===this)closeModal()">
+<div class="overlay" id="editOverlay" onmousedown="_editOverlayMouseDownOnBackdrop = (event.target===this)" onmouseup="if(_editOverlayMouseDownOnBackdrop && event.target===this) closeModal(); _editOverlayMouseDownOnBackdrop=false;">
   <div class="modal" onclick="event.stopPropagation()">
     <h3>✏️ 수동 수정 <span class="sub" id="modalSub"></span></h3>
     <input type="hidden" id="editId">
@@ -1262,6 +1269,10 @@ const IMG2 = 'https://image.tmdb.org/t/p/w92';
 const PC = {netflix:'#e50914',tving:'#ff153c',disney:'#06b6d4',coupang:'#1ac44d',wavve:'#0070f3',boxoffice:'#f0b429'};
 
 let token = '';
+// [2026-08-06 신규] 수정모달 오버레이 바깥 클릭 판정용 — 텍스트 드래그 선택이 모달 밖에서
+// 끝나면서 click이 오버레이에 잘못 걸려 모달이 의도치 않게 닫히던 버그 수정.
+// mousedown도 오버레이 자체에서 시작했을 때만(자식 요소 아님) 닫히도록 두 이벤트 다 체크.
+let _editOverlayMouseDownOnBackdrop = false;
 let allData = [];
 let curFilter = 'all';
 let allGradeSettings = []; // 등급 설정 전체 캐시
@@ -2779,10 +2790,10 @@ async function addRankingItem() {
   if (!title_ko) { showToast('한국어 제목을 입력하세요', 'err'); return; }
   if (!tmdb_id)  { showToast('TMDB ID를 입력하거나 작품을 검색해서 선택하세요', 'err'); return; }
 
-  // 현재 해당 슬롯의 마지막 순위 계산 (로컬 DOM 기준 → rank는 서버에서도 재계산)
-  const groupId  = `${platform}-${slot}`;
-  const dragBody = document.getElementById(`dragBody-${groupId}`);
-  const lastRank = dragBody ? dragBody.querySelectorAll('.drag-row').length + 1 : 1;
+  // [2026-08-06 버그수정] 예전엔 "화면에 보이는 행 개수 + 1"로 순위를 계산해서 보냈는데,
+  // 중간에 빈 순위(매칭 실패로 안 채워진 순위)가 있으면 실제 최댓값과 어긋나서 UNIQUE
+  // 제약 충돌이 났음. 서버(POST /admin/rankings)가 이미 실제 DB 기준 MAX(rank)+1을
+  // 정확히 계산하는 로직을 갖고 있으므로, rank를 아예 안 보내고 그 계산에 맡김.
 
   const saveBtn = document.getElementById('editSaveBtn');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '추가 중...'; }
@@ -2797,7 +2808,6 @@ async function addRankingItem() {
         category_slot : slot,
         date          : date || new Date().toISOString().slice(0, 10),
         tmdb_id,
-        rank          : lastRank,
         title_ko,
         title_en      : title_en  || null,
         media_type    : media_type || null,
