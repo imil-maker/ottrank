@@ -1,3 +1,6 @@
+// 2026-08-06 rev.15 — admin.js (rankings.updated_at 컬럼 신규 반영 — 추가(POST /admin/rankings),
+// 수정(POST /admin/fix), 순위저장(PATCH /admin/rankings/reorder) 저장할 때마다 갱신 시각 기록.
+// 관리자모드에서 "마지막 갱신 시각"을 보여주기 위한 용도, 로그 파일 안 봐도 확인 가능하게 함)
 // 2026-08-06 rev.14 — admin.js (랭킹 추가/수정(POST /admin/rankings, POST /admin/fix)에
 // tving_code 파라미터 추가 — 관리자모드에서 티빙코드를 직접 입력/수정 가능하게 함.
 // 저장 시 해당 tmdb_id 작품에 동기화(_syncTvingCode 헬퍼, 이 코드를 갖고 있던 다른 작품이
@@ -507,8 +510,8 @@ async function _syncTvingCode(env, tmdb_id, tving_code) {
         INSERT INTO rankings
           (platform, category_slot, category, date, rank, tmdb_id,
            title_ko, title_en, poster_path, release_year, genre, tmdb_rating,
-           is_manual, source_name, tving_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           is_manual, source_name, tving_code, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).bind(
         platform, category_slot, category_slot, date,
         -(finalRank), parseInt(tmdb_id),
@@ -649,7 +652,8 @@ async function _syncTvingCode(env, tmdb_id, tving_code) {
             poster_path = COALESCE(?, poster_path),
             season      = ${seasonBind !== undefined ? '?' : 'season'},
             tving_code  = ${tving_code !== undefined ? '?' : 'tving_code'},
-            is_manual   = 1
+            is_manual   = 1,
+            updated_at  = datetime('now')
         WHERE id = ?
       `).bind(
         ...[
@@ -1743,6 +1747,11 @@ async function _syncTvingCode(env, tmdb_id, tving_code) {
           env.DB.prepare("UPDATE rankings SET date = ?, is_manual = 1 WHERE id = ? AND platform = ? AND category_slot = ?")
             .bind(todayKST, parseInt(item.id), platform, category_slot)
         ) : []),
+        // [2026-08-06 신규] 순위 저장은 플랫폼 상관없이 항상 "방금 갱신됨"으로 기록
+        ...items.map(item =>
+          env.DB.prepare("UPDATE rankings SET updated_at = datetime('now') WHERE id = ? AND platform = ? AND category_slot = ?")
+            .bind(parseInt(item.id), platform, category_slot)
+        ),
       ];
       await env.DB.batch(stmts);
       await env.DB.prepare(
