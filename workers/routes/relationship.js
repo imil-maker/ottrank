@@ -1,3 +1,5 @@
+/* 2026-08-05 rev.8 — relationship.js (candidates — sort=registered일 때 media_type을 tv뿐 아니라
+   movie까지 포함(한국 영화도 등록순 목록에 노출). sort=release는 기존대로 tv(드라마)만 유지) */
 /* 2026-08-05 rev.7 — relationship.js (candidates에 ?sort=release|registered 파라미터 추가 —
    기본값은 release(기존과 동일, 방영일 최신순). registered면 first_matched_date DESC로 정렬 —
    관리자가 "우리 DB에 최근 등록된 순서"로도 후보 목록을 볼 수 있게 함) */
@@ -89,6 +91,10 @@ export async function handleRelationship(path, request, env, url, headers) {
       const orderBy = sortMode === "registered"
         ? "w.first_matched_date DESC"
         : "COALESCE(w.release_date, w.release_year || '-01-01') DESC";
+      // [2026-08-05 신규] 릴리즈순은 기존대로 TV(드라마)만, 등록순은 한국 영화까지 포함
+      const mediaTypeCond = sortMode === "registered"
+        ? "w.media_type IN ('tv','movie')"
+        : "w.media_type = 'tv'";
 
       // 관계도가 이미 있는 작품(work_tmdb_id + work_media_type 조합)은 후보에서 제외.
       // HOT100 여부(hs.total_score)는 더 이상 정렬에 안 쓰고, 화면에 "🔥랭킹중" 배지
@@ -98,7 +104,7 @@ export async function handleRelationship(path, request, env, url, headers) {
                w.original_language, w.first_matched_date, w.release_year, hs.total_score
         FROM works w
         LEFT JOIN hot100_scores hs ON hs.tmdb_id = w.tmdb_id
-        WHERE w.media_type = 'tv'
+        WHERE ${mediaTypeCond}
           AND w.original_language = 'ko'
           AND NOT (
             w.genre LIKE '%Reality%' OR w.genre LIKE '%Talk%' OR
