@@ -1,3 +1,7 @@
+/* 2026-08-05 rev.9 — relationship.js (candidates — sort=registered 정렬을 work관리 "최신 등록순"과
+   동일 기준(COALESCE(created_at, updated_at) DESC, id DESC)으로 통일 — 기존 first_matched_date
+   기준이라 work관리 순서와 안 맞던 문제 수정. 예능/토크/다큐멘터리 제외 조건도 삭제해서 한국작품이면
+   장르 상관없이 전부 후보에 노출되도록 변경) */
 /* 2026-08-05 rev.8 — relationship.js (candidates — sort=registered일 때 media_type을 tv뿐 아니라
    movie까지 포함(한국 영화도 등록순 목록에 노출). sort=release는 기존대로 tv(드라마)만 유지) */
 /* 2026-08-05 rev.7 — relationship.js (candidates에 ?sort=release|registered 파라미터 추가 —
@@ -87,9 +91,12 @@ export async function handleRelationship(path, request, env, url, headers) {
       const page   = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
       const offset = (page - 1) * limit;
       // [2026-08-05 신규] sort=release(기본, 방영일 최신순) | sort=registered(우리 DB 등록 최신순)
+      // [2026-08-05 rev.9] sort=registered는 "work관리" 탭의 최신 등록순과 동일한 기준으로 맞춤
+      // (COALESCE(created_at, updated_at) DESC, id DESC) — 기존엔 first_matched_date DESC를
+      // 써서 work관리 목록 순서와 어긋나던 문제 수정.
       const sortMode = url.searchParams.get("sort") === "registered" ? "registered" : "release";
       const orderBy = sortMode === "registered"
-        ? "w.first_matched_date DESC"
+        ? "COALESCE(w.created_at, w.updated_at) DESC, w.id DESC"
         : "COALESCE(w.release_date, w.release_year || '-01-01') DESC";
       // [2026-08-05 신규] 릴리즈순은 기존대로 TV(드라마)만, 등록순은 한국 영화까지 포함
       const mediaTypeCond = sortMode === "registered"
@@ -99,6 +106,7 @@ export async function handleRelationship(path, request, env, url, headers) {
       // 관계도가 이미 있는 작품(work_tmdb_id + work_media_type 조합)은 후보에서 제외.
       // HOT100 여부(hs.total_score)는 더 이상 정렬에 안 쓰고, 화면에 "🔥랭킹중" 배지
       // 표시용으로만 같이 내려줌(참고 정보).
+      // [2026-08-05 rev.9] 예능/토크/다큐멘터리 제외 조건 삭제 — 한국작품이면 장르 상관없이 전부 노출.
       const sql = `
         SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
                w.original_language, w.first_matched_date, w.release_year, hs.total_score
@@ -106,10 +114,6 @@ export async function handleRelationship(path, request, env, url, headers) {
         LEFT JOIN hot100_scores hs ON hs.tmdb_id = w.tmdb_id
         WHERE ${mediaTypeCond}
           AND w.original_language = 'ko'
-          AND NOT (
-            w.genre LIKE '%Reality%' OR w.genre LIKE '%Talk%' OR
-            w.genre LIKE '%다큐멘터리%' OR w.genre LIKE '%리얼리티%' OR w.genre LIKE '%토크%'
-          )
           AND NOT EXISTS (
             SELECT 1 FROM relationship_charts rc
             WHERE rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
