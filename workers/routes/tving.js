@@ -1,3 +1,5 @@
+/* 2026-08-06 rev.4 — tving.js (rankings.updated_at 컬럼 신규 반영 — 저장할 때마다 갱신
+   시각 기록. 관리자모드에서 "마지막 갱신 시각" 표시용) */
 /* 2026-08-06 rev.3 — tving.js (매칭 대기 4건 원인 분석 결과 반영 — 띄어쓰기/"시즌" 글자
    표기 차이로 제목 완전일치에 실패하던 문제. 공백+"시즌" 글자만 제거(숫자는 유지)한
    정규화 비교 단계를 우리 DB 검색과 TMDB 검색 양쪽에 추가) */
@@ -143,8 +145,8 @@ export async function handleTving(path, request, env, url, headers) {
       if (matchedRows.length) {
         const stmts = matchedRows.map(r =>
           env.DB.prepare(`
-            INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto')
+            INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto', datetime('now'))
           `).bind(PLATFORM, SLOT, SLOT, today, r.rank, r.tmdb_id, r.title_ko, r.poster_path)
         );
         await env.DB.batch(stmts);
@@ -217,8 +219,8 @@ export async function handleTving(path, request, env, url, headers) {
 
       const today = _todayKST();
       await env.DB.prepare(`
-        INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto')
+        INSERT INTO rankings (platform, category_slot, category, date, rank, tmdb_id, title_ko, poster_path, is_manual, source_name, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'tving_auto', datetime('now'))
       `).bind(PLATFORM, SLOT, SLOT, today, pending.rank, tmdb_id, pending.title, workRow?.poster_path || null).run();
 
       await env.DB.prepare(
