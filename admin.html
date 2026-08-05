@@ -1,3 +1,6 @@
+<!-- 2026-08-06 rev.12 — admin.html (랭킹 추가/수정 모달에 "티빙 코드" 입력창 신규 —
+     티빙 플랫폼일 때만 표시. 값 입력/수정하면 저장 시 해당 tmdb_id 작품에 자동 동기화되어
+     다음 크롤링부터 자동매칭됨. 작품이 틀렸든 코드가 틀렸든 이 입력창 하나로 다 해결) -->
 <!-- 2026-08-05 rev.11 — admin.html (회원 관리 리스트 페이지네이션 추가 —
      50명씩 페이지 나눠서 표시, 표 아래 페이지 번호 버튼(후기 관리와 동일 패턴),
      검색/새로고침 시 1페이지로 복귀. admin.js total 응답 반영) -->
@@ -1079,6 +1082,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="form-hint" style="margin-top:4px">시즌 입력 시 TMDB 시즌 포스터 자동 조회 · 없으면 기본 포스터 유지</div>
         </div>
       </div>
+    </div>
+    <div class="form-row" id="editTvingCodeRow" style="display:none">
+      <label>티빙 코드 <span style="color:var(--muted);font-size:10px">(예: P001788898 — 자동 크롤링 매칭용)</span></label>
+      <input class="inp" type="text" id="editTvingCodeInp" placeholder="예: P001788898">
+      <div class="form-hint">이 코드로 다음 크롤링부터 자동 매칭됩니다. 다른 작품이 이미 갖고 있던 코드면 그쪽에서 자동으로 떼어집니다</div>
     </div>
     <div class="form-row" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -2712,6 +2720,10 @@ function openAddRankingModal(slot, platform, date) {
   window._editBasePoster     = null;
   window._editCurrentSeason  = null;
 
+  // [2026-08-06 신규] 티빙코드 입력창 — 티빙 플랫폼일 때만 표시
+  document.getElementById('editTvingCodeRow').style.display = (platform === 'tving') ? '' : 'none';
+  document.getElementById('editTvingCodeInp').value = '';
+
   // 저장 버튼 → "추가" 모드
   const saveBtn = document.getElementById('editSaveBtn');
   if (saveBtn) {
@@ -2738,6 +2750,10 @@ async function addRankingItem() {
   const tmdb_id     = parseInt(document.getElementById('editTmdbId').value) || null;
   const mediaTypeEl = document.querySelector('input[name="editMediaType"]:checked');
   const media_type  = mediaTypeEl?.value || null;
+  // [2026-08-06 신규] 티빙일 때만 입력창이 보이므로, platform이 tving일 때만 값을 읽음
+  const tving_code  = (platform === 'tving')
+    ? (document.getElementById('editTvingCodeInp').value.trim() || null)
+    : null;
 
   if (!title_ko) { showToast('한국어 제목을 입력하세요', 'err'); return; }
   if (!tmdb_id)  { showToast('TMDB ID를 입력하거나 작품을 검색해서 선택하세요', 'err'); return; }
@@ -2765,6 +2781,7 @@ async function addRankingItem() {
         title_en      : title_en  || null,
         media_type    : media_type || null,
         is_manual     : 1,
+        tving_code,
       }),
     });
     const json = await res.json();
@@ -2850,6 +2867,11 @@ function openModal(r) {
   document.getElementById('editSeasonPosterWrap').style.display = 'none';
   document.getElementById('editSeasonPoster').src               = ''; // 이전 편집 세션의 시즌 포스터 잔여 URL 제거 (버그 수정: 2026-07-15)
   document.getElementById('editSeasonLoading').style.display    = 'none';
+
+  // [2026-08-06 신규] 티빙코드 — 티빙 플랫폼일 때만 표시, 기존 값 있으면 채워서 보여줌
+  document.getElementById('editTvingCodeRow').style.display = (r.platform === 'tving') ? '' : 'none';
+  document.getElementById('editTvingCodeInp').value = r.tving_code || '';
+
   // 기존 포스터를 basePoster로 저장 (시즌 변경 후 "기본으로" 버튼 대비)
   window._editBasePoster = r.poster_path || null;
   // [2026-08-02 버그수정] 여기서 r.season으로 미리 채우면, 시즌 입력칸을 안 건드려도
@@ -3482,6 +3504,8 @@ async function saveEdit() {
   const seasonMatchesFetched = !!seasonVal && window._editCurrentSeason === seasonVal;
   const seasonPoster = (seasonMatchesFetched && seasonPosterSrc.includes('image.tmdb.org'))
     ? seasonPosterSrc.replace(/.*\/t\/p\/w\d+/, '') : null;
+  // [2026-08-06 신규] 티빙코드 — 입력창이 안 보이는(티빙 아닌) 행이면 항상 빈 값이라 무해함
+  const tving_code = document.getElementById('editTvingCodeInp').value.trim() || null;
 
   try {
     const res = await fetch(`${API}/admin/fix`, {
@@ -3492,6 +3516,7 @@ async function saveEdit() {
         delete_duplicates: deleteDuplicates, media_type: media_type || null,
         season      : seasonVal,                                    // 시즌 번호
         poster_path : seasonPoster || undefined,                    // 시즌 포스터 (있을 때만)
+        tving_code,
       })
     });
     const json = await res.json();
