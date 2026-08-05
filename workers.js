@@ -1758,15 +1758,11 @@ ${D.length>0?`[\uCD94\uAC00 \uC9C0\uC2DC\uC0AC\uD56D]
         LEFT JOIN hot100_scores hs ON hs.tmdb_id = w.tmdb_id
         WHERE ${_==="registered"?"w.media_type IN ('tv','movie')":"w.media_type = 'tv'"}
           AND w.original_language = 'ko'
-          AND NOT (
-            w.genre LIKE '%Reality%' OR w.genre LIKE '%Talk%' OR
-            w.genre LIKE '%\uB2E4\uD050\uBA58\uD130\uB9AC%' OR w.genre LIKE '%\uB9AC\uC5BC\uB9AC\uD2F0%' OR w.genre LIKE '%\uD1A0\uD06C%'
-          )
           AND NOT EXISTS (
             SELECT 1 FROM relationship_charts rc
             WHERE rc.work_tmdb_id = w.tmdb_id AND rc.work_media_type = w.media_type
           )
-        ORDER BY ${_==="registered"?"w.first_matched_date DESC":"COALESCE(w.release_date, w.release_year || '-01-01') DESC"}
+        ORDER BY ${_==="registered"?"COALESCE(w.created_at, w.updated_at) DESC, w.id DESC":"COALESCE(w.release_date, w.release_year || '-01-01') DESC"}
         LIMIT ? OFFSET ?
       `,{results:E}=await t.DB.prepare(w).bind(d+1,c).all(),a=E.length>d,r=E.slice(0,d).map(m=>({tmdb_id:m.tmdb_id,title:m.title_ko||m.title_en,media_type:m.media_type,poster_path:m.poster_path,release_year:m.release_year||null,in_hot100:m.total_score!=null}));return new Response(JSON.stringify({ok:!0,items:r,page:o,limit:d,has_more:a}),{headers:e})}catch(d){return new Response(JSON.stringify({ok:!1,message:d.message}),{status:500,headers:e})}}if(i==="/admin/relationship-charts/search"&&s.method==="GET"){if(!await h(s,t))return new Response(JSON.stringify({ok:!1,message:"Unauthorized"}),{status:401,headers:e});try{let d=(f.searchParams.get("q")||"").trim();if(!d)return new Response(JSON.stringify({ok:!1,message:"q required"}),{status:400,headers:e});let o=/^\d+$/.test(d),c=o?`SELECT w.tmdb_id, w.title_ko, w.title_en, w.media_type, w.poster_path,
                   rc.image_url, rc.status
