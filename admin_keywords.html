@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-05 rev.15 — admin_keywords.html (관계도 매칭 탭 — "릴리즈순 / 최신등록순" 정렬 전환
+     버튼 신규 추가. relationship.js rev.7의 candidates ?sort= 파라미터와 연동, 기본값은 릴리즈순
+     (기존 동작과 동일)) -->
 <!-- 2026-08-05 rev.14 — admin_keywords.html (관계도 매칭 리스트 — "✏️ 작품 수정" 옆에
      "🎭 배역 번역 관리" 링크 신규 추가. admin_cast.html의 "작품별 배역 보기" 탭으로 작품명을
      쿼리파라미터(?work=)로 넘겨서 바로 그 작품 검색 결과가 뜨도록 연결(admin_cast.html
@@ -884,8 +887,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       랭킹(HOT100)에 있는 작품이 항상 위쪽에 먼저 나와요.
     </div>
 
-    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn-secondary" onclick="rcLoad(1)" style="padding:0 20px;white-space:nowrap;height:34px">🔄 새로고침</button>
+      <!-- [2026-08-05 신규] 정렬 기준 전환 — 릴리즈순(기본)/최신등록순 -->
+      <div style="display:flex;gap:6px">
+        <button class="btn-secondary" id="rcSortReleaseBtn" onclick="rcSetSort('release')" style="padding:0 16px;white-space:nowrap;height:34px;font-size:12px">📅 릴리즈순</button>
+        <button class="btn-secondary" id="rcSortRegisteredBtn" onclick="rcSetSort('registered')" style="padding:0 16px;white-space:nowrap;height:34px;font-size:12px">🆕 최신등록순</button>
+      </div>
       <span id="rcPageInfo" style="font-size:12px;color:var(--muted2);font-family:var(--mono)"></span>
     </div>
 
@@ -5009,13 +5017,31 @@ let rcPage    = 1;
 const RC_LIMIT = 10;
 let rcHasMore = false;
 let rcItems   = [];
+let rcSort    = 'release'; // [2026-08-05 신규] 'release'(릴리즈순, 기본) | 'registered'(최신등록순)
+
+// [2026-08-05 신규] 정렬 기준 버튼 클릭 시 — 1페이지부터 다시 불러옴
+function rcSetSort(mode){
+  if(rcSort === mode) return;
+  rcSort = mode;
+  rcUpdateSortButtons();
+  rcLoad(1);
+}
+function rcUpdateSortButtons(){
+  const baseStyle = 'padding:0 16px;white-space:nowrap;height:34px;font-size:12px';
+  const onStyle   = baseStyle + ';background:rgba(230,57,70,.2);color:var(--accent);border-color:var(--accent)';
+  const releaseBtn    = document.getElementById('rcSortReleaseBtn');
+  const registeredBtn = document.getElementById('rcSortRegisteredBtn');
+  releaseBtn.style.cssText    = (rcSort === 'release')    ? onStyle : baseStyle;
+  registeredBtn.style.cssText = (rcSort === 'registered') ? onStyle : baseStyle;
+}
 
 async function rcLoad(page){
   rcPage = page;
+  rcUpdateSortButtons(); // [2026-08-05 신규] 탭 진입 시에도 현재 정렬 버튼 강조 유지
   const listEl = document.getElementById('rcList');
   listEl.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--muted);font-size:14px">불러오는 중…</div>';
   try{
-    const res  = await fetch(`${API}/admin/relationship-charts/candidates?page=${page}&limit=${RC_LIMIT}`, {
+    const res  = await fetch(`${API}/admin/relationship-charts/candidates?page=${page}&limit=${RC_LIMIT}&sort=${rcSort}`, {
       headers: { Authorization: `Bearer ${ADMIN_SECRET}` }
     });
     const data = await res.json();
