@@ -1,3 +1,5 @@
+/* 2026-08-06 rev.17 — index.js (/admin/tving/* 라우팅 신규 추가 — 티빙 category01 자동 랭킹
+   수집 신규 파일 tving.js, 12번 관리자 캐치올보다 앞에 배치) */
 /* 2026-08-04 rev.16 — index.js (/admin/cast* 라우팅 추가 — 배역명 한글화 신규 파일 work_cast.js) */
 /* 2026-08-03 rev.15 — index.js (/admin/persons/job-manual* 라우팅 추가 — 직업 수동입력
    저장 API가 12번 관리자 캐치올보다 앞에서 처리되도록 화이트리스트 확장) */
@@ -55,6 +57,8 @@
                   인물 관련 신규 어드민 기능은 앞으로 여기 모음, 2026-07-27 신설)
    boxoffice-admin.js : /admin/boxoffice/*  (박스오피스 캡처 이미지 업로드 — KOBIS 자동크롤러
                   실패 대비 수동 반영, 2026-08-02 신설)
+   tving.js     : /admin/tving/*  (티빙 category01 자동 랭킹 수집 — PC 크롤러가 추출한
+                  TOP20 목록 받아서 매칭+저장, 다른 파일과 완전 분리, 2026-08-06 신설)
 ══════════════════════════════════════════════════════════════ */
 
 import { handleRankings  } from "./routes/rankings.js";
@@ -76,6 +80,7 @@ import { handleAdminPersons, handleAdminPersonProfileImage, handlePersonCustomPr
 import { handleBoxofficeAdmin } from "./routes/boxoffice-admin.js";
 import { handleAdminSeason } from "./routes/admin-season.js";
 import { handleWorkCast } from "./routes/work_cast.js";
+import { handleTving } from "./routes/tving.js";
 import {
   calcHot100, getHot100,
   listAdminBoosts, searchWorksForBoost,
@@ -269,6 +274,13 @@ export default {
       path.startsWith("/admin/works/season-")
     )) {
       res = await handleAdminSeason(path, request, env, url, headers);
+    }
+
+    // 3-13. 티빙 category01 자동 랭킹 수집 — tving.js 신규(2026-08-06), admin.js와 완전 분리.
+    //       /admin/tving/*는 12번 관리자 캐치올(handleAdmin)보다 반드시 앞에 있어야 함
+    //       (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — boxoffice-admin.js와 동일 패턴)
+    if (!res && path.startsWith("/admin/tving/")) {
+      res = await handleTving(path, request, env, url, headers);
     }
 
     // 4. 영상 / IMDb / YouTube / works / kmrb / 키워드 검색
