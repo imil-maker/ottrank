@@ -1,3 +1,5 @@
+<!-- 2026-08-06 rev.16 — admin.html (마지막 갱신 표시 형식 수정 — 오늘이어도 날짜 생략하지
+     않고 항상 "월-일(요일) 시:분"까지 표시하도록 변경, 요일 추가) -->
 <!-- 2026-08-06 rev.15 — admin.html (랭킹 카테고리 그룹 헤더에 "🕓 마지막 갱신 HH:MM" 표시 —
      rankings.updated_at 중 그룹 내 최댓값 기준. UTC 저장값을 KST로 변환해서 표시(_formatUpdatedAt),
      로그 파일 안 열어봐도 크롤러가 방금 돌았는지 화면에서 바로 확인 가능하게 함) -->
@@ -2841,19 +2843,16 @@ async function addRankingItem() {
 
 // HTML 특수문자 이스케이프
 // [2026-08-06 신규] rankings.updated_at은 D1(SQLite)의 datetime('now')로 저장되어
-// UTC 기준 문자열("YYYY-MM-DD HH:MM:SS")로 들어있음 — 화면엔 KST(+9시간)로 변환해서 표시.
-// 오늘 날짜면 시:분만, 다른 날짜면 월-일 시:분까지 같이 보여줌.
+// UTC 기준 문자열("YYYY-MM-DD HH:MM:SS")로 들어있음 — 화면엔 KST(+9시간)로 변환해서
+// 월-일(요일) 시:분까지 항상 표시 (관리자님 요청, 2026-08-06 수정)
 function _formatUpdatedAt(utcStr) {
   try {
     const utcDate = new Date(utcStr.replace(' ', 'T') + 'Z');
     const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
     const pad = n => String(n).padStart(2, '0');
-    const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    const isToday = kstDate.getUTCFullYear() === now.getUTCFullYear()
-      && kstDate.getUTCMonth() === now.getUTCMonth()
-      && kstDate.getUTCDate() === now.getUTCDate();
-    const hm = `${pad(kstDate.getUTCHours())}:${pad(kstDate.getUTCMinutes())}`;
-    return isToday ? hm : `${pad(kstDate.getUTCMonth()+1)}-${pad(kstDate.getUTCDate())} ${hm}`;
+    const WEEKDAY = ['일','월','화','수','목','금','토'];
+    const weekday = WEEKDAY[kstDate.getUTCDay()];
+    return `${pad(kstDate.getUTCMonth()+1)}-${pad(kstDate.getUTCDate())}(${weekday}) ${pad(kstDate.getUTCHours())}:${pad(kstDate.getUTCMinutes())}`;
   } catch (e) {
     return '';
   }
