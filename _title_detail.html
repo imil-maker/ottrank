@@ -1,3 +1,6 @@
+<!-- 2026-08-06 rev.16 — _title_detail.html (관람등급/런타임 — 우리 DB(works.age_rating/runtime)
+     값 있으면 우선 사용, 없으면 지금처럼 TMDB에서 받아와 화면 표시 + 조용히 detail-sync로
+     저장(응답 안 기다림). cast-sync와 동일 패턴, 다음 방문자부터 TMDB 호출 필요성 줄어듦) -->
 <!-- 2026-08-05 rev.15 — _title_detail.html (출연진 카드 — 배역명에 "self"가 들어간 경우도
      "역" 표기 안 붙이도록 확장, 본인이름 일치 조건과 함께 적용) -->
 <!-- 2026-08-05 rev.14 — _title_detail.html (출연진 카드 — 배역명이 배우 본인 이름과 같으면
@@ -3223,9 +3226,14 @@ async function loadTmdb(){
     ]);
 
     // Meta info
+    // [2026-08-06 수정] 관람등급/런타임 — 우리 DB(works.age_rating/runtime)에 이미 있으면
+    // 그걸 바로 쓰고(TMDB 응답 파싱 안 해도 됨), 없을 때만 지금처럼 TMDB 응답에서 뽑아서
+    // 화면에 쓰는 동시에 조용히 우리 DB에도 저장(detail-sync, 응답 안 기다림) —
+    // cast-sync와 동일한 "한 번 방문되면 다음부터는 DB로 바로 나감" 패턴.
     let ratingHtml='';
-    if(ratingsRes.status==='fulfilled'){
-      const rData=ratingsRes.value;let cert='';
+    let cert = worksData?.age_rating || '';
+    if(!cert && ratingsRes.status==='fulfilled'){
+      const rData=ratingsRes.value;
       if(WORK.type==='tv'){
         const results=rData.results||[];
         const kr=results.find(r=>r.iso_3166_1==='KR');const us=results.find(r=>r.iso_3166_1==='US');
@@ -3235,13 +3243,26 @@ async function loadTmdb(){
         const kr=results.find(r=>r.iso_3166_1==='KR');const us=results.find(r=>r.iso_3166_1==='US');
         cert=kr?.release_dates?.find(d=>d.certification)?.certification||us?.release_dates?.find(d=>d.certification)?.certification||'';
       }
-      if(cert)ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
     }
+    if(cert)ratingHtml=`<span class="hero-meta-sep">·</span><span class="hero-meta-item">🔞 <b>${CERT_MAP[cert]||cert}</b></span>`;
     // 시즌 표시 여부는 media_type(WORK.type) 기준 — 값 자체는 TMDB의 number_of_seasons를 그대로 사용
     const seasHtml=WORK.type==='tv'&&det.number_of_seasons?`<span class="hero-meta-item">시즌 <b>${det.number_of_seasons}</b></span><span class="hero-meta-sep">·</span>`:'';
     let episodeHtml='';
+    const runtimeVal = worksData?.runtime || det.runtime || null;
     if(det.number_of_episodes)episodeHtml=`<span class="hero-meta-item">총 <b>${det.number_of_episodes}부작</b></span><span class="hero-meta-sep">·</span>`;
-    else if(det.runtime)episodeHtml=`<span class="hero-meta-item"><b>${det.runtime}분</b></span><span class="hero-meta-sep">·</span>`;
+    else if(runtimeVal)episodeHtml=`<span class="hero-meta-item"><b>${runtimeVal}분</b></span><span class="hero-meta-sep">·</span>`;
+
+    // 우리 DB에 둘 중 하나라도 비어있었으면, 방금 화면에 쓴 값을 조용히 저장(응답 안 기다림)
+    if((!worksData?.age_rating && cert) || (!worksData?.runtime && runtimeVal)){
+      fetch(`${OTTRANK_API}/works/${WORK.tmdb_id}/detail-sync`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          runtime: (!worksData?.runtime && runtimeVal) ? runtimeVal : undefined,
+          age_rating: (!worksData?.age_rating && cert) ? cert : undefined,
+        }),
+      }).catch(()=>{});
+    }
 
     // [2026-07-23 신규] 방영상태 표시 — TV 작품만 해당, TMDB status를 그대로 믿지 않고
     // status + next_episode_to_air(다음 방영 회차 날짜 유무)를 조합해서 판단.
