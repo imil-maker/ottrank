@@ -1,3 +1,6 @@
+// 2026-08-06 rev.13 — admin.js (PATCH /admin/rankings/reorder 버그 수정 — "순위 저장" 시
+// 플랫폼 구분 없이 무조건 오늘 날짜로 덮어쓰던 문제. 이제 "티빙 + category01"일 때만
+// 오늘 날짜로 갱신·수동고정하고, 다른 플랫폼/카테고리는 요청받은 date를 그대로 유지)
 // 2026-08-05 rev.12 — admin.js (GET /admin/users 응답에 total/page/limit 추가 —
 // 회원 관리 리스트 페이지네이션 지원용 전체 회원수 COUNT 쿼리 신규 추가, 기존 검색 조건 동일 적용)
 // 2026-08-02 rev.11 — admin.js (POST /admin/rankings 시즌 포스터 근본 수정:
@@ -1678,6 +1681,14 @@ export async function handleAdmin(path, request, env, url, headers) {
         return new Response(JSON.stringify({ ok: false, message: "date, platform, category_slot, items required" }), { status: 400, headers });
       }
       const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      // [2026-08-06 버그수정] 기존엔 플랫폼 구분 없이 "순위 저장"을 누르면 무조건 오늘
+      // 날짜로 덮어썼음 — 크롤링이 안 되는 티빙 category01 전용으로 만든 동작인데,
+      // 과거 날짜를 불러와서 다른 플랫폼(넷플릭스/디즈니+/웨이브/쿠팡플레이/박스오피스)이나
+      // 티빙의 다른 카테고리를 재정렬해도 그날 데이터 전체가 오늘로 옮겨져 버리는 사고가
+      // 있었음(실제로 8/5 티빙 category01 데이터가 통째로 8/6으로 밀려버린 사고 발생,
+      // 2026-08-06). 이제 "티빙 + category01"일 때만 저장 시점 날짜로 갱신·수동고정하고,
+      // 그 외에는 요청받은 date/is_manual을 그대로 두고 순위 순서만 변경한다.
+      const shouldStampToday = platform === "tving" && category_slot === "category01";
       // [2026-07-17 수정] 기존엔 "①전부 마이너스로 피신 → ②원래 순위로 복귀"를 완전히 별개인
       // batch() 두 번으로 나눠서 실행했음. 문제는 이 둘이 서로 다른 트랜잭션이라, ①은 성공하고
       // ②만 실패하는 경우(예: 클라이언트가 보낸 items에 실제 행 개수와 안 맞는 rank가 섞여
@@ -1695,13 +1706,14 @@ export async function handleAdmin(path, request, env, url, headers) {
           env.DB.prepare("UPDATE rankings SET rank = ? WHERE id = ? AND date = ? AND platform = ? AND category_slot = ?")
             .bind(parseInt(item.rank), parseInt(item.id), date, platform, category_slot)
         ),
-        // [2026-07-28 추가] 순위 저장 시점의 오늘 날짜(KST)로 갱신 + 수동 표시.
-        // 크롤링 없이 수동으로만 관리하는 플랫폼(티빙)이, "순위 저장"을 누른 날짜가
-        // 곧 그날의 기록이 되도록 함.
-        ...items.map(item =>
+        // [2026-07-28 추가, 2026-08-06 수정] 순위 저장 시점의 오늘 날짜(KST)로 갱신 + 수동 표시.
+        // 크롤링 없이 수동으로만 관리하는 플랫폼(티빙 category01)이, "순위 저장"을 누른 날짜가
+        // 곧 그날의 기록이 되도록 함 — 다른 플랫폼/카테고리는 이 블록 자체를 건너뛰어
+        // date·is_manual을 건드리지 않음(위 shouldStampToday 조건).
+        ...(shouldStampToday ? items.map(item =>
           env.DB.prepare("UPDATE rankings SET date = ?, is_manual = 1 WHERE id = ? AND platform = ? AND category_slot = ?")
             .bind(todayKST, parseInt(item.id), platform, category_slot)
-        ),
+        ) : []),
       ];
       await env.DB.batch(stmts);
       await env.DB.prepare(
