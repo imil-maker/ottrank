@@ -1,3 +1,7 @@
+/* 2026-08-06 rev.10 — search.js (/works/ott-map — 박스오피스 category01 실시간 랭킹도 함께
+   확인하도록 변경. work_ott는 최대 15일 주기 수집 캐시라 오늘 새로 박스오피스에 진입한 작품을
+   놓치는 문제 있었음 — 인물페이지 필모그래피 "OTT 우선 정렬"에서 박스오피스 작품이 항상
+   뒤로 밀리던 원인. 이제 오늘자 rankings 테이블도 같이 조회해서 map에 'boxoffice' 키 추가) */
 /* 2026-08-03 rev.9 — search.js (/persons/search 응답에 job_manual 추가 — 헤더 검색 드롭다운이
    배우/감독 자동판별 대신 관리자 수동입력 직업을 우선 표시할 수 있도록 함) */
 /* 2026-08-02 rev.8 — search.js (OTT 미서비스 작품 감점(-7점) 신설 — work_ott에 등록이 하나도
@@ -459,11 +463,26 @@ export async function handleSearch(path, request, env, url, headers) {
     }
     try {
       const placeholders = ids.map(() => "?").join(",");
-      const { results } = await env.DB.prepare(`
-        SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${placeholders})
-      `).bind(...ids).all();
+      // [2026-08-06 신규] work_ott(수집 캐시, 최대 15일 주기)만으로는 "지금 박스오피스에
+      // 새로 진입한 작품"을 놓칠 수 있어서, 오늘자 랭킹 테이블에서 박스오피스 category01에
+      // 있는지도 같이 확인해서 합쳐줌. 서로 무관한 두 쿼리라 Promise.all로 병렬 조회.
+      const [ottResult, boxofficeResult] = await Promise.all([
+        env.DB.prepare(`
+          SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${placeholders})
+        `).bind(...ids).all(),
+        env.DB.prepare(`
+          SELECT DISTINCT tmdb_id FROM rankings
+          WHERE tmdb_id IN (${placeholders})
+            AND platform = 'boxoffice' AND category_slot = 'category01'
+            AND date = (SELECT value FROM app_settings WHERE key = 'latest_ranking_date')
+        `).bind(...ids).all(),
+      ]);
       const map = {};
-      results.forEach(r => { (map[r.tmdb_id] ||= []).push(r.ott_key); });
+      ottResult.results.forEach(r => { (map[r.tmdb_id] ||= []).push(r.ott_key); });
+      boxofficeResult.results.forEach(r => {
+        const arr = (map[r.tmdb_id] ||= []);
+        if (!arr.includes('boxoffice')) arr.push('boxoffice');
+      });
       return new Response(JSON.stringify({ ok: true, map }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
