@@ -1,3 +1,6 @@
+// 2026-08-06 rev.16 — admin.js (POST /admin/works/register가 release_year도 받아서 저장하도록
+// 수정 — 예전엔 이 값을 아예 안 받아서 등록한 작품은 계속 연도가 비어있었고, 작품페이지 링크가
+// "연도 없으면 올해로 대체" 로직 때문에 무조건 2026년으로 잘못 만들어지던 문제 근본 수정)
 // 2026-08-06 rev.15 — admin.js (rankings.updated_at 컬럼 신규 반영 — 추가(POST /admin/rankings),
 // 수정(POST /admin/fix), 순위저장(PATCH /admin/rankings/reorder) 저장할 때마다 갱신 시각 기록.
 // 관리자모드에서 "마지막 갱신 시각"을 보여주기 위한 용도, 로그 파일 안 봐도 확인 가능하게 함)
@@ -1243,6 +1246,10 @@ async function _syncTvingCode(env, tmdb_id, tving_code) {
       const titleEn   = (body.title_en || "").trim();
       const poster    = body.poster_path || null;
       const mediaType = ["movie", "tv"].includes(body.media_type) ? body.media_type : null;
+      // [2026-08-06 추가] release_year 저장 — 예전엔 이 칸이 아예 없어서 등록한 작품은
+      // 계속 연도가 비어있었고, 그 결과 작품페이지 링크가 "연도 없으면 올해로 대체" 로직
+      // 때문에 무조건 2026년으로 잘못 만들어지던 문제(관리자님 제보, works 관리 화면).
+      const releaseYear = parseInt(body.release_year) || null;
 
       if (!tmdbId || !titleKo) {
         return new Response(JSON.stringify({ ok: false, message: "tmdb_id, title_ko는 필수예요" }), { status: 400, headers });
@@ -1259,9 +1266,9 @@ async function _syncTvingCode(env, tmdb_id, tving_code) {
 
       await env.DB.prepare(`
         INSERT INTO works
-          (tmdb_id, title_ko, title_en, poster_path, media_type, match_source, confidence_score, first_matched_date)
-        VALUES (?, ?, ?, ?, ?, 'admin', 100, date('now'))
-      `).bind(tmdbId, titleKo, titleEn || "", poster, mediaType).run();
+          (tmdb_id, title_ko, title_en, poster_path, media_type, release_year, match_source, confidence_score, first_matched_date)
+        VALUES (?, ?, ?, ?, ?, ?, 'admin', 100, date('now'))
+      `).bind(tmdbId, titleKo, titleEn || "", poster, mediaType, releaseYear).run();
 
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
