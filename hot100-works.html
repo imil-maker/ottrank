@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.13 — hot100-works.html (왼쪽 메뉴 폭을 200→221px로 조정 — 포스터 폭과 맞춤.
+     포스터는 grid(fr 단위)라 별도 계산 없이 메뉴가 넓어진 만큼 자연스럽게 줄어듦) -->
 <!-- 2026-08-06 rev.12 — hot100-works.html (순위 "동일" 표시를 짧은 대시(–) 문자 대신 눈에 잘 띄는
      막대(bar) 모양으로 교체, 색상을 파란색(#3b9eff)으로 변경) -->
 <!-- 2026-08-06 rev.11 — hot100-works.html (숫자↔변동표시 사이 여백 8px로 통일, 변동표시 글자
@@ -67,7 +69,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-outer{max-width:var(--max-w);margin:0 auto;padding:24px 20px 80px;display:flex;gap:28px;align-items:flex-start}
 
 /* ── 왼쪽 메뉴 ── */
-.hh-sidebar{flex:0 0 200px;position:sticky;top:20px}
+.hh-sidebar{flex:0 0 221px;position:sticky;top:20px}
 .hh-side-group{margin-bottom:24px}
 .hh-side-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:8px;padding:0 4px}
 .hh-side-link{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;color:var(--muted2);
