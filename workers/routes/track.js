@@ -1,3 +1,9 @@
+// 2026-08-06 rev.6 — track.js (인물 핫100 공개페이지(hot100-persons.html)용 신규 API 추가)
+// - PERIOD_WHITELIST/_periodBounds에 "week"(1주일 롤링) 추가
+// - GET /hot100/persons 신규: 인증 불필요(공개), blob1='person'만 걸러서 집계하고 프로필사진까지
+//   같이 내려줌. /admin/track/rank와 동일한 봇/제외방문자 필터링 원칙 재사용
+// ⚠️ index.js 라우팅 화이트리스트에 "/hot100/persons"를 추가해야 실제로 동작함(다른 track.js
+//   라우트 추가 때마다 반복됐던 실수 — 이번엔 미리 남겨둠)
 // 2026-08-03 rev.5 — track.js (실시간 순위 집계 방식 변경: 조회 건수 총합(SUM) 대신
 // 같은 기간 안에서 방문자(vid) 중복 제거 후 세기(COUNT DISTINCT)로 변경 —
 // 같은 사람이 새로고침 여러 번 해도 순위엔 1로만 반영됨. "최근 조회" 로그 목록은 변경 없음)
@@ -91,12 +97,16 @@ function _isBotUserAgent(ua) {
 // - today/yesterday: 한국시간(KST=UTC+9) 자정 기준으로 하루를 딱 끊음.
 //   "오늘 KST 0시"를 UTC ms로 구하려면: (KST로 본 오늘 날짜의 UTC 자정) - 9시간.
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const PERIOD_WHITELIST = ["30min", "1h", "6h", "12h", "today", "yesterday", "24h"];
+const PERIOD_WHITELIST = ["30min", "1h", "6h", "12h", "today", "yesterday", "24h", "week"];
 
 function _periodBounds(period) {
   const now = Date.now();
   // [2026-07-31 추가] 30분/1시간/6시간/12시간 — 24h와 동일하게 "지금 - N" 롤링 방식
-  const ROLLING_MS = { "30min": 30 * 60 * 1000, "1h": 60 * 60 * 1000, "6h": 6 * 60 * 60 * 1000, "12h": 12 * 60 * 60 * 1000 };
+  // [2026-08-06 추가] week(1주일) — 인물 핫100용, 마찬가지로 "지금 - 7일" 롤링 방식
+  const ROLLING_MS = {
+    "30min": 30 * 60 * 1000, "1h": 60 * 60 * 1000, "6h": 6 * 60 * 60 * 1000, "12h": 12 * 60 * 60 * 1000,
+    "week": 7 * 24 * 60 * 60 * 1000,
+  };
   if (ROLLING_MS[period]) {
     return { sinceMs: now - ROLLING_MS[period], untilMs: null };
   }
@@ -542,6 +552,99 @@ export async function handleTrack(path, request, env, url, headers) {
       return new Response(JSON.stringify({
         ok: true, items, page, limit, period, has_more: hasMore,
       }), { headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── GET /hot100/persons ────────────────────────────────────────
+  // [2026-08-06 신규] 인물 핫100 전용 페이지(hot100-persons.html)가 쓰는 공개 API — 인증 불필요.
+  // /admin/track/rank와 같은 Analytics Engine 집계 방식을 그대로 쓰되, blob1='person'만 걸러서
+  // 조회하고(작품/메인/OTT 페이지는 아예 안 봄), 인물 프로필 사진까지 같이 내려줌.
+  // 기본 기간은 1주일(week) — 관리자와 상의해서 확정한 기준(하루 단위 실시간 순위는 너무 흔들려서
+  // 안정적인 주간 집계로 시작).
+  if (path === "/hot100/persons" && request.method === "GET") {
+    try {
+      if (!env.CF_ACCOUNT_ID || !env.CF_AE_API_TOKEN) {
+        return new Response(JSON.stringify({
+          ok: false,
+          message: "CF_ACCOUNT_ID / CF_AE_API_TOKEN 환경변수가 설정되지 않았어요 (Settings → Variables and Secrets 확인)",
+        }), { status: 500, headers });
+      }
+      const periodParam = url.searchParams.get("period") || "week";
+      const period = PERIOD_WHITELIST.includes(periodParam) ? periodParam : "week";
+      const limit  = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "100", 10), 1), 100);
+
+      const { sinceMs, untilMs } = _periodBounds(period);
+      let whereSql = `blob1 = 'person' AND timestamp >= toDateTime('${_toSqlDatetime(sinceMs)}')`;
+      if (untilMs != null) whereSql += ` AND timestamp < toDateTime('${_toSqlDatetime(untilMs)}')`;
+      whereSql += ` AND blob4 != '1'`; // 봇 제외(/admin/track/rank와 동일 원칙)
+
+      const { results: excludedRows } = await env.DB.prepare(
+        "SELECT vid FROM excluded_vids"
+      ).all();
+      const excludedVids = excludedRows.map(r => r.vid).filter(v => /^[a-z0-9]{1,64}$/.test(v));
+      if (excludedVids.length) {
+        whereSql += ` AND blob3 NOT IN (${excludedVids.map(v => `'${v}'`).join(",")})`;
+      }
+
+      const sql = `
+        SELECT blob2 AS ref_id, COUNT(DISTINCT blob3) AS cnt
+        FROM ottrank_page_views
+        WHERE ${whereSql}
+        GROUP BY blob2
+        ORDER BY cnt DESC
+        LIMIT ${limit}
+      `;
+      const aeRes = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.CF_AE_API_TOKEN}`,
+            "Content-Type": "text/plain",
+          },
+          body: sql,
+        }
+      );
+      if (!aeRes.ok) {
+        const errText = await aeRes.text().catch(() => "");
+        return new Response(JSON.stringify({
+          ok: false,
+          message: `Analytics Engine 조회 실패 (HTTP ${aeRes.status}): ${errText.slice(0, 300)}`,
+        }), { status: 500, headers });
+      }
+      const aeJson = await aeRes.json();
+      const rows = aeJson.data || [];
+
+      const personIds = [...new Set(rows.map(r => parseInt(r.ref_id, 10)).filter(Number.isInteger))];
+      const personMap = {};
+      if (personIds.length) {
+        const ph = personIds.map(() => "?").join(",");
+        const { results } = await env.DB.prepare(
+          `SELECT tmdb_id, name, name_ko, profile_path FROM persons WHERE tmdb_id IN (${ph})`
+        ).bind(...personIds).all();
+        results.forEach(p => { personMap[p.tmdb_id] = p; });
+      }
+
+      // D1에 없는(아직 한 번도 안 채워진) 인물 id는 목록에서 조용히 제외 — 이름/사진이 없으면
+      // 화면에 보여줄 게 없어서, 관리자 화면(/admin/track/rank)과 달리 여긴 그냥 건너뜀.
+      const data = rows
+        .map(r => {
+          const id = parseInt(r.ref_id, 10);
+          const p = personMap[id];
+          if (!p) return null;
+          return {
+            tmdb_id: id,
+            name: p.name_ko || p.name || "",
+            profile_path: p.profile_path || null,
+            view_count: Math.round(Number(r.cnt) || 0),
+          };
+        })
+        .filter(Boolean)
+        .map((item, idx) => ({ hot_rank: idx + 1, ...item }));
+
+      return new Response(JSON.stringify({ ok: true, data, period }), { headers });
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, message: e.message }), { status: 500, headers });
     }
