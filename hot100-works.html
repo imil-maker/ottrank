@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.11 — hot100-works.html (숫자↔변동표시 사이 여백 8px로 통일, 변동표시 글자
+     크기 1.5배 확대(22px/15px), 하락(▼) 색상을 진한 빨강(#ff1a1a)으로 변경) -->
 <!-- 2026-08-06 rev.10 — hot100-works.html (두께 처리(font-weight+text-stroke) 제거 — 메인페이지
      히어로 캐러셀과 완전히 동일한 순수 Bebas Neue로 복원) -->
 <!-- 2026-08-06 rev.9 — hot100-works.html (Anton→Archivo Black 다 시도해봤는데 갈수록 얇아 보인다는
@@ -106,11 +108,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-rating .star{color:var(--gold)}
 
 /* ── 순위 변동 표시(공통) — ▲상승/▼하락/–유지/NEW신규 ── */
-.hh-chg{font-family:var(--mono);font-weight:700;display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
+.hh-chg{font-family:var(--mono);font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
 .hh-chg.up{color:var(--green)}
-.hh-chg.down{color:var(--red)}
+.hh-chg.down{color:#ff1a1a}
 .hh-chg.same{color:var(--muted)}
 .hh-chg.new{color:var(--gold)}
+.hh-chg.sm{font-size:15px}
 
 /* ── 5위부터: 검색결과 페이지와 동일한 포스터 카드(1줄 4개) ── */
 .hh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px 16px}
@@ -118,11 +121,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
 .work-poster>img{width:100%;height:100%;object-fit:cover;display:block}
 .work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
-.work-rank-wrap{position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:4px;z-index:2}
+.work-rank-wrap{position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:8px;z-index:2}
 .work-rank-num{font-family:var(--disp);font-size:48px;font-style:italic;
   color:#fff;line-height:1;
   text-shadow:0 2px 8px rgba(0,0,0,.85),0 0 3px rgba(0,0,0,.9)}
-.hh-chg.sm{font-size:10px}
 .work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .work-meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;justify-content:space-between;gap:6px}
 .work-rating{color:var(--gold);flex-shrink:0}
