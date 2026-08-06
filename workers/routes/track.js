@@ -1,3 +1,6 @@
+// 2026-08-06 rev.9 — track.js (페이지 로그 종류에 "hot100_works"(작품 랭킹 HOT100 페이지) 추가 —
+// PAGE_META에 등록만 하면 되고, 다른 페이지 종류(main 등)와 동일하게 ID 없이 조회수만 집계됨.
+// hot100_persons는 그 페이지 쪽 데이터 로딩 문제 먼저 해결한 뒤 별도로 추가 예정)
 // 2026-08-06 rev.6 — track.js (인물 핫100 공개페이지(hot100-persons.html)용 신규 API 추가)
 // - PERIOD_WHITELIST/_periodBounds에 "week"(1주일 롤링) 추가
 // - GET /hot100/persons 신규: 인증 불필요(공개), blob1='person'만 걸러서 집계하고 프로필사진까지
@@ -53,6 +56,7 @@ const PAGE_META = {
   coupang:   { title: "쿠팡플레이",   url: "/coupangplay" },
   boxoffice: { title: "박스오피스",   url: "/boxoffice" },
   community: { title: "커뮤니티",     url: "/community" },
+  hot100_works: { title: "작품 랭킹 HOT100", url: "/hot100-works.html" },
 };
 const ALLOWED_TYPES = [...ID_REQUIRED_TYPES, ...Object.keys(PAGE_META)];
 
