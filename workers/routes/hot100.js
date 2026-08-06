@@ -1,3 +1,8 @@
+// 2026-08-06 rev.8 — hot100.js (순위변동 기준을 "직전 계산"이 아니라 정확히 "어제 날짜"로 수정)
+// - hot100_rank_snapshot 테이블 구조 변경 필요(날짜별 저장) — D1 마이그레이션 별도 안내
+// - calcHot100(): 매번 "오늘 날짜(latestDate)" 자리에 순위를 스냅샷으로 저장(하루에 몇 번을
+//   재계산해도 그 날짜 칸만 덮어씀), 비교할 땐 항상 "latestDate - 1일" 자리를 찾아서 사용 —
+//   재계산 횟수와 무관하게 항상 진짜 "어제"와만 비교되도록 근본적으로 수정
 // 2026-08-06 rev.7 — hot100.js (순위 변동 표시 기능 추가)
 // - hot100_scores.prev_rank 컬럼 신규(마이그레이션 별도 안내) — GET /hot100 응답에 포함
 // - calcHot100(): hot100_rank_snapshot(날짜 안 바뀌면 유지되는 기준선 테이블)과 비교해서
@@ -298,19 +303,20 @@ export async function calcHot100(request, env, headers) {
       (a, b) => b.weighted_score + b.admin_boost - (a.weighted_score + a.admin_boost)
     );
 
-    // ── 3-3. 순위 변동(prev_rank) 비교용 — 직전 스냅샷 조회 ──
-    // hot100_rank_snapshot은 hot100_scores와 달리 매번 지워지지 않는 "어제 순위 기준선" 테이블.
-    // 날짜가 바뀐 첫 계산에서만 이 스냅샷을 오늘 순위로 교체(rotate)하고, 같은 날 재계산은
-    // 기준선을 그대로 둔다 — 재계산할 때마다 "어제 대비"가 아니라 "직전 계산 대비"로
-    // 흔들리는 것을 방지하기 위함.
-    const snapDateRow = await env.DB.prepare(
-      `SELECT value FROM app_settings WHERE key = 'hot100_snapshot_date'`
-    ).first();
-    const snapDate = snapDateRow?.value || null;
+    // ── 3-3. 순위 변동(prev_rank) 비교용 — "어제 날짜" 스냅샷 조회 ──
+    // hot100_rank_snapshot은 날짜별로 순위를 따로 저장해두는 테이블(tmdb_id+snap_date가 키).
+    // 오늘 하루에 몇 번을 다시 계산해도(latestDate가 같은 날이면) 항상 "latestDate - 1일" 자리만
+    // 찾아서 비교하기 때문에, 재계산 횟수와 무관하게 항상 정확히 "어제 날짜" 순위와 비교됨.
+    const _yesterdayOf = (dateStr) => {
+      const d = new Date(`${dateStr}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - 1);
+      return d.toISOString().slice(0, 10);
+    };
+    const yesterdayDate = _yesterdayOf(latestDate);
 
     const { results: snapRows } = await env.DB.prepare(
-      `SELECT tmdb_id, rank FROM hot100_rank_snapshot`
-    ).all();
+      `SELECT tmdb_id, rank FROM hot100_rank_snapshot WHERE snap_date = ?`
+    ).bind(yesterdayDate).all();
     const prevRankMap = new Map((snapRows || []).map((r) => [r.tmdb_id, r.rank]));
 
     // ── 4. hot100_scores 테이블 전체 재계산(덮어쓰기) ─────────
@@ -350,25 +356,21 @@ export async function calcHot100(request, env, headers) {
     // env.DB.batch() — 여러 쿼리를 한 번의 네트워크 왕복으로 처리 (트랜잭션처럼 묶임)
     await env.DB.batch(statements);
 
-    // ── 4-0. 순위 변동 기준선(hot100_rank_snapshot) 교체 ──
-    // 날짜가 바뀐 첫 계산일 때만 "오늘 순위"로 기준선을 새로 교체 — 같은 날 재계산 시엔
-    // 위에서 이미 그대로 쓴 기준선을 유지한다(건드리지 않음).
-    if (latestDate !== snapDate) {
-      const snapStatements = [env.DB.prepare(`DELETE FROM hot100_rank_snapshot`)];
-      finalRows.forEach((row, idx) => {
-        snapStatements.push(
-          env.DB.prepare(`INSERT INTO hot100_rank_snapshot (tmdb_id, rank) VALUES (?, ?)`)
-            .bind(row.tmdb_id, idx + 1)
-        );
-      });
+    // ── 4-0. 오늘 날짜(latestDate) 스냅샷 저장 ──
+    // 언제나(하루에 몇 번을 다시 계산하든) "오늘 날짜" 자리를 최신 순위로 덮어씀 — 다른
+    // 날짜(예: 어제)의 스냅샷은 절대 안 건드림. 그래서 며칠 뒤에도 항상 "그날의 순위"가
+    // 그대로 남아있고, 비교 기준(위 3-3)도 재계산 횟수와 무관하게 흔들리지 않는다.
+    const snapStatements = [
+      env.DB.prepare(`DELETE FROM hot100_rank_snapshot WHERE snap_date = ?`).bind(latestDate),
+    ];
+    finalRows.forEach((row, idx) => {
       snapStatements.push(
         env.DB.prepare(
-          `INSERT INTO app_settings (key, value) VALUES ('hot100_snapshot_date', ?)
-           ON CONFLICT(key) DO UPDATE SET value = excluded.value`
-        ).bind(latestDate)
+          `INSERT INTO hot100_rank_snapshot (tmdb_id, snap_date, rank) VALUES (?, ?, ?)`
+        ).bind(row.tmdb_id, latestDate, idx + 1)
       );
-      await env.DB.batch(snapStatements);
-    }
+    });
+    await env.DB.batch(snapStatements);
 
     // ── 4-1. 넷플릭스 통합랭킹(category10) 저장 ─────────────
     // 넷플릭스는 FlixPatrol에 "통합(Overall)" 표 자체가 없어서, 다른 플랫폼처럼 그대로 크롤링해
