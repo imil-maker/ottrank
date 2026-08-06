@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.4 — hot100-works.html (순위 숫자 뒤 검은 배경 제거, 왼쪽/위 여백을 OTT 로고와
+     맞추고, 숫자 크기를 OTT 로고보다 10% 크게 조정(top4: 52→58px, 포스터: 44→48px)) -->
 <!-- 2026-08-06 rev.3 — hot100-works.html (① 순위 숫자를 포스터/카드 좌측상단 큰 숫자로 통일(1~4위와 동일 스타일)
      ② 순위 숫자 옆에 어제 대비 변동(▲상승/▼하락/–유지/NEW신규, hot100.js prev_rank 기반) 표시 추가
      ③ 1~4위 카드의 OTT 이름표(hh-badge) 제거 — 평점만 남김 ④ OTT 로고 크기 2배로(top4: 26→52px, 포스터: 22→44px)) -->
@@ -76,13 +78,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-top4-card img.bg{width:100%;height:100%;object-fit:cover;display:block}
 .hh-top4-fade{position:absolute;left:0;right:0;bottom:0;height:70%;
   background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.5) 60%,transparent 100%)}
-.hh-top4-rank-wrap{position:absolute;top:0;left:0;display:flex;align-items:baseline;gap:8px;
-  padding:6px 16px 10px 4px;border-radius:0 0 20px 0;
-  background:linear-gradient(135deg,rgba(0,0,0,.88),rgba(0,0,0,.4) 65%,transparent)}
-.hh-top4-rank{font-family:var(--disp);font-size:52px;font-style:italic;
-  color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.7);line-height:1}
+.hh-top4-rank-wrap{position:absolute;top:12px;left:16px;display:flex;align-items:flex-end;gap:8px;z-index:2}
+.hh-top4-rank{font-family:var(--disp);font-size:58px;font-style:italic;
+  color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.85),0 0 3px rgba(0,0,0,.9);line-height:1}
 .hh-top4-rank.r1{color:var(--gold)}
-.hh-top4-ott{position:absolute;top:10px;right:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:60%}
+.hh-top4-ott{position:absolute;top:12px;right:16px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:60%}
 .hh-top4-ott img{width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 1px 5px rgba(0,0,0,.6)}
 .hh-top4-info{position:absolute;left:16px;right:16px;bottom:14px;z-index:2}
 .hh-top4-title{color:#fff;font-size:20px;font-weight:800;margin-bottom:6px;
@@ -105,11 +105,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
 .work-poster>img{width:100%;height:100%;object-fit:cover;display:block}
 .work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
-.work-rank-wrap{position:absolute;top:0;left:0;display:flex;align-items:baseline;gap:5px;
-  padding:3px 10px 6px 6px;border-radius:0 0 12px 0;
-  background:linear-gradient(135deg,rgba(0,0,0,.88),rgba(0,0,0,.4) 65%,transparent);z-index:2}
-.work-rank-num{font-family:var(--disp);font-size:24px;font-style:italic;color:#fff;line-height:1;
-  text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.work-rank-wrap{position:absolute;top:6px;left:6px;display:flex;align-items:flex-end;gap:4px;z-index:2}
+.work-rank-num{font-family:var(--disp);font-size:48px;font-style:italic;color:#fff;line-height:1;
+  text-shadow:0 2px 8px rgba(0,0,0,.85),0 0 3px rgba(0,0,0,.9)}
 .hh-chg.sm{font-size:10px}
 .work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .work-meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;justify-content:space-between;gap:6px}
