@@ -1,3 +1,7 @@
+<!-- 2026-08-06 rev.17 — admin.html (works 관리 "➕ 작품 등록" 시 개봉/방영연도(release_year)를
+     TMDB 응답에서 뽑아서 서버로 같이 전송하도록 수정 — 예전엔 안 보내서 DB에 계속 비어있었고,
+     그 결과 작품페이지 링크가 "연도 없으면 올해로 대체" 로직 때문에 무조건 2026년으로
+     잘못 만들어지던 문제 근본 수정) -->
 <!-- 2026-08-06 rev.16 — admin.html (마지막 갱신 표시 형식 수정 — 오늘이어도 날짜 생략하지
      않고 항상 "월-일(요일) 시:분"까지 표시하도록 변경, 요일 추가) -->
 <!-- 2026-08-06 rev.15 — admin.html (랭킹 카테고리 그룹 헤더에 "🕓 마지막 갱신 HH:MM" 표시 —
@@ -4619,7 +4623,11 @@ async function saveNewWorkFromModal() {
   }
 
   // poster_path — saveWorkFromModal과 동일한 패턴: 저장 시점에 TMDB에서 다시 조회
+  // [2026-08-06 추가] 같은 TMDB 응답에서 개봉/방영 연도(release_year)도 같이 뽑아서 등록.
+  // 예전엔 연도를 안 보내서 DB에 계속 비어있었고, 화면 링크가 "연도 없으면 올해로 대체"
+  // 로직 때문에 무조건 올해(2026) 연도로 잘못 만들어지는 문제가 있었음.
   let poster_path = null;
+  let release_year = null;
   const mtypes = media_type === 'movie' ? ['movie', 'tv'] : ['tv', 'movie'];
   for (const mtype of mtypes) {
     try {
@@ -4628,6 +4636,7 @@ async function saveNewWorkFromModal() {
       if (data.poster_path) {
         poster_path = data.poster_path;
         if (!title_en) title_en = data.original_name || data.original_title || '';
+        release_year = parseInt((data.release_date || data.first_air_date || '').slice(0, 4)) || null;
         break;
       }
     } catch (e) {}
@@ -4647,7 +4656,7 @@ async function saveNewWorkFromModal() {
     const res = await fetch(`${API}/admin/works/register`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tmdb_id, title_ko, title_en: title_en || null, poster_path, media_type }),
+      body: JSON.stringify({ tmdb_id, title_ko, title_en: title_en || null, poster_path, media_type, release_year }),
     });
     const json = await res.json();
     if (json.ok) {
