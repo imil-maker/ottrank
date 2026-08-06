@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.2 — hot100-works.html (레이아웃 변경 — 1~4위는 배경이미지 카드 2개씩 2줄,
+     5~100위는 검색결과 페이지(search-results.html)와 동일한 포스터 카드 1줄 4개로 교체.
+     OTT 로고는 두 영역 모두 포스터/카드 우측 상단에 표시(work-ott 클래스, 검색결과 페이지와 동일 위치)) -->
 <!-- 2026-08-06 rev.1 — hot100-works.html (신규 생성 — 작품 랭킹 HOT100 전용 페이지.
      1~3위는 큰 카드, 4~100위는 리스트. 왼쪽 메뉴에서 OTT 선택 시 종합 100위 리스트 안에서
      해당 OTT 서비스 중인 작품만 걸러서 보여줌(순위 번호는 재계산 안 하고 종합 순위 그대로 유지).
@@ -64,46 +67,47 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-h1{font-size:20px;font-weight:800;margin-bottom:2px}
 .hh-sub{font-size:13px;color:var(--muted);margin-bottom:22px}
 
-.hh-top3{display:flex;gap:16px;margin-bottom:28px}
-.hh-top3-card{flex:1;position:relative;border-radius:14px;overflow:hidden;cursor:pointer;
-  aspect-ratio:2/2.6;background:var(--bg3)}
-.hh-top3-card img.bg{width:100%;height:100%;object-fit:cover;display:block}
-.hh-top3-fade{position:absolute;left:0;right:0;bottom:0;height:65%;
-  background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.55) 55%,transparent 100%)}
-.hh-top3-rank{position:absolute;top:8px;left:12px;font-family:var(--disp);font-size:56px;font-style:italic;
+.hh-top4{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:32px}
+.hh-top4-card{position:relative;border-radius:14px;overflow:hidden;cursor:pointer;
+  aspect-ratio:16/9;background:var(--bg3)}
+.hh-top4-card img.bg{width:100%;height:100%;object-fit:cover;display:block}
+.hh-top4-fade{position:absolute;left:0;right:0;bottom:0;height:70%;
+  background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.5) 60%,transparent 100%)}
+.hh-top4-rank{position:absolute;top:8px;left:14px;font-family:var(--disp);font-size:52px;font-style:italic;
   color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.7);line-height:1}
-.hh-top3-rank.r1{color:var(--gold)}
-.hh-top3-info{position:absolute;left:14px;right:14px;bottom:14px;z-index:2}
-.hh-top3-title{color:#fff;font-size:18px;font-weight:800;margin-bottom:6px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.hh-top3-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hh-top4-rank.r1{color:var(--gold)}
+.hh-top4-ott{position:absolute;top:10px;right:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:60%}
+.hh-top4-ott img{width:26px;height:26px;border-radius:50%;object-fit:cover;box-shadow:0 1px 5px rgba(0,0,0,.6)}
+.hh-top4-info{position:absolute;left:16px;right:16px;bottom:14px;z-index:2}
+.hh-top4-title{color:#fff;font-size:20px;font-weight:800;margin-bottom:6px;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.hh-top4-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .hh-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;color:#fff}
 .hh-rating{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;
   font-family:var(--mono);color:#fff}
 .hh-rating .star{color:var(--gold)}
-.hh-ott-row{display:flex;gap:4px;margin-top:8px}
-.hh-ott-row img{width:20px;height:20px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.4)}
 
-.hh-list{display:flex;flex-direction:column}
-.hh-row{display:flex;align-items:center;gap:14px;padding:11px 6px;border-bottom:1px solid var(--border);cursor:pointer}
-.hh-row:hover{background:var(--bg2)}
-.hh-row-rank{flex:0 0 34px;font-family:var(--mono);font-size:17px;font-weight:700;color:var(--muted2);text-align:center}
-.hh-row-poster{flex:0 0 42px;width:42px;height:60px;border-radius:5px;overflow:hidden;background:var(--bg3)}
-.hh-row-poster img{width:100%;height:100%;object-fit:cover;display:block}
-.hh-row-mid{flex:1;min-width:0}
-.hh-row-title{font-size:14.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hh-row-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
-.hh-row-rating{font-size:12px;font-family:var(--mono);color:var(--muted2);display:inline-flex;align-items:center;gap:3px}
-.hh-row-rating .star{color:var(--gold)}
-.hh-row-ott{display:flex;gap:3px;flex-shrink:0}
-.hh-row-ott img{width:18px;height:18px;border-radius:50%;object-fit:cover}
+/* ── 5위부터: 검색결과 페이지와 동일한 포스터 카드(1줄 4개) ── */
+.hh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px 16px}
+.work-card{cursor:pointer;min-width:0}
+.work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
+.work-poster>img{width:100%;height:100%;object-fit:cover;display:block}
+.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
+.work-rank{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:11px;padding:2px 8px;border-radius:5px;
+  background:rgba(0,0,0,.65);backdrop-filter:blur(2px);color:var(--gold);font-weight:700;font-family:var(--mono);white-space:nowrap}
+.work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work-meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.work-rating{color:var(--gold);flex-shrink:0}
+/* 포스터 우측상단 OTT 서비스중 로고 */
+.work-ott{position:absolute;top:6px;left:6px;right:6px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px}
+.ott-logo{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 
 .hh-empty,.hh-loading{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
 
 @media (max-width:860px){
   .hh-sidebar{display:none}
-  .hh-top3{flex-direction:column}
-  .hh-top3-card{aspect-ratio:3/1.6}
+  .hh-top4{grid-template-columns:1fr}
+  .hh-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 </style>
 </head>
@@ -149,8 +153,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="hh-h1">🏆 작품 랭킹 HOT100</div>
     <div class="hh-sub" id="hhSub">넷플릭스·티빙·디즈니+·쿠팡플레이·웨이브·박스오피스를 합산한 오뜨랑 종합 랭킹</div>
 
-    <div class="hh-top3" id="hhTop3"><div class="hh-loading">불러오는 중...</div></div>
-    <div class="hh-list" id="hhList"></div>
+    <div class="hh-top4" id="hhTop4"><div class="hh-loading">불러오는 중...</div></div>
+    <div class="hh-grid" id="hhGrid"></div>
   </main>
 
 </div>
@@ -190,7 +194,7 @@ async function loadHot100Works(){
     renderFilters();
     renderPage();
   }catch(e){
-    document.getElementById('hhTop3').innerHTML = `<div class="hh-empty">불러오는 중 오류가 발생했어요.</div>`;
+    document.getElementById('hhTop4').innerHTML = `<div class="hh-empty">불러오는 중 오류가 발생했어요.</div>`;
   }
 }
 
@@ -227,16 +231,16 @@ function renderPage(){
     : `종합 HOT100 중 ${PLATFORM_KO[curFilter] || curFilter}에서 볼 수 있는 작품 (순위는 종합 기준)`;
 
   if (!items.length){
-    document.getElementById('hhTop3').innerHTML = '';
-    document.getElementById('hhList').innerHTML = '<div class="hh-empty">해당 조건의 작품이 없어요.</div>';
+    document.getElementById('hhTop4').innerHTML = '';
+    document.getElementById('hhGrid').innerHTML = '<div class="hh-empty">해당 조건의 작품이 없어요.</div>';
     return;
   }
 
-  const top3  = items.slice(0, 3);
-  const rest  = items.slice(3);
+  const top4  = items.slice(0, 4);
+  const rest  = items.slice(4);
 
-  document.getElementById('hhTop3').innerHTML = top3.map(_top3Html).join('');
-  document.getElementById('hhList').innerHTML = rest.map(_rowHtml).join('');
+  document.getElementById('hhTop4').innerHTML = top4.map(_top4Html).join('');
+  document.getElementById('hhGrid').innerHTML = rest.map(_posterCardHtml).join('');
 }
 
 function _bgOf(item){
@@ -246,15 +250,16 @@ function _bgOf(item){
   return '';
 }
 
-function _ottRowHtml(item, size){
+// 포스터/카드 우측상단 OTT 서비스중 로고 — search-results.html의 .work-ott와 동일한 자리/스타일
+function _ottBadgeHtml(item, cls){
   const keys = Array.isArray(item.ott_keys) ? item.ott_keys : [];
   if (!keys.length) return '';
-  return `<div class="${size==='sm'?'hh-row-ott':'hh-ott-row'}">${
-    keys.map(k => _ottIcon(k) ? `<img src="${_ottIcon(k)}" alt="${PLATFORM_KO[k]||k}">` : '').join('')
+  return `<div class="${cls}">${
+    keys.map(k => _ottIcon(k) ? `<img class="ott-logo" src="${_ottIcon(k)}" alt="${PLATFORM_KO[k]||k}">` : '').join('')
   }</div>`;
 }
 
-function _top3Html(item){
+function _top4Html(item){
   const bg = _bgOf(item);
   const badgeColor = PC[item.best_platform] || '#666';
   const badgeLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
@@ -264,39 +269,44 @@ function _top3Html(item){
     + `data-year="${item.release_year||''}" data-rank="${item.hot_rank}" data-platform="${item.best_platform||''}"`;
 
   return `
-    <div class="hh-top3-card" ${goAttr} onclick="goCard(this)">
+    <div class="hh-top4-card" ${goAttr} onclick="goCard(this)">
       ${bg ? `<img class="bg" src="${bg}" loading="lazy">` : ''}
-      <div class="hh-top3-fade"></div>
-      <div class="hh-top3-rank${item.hot_rank===1?' r1':''}">${item.hot_rank}</div>
-      <div class="hh-top3-info">
-        <div class="hh-top3-title">${title}</div>
-        <div class="hh-top3-meta">
+      <div class="hh-top4-fade"></div>
+      <div class="hh-top4-rank${item.hot_rank===1?' r1':''}">${item.hot_rank}</div>
+      ${_ottBadgeHtml(item, 'hh-top4-ott')}
+      <div class="hh-top4-info">
+        <div class="hh-top4-title">${title}</div>
+        <div class="hh-top4-meta">
           <span class="hh-badge" style="background:${badgeColor}">${badgeLabel}</span>
           ${item.tmdb_rating != null ? `<span class="hh-rating"><span class="star">★</span>${Number(item.tmdb_rating).toFixed(1)}</span>` : ''}
         </div>
-        ${_ottRowHtml(item)}
       </div>
     </div>
   `;
 }
 
-function _rowHtml(item){
+// 5위부터 — search-results.html의 .work-card와 동일한 포스터 카드 스타일 재사용
+function _posterCardHtml(item){
   const title = _esc(item.title_ko || item.title_en || '');
+  const poster = item.poster_path
+    ? `<img src="${IMG}${item.poster_path}" alt="" loading="lazy">`
+    : `<div class="work-poster-ph">🎬</div>`;
   const goAttr = `data-tmdb="${item.tmdb_id}" data-title-ko="${_esc(item.title_ko||'')}" `
     + `data-title-en="${_esc(item.title_en||'')}" data-media-type="${item.media_type||'tv'}" `
     + `data-year="${item.release_year||''}" data-rank="${item.hot_rank}" data-platform="${item.best_platform||''}"`;
 
   return `
-    <div class="hh-row" ${goAttr} onclick="goCard(this)">
-      <div class="hh-row-rank">${item.hot_rank}</div>
-      <div class="hh-row-poster">${item.poster_path ? `<img src="${IMG}${item.poster_path}" loading="lazy">` : ''}</div>
-      <div class="hh-row-mid">
-        <div class="hh-row-title">${title}</div>
-        <div class="hh-row-meta">
-          ${item.tmdb_rating != null ? `<span class="hh-row-rating"><span class="star">★</span>${Number(item.tmdb_rating).toFixed(1)}</span>` : ''}
-        </div>
+    <div class="work-card" ${goAttr} onclick="goCard(this)">
+      <div class="work-poster">
+        ${poster}
+        ${_ottBadgeHtml(item, 'work-ott')}
+        <span class="work-rank">${item.hot_rank}위</span>
       </div>
-      ${_ottRowHtml(item, 'sm')}
+      <div class="work-title">${title}</div>
+      <div class="work-meta">
+        <span>${item.release_year || '-'}</span>
+        ${item.tmdb_rating != null ? `<span class="work-rating">★ ${Number(item.tmdb_rating).toFixed(1)}</span>` : ''}
+      </div>
     </div>
   `;
 }
