@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.17 — hot100-works.html (실시간 페이지 조회 로그 추가 — 메인페이지와 동일한
+     방식(POST /track/view, type='hot100_works')으로 방문 시 신호 전송, 관리자 페이지 로그에서
+     이 페이지 조회수도 잡히게 함) -->
+<!-- 2026-08-06 rev.16 — hot100-works.html (사이드바 타이틀 폰트 크기 36→24px) -->
 <!-- 2026-08-06 rev.15 — hot100-works.html (사이드바 "인물 전체 랭킹"을 준비중 비활성 링크에서
      실제 /hot100-persons.html로 이동하는 활성 링크로 변경 — 인물 핫100 페이지 신설에 맞춰) -->
 <!-- 2026-08-06 rev.14 — hot100-works.html (① 왼쪽 메뉴명 정리: "🏆 HOT100"(이모지 제거)→"랭킹 HOT 100"
@@ -77,7 +81,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 /* ── 왼쪽 메뉴 ── */
 .hh-sidebar{flex:0 0 221px;position:sticky;top:20px}
-.hh-brand-title{font-size:36px;font-weight:900;color:var(--text);line-height:1.2;letter-spacing:-.3px}
+.hh-brand-title{font-size:24px;font-weight:900;color:var(--text);line-height:1.2;letter-spacing:-.3px}
 .hh-side-group{margin-bottom:24px}
 .hh-side-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:8px;padding:0 4px}
 .hh-side-link{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;color:var(--muted2);
@@ -350,6 +354,29 @@ function goCard(el){
 }
 
 loadHot100Works();
+</script>
+
+<!-- 실시간 페이지 조회 로그 — 관리자 페이지 로그 목록용. 다른 페이지들과 동일한 방식(POST /track/view) -->
+<script>
+(function(){
+  function getOttrangVid(){
+    try{
+      var vid = localStorage.getItem('ottrang_vid');
+      if(!vid){
+        vid = Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('ottrang_vid', vid);
+      }
+      return vid;
+    }catch(e){ return ''; }
+  }
+  try{
+    fetch('https://ottrank-api.tdidream.workers.dev/track/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'hot100_works', vid: getOttrangVid() }),
+    }).catch(function(){});
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
