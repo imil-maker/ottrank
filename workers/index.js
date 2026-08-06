@@ -1,3 +1,5 @@
+/* 2026-08-06 rev.18 — index.js (/hot100/persons 라우팅 추가 — 인물 핫100 공개페이지가 쓰는
+   신규 공개 API가 track.js에 추가됐는데 여기 화이트리스트에 빠져서 "Not found" 나던 문제 수정) */
 /* 2026-08-06 rev.17 — index.js (/admin/tving/* 라우팅 신규 추가 — 티빙 category01 자동 랭킹
    수집 신규 파일 tving.js, 12번 관리자 캐치올보다 앞에 배치) */
 /* 2026-08-04 rev.16 — index.js (/admin/cast* 라우팅 추가 — 배역명 한글화 신규 파일 work_cast.js) */
@@ -50,8 +52,8 @@
                   /admin/hot100/backfill-logos*  (HOT100 통합 랭킹 + 히어로 로고 백필)
    image-proxy.js : /tmdb-img/*  (TMDB 포스터 캐싱 프록시, poster.ottrank.kr, 2026-07-17 신설)
    person-wiki.js : /person-wiki/*  (인물 위키백과 보강 데이터, 테스트용, 2026-07-19 신설)
-   track.js     : /track/view, /admin/track/logs, /admin/track/rank  (작품/인물 페이지 실시간 조회 이벤트 기록·조회 +
-                  기간별 실시간 순위, 2026-07-21 신설, 2026-07-23 순위 라우트 추가)
+   track.js     : /track/view, /admin/track/logs, /admin/track/rank, /hot100/persons  (작품/인물 페이지 실시간 조회 이벤트 기록·조회 +
+                  기간별 실시간 순위 + 인물 핫100 공개 API, 2026-07-21 신설, 2026-07-23 순위 라우트 추가, 2026-08-06 인물 핫100 추가)
    relationship.js : /admin/relationship-charts/*  (등장인물 관계도 — 공식 이미지 업로드, 2026-07-25 신설)
    admin-persons.js : /admin/persons/mbti-naver-*  (네이버 검색 기반 MBTI 수집 — admin.js와 별도,
                   인물 관련 신규 어드민 기능은 앞으로 여기 모음, 2026-07-27 신설)
@@ -174,13 +176,14 @@ export default {
     }
 
     // 3-3. 실시간 조회 이벤트 기록·조회 (작품/인물 페이지 조회 — 2026-07-21 신규,
-    //      2026-07-23 실시간 순위 /admin/track/rank 추가)
+    //      2026-07-23 실시간 순위 /admin/track/rank 추가, 2026-08-06 인물 핫100 공개 API 추가)
     //      /admin/track/logs, /admin/track/rank는 12번 관리자 캐치올(handleAdmin)보다 반드시
     //      앞에 있어야 함 (안 그러면 handleAdmin으로 잘못 넘어가서 404가 남 — 다른 /admin/* 예외 라우트들과 동일 패턴)
     if (!res && (
       path === "/track/view" ||
       path === "/admin/track/logs" ||
       path === "/admin/track/rank" ||
+      path === "/hot100/persons" ||
       path.startsWith("/admin/track/excluded-vids")
     )) {
       res = await handleTrack(path, request, env, url, headers);
