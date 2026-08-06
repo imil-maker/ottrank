@@ -1,3 +1,8 @@
+// 2026-08-06 rev.7 — hot100.js (순위 변동 표시 기능 추가)
+// - hot100_scores.prev_rank 컬럼 신규(마이그레이션 별도 안내) — GET /hot100 응답에 포함
+// - calcHot100(): hot100_rank_snapshot(날짜 안 바뀌면 유지되는 기준선 테이블)과 비교해서
+//   prev_rank를 같이 저장. 날짜가 바뀐 첫 계산에서만 기준선을 오늘 순위로 교체(rotate),
+//   같은 날 재계산은 기준선 유지 — "어제 대비"가 재계산마다 흔들리지 않게 하기 위함
 // 2026-08-06 rev.6 — hot100.js (GET /hot100 응답에 ott_keys(서비스 중인 OTT 목록) 추가 —
 // 새로 만드는 "작품 랭킹 HOT100" 전용 페이지 왼쪽 메뉴에서 OTT별로 필터링하기 위함.
 // getHeroTabs()에서 이미 쓰던 work_ott 조회 방식 그대로 재사용, 새 쿼리 로직 아님)
@@ -293,6 +298,21 @@ export async function calcHot100(request, env, headers) {
       (a, b) => b.weighted_score + b.admin_boost - (a.weighted_score + a.admin_boost)
     );
 
+    // ── 3-3. 순위 변동(prev_rank) 비교용 — 직전 스냅샷 조회 ──
+    // hot100_rank_snapshot은 hot100_scores와 달리 매번 지워지지 않는 "어제 순위 기준선" 테이블.
+    // 날짜가 바뀐 첫 계산에서만 이 스냅샷을 오늘 순위로 교체(rotate)하고, 같은 날 재계산은
+    // 기준선을 그대로 둔다 — 재계산할 때마다 "어제 대비"가 아니라 "직전 계산 대비"로
+    // 흔들리는 것을 방지하기 위함.
+    const snapDateRow = await env.DB.prepare(
+      `SELECT value FROM app_settings WHERE key = 'hot100_snapshot_date'`
+    ).first();
+    const snapDate = snapDateRow?.value || null;
+
+    const { results: snapRows } = await env.DB.prepare(
+      `SELECT tmdb_id, rank FROM hot100_rank_snapshot`
+    ).all();
+    const prevRankMap = new Map((snapRows || []).map((r) => [r.tmdb_id, r.rank]));
+
     // ── 4. hot100_scores 테이블 전체 재계산(덮어쓰기) ─────────
     // KST 기준 현재 시각 (UTC + 9시간)
     const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
@@ -303,15 +323,15 @@ export async function calcHot100(request, env, headers) {
     // 기존 데이터 전체 삭제 + 신규 데이터 삽입을 하나의 배치로 묶음
     const statements = [env.DB.prepare(`DELETE FROM hot100_scores`)];
 
-    for (const row of finalRows) {
+    finalRows.forEach((row, idx) => {
       const totalScore = row.weighted_score + row.admin_boost;
       statements.push(
         env.DB.prepare(
           `INSERT INTO hot100_scores
             (tmdb_id, calc_date, best_platform, platform_weight,
              rank_score, weighted_rank_score, engagement_score,
-             admin_boost, total_score, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
+             admin_boost, total_score, prev_rank, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
         ).bind(
           row.tmdb_id,
           latestDate,
@@ -321,13 +341,34 @@ export async function calcHot100(request, env, headers) {
           row.weighted_score,
           row.admin_boost,
           totalScore,
+          prevRankMap.get(row.tmdb_id) ?? null,
           nowKst
         )
       );
-    }
+    });
 
     // env.DB.batch() — 여러 쿼리를 한 번의 네트워크 왕복으로 처리 (트랜잭션처럼 묶임)
     await env.DB.batch(statements);
+
+    // ── 4-0. 순위 변동 기준선(hot100_rank_snapshot) 교체 ──
+    // 날짜가 바뀐 첫 계산일 때만 "오늘 순위"로 기준선을 새로 교체 — 같은 날 재계산 시엔
+    // 위에서 이미 그대로 쓴 기준선을 유지한다(건드리지 않음).
+    if (latestDate !== snapDate) {
+      const snapStatements = [env.DB.prepare(`DELETE FROM hot100_rank_snapshot`)];
+      finalRows.forEach((row, idx) => {
+        snapStatements.push(
+          env.DB.prepare(`INSERT INTO hot100_rank_snapshot (tmdb_id, rank) VALUES (?, ?)`)
+            .bind(row.tmdb_id, idx + 1)
+        );
+      });
+      snapStatements.push(
+        env.DB.prepare(
+          `INSERT INTO app_settings (key, value) VALUES ('hot100_snapshot_date', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+        ).bind(latestDate)
+      );
+      await env.DB.batch(snapStatements);
+    }
 
     // ── 4-1. 넷플릭스 통합랭킹(category10) 저장 ─────────────
     // 넷플릭스는 FlixPatrol에 "통합(Overall)" 표 자체가 없어서, 다른 플랫폼처럼 그대로 크롤링해
@@ -633,6 +674,7 @@ export async function getHot100(request, env, headers) {
         h.engagement_score,
         h.admin_boost,
         h.calc_date,
+        h.prev_rank,
         COALESCE(ab.is_pinned, 0) AS is_pinned,
         w.title_ko,
         w.title_en,
