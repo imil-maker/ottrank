@@ -1,3 +1,6 @@
+<!-- 2026-08-06 rev.18 — admin.html (랭킹 리스트 각 행의 "날짜고정" 체크박스 제거 —
+     버그가 잦아 더 이상 사용 안 하기로 결정. 기존에 고정돼있던 항목 표시용 "📌 날짜고정" 배지는
+     그대로 유지. toggleCrawlLock 함수는 코드에는 남아있으나 더 이상 호출되지 않음) -->
 <!-- 2026-08-06 rev.17 — admin.html (works 관리 "➕ 작품 등록" 시 개봉/방영연도(release_year)를
      TMDB 응답에서 뽑아서 서버로 같이 전송하도록 수정 — 예전엔 안 보내서 DB에 계속 비어있었고,
      그 결과 작품페이지 링크가 "연도 없으면 올해로 대체" 로직 때문에 무조건 2026년으로
@@ -2626,17 +2629,6 @@ function renderTable() {
           ${isCrawlLocked    ? '<span class="manual-badge" style="background:rgba(100,160,255,.15);color:#7ec8e3;border:1px solid rgba(100,160,255,.35)">📌 날짜고정</span>' : ''}
         </td>
         <td style="white-space:nowrap">
-          <!-- 크롤링 날짜 고정 체크박스 -->
-          <label title="체크 시 날짜가 바뀌거나 크롤링해도 이 항목은 변경되지 않습니다"
-            style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;
-              font-size:11px;color:${isCrawlLocked?'#7ec8e3':'var(--muted2)'};
-              font-family:var(--mono);margin-right:6px;user-select:none">
-            <input type="checkbox" id="crawlLock-${r.id}"
-              ${isCrawlLocked ? 'checked' : ''}
-              onchange="toggleCrawlLock(${r.id}, this.checked)"
-              style="cursor:pointer;width:14px;height:14px;accent-color:#7ec8e3">
-            날짜고정
-          </label>
           <button class="btn-sm btn-fix" onclick="openModalByRowId(${r.id})">수정</button>
           <button class="btn-sm btn-unfix" onclick="deleteRankingRow(${r.id})">랭킹 삭제</button>
           ${r.is_manual === 1 ? `<button class="btn-sm btn-unfix" onclick="unfix(${r.id})">고정해제</button>` : ''}
