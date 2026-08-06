@@ -1,4 +1,11 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.7 — hot100-works.html (테두리(stroke)로 두껍게 보이게 하던 방식은 두 자리 숫자에서
+     획끼리 뭉개져 안 보이는 문제가 있어 폐기 — 순위 숫자 폰트를 아주 두꺼운 전용 숫자 폰트
+     Anton(Google Fonts)으로 교체. 기울임(italic)도 가독성을 위해 제거) -->
+<!-- 2026-08-06 rev.6 — hot100-works.html (순위 숫자 폰트(Bebas Neue)가 두께 종류가 하나뿐이라
+     font-weight만으론 안 두꺼워짐 — -webkit-text-stroke으로 테두리를 더해 두껍게 보이도록 처리) -->
+<!-- 2026-08-06 rev.5 — hot100-works.html (순위변동 표시(▲▼NEW)를 숫자 옆 세로 가운데 정렬로 수정,
+     5~100위 OTT 로고 크기 20% 축소(44→35px)) -->
 <!-- 2026-08-06 rev.4 — hot100-works.html (순위 숫자 뒤 검은 배경 제거, 왼쪽/위 여백을 OTT 로고와
      맞추고, 숫자 크기를 OTT 로고보다 10% 크게 조정(top4: 52→58px, 포스터: 44→48px)) -->
 <!-- 2026-08-06 rev.3 — hot100-works.html (① 순위 숫자를 포스터/카드 좌측상단 큰 숫자로 통일(1~4위와 동일 스타일)
@@ -26,11 +33,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style"
-  href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap"
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Anton&family=Black+Han+Sans&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Anton&family=Black+Han+Sans&display=swap"
   rel="stylesheet" media="print" onload="this.media='all'">
 <noscript>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Anton&family=Black+Han+Sans&display=swap" rel="stylesheet">
 </noscript>
 
 <style>
@@ -41,7 +48,7 @@
   --accent:#e63946; --gold:#f0b429; --green:#34d399; --red:#f87171;
   --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
   --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
-  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
+  --disp:'Anton',sans-serif; --r:10px; --max-w:1200px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -78,8 +85,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-top4-card img.bg{width:100%;height:100%;object-fit:cover;display:block}
 .hh-top4-fade{position:absolute;left:0;right:0;bottom:0;height:70%;
   background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.5) 60%,transparent 100%)}
-.hh-top4-rank-wrap{position:absolute;top:12px;left:16px;display:flex;align-items:flex-end;gap:8px;z-index:2}
-.hh-top4-rank{font-family:var(--disp);font-size:58px;font-style:italic;
+.hh-top4-rank-wrap{position:absolute;top:12px;left:16px;display:flex;align-items:center;gap:8px;z-index:2}
+.hh-top4-rank{font-family:var(--disp);font-size:58px;
   color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.85),0 0 3px rgba(0,0,0,.9);line-height:1}
 .hh-top4-rank.r1{color:var(--gold)}
 .hh-top4-ott{position:absolute;top:12px;right:16px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:60%}
@@ -105,8 +112,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
 .work-poster>img{width:100%;height:100%;object-fit:cover;display:block}
 .work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
-.work-rank-wrap{position:absolute;top:6px;left:6px;display:flex;align-items:flex-end;gap:4px;z-index:2}
-.work-rank-num{font-family:var(--disp);font-size:48px;font-style:italic;color:#fff;line-height:1;
+.work-rank-wrap{position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:4px;z-index:2}
+.work-rank-num{font-family:var(--disp);font-size:48px;color:#fff;line-height:1;
   text-shadow:0 2px 8px rgba(0,0,0,.85),0 0 3px rgba(0,0,0,.9)}
 .hh-chg.sm{font-size:10px}
 .work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -114,7 +121,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .work-rating{color:var(--gold);flex-shrink:0}
 /* 포스터 우측상단 OTT 서비스중 로고 */
 .work-ott{position:absolute;top:6px;left:6px;right:6px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px}
-.ott-logo{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ott-logo{width:35px;height:35px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 
 .hh-empty,.hh-loading{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
 
