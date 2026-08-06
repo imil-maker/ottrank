@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.3 — hot100-works.html (① 순위 숫자를 포스터/카드 좌측상단 큰 숫자로 통일(1~4위와 동일 스타일)
+     ② 순위 숫자 옆에 어제 대비 변동(▲상승/▼하락/–유지/NEW신규, hot100.js prev_rank 기반) 표시 추가
+     ③ 1~4위 카드의 OTT 이름표(hh-badge) 제거 — 평점만 남김 ④ OTT 로고 크기 2배로(top4: 26→52px, 포스터: 22→44px)) -->
 <!-- 2026-08-06 rev.2 — hot100-works.html (레이아웃 변경 — 1~4위는 배경이미지 카드 2개씩 2줄,
      5~100위는 검색결과 페이지(search-results.html)와 동일한 포스터 카드 1줄 4개로 교체.
      OTT 로고는 두 영역 모두 포스터/카드 우측 상단에 표시(work-ott 클래스, 검색결과 페이지와 동일 위치)) -->
@@ -73,19 +76,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-top4-card img.bg{width:100%;height:100%;object-fit:cover;display:block}
 .hh-top4-fade{position:absolute;left:0;right:0;bottom:0;height:70%;
   background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.5) 60%,transparent 100%)}
-.hh-top4-rank{position:absolute;top:8px;left:14px;font-family:var(--disp);font-size:52px;font-style:italic;
+.hh-top4-rank-wrap{position:absolute;top:0;left:0;display:flex;align-items:baseline;gap:8px;
+  padding:6px 16px 10px 4px;border-radius:0 0 20px 0;
+  background:linear-gradient(135deg,rgba(0,0,0,.88),rgba(0,0,0,.4) 65%,transparent)}
+.hh-top4-rank{font-family:var(--disp);font-size:52px;font-style:italic;
   color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.7);line-height:1}
 .hh-top4-rank.r1{color:var(--gold)}
 .hh-top4-ott{position:absolute;top:10px;right:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:60%}
-.hh-top4-ott img{width:26px;height:26px;border-radius:50%;object-fit:cover;box-shadow:0 1px 5px rgba(0,0,0,.6)}
+.hh-top4-ott img{width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 1px 5px rgba(0,0,0,.6)}
 .hh-top4-info{position:absolute;left:16px;right:16px;bottom:14px;z-index:2}
 .hh-top4-title{color:#fff;font-size:20px;font-weight:800;margin-bottom:6px;
   display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 .hh-top4-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.hh-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;color:#fff}
 .hh-rating{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;
   font-family:var(--mono);color:#fff}
 .hh-rating .star{color:var(--gold)}
+
+/* ── 순위 변동 표시(공통) — ▲상승/▼하락/–유지/NEW신규 ── */
+.hh-chg{font-family:var(--mono);font-weight:700;display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
+.hh-chg.up{color:var(--green)}
+.hh-chg.down{color:var(--red)}
+.hh-chg.same{color:var(--muted)}
+.hh-chg.new{color:var(--gold)}
 
 /* ── 5위부터: 검색결과 페이지와 동일한 포스터 카드(1줄 4개) ── */
 .hh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px 16px}
@@ -93,14 +105,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
 .work-poster>img{width:100%;height:100%;object-fit:cover;display:block}
 .work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
-.work-rank{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:11px;padding:2px 8px;border-radius:5px;
-  background:rgba(0,0,0,.65);backdrop-filter:blur(2px);color:var(--gold);font-weight:700;font-family:var(--mono);white-space:nowrap}
+.work-rank-wrap{position:absolute;top:0;left:0;display:flex;align-items:baseline;gap:5px;
+  padding:3px 10px 6px 6px;border-radius:0 0 12px 0;
+  background:linear-gradient(135deg,rgba(0,0,0,.88),rgba(0,0,0,.4) 65%,transparent);z-index:2}
+.work-rank-num{font-family:var(--disp);font-size:24px;font-style:italic;color:#fff;line-height:1;
+  text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.hh-chg.sm{font-size:10px}
 .work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .work-meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;justify-content:space-between;gap:6px}
 .work-rating{color:var(--gold);flex-shrink:0}
 /* 포스터 우측상단 OTT 서비스중 로고 */
 .work-ott{position:absolute;top:6px;left:6px;right:6px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px}
-.ott-logo{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ott-logo{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 
 .hh-empty,.hh-loading{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
 
@@ -259,10 +275,19 @@ function _ottBadgeHtml(item, cls){
   }</div>`;
 }
 
+// 순위 변동 표시 — prev_rank(어제 계산 시점 순위)와 오늘 순위(hot_rank) 비교.
+// prev_rank가 없으면(어제 기록이 아직 없거나 신규 진입) "NEW"로 표시.
+function _rankChangeHtml(item, size){
+  const cls = size === 'sm' ? 'hh-chg sm' : 'hh-chg';
+  if (item.prev_rank == null) return `<span class="${cls} new">NEW</span>`;
+  const diff = item.prev_rank - item.hot_rank;
+  if (diff > 0) return `<span class="${cls} up">▲${diff}</span>`;
+  if (diff < 0) return `<span class="${cls} down">▼${-diff}</span>`;
+  return `<span class="${cls} same">–</span>`;
+}
+
 function _top4Html(item){
   const bg = _bgOf(item);
-  const badgeColor = PC[item.best_platform] || '#666';
-  const badgeLabel = PLATFORM_KO[item.best_platform] || item.best_platform || '';
   const title = _esc(item.title_ko || item.title_en || '');
   const goAttr = `data-tmdb="${item.tmdb_id}" data-title-ko="${_esc(item.title_ko||'')}" `
     + `data-title-en="${_esc(item.title_en||'')}" data-media-type="${item.media_type||'tv'}" `
@@ -272,12 +297,14 @@ function _top4Html(item){
     <div class="hh-top4-card" ${goAttr} onclick="goCard(this)">
       ${bg ? `<img class="bg" src="${bg}" loading="lazy">` : ''}
       <div class="hh-top4-fade"></div>
-      <div class="hh-top4-rank${item.hot_rank===1?' r1':''}">${item.hot_rank}</div>
+      <div class="hh-top4-rank-wrap">
+        <div class="hh-top4-rank${item.hot_rank===1?' r1':''}">${item.hot_rank}</div>
+        ${_rankChangeHtml(item)}
+      </div>
       ${_ottBadgeHtml(item, 'hh-top4-ott')}
       <div class="hh-top4-info">
         <div class="hh-top4-title">${title}</div>
         <div class="hh-top4-meta">
-          <span class="hh-badge" style="background:${badgeColor}">${badgeLabel}</span>
           ${item.tmdb_rating != null ? `<span class="hh-rating"><span class="star">★</span>${Number(item.tmdb_rating).toFixed(1)}</span>` : ''}
         </div>
       </div>
@@ -299,8 +326,11 @@ function _posterCardHtml(item){
     <div class="work-card" ${goAttr} onclick="goCard(this)">
       <div class="work-poster">
         ${poster}
+        <div class="work-rank-wrap">
+          <div class="work-rank-num">${item.hot_rank}</div>
+          ${_rankChangeHtml(item, 'sm')}
+        </div>
         ${_ottBadgeHtml(item, 'work-ott')}
-        <span class="work-rank">${item.hot_rank}위</span>
       </div>
       <div class="work-title">${title}</div>
       <div class="work-meta">
