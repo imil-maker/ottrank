@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<!-- 2026-08-06 rev.1 — hot100-persons.html (신규 생성 — 인물 핫100 전용 페이지.
+     hot100-works.html과 완전히 동일한 레이아웃(사이드바/1~4위 큰 카드/5~100위 프로필 그리드) 재사용.
+     데이터 출처는 조회수 랭킹(track.js GET /hot100/persons, 최근 1주일 기준, 관리자와 상의해서 확정) —
+     hot100_scores 같은 별도 점수 테이블이 아니라 Analytics Engine 실시간 집계를 그대로 씀.
+     순위변동(▲▼NEW)은 이번엔 없음 — 기준선을 저장해두는 구조가 아니라서 추후 필요하면 별도 설계.
+     OTT 로고도 해당 없음(인물은 플랫폼 소속 개념이 없음). -->
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>인물 랭킹 HOT100 — 오뜨랑</title>
+<meta name="description" content="최근 1주일간 가장 많이 조회된 배우·감독 등 인물 랭킹 HOT100.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://ottrank.kr/hot100-persons.html">
+<link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+<meta name="theme-color" content="#0c0c10">
+
+<link rel="preconnect" href="https://ottrank-api.tdidream.workers.dev">
+<link rel="preconnect" href="https://image.tmdb.org">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style"
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap"
+  rel="stylesheet" media="print" onload="this.media='all'">
+<noscript>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&family=Black+Han+Sans&display=swap" rel="stylesheet">
+</noscript>
+
+<style>
+:root {
+  --bg:#0c0c10; --bg2:#13131a; --bg3:#1a1a24; --card:#16161f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.16);
+  --text:#ededf0; --muted:#7a7a96; --muted2:#a0a0bc;
+  --accent:#e63946; --gold:#f0b429; --green:#34d399; --red:#f87171;
+  --NF:#e50914; --TV:#ff153c; --DS:#06b6d4; --CP:#1ac44d; --WV:#0070f3;
+  --mono:'DM Mono',monospace; --sans:'Noto Sans KR',sans-serif;
+  --disp:'Bebas Neue',sans-serif; --r:10px; --max-w:1200px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6}
+
+.hh-outer{max-width:var(--max-w);margin:0 auto;padding:24px 20px 80px;display:flex;gap:28px;align-items:flex-start}
+
+/* ── 왼쪽 메뉴 ── */
+.hh-sidebar{flex:0 0 221px;position:sticky;top:20px}
+.hh-brand-title{font-size:36px;font-weight:900;color:var(--text);line-height:1.2;letter-spacing:-.3px}
+.hh-side-group{margin-bottom:24px}
+.hh-side-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:8px;padding:0 4px}
+.hh-side-link{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;color:var(--muted2);
+  font-size:14px;font-weight:600;text-decoration:none;margin-bottom:2px}
+.hh-side-link:hover{background:var(--bg3)}
+.hh-side-link.active{background:var(--gold);color:#000}
+.hh-side-link.disabled{color:var(--muted);cursor:default;pointer-events:none;display:flex;justify-content:space-between}
+.hh-side-link img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0}
+.hh-soon{font-size:10px;font-weight:700;color:var(--muted);background:var(--bg3);border-radius:4px;padding:2px 6px}
+
+/* ── 메인 ── */
+.hh-main{flex:1;min-width:0}
+
+.hh-top4{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:32px}
+.hh-top4-card{position:relative;border-radius:14px;overflow:hidden;cursor:pointer;
+  aspect-ratio:16/9;background:var(--bg3);text-decoration:none;display:block}
+.hh-top4-card img.bg{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.hh-top4-fade{position:absolute;left:0;right:0;bottom:0;height:70%;
+  background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.5) 60%,transparent 100%)}
+.hh-top4-rank-wrap{position:absolute;top:12px;left:16px;display:flex;align-items:center;gap:8px;z-index:2}
+.hh-top4-rank{font-family:var(--disp);font-size:58px;font-style:italic;
+  color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.85),0 0 3px rgba(0,0,0,.9);line-height:1}
+.hh-top4-rank.r1{color:var(--gold)}
+.hh-top4-info{position:absolute;left:16px;right:16px;bottom:14px;z-index:2}
+.hh-top4-title{color:#fff;font-size:20px;font-weight:800;margin-bottom:6px;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.hh-top4-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hh-view{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;
+  font-family:var(--mono);color:#fff}
+
+/* ── 5위부터: 검색결과 페이지와 동일한 포스터 카드(1줄 4개) — 인물 프로필사진 버전 ── */
+.hh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px 16px}
+.work-card{cursor:pointer;min-width:0;text-decoration:none;color:inherit;display:block}
+.work-poster{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--bg3);margin-bottom:8px}
+.work-poster>img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.work-poster-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
+.work-rank-wrap{position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:8px;z-index:2}
+.work-rank-num{font-family:var(--disp);font-size:48px;font-style:italic;
+  color:#fff;line-height:1;
+  text-shadow:0 2px 8px rgba(0,0,0,.85),0 0 3px rgba(0,0,0,.9)}
+.work-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work-meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:4px}
+
+.hh-empty,.hh-loading{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
+
+@media (max-width:860px){
+  .hh-sidebar{display:none}
+  .hh-top4{grid-template-columns:1fr}
+  .hh-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+</head>
+<body>
+
+<script>
+/* ══ 공용 헤더 동적 삽입 ══ */
+(function(){
+  fetch('/header.html')
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{
+      document.getElementById('ottrang-header').innerHTML=h;
+      document.getElementById('ottrang-header').querySelectorAll('script').forEach(s=>{
+        const ns=document.createElement('script');
+        ns.textContent=s.textContent;
+        document.body.appendChild(ns);
+      });
+      if(typeof initHeader==='function') initHeader();
+    })
+    .catch(()=>{ /* 헤더 fetch 실패 시 무시 (로컬 개발환경) */ });
+})();
+</script>
+<div id="ottrang-header"></div>
+
+<div class="hh-outer">
+
+  <!-- ══ 왼쪽 메뉴 ══ -->
+  <aside class="hh-sidebar">
+    <div class="hh-brand-title">랭킹 HOT 100</div>
+    <div class="hh-side-group" style="margin-top:20px;margin-bottom:20px">
+      <a class="hh-side-link" href="/hot100-works.html">작품 전체 랭킹</a>
+      <a class="hh-side-link active" href="/hot100-persons.html">인물 전체 랭킹</a>
+      <a class="hh-side-link disabled" href="#">역대 드라마 랭킹 <span class="hh-soon">준비중</span></a>
+    </div>
+    <div class="hh-side-group">
+      <div class="hh-side-title">OTT별 랭킹</div>
+      <a class="hh-side-link" href="/netflix"><img src="/img/netflix-icon.jpg" alt="">넷플릭스</a>
+      <a class="hh-side-link" href="/tving"><img src="/img/tving-icon.jpg" alt="">티빙</a>
+      <a class="hh-side-link" href="/disneyplus"><img src="/img/disneyplus-icon.jpg" alt="">디즈니+</a>
+      <a class="hh-side-link" href="/boxoffice"><img src="/img/boxoffice-icon.jpg" alt="">박스오피스</a>
+      <a class="hh-side-link" href="/wavve"><img src="/img/wavve-icon.jpg" alt="">웨이브</a>
+      <a class="hh-side-link" href="/coupangplay"><img src="/img/coupangplay-icon.jpg" alt="">쿠팡플레이</a>
+    </div>
+  </aside>
+
+  <!-- ══ 메인 ══ -->
+  <main class="hh-main">
+    <!-- 왼쪽 큰 제목과 높이를 맞추기 위한 투명 스페이서(hot100-works.html과 동일 원리) -->
+    <div class="hh-brand-title" style="visibility:hidden" aria-hidden="true">랭킹 HOT 100</div>
+    <div style="margin-top:20px">
+      <div class="hh-top4" id="hhTop4"><div class="hh-loading">불러오는 중...</div></div>
+      <div class="hh-grid" id="hhGrid"></div>
+    </div>
+  </main>
+
+</div>
+
+<div id="ottrang-footer"></div>
+<script>
+  fetch('/footer.html').then(r=>r.ok?r.text():Promise.reject())
+    .then(h=>{ document.getElementById('ottrang-footer').innerHTML=h; })
+    .catch(()=>{});
+</script>
+
+<script>
+const API = 'https://ottrank-api.tdidream.workers.dev';
+const IMG = 'https://image.tmdb.org/t/p/w300';
+
+function _esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function _fmtCount(n){ return (n || 0).toLocaleString(); }
+
+let allItems = [];
+
+async function loadHot100Persons(){
+  try{
+    const res  = await fetch(`${API}/hot100/persons?period=week&limit=100`);
+    const json = await res.json();
+    allItems = json.data || [];
+    renderPage();
+  }catch(e){
+    document.getElementById('hhTop4').innerHTML = `<div class="hh-empty">불러오는 중 오류가 발생했어요.</div>`;
+  }
+}
+
+function renderPage(){
+  if (!allItems.length){
+    document.getElementById('hhTop4').innerHTML = '';
+    document.getElementById('hhGrid').innerHTML = '<div class="hh-empty">표시할 인물이 없어요.</div>';
+    return;
+  }
+
+  const top4  = allItems.slice(0, 4);
+  const rest  = allItems.slice(4);
+
+  document.getElementById('hhTop4').innerHTML = top4.map(_top4Html).join('');
+  document.getElementById('hhGrid').innerHTML = rest.map(_posterCardHtml).join('');
+}
+
+function _top4Html(item){
+  const bg = item.profile_path ? `${IMG}${item.profile_path}` : '';
+  const name = _esc(item.name || '');
+
+  return `
+    <a class="hh-top4-card" href="/person/${item.tmdb_id}">
+      ${bg ? `<img class="bg" src="${bg}" loading="lazy">` : ''}
+      <div class="hh-top4-fade"></div>
+      <div class="hh-top4-rank-wrap">
+        <div class="hh-top4-rank${item.hot_rank===1?' r1':''}">${item.hot_rank}</div>
+      </div>
+      <div class="hh-top4-info">
+        <div class="hh-top4-title">${name}</div>
+        <div class="hh-top4-meta">
+          <span class="hh-view">👁 ${_fmtCount(item.view_count)}</span>
+        </div>
+      </div>
+    </a>
+  `;
+}
+
+// 5위부터 — 작품 핫100의 포스터 카드와 동일한 자리에 인물 프로필사진을 넣은 버전
+function _posterCardHtml(item){
+  const name = _esc(item.name || '');
+  const photo = item.profile_path
+    ? `<img src="${IMG}${item.profile_path}" alt="" loading="lazy">`
+    : `<div class="work-poster-ph">👤</div>`;
+
+  return `
+    <a class="work-card" href="/person/${item.tmdb_id}">
+      <div class="work-poster">
+        ${photo}
+        <div class="work-rank-wrap">
+          <div class="work-rank-num">${item.hot_rank}</div>
+        </div>
+      </div>
+      <div class="work-title">${name}</div>
+      <div class="work-meta">👁 ${_fmtCount(item.view_count)}</div>
+    </a>
+  `;
+}
+
+loadHot100Persons();
+</script>
+</body>
+</html>
