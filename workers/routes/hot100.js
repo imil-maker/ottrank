@@ -1,3 +1,6 @@
+// 2026-08-06 rev.6 — hot100.js (GET /hot100 응답에 ott_keys(서비스 중인 OTT 목록) 추가 —
+// 새로 만드는 "작품 랭킹 HOT100" 전용 페이지 왼쪽 메뉴에서 OTT별로 필터링하기 위함.
+// getHeroTabs()에서 이미 쓰던 work_ott 조회 방식 그대로 재사용, 새 쿼리 로직 아님)
 // 2026-08-01 rev.5 — hot100.js (GET /hot100/hero-tabs 응답에 release_year가 아예 빠져있던 문제
 // 수정 — 메인페이지 히어로 캐러셀(하우스 오브 드래곤 등) 클릭 시 항상 오늘 날짜로 링크가
 // 만들어지던 원인. "all"/플랫폼 두 분기 SQL과 응답 매핑 전부에 w.release_year 추가.
@@ -657,12 +660,33 @@ export async function getHot100(request, env, headers) {
       });
     }
 
+    // [2026-08-06 추가] 작품 랭킹 HOT100 전용 페이지(왼쪽 OTT 메뉴로 필터링)를 위해
+    // 각 작품이 서비스 중인 OTT 목록(ott_keys)을 같이 내려준다 — getHeroTabs()에서
+    // 이미 쓰던 것과 완전히 동일한 work_ott 조회 방식 재사용, 새 로직 아님.
+    const tmdbIds = [...new Set(results.map((r) => r.tmdb_id).filter(Boolean))];
+    const ottMap = {};
+    for (let i = 0; i < tmdbIds.length; i += 100) {
+      const chunk = tmdbIds.slice(i, i + 100);
+      const placeholders = chunk.map(() => "?").join(",");
+      const { results: ottRows } = await env.DB.prepare(
+        `SELECT tmdb_id, ott_key FROM work_ott WHERE tmdb_id IN (${placeholders})`
+      ).bind(...chunk).all();
+      ottRows.forEach((r) => { (ottMap[r.tmdb_id] ||= []).push(r.ott_key); });
+    }
+    const OTT_DISPLAY_ORDER = ["netflix", "tving", "disney", "boxoffice", "wavve", "coupang"];
+    const _ottRank = (key) => {
+      const idx = OTT_DISPLAY_ORDER.indexOf(key);
+      return idx === -1 ? OTT_DISPLAY_ORDER.length : idx;
+    };
+    Object.values(ottMap).forEach((keys) => keys.sort((a, b) => _ottRank(a) - _ottRank(b)));
+
     return new Response(
       JSON.stringify({
         ok: true,
         data: results.map((row, idx) => ({
           hot_rank: idx + 1,
           ...row,
+          ott_keys: ottMap[row.tmdb_id] || [],
         })),
       }),
       { status: 200, headers }
