@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- 2026-08-06 rev.14 — hot100-works.html (① 왼쪽 메뉴명 정리: "🏆 HOT100"(이모지 제거)→"랭킹 HOT 100"
+     글자 3배 확대(12→36px), 그 아래 20px 여백 두고 "작품 전체 랭킹/인물 전체 랭킹/역대 드라마 랭킹"으로 개명
+     ② "OTT별 보기"→"OTT별 랭킹"으로 개명, 클릭 시 페이지 내 필터가 아니라 각 OTT 실제 페이지로
+     이동하는 링크로 전환(필터 관련 JS 전부 제거) ③ 본문 상단 제목/설명 문구 삭제 — 왼쪽
+     "랭킹 HOT 100" 제목과 높이가 정확히 맞도록 투명 스페이서로 처리, 바로 랭킹이 시작됨) -->
 <!-- 2026-08-06 rev.13 — hot100-works.html (왼쪽 메뉴 폭을 200→221px로 조정 — 포스터 폭과 맞춤.
      포스터는 grid(fr 단위)라 별도 계산 없이 메뉴가 넓어진 만큼 자연스럽게 줄어듦) -->
 <!-- 2026-08-06 rev.12 — hot100-works.html (순위 "동일" 표시를 짧은 대시(–) 문자 대신 눈에 잘 띄는
@@ -70,6 +75,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
 /* ── 왼쪽 메뉴 ── */
 .hh-sidebar{flex:0 0 221px;position:sticky;top:20px}
+.hh-brand-title{font-size:36px;font-weight:900;color:var(--text);line-height:1.2;letter-spacing:-.3px}
 .hh-side-group{margin-bottom:24px}
 .hh-side-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:8px;padding:0 4px}
 .hh-side-link{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;color:var(--muted2);
@@ -77,19 +83,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .hh-side-link:hover{background:var(--bg3)}
 .hh-side-link.active{background:var(--gold);color:#000}
 .hh-side-link.disabled{color:var(--muted);cursor:default;pointer-events:none;display:flex;justify-content:space-between}
+.hh-side-link img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .hh-soon{font-size:10px;font-weight:700;color:var(--muted);background:var(--bg3);border-radius:4px;padding:2px 6px}
-.hh-filter{display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;border-radius:8px;
-  background:none;border:none;color:var(--muted2);font-size:14px;font-weight:600;text-align:left;
-  cursor:pointer;font-family:var(--sans);margin-bottom:2px}
-.hh-filter:hover{background:var(--bg3)}
-.hh-filter.on{background:var(--bg3);color:var(--gold)}
-.hh-filter img{width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0}
-.hh-filter-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 
 /* ── 메인 ── */
 .hh-main{flex:1;min-width:0}
-.hh-h1{font-size:20px;font-weight:800;margin-bottom:2px}
-.hh-sub{font-size:13px;color:var(--muted);margin-bottom:22px}
 
 .hh-top4{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:32px}
 .hh-top4-card{position:relative;border-radius:14px;overflow:hidden;cursor:pointer;
@@ -172,25 +170,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 
   <!-- ══ 왼쪽 메뉴 ══ -->
   <aside class="hh-sidebar">
-    <div class="hh-side-group">
-      <div class="hh-side-title">🏆 HOT100</div>
-      <a class="hh-side-link active" href="/hot100-works.html">작품 랭킹</a>
-      <a class="hh-side-link disabled" href="#">인물 랭킹 <span class="hh-soon">준비중</span></a>
-      <a class="hh-side-link disabled" href="#">드라마 랭킹 <span class="hh-soon">준비중</span></a>
+    <div class="hh-brand-title">랭킹 HOT 100</div>
+    <div class="hh-side-group" style="margin-top:20px;margin-bottom:20px">
+      <a class="hh-side-link active" href="/hot100-works.html">작품 전체 랭킹</a>
+      <a class="hh-side-link disabled" href="#">인물 전체 랭킹 <span class="hh-soon">준비중</span></a>
+      <a class="hh-side-link disabled" href="#">역대 드라마 랭킹 <span class="hh-soon">준비중</span></a>
     </div>
-    <div class="hh-side-group" id="hhFilterGroup">
-      <div class="hh-side-title">OTT별 보기</div>
-      <!-- JS(renderFilters)가 채움 -->
+    <div class="hh-side-group">
+      <div class="hh-side-title">OTT별 랭킹</div>
+      <a class="hh-side-link" href="/netflix"><img src="/img/netflix-icon.jpg" alt="">넷플릭스</a>
+      <a class="hh-side-link" href="/tving"><img src="/img/tving-icon.jpg" alt="">티빙</a>
+      <a class="hh-side-link" href="/disneyplus"><img src="/img/disneyplus-icon.jpg" alt="">디즈니+</a>
+      <a class="hh-side-link" href="/boxoffice"><img src="/img/boxoffice-icon.jpg" alt="">박스오피스</a>
+      <a class="hh-side-link" href="/wavve"><img src="/img/wavve-icon.jpg" alt="">웨이브</a>
+      <a class="hh-side-link" href="/coupangplay"><img src="/img/coupangplay-icon.jpg" alt="">쿠팡플레이</a>
     </div>
   </aside>
 
   <!-- ══ 메인 ══ -->
   <main class="hh-main">
-    <div class="hh-h1">🏆 작품 랭킹 HOT100</div>
-    <div class="hh-sub" id="hhSub">넷플릭스·티빙·디즈니+·쿠팡플레이·웨이브·박스오피스를 합산한 오뜨랑 종합 랭킹</div>
-
-    <div class="hh-top4" id="hhTop4"><div class="hh-loading">불러오는 중...</div></div>
-    <div class="hh-grid" id="hhGrid"></div>
+    <!-- 왼쪽 큰 제목("랭킹 HOT 100")과 높이를 맞추기 위한 투명 스페이서 — 실제 글자는 안 보이지만
+         똑같은 폰트크기/줄높이라서 아래 랭킹 영역 시작 위치가 "작품 전체 랭킹" 링크와 정확히 맞음 -->
+    <div class="hh-brand-title" style="visibility:hidden" aria-hidden="true">랭킹 HOT 100</div>
+    <div style="margin-top:20px">
+      <div class="hh-top4" id="hhTop4"><div class="hh-loading">불러오는 중...</div></div>
+      <div class="hh-grid" id="hhGrid"></div>
+    </div>
   </main>
 
 </div>
@@ -208,72 +213,36 @@ const IMG = 'https://image.tmdb.org/t/p/w300';
 const IMG_BACKDROP = 'https://image.tmdb.org/t/p/w780';
 const ICON_BASE = 'https://ottrank.kr/img/';
 const PLATFORM_KO = { netflix:'넷플릭스', tving:'티빙', disney:'디즈니+', coupang:'쿠팡플레이', wavve:'웨이브', boxoffice:'박스오피스' };
-const PC = { netflix:'#e50914', tving:'#ff153c', disney:'#06b6d4', coupang:'#1ac44d', wavve:'#0070f3', boxoffice:'#f0b429' };
 const PLATFORM_ICON = {
   netflix:'netflix-icon.jpg', tving:'tving-icon.jpg', disney:'disneyplus-icon.jpg',
   coupang:'coupangplay-icon.jpg', wavve:'wavve-icon.jpg', boxoffice:'boxoffice-icon.jpg',
 };
-// 왼쪽 메뉴 OTT 노출 순서 — 관리자 지정 순서(다른 화면들과 동일)
-const OTT_ORDER = ['netflix','tving','disney','boxoffice','wavve','coupang'];
 
 function _esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function _ottIcon(key){ return PLATFORM_ICON[key] ? `${ICON_BASE}${PLATFORM_ICON[key]}` : ''; }
 
 let allItems = [];
-let curFilter = 'all';
 
 async function loadHot100Works(){
   try{
     const res  = await fetch(`${API}/hot100?limit=100`);
     const json = await res.json();
     allItems = json.data || [];
-    renderFilters();
     renderPage();
   }catch(e){
     document.getElementById('hhTop4').innerHTML = `<div class="hh-empty">불러오는 중 오류가 발생했어요.</div>`;
   }
 }
 
-function renderFilters(){
-  const box = document.getElementById('hhFilterGroup');
-  let html = `<div class="hh-side-title" style="margin-top:0">OTT별 보기</div>`;
-  html += `<button class="hh-filter ${curFilter==='all'?'on':''}" onclick="setFilter('all')">
-             <span class="hh-filter-dot" style="background:var(--gold)"></span>전체</button>`;
-  OTT_ORDER.forEach(key=>{
-    const icon = _ottIcon(key);
-    html += `<button class="hh-filter ${curFilter===key?'on':''}" onclick="setFilter('${key}')">
-               ${icon ? `<img src="${icon}" alt="">` : `<span class="hh-filter-dot" style="background:${PC[key]}"></span>`}
-               ${PLATFORM_KO[key] || key}</button>`;
-  });
-  box.innerHTML = html;
-}
-
-function setFilter(key){
-  curFilter = key;
-  renderFilters();
-  renderPage();
-}
-
-// 필터가 걸려도 순위 번호(hot_rank)는 종합 순위 그대로 유지 — 재계산하지 않음
-function _filteredItems(){
-  if (curFilter === 'all') return allItems;
-  return allItems.filter(it => Array.isArray(it.ott_keys) && it.ott_keys.includes(curFilter));
-}
-
 function renderPage(){
-  const items = _filteredItems();
-  document.getElementById('hhSub').textContent = curFilter === 'all'
-    ? '넷플릭스·티빙·디즈니+·쿠팡플레이·웨이브·박스오피스를 합산한 오뜨랑 종합 랭킹'
-    : `종합 HOT100 중 ${PLATFORM_KO[curFilter] || curFilter}에서 볼 수 있는 작품 (순위는 종합 기준)`;
-
-  if (!items.length){
+  if (!allItems.length){
     document.getElementById('hhTop4').innerHTML = '';
-    document.getElementById('hhGrid').innerHTML = '<div class="hh-empty">해당 조건의 작품이 없어요.</div>';
+    document.getElementById('hhGrid').innerHTML = '<div class="hh-empty">표시할 작품이 없어요.</div>';
     return;
   }
 
-  const top4  = items.slice(0, 4);
-  const rest  = items.slice(4);
+  const top4  = allItems.slice(0, 4);
+  const rest  = allItems.slice(4);
 
   document.getElementById('hhTop4').innerHTML = top4.map(_top4Html).join('');
   document.getElementById('hhGrid').innerHTML = rest.map(_posterCardHtml).join('');
