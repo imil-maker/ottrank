@@ -1,3 +1,10 @@
+<!-- 2026-08-08 rev.19 — admin.html (works 관리 수정모달 — 관리자가 고른 미디어타입(TV/영화)이
+     100% 그대로 저장되도록 수정. ① saveWorkFromModal: 저장 시 고른 타입만 TMDB 조회, 다른
+     타입으로 몰래 안 넘어감(같은 tmdb_id를 영화/TV가 우연히 공유하는 충돌 작품에서 엉뚱한
+     작품 정보가 섞이는 사고 방지) — 포스터/연도 못 찾으면 null로 지우지 않고 필드 자체를
+     생략해 기존 값 보존. ② previewPoster(applyMediaType): TMDB ID 입력칸을 관리자가 직접
+     수정할 때(oninput) DB의 예전 미디어타입으로 라디오가 조용히 되돌아가던 버그 수정 —
+     이제 참고 표시만 하고 라디오는 안 건드림) -->
 <!-- 2026-08-06 rev.18 — admin.html (랭킹 리스트 각 행의 "날짜고정" 체크박스 제거 —
      버그가 잦아 더 이상 사용 안 하기로 결정. 기존에 고정돼있던 항목 표시용 "📌 날짜고정" 배지는
      그대로 유지. toggleCrawlLock 함수는 코드에는 남아있으나 더 이상 호출되지 않음) -->
@@ -1092,7 +1099,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
     <div class="form-row">
       <label>TMDB ID <span style="color:var(--muted);font-size:10px">(검색 선택 또는 직접 입력)</span></label>
-      <input class="inp" type="number" id="editTmdbId" placeholder="예: 1411577" oninput="previewPoster()">
+      <input class="inp" type="number" id="editTmdbId" placeholder="예: 1411577" oninput="previewPoster(false)">
       <div class="form-hint">themoviedb.org/movie/[ID] 또는 /tv/[ID] 에서 직접 확인 후 입력도 가능</div>
       <!-- ② 포스터 + 시즌 번호 같은 줄 배치 -->
       <div style="display:flex;align-items:flex-start;gap:16px;margin-top:8px">
@@ -3494,7 +3501,12 @@ async function onMediaTypeChange(mt) {
   }
 }
 
-function previewPoster() {
+// [2026-08-08 수정] applyMediaType=false로 부르면 DB에 이미 저장된 미디어타입/제목으로
+// 폼을 덮어쓰지 않는다. TMDB ID 입력칸을 관리자가 직접 고칠 때(oninput) 이 모드를 쓰는데,
+// 예전엔 여기서 조용히 DB의 예전 값(예: 영화)으로 라디오가 되돌아가서, 관리자가 방금
+// TV로 바꿔둔 걸 못 보고 그대로 저장 → 계속 영화로 저장되는 사고가 있었음.
+function previewPoster(applyMediaType) {
+  if (applyMediaType === undefined) applyMediaType = true;
   clearTimeout(previewTimer);
   previewTimer = setTimeout(async () => {
     const tmdbId = document.getElementById('editTmdbId').value.trim();
@@ -3506,7 +3518,19 @@ function previewPoster() {
     // ① 우리 DB 먼저 조회
     const dbWork = await _fetchWorksData(tmdbId);
     if (dbWork) {
-      _applyWorksDataToForm(dbWork, '🗄️ DB에서 불러옴');
+      if (applyMediaType) {
+        _applyWorksDataToForm(dbWork, '🗄️ DB에서 불러옴');
+      } else {
+        // 미디어타입/제목은 안 건드리고 참고용으로만 표시
+        const typeBadge = dbWork.media_type === 'movie' ? '🎬 영화' : (dbWork.media_type === 'tv' ? '📺 TV' : '❔ 타입 미정');
+        if (dbWork.poster_path) {
+          el.innerHTML = `
+            <img src="${IMG}${dbWork.poster_path}" style="width:50px;height:75px;object-fit:cover;border-radius:6px">
+            <span style="font-size:12px;color:var(--muted2)">🗄️ DB에 등록된 작품 (${typeBadge})</span>`;
+        } else {
+          el.innerHTML = `<span style="font-size:12px;color:var(--muted2)">🗄️ DB에 등록된 작품 (${typeBadge}, 포스터 없음)</span>`;
+        }
+      }
       return;
     }
 
@@ -4746,21 +4770,28 @@ async function saveWorkFromModal() {
   const mediaTypeEl    = document.querySelector('input[name="editMediaType"]:checked');
   const media_type     = mediaTypeEl?.value || null;
 
-  // TMDB ID가 있으면 포스터/연도/영문제목 자동 조회 후 함께 저장
-  let poster_path  = null;
-  let release_year = null;
+  // TMDB ID가 있으면 포스터/연도/영문제목 자동 조회 후 함께 저장.
+  // [2026-08-08 수정] 관리자가 미디어타입을 명시적으로 골랐으면(TV/영화) 그 타입만 조회한다.
+  // 예전엔 고른 타입에 포스터가 없으면 몰래 반대 타입으로 넘어가서 정보를 가져왔는데,
+  // 같은 tmdb_id를 영화/TV가 우연히 같이 쓰는 충돌 작품(예: 프로모터=tv/320432 vs
+  // Shongram=movie/320432)에서 완전히 다른 작품 정보가 섞여 들어가는 사고로 이어짐.
+  // "자동"(빈값)을 선택했을 때만 기존처럼 tv→movie 순으로 시도.
+  // poster_path/release_year는 못 찾으면 undefined로 남겨서(=요청에서 아예 빠짐) 저장 시
+  // 기존 값을 그대로 보존한다 — null로 보내면 이미 저장돼있던 값을 지워버릴 수 있음.
+  let poster_path  = undefined;
+  let release_year = undefined;
   let auto_title_en = title_en;
 
   if (newTmdbId) {
-    // media_type이 movie면 movie 먼저, 아니면 tv 먼저 (기존 동작 유지)
-    const mtypes = media_type === 'movie' ? ['movie', 'tv'] : ['tv', 'movie'];
-    for (const mtype of mtypes) {
+    const mtypesToTry = media_type ? [media_type] : ['tv', 'movie'];
+    for (const mtype of mtypesToTry) {
       try {
         const resp = await fetch(`${TMDB_PROXY}/${mtype}/${newTmdbId}?language=ko-KR`);
         const data = await resp.json();
-        if (data.poster_path) {
-          poster_path   = data.poster_path;
-          release_year  = parseInt((data.first_air_date || data.release_date || '').slice(0,4)) || null;
+        if (data && data.id) { // TMDB에 실제로 존재하는 항목일 때만 반영 (404/미존재 응답 무시)
+          if (data.poster_path) poster_path = data.poster_path;
+          const y = parseInt((data.first_air_date || data.release_date || '').slice(0,4)) || null;
+          if (y) release_year = y;
           // 영문 제목이 비어있으면 원제로 자동 채움
           if (!auto_title_en) {
             auto_title_en = data.original_name || data.original_title || '';
@@ -4789,8 +4820,8 @@ async function saveWorkFromModal() {
         title_ko,
         title_en       : auto_title_en || null,
         tmdb_id        : newTmdbId,
-        poster_path    : poster_path || null,
-        release_year   : release_year || null,
+        poster_path    : poster_path,
+        release_year   : release_year,
         delete_duplicates: deleteDuplicates,
         media_type     : media_type || null,
       })
