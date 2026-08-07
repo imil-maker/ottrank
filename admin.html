@@ -1,3 +1,7 @@
+<!-- 2026-08-08 rev.20 — admin.html (works 관리 수정모달 저장 — TMDB 조회 자체가 실패한 경우와
+     TMDB가 실제로 확인해준 "없음"(포스터/연도 미정인 신작 등)을 구분. 후자는 null로 명시
+     저장해서 예전에 잘못 연결됐던 다른 작품의 포스터/연도가 미디어타입만 바뀐 채 계속
+     남아있던 문제를 해결 — 프로모터(tv/320432) 사례) -->
 <!-- 2026-08-08 rev.19 — admin.html (works 관리 수정모달 — 관리자가 고른 미디어타입(TV/영화)이
      100% 그대로 저장되도록 수정. ① saveWorkFromModal: 저장 시 고른 타입만 TMDB 조회, 다른
      타입으로 몰래 안 넘어감(같은 tmdb_id를 영화/TV가 우연히 공유하는 충돌 작품에서 엉뚱한
@@ -4771,13 +4775,18 @@ async function saveWorkFromModal() {
   const media_type     = mediaTypeEl?.value || null;
 
   // TMDB ID가 있으면 포스터/연도/영문제목 자동 조회 후 함께 저장.
-  // [2026-08-08 수정] 관리자가 미디어타입을 명시적으로 골랐으면(TV/영화) 그 타입만 조회한다.
+  // [2026-08-08 rev.2] 관리자가 미디어타입을 명시적으로 골랐으면(TV/영화) 그 타입만 조회한다.
   // 예전엔 고른 타입에 포스터가 없으면 몰래 반대 타입으로 넘어가서 정보를 가져왔는데,
   // 같은 tmdb_id를 영화/TV가 우연히 같이 쓰는 충돌 작품(예: 프로모터=tv/320432 vs
   // Shongram=movie/320432)에서 완전히 다른 작품 정보가 섞여 들어가는 사고로 이어짐.
   // "자동"(빈값)을 선택했을 때만 기존처럼 tv→movie 순으로 시도.
-  // poster_path/release_year는 못 찾으면 undefined로 남겨서(=요청에서 아예 빠짐) 저장 시
-  // 기존 값을 그대로 보존한다 — null로 보내면 이미 저장돼있던 값을 지워버릴 수 있음.
+  //
+  // "모른다"(TMDB 조회 자체가 실패/그 타입 항목이 아예 없음)와 "TMDB가 확인해준 값"(포스터·연도가
+  // 없는 신작이라도 그 자체가 확인된 사실)을 구분한다:
+  //  - 조회 실패 → undefined로 남겨 저장 요청에서 필드 자체를 뺌(기존 값 보존, 실수로 안 지움)
+  //  - TMDB 항목은 존재하는데 그 필드만 비어있음(신작이라 포스터/방영일 미정 등) → null로 명시
+  //    저장해서 확실히 비운다. 안 그러면 예전에 잘못 연결됐던 다른 작품의 포스터/연도가
+  //    타입만 바뀐 채 계속 남아있게 됨(오늘 실제로 겪은 문제).
   let poster_path  = undefined;
   let release_year = undefined;
   let auto_title_en = title_en;
@@ -4789,9 +4798,8 @@ async function saveWorkFromModal() {
         const resp = await fetch(`${TMDB_PROXY}/${mtype}/${newTmdbId}?language=ko-KR`);
         const data = await resp.json();
         if (data && data.id) { // TMDB에 실제로 존재하는 항목일 때만 반영 (404/미존재 응답 무시)
-          if (data.poster_path) poster_path = data.poster_path;
-          const y = parseInt((data.first_air_date || data.release_date || '').slice(0,4)) || null;
-          if (y) release_year = y;
+          poster_path = data.poster_path || null; // TMDB가 확인해준 값 그대로(없으면 null로 명시적으로 비움)
+          release_year = parseInt((data.first_air_date || data.release_date || '').slice(0,4)) || null;
           // 영문 제목이 비어있으면 원제로 자동 채움
           if (!auto_title_en) {
             auto_title_en = data.original_name || data.original_title || '';
