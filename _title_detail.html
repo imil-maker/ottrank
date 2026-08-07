@@ -1,3 +1,5 @@
+<!-- 2026-08-08 rev.17 — _title_detail.html (TV 방영상태 — Planned(방영예정)/In Production(제작중)
+     값도 뱃지로 표시하도록 추가. Canceled/Pilot 등은 기존처럼 생략) -->
 <!-- 2026-08-06 rev.16 — _title_detail.html (관람등급/런타임 — 우리 DB(works.age_rating/runtime)
      값 있으면 우선 사용, 없으면 지금처럼 TMDB에서 받아와 화면 표시 + 조용히 detail-sync로
      저장(응답 안 기다림). cast-sync와 동일 패턴, 다음 방문자부터 TMDB 호출 필요성 줄어듦) -->
@@ -3282,8 +3284,12 @@ async function loadTmdb(){
         }else{
           stateHtml=`<span class="hero-meta-item">완결(다음 시즌 제작중)</span><span class="hero-meta-sep">·</span>`;
         }
+      }else if(det.status==='Planned'){
+        stateHtml=`<span class="hero-meta-item">방영예정</span><span class="hero-meta-sep">·</span>`;
+      }else if(det.status==='In Production'){
+        stateHtml=`<span class="hero-meta-item">제작중</span><span class="hero-meta-sep">·</span>`;
       }
-      // Planned/In Production/Canceled/Pilot 등은 우리 서비스 등록작에서 거의 안 나오는 값이라 표시 안 함(안전하게 생략)
+      // Canceled/Pilot 등은 노출 시 오히려 혼란을 줄 수 있어 표시 안 함(안전하게 생략)
     }
     const dateRaw=det.first_air_date||det.release_date||'';
     let dateHtml='';
