@@ -1,3 +1,4 @@
+/* 2026-08-08 rev.2 — reactions.js (비율% 계산 버그 수정: 참여자 적을 때 반올림 오차로 마지막 항목이 음수(-1%)까지 나오던 문제 → 최대 나머지법(largest remainder method)으로 교체, calcRatios 공용 함수로 통합) */
 /* 2026-07-25 rev.1 — reactions.js (GET /reactions/work/:tmdb_id 성능개선: 순차 D1 쿼리 3회→병렬 1회로 축소) */
 /* ══════════════════════════════════════════════════════════════
    반응(Reactions) 관련 API 라우트
@@ -17,6 +18,36 @@
 
 import { _checkAuth, _getSessionCookie } from "../utils/authUtils.js";
 import { collectAndTranslateComments } from "../utils/youtube.js";
+
+// 반응 비율(%) 계산 — 최대 나머지법(largest remainder method)
+// 각 항목을 일단 내림(버림)한 정수로 만든 뒤, 100에서 모자란 만큼을
+// 소수점 나머지가 큰 항목 순서대로 1%씩 나눠줘서 합이 항상 정확히 100이 되도록 한다.
+// (기존 "마지막 항목 = 100 - 나머지 합" 방식은 참여자 수가 적을 때 반올림 오차가 겹쳐
+//  마지막 항목이 음수(-1%)까지 나오는 버그가 있었음 → 2026-08-08 수정)
+function calcRatios(cntMap, total, keys) {
+  const ratios = {};
+  if (total <= 0) {
+    keys.forEach(k => ratios[k] = 0);
+    return ratios;
+  }
+
+  const items = keys.map(k => {
+    const raw = (cntMap[k] / total) * 100;
+    return { k, floor: Math.floor(raw), remainder: raw - Math.floor(raw) };
+  });
+
+  let sumFloor = items.reduce((s, it) => s + it.floor, 0);
+  let leftover = 100 - sumFloor; // 정수 배분 후 남은 % (0 이상)
+
+  // 소수점 나머지가 큰 순서대로 1%씩 배분
+  items.sort((a, b) => b.remainder - a.remainder);
+  items.forEach((it, i) => {
+    it.floor += i < leftover ? 1 : 0;
+  });
+
+  items.forEach(it => { ratios[it.k] = it.floor; });
+  return ratios;
+}
 
 export async function handleReactions(path, request, env, ctx, headers) {
 
@@ -95,24 +126,8 @@ export async function handleReactions(path, request, env, ctx, headers) {
       VALID.forEach(k => cntMap[k] = 0);
       counts.forEach(r => { if (VALID.includes(r.reaction)) cntMap[r.reaction] = r.cnt; });
 
-      // 비율 계산 (총합 100% 보정: 소수점 반올림 오차 방지)
-      let ratios = {};
-      if (total > 0) {
-        // 각 비율 계산 후 반올림
-        let sumRounded = 0;
-        const pairs = VALID.map(k => ({ k, raw: (cntMap[k] / total) * 100 }));
-        pairs.forEach((p, i) => {
-          if (i < pairs.length - 1) {
-            ratios[p.k] = Math.round(p.raw);
-            sumRounded += ratios[p.k];
-          } else {
-            // 마지막 항목은 100에서 나머지를 빼서 정확히 맞춤
-            ratios[p.k] = 100 - sumRounded;
-          }
-        });
-      } else {
-        VALID.forEach(k => ratios[k] = 0);
-      }
+      // 비율 계산 (최대 나머지법 — 합 100% 보장, 음수 안 나옴)
+      const ratios = calcRatios(cntMap, total, VALID);
 
       return new Response(JSON.stringify({
         ok: true,
@@ -185,17 +200,7 @@ export async function handleReactions(path, request, env, ctx, headers) {
       VALID.forEach(k => cntMap[k] = 0);
       counts.forEach(r => { if (VALID.includes(r.reaction)) cntMap[r.reaction] = r.cnt; });
 
-      let ratios = {};
-      let sumRounded = 0;
-      const pairs = VALID.map(k => ({ k, raw: (cntMap[k] / total) * 100 }));
-      pairs.forEach((p, i) => {
-        if (i < pairs.length - 1) {
-          ratios[p.k] = Math.round(p.raw);
-          sumRounded += ratios[p.k];
-        } else {
-          ratios[p.k] = 100 - sumRounded;
-        }
-      });
+      const ratios = calcRatios(cntMap, total, VALID);
 
       return new Response(JSON.stringify({
         ok: true,
